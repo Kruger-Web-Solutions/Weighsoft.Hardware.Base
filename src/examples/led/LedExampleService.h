@@ -13,7 +13,14 @@
 #include <BLECharacteristic.h>
 #endif
 
+// ESP32-S3 has built-in LED on GPIO48 (ESP32-S3-DevKitC-1)
+// ESP32 has built-in LED on GPIO2 (most boards)
+// ESP8266 has built-in LED on GPIO2 (NodeMCU)
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
+#define LED_PIN 48
+#else
 #define LED_PIN 2
+#endif
 
 #define DEFAULT_LED_STATE false
 #define OFF_STATE "OFF"
