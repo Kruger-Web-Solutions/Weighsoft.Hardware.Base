@@ -14,9 +14,6 @@ class UartModeState {
  public:
   uint8_t mode;  // 0=LIVE_MONITORING, 1=DIAGNOSTICS
 
-  // Constructor: initialize to LIVE_MONITORING by default
-  UartModeState() : mode((uint8_t)UartModeType::LIVE_MONITORING) {}
-
   static void read(UartModeState& state, JsonObject& root) {
     root["mode"] = state.mode == (uint8_t)UartModeType::LIVE_MONITORING ? "live" : "diagnostics";
   }

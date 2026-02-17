@@ -1,6 +1,6 @@
 import { FC } from 'react';
 
-import { Box, Paper, Typography } from '@mui/material';
+import { Box, Paper, Typography, useTheme } from '@mui/material';
 import WarningIcon from '@mui/icons-material/Warning';
 
 interface ApplicationErrorProps {
@@ -8,13 +8,20 @@ interface ApplicationErrorProps {
 }
 
 const ApplicationError: FC<ApplicationErrorProps> = ({ message }) => {
+  const theme = useTheme();
+  const iconSrc = theme.palette.mode === 'dark' ? '/app/icon dark.png' : '/app/icon.png';
+
   return (
     <Box display="flex" height="100vh" justifyContent="center" flexDirection="column">
       <Paper
         elevation={10}
         sx={{
           textAlign: "center",
-          padding: 4,
+          padding: "280px 0 40px 0",
+          backgroundImage: `url("${iconSrc}")`,
+          backgroundRepeat: "no-repeat",
+          backgroundPosition: "50% 40px",
+          backgroundSize: "200px auto",
           width: "100%",
           borderRadius: 0
         }}
