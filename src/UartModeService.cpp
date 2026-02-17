@@ -37,12 +37,15 @@ UartModeService::UartModeService(AsyncWebServer* server,
 }
 
 void UartModeService::begin() {
-  // Load persisted mode (defaults to LIVE_MONITORING if not set)
+  // Load persisted mode from filesystem
+  // If file doesn't exist or is invalid, mode will already be initialized to LIVE_MONITORING by constructor
   _fsPersistence.readFromFS();
   
-  // Default to LIVE_MONITORING if not set
+  // Validate loaded mode is within valid range (defense against corrupted config)
   if (_state.mode > (uint8_t)UartModeType::DIAGNOSTICS) {
+    Serial.println(F("[UartMode] WARNING: Invalid mode in config, defaulting to LIVE_MONITORING"));
     _state.mode = (uint8_t)UartModeType::LIVE_MONITORING;
+    _fsPersistence.writeToFS();  // Persist corrected value
   }
   
   const char* modeName = isLiveMode() ? "LIVE MONITORING" : "DIAGNOSTICS";
