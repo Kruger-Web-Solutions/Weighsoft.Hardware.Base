@@ -49,6 +49,8 @@ This documentation provides comprehensive architecture, design patterns, API ref
 | [FILE-REFERENCE.md](FILE-REFERENCE.md) | Complete file structure guide |
 | [CONFIGURATION.md](CONFIGURATION.md) | Build system, feature flags, factory settings |
 | [OTA-UPLOAD.md](OTA-UPLOAD.md) | OTA firmware upload (ESP32-S3): setup, port 8266, commands |
+| [PIN-CONFIGURATION.md](PIN-CONFIGURATION.md) | GPIO and hardware pin reference for ESP32-S3, Serial2, I2C, etc. |
+| [PLATFORM-GPIO.md](PLATFORM-GPIO.md) | Platform-specific GPIO notes, partition schemes |
 | [SECURITY.md](SECURITY.md) | Security architecture, JWT, authentication |
 
 ### Practical Guides
@@ -56,8 +58,11 @@ This documentation provides comprehensive architecture, design patterns, API ref
 | Document | Description |
 |----------|-------------|
 | [EXTENSION-GUIDE.md](EXTENSION-GUIDE.md) | Step-by-step guide to add custom features |
-| [LED-EXAMPLE.md](LED-EXAMPLE.md) | LED control example project - template for new services |
-| [SERIAL-EXAMPLE.md](SERIAL-EXAMPLE.md) | Serial monitoring example - line-based data streaming |
+| [DEVICE-TEMPLATE-GUIDE.md](DEVICE-TEMPLATE-GUIDE.md) | Quick start checklist for new device projects |
+| [LED-EXAMPLE.md](LED-EXAMPLE.md) | LED control example - template for controllable devices |
+| [DIAGNOSTICS-EXAMPLE.md](DIAGNOSTICS-EXAMPLE.md) | UART diagnostics example with loopback and baud detection |
+| [SERIAL-EXAMPLE.md](SERIAL-EXAMPLE.md) | Serial monitoring example - template for read-only data sources |
+| [WEIGHT-FORWARDER-LESSONS.md](WEIGHT-FORWARDER-LESSONS.md) | Multi-protocol weight forwarding patterns (WebSocket, SSE, UDP, MQTT) |
 
 ## Learning Paths
 

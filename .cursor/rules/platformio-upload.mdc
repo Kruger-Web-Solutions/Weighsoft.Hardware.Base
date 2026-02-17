@@ -50,3 +50,7 @@ python -m platformio run -e esp32s3 -t upload
 ## Critical Rule
 
 **NEVER make excuses about COM ports being busy. ALWAYS kill Python processes first.**
+
+## Wireless Alternative
+
+For wireless firmware updates, see **@docs/OTA-UPLOAD.md** (OTA over WiFi, no COM port needed).

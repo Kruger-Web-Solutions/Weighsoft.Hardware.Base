@@ -367,3 +367,5 @@ interface/build/        # React production build
 - [EXTENSION-GUIDE.md](EXTENSION-GUIDE.md) - Add custom files
 - [CONFIGURATION.md](CONFIGURATION.md) - Build configuration
 - [OTA-UPLOAD.md](OTA-UPLOAD.md) - OTA firmware upload (ESP32-S3, port 8266)
+- [PIN-CONFIGURATION.md](PIN-CONFIGURATION.md) - GPIO and hardware pin reference
+- [PLATFORM-GPIO.md](PLATFORM-GPIO.md) - Platform-specific GPIO notes
