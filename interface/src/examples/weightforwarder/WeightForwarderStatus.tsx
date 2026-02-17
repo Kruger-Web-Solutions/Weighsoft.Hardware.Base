@@ -1,33 +1,13 @@
-import { useState, useEffect } from 'react';
+import { FC, useEffect } from 'react';
 import { Box, Chip, Paper, Table, TableBody, TableCell, TableRow, Typography } from '@mui/material';
 import { ForwardProtocol, type WeightForwarderData } from '../../types/weightForwarder';
-import { useWs } from '../../hooks/useWs';
+import { useWs } from '../../utils/useWs';
+import { SectionContent } from '../../components';
 
 const WEIGHT_FORWARDER_SOCKET_PATH = '/ws/weightForwarder';
 
-export default function WeightForwarderStatus() {
-  const [data, setData] = useState<WeightForwarderData>({
-    protocol: ForwardProtocol.HTTP,
-    target_url: '',
-    ws_url: '',
-    mqtt_topic: '',
-    ble_service_uuid: '',
-    ble_char_uuid: '',
-    enabled: false,
-    display_mode: false,
-    connected: false,
-    last_error: '',
-    last_forward_time: 0,
-  });
-
-  const { connected: wsConnected } = useWs(WEIGHT_FORWARDER_SOCKET_PATH, (message) => {
-    try {
-      const parsed = JSON.parse(message.data);
-      setData(parsed);
-    } catch (error) {
-      console.error('Failed to parse WebSocket message:', error);
-    }
-  });
+const WeightForwarderStatus: FC = () => {
+  const { connected: wsConnected, data } = useWs<WeightForwarderData>(WEIGHT_FORWARDER_SOCKET_PATH);
 
   const getProtocolLabel = (protocol: ForwardProtocol) => {
     switch (protocol) {
@@ -45,12 +25,13 @@ export default function WeightForwarderStatus() {
   };
 
   const getLastForwardTime = () => {
-    if (data.last_forward_time === 0) return 'Never';
+    if (!data || data.last_forward_time === 0) return 'Never';
     const date = new Date(data.last_forward_time);
     return date.toLocaleTimeString();
   };
 
   const getTargetInfo = () => {
+    if (!data) return 'Not configured';
     switch (data.protocol) {
       case ForwardProtocol.HTTP:
         return data.target_url || 'Not configured';
@@ -65,9 +46,16 @@ export default function WeightForwarderStatus() {
     }
   };
 
+  if (!data) {
+    return (
+      <SectionContent title="Status" titleGutter>
+        <Typography>Connecting to device...</Typography>
+      </SectionContent>
+    );
+  }
+
   return (
-    <Box display="flex" flexDirection="column" gap={3}>
-      <Typography variant="h6">Weight Stream Forwarder Status</Typography>
+    <SectionContent title="Weight Stream Forwarder Status" titleGutter>
 
       <Paper>
         <Table>
@@ -158,6 +146,8 @@ export default function WeightForwarderStatus() {
           </TableBody>
         </Table>
       </Paper>
-    </Box>
+    </SectionContent>
   );
-}
+};
+
+export default WeightForwarderStatus;
