@@ -364,20 +364,17 @@ platformio run -t upload --upload-port COM9
 
 This is the **only supported upload method** for node32s with BLE enabled. See [OTA Limitations](#ota-limitations-on-4mb-esp32-with-ble) for why.
 
-### OTA Upload (Not Available with BLE on 4MB)
+### OTA Upload (ESP32-S3 — Supported)
 
-OTA upload requires a partition scheme with dual app slots. This is not possible on 4MB flash when BLE is enabled because the firmware (~2.19 MB) does not fit twice.
+**OTA is supported** on the **esp32s3** environment (8MB flash, dual app partitions). Full steps, port (8266), and password setup: **[OTA-UPLOAD.md](OTA-UPLOAD.md)**.
 
-If BLE is disabled in future, uncomment in `platformio.ini`:
-```ini
-upload_flags = 
-  --port=8266 
-  --auth=esp-react
-upload_port = 192.168.3.122
-upload_protocol = espota
-```
+- Device: **System → OTA SETTINGS** — enable OTA, set Port **8266**, Password **esp-react** (or match `upload_flags`).
+- `platformio.ini` [env:esp32s3]: use `upload_protocol = espota`, `upload_port = <device IP>`, `upload_flags = --port=8266 --auth=esp-react`.
+- Command: `python -m platformio run -e esp32s3 -t upload`.
 
-And switch to an OTA-capable partition scheme (e.g. `min_spiffs.csv`).
+### OTA Upload (Not Available on node32s with BLE)
+
+OTA is **not** available on the **node32s** (4MB) env when BLE is enabled — firmware does not fit in two app slots. See [OTA Limitations](#ota-limitations-on-4mb-esp32-with-ble). Use USB/serial upload only for that env.
 
 ### Filesystem Upload
 

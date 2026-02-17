@@ -4,7 +4,7 @@ import { SectionContent, FormLoader } from '../../components';
 import { useRest } from '../../utils';
 import { readSerialData } from '../../api/serial';
 import { SerialData } from '../../types/serial';
-import { formatSerialTimestamp } from './formatSerialTimestamp';
+import { formatSerialTimestamp, sanitizeLastLineForDisplay } from './formatSerialTimestamp';
 
 const SerialRest: FC = () => {
   const { data, loadData, errorMessage } = useRest<SerialData>({ read: readSerialData });
@@ -42,7 +42,7 @@ const SerialRest: FC = () => {
                 Timestamp: {formatSerialTimestamp(data.timestamp)}
               </Typography>
               <Typography sx={{ display: 'block', mt: 0.5 }}>
-                Raw: {data.last_line}
+                Raw: {sanitizeLastLineForDisplay(data.last_line)}
               </Typography>
               {data.weight !== undefined && data.weight !== '' ? (
                 <Typography sx={{ mt: 1 }} color="primary">

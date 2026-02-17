@@ -15,6 +15,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - (Future changes will be listed here)
 
+## [0.6.1] - 2026-02-17
+
+### Changed
+
+- **Serial REST API**: POST `/rest/serial` now accepts only config fields (baud_rate, data_bits, stop_bits, parity, regex_pattern); UI and API layer send config-only payload to avoid 400 when last_line contains binary/non-UTF-8.
+- **Serial Configuration UI**: Current Data Preview polls every 2s so last_line and extracted weight stay in sync with the device; baud rate Select uses `Number(data.baud_rate)` so 9600 displays correctly after refresh.
+- **Serial display**: `last_line` with binary/non-printable data is sanitized for display (control chars shown as middle dot) in Configuration and REST view.
+
+### Added
+
+- **OTA documentation**: `docs/OTA-UPLOAD.md` with device setup, platformio.ini, and upload command; CONFIGURATION.md and docs/README.md updated; `.cursor/rules/ota-upload.mdc` so OTA (port 8266, esp32s3) is always documented.
+
+### Fixed
+
+- POST `/rest/serial` 400 Bad Request when full state (including last_line) was sent.
+- Serial Configuration page showing "(none yet)" and wrong baud rate (115200) when device had data and 9600 configured.
+
 ## [0.6.0] - 2026-02-17
 
 ### Added

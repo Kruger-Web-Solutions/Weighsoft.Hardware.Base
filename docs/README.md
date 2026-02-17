@@ -48,6 +48,7 @@ This documentation provides comprehensive architecture, design patterns, API ref
 | [DESIGN-PATTERNS.md](DESIGN-PATTERNS.md) | Pattern catalog with implementation examples |
 | [FILE-REFERENCE.md](FILE-REFERENCE.md) | Complete file structure guide |
 | [CONFIGURATION.md](CONFIGURATION.md) | Build system, feature flags, factory settings |
+| [OTA-UPLOAD.md](OTA-UPLOAD.md) | OTA firmware upload (ESP32-S3): setup, port 8266, commands |
 | [SECURITY.md](SECURITY.md) | Security architecture, JWT, authentication |
 
 ### Practical Guides

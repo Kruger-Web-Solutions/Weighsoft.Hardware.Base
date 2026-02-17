@@ -574,7 +574,7 @@ Get last received serial line, extracted weight, and serial/regex configuration.
 
 #### POST /rest/serial
 
-Update serial port and regex configuration. Sending any of `baud_rate`, `data_bits`, `stop_bits`, `parity`, `regex_pattern` reconfigures Serial2 and/or the extraction pattern. Response same as GET.
+Update serial port and regex configuration. **Request body must contain only config fields** (`baud_rate`, `data_bits`, `stop_bits`, `parity`, `regex_pattern`). Do not send `last_line`, `weight`, or `timestamp` (read-only; resending them can cause 400 Bad Request if they contain binary or invalid UTF-8 from the scale). Response same as GET.
 
 #### GET /rest/diagnostics
 

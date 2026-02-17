@@ -1,4 +1,4 @@
-import React, { FC } from 'react';
+import React, { FC, useEffect } from 'react';
 import {
   Typography,
   Box,
@@ -17,6 +17,7 @@ import { SectionContent, FormLoader, ButtonRow } from '../../components';
 import { useRest } from '../../utils';
 import { readSerialData, updateSerialData } from '../../api/serial';
 import { SerialData } from '../../types/serial';
+import { sanitizeLastLineForDisplay } from './formatSerialTimestamp';
 
 const BAUDRATE_OPTIONS = [1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200, 230400];
 
@@ -46,6 +47,27 @@ const SerialConfig: FC = () => {
     saveData();
   };
 
+  // Keep "Current Data Preview" in sync with device (poll every 2s); only update last_line/weight/timestamp
+  useEffect(() => {
+    const interval = setInterval(() => {
+      readSerialData()
+        .then((res) => {
+          setData((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  last_line: res.data.last_line,
+                  weight: res.data.weight,
+                  timestamp: res.data.timestamp,
+                }
+              : prev
+          );
+        })
+        .catch(() => {});
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [setData]);
+
   return (
     <SectionContent title="Serial Port Configuration" titleGutter>
       <Alert severity="warning" sx={{ mb: 2 }}>
@@ -58,7 +80,7 @@ const SerialConfig: FC = () => {
           select
           fullWidth
           label="Baud Rate"
-          value={data.baud_rate || 115200}
+          value={Number(data.baud_rate) || 115200}
           onChange={(e) => setField('baud_rate')(Number(e.target.value))}
           disabled={saving}
         >
@@ -128,7 +150,9 @@ const SerialConfig: FC = () => {
             Last line:
           </Typography>
           <Typography sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
-            {data.last_line || '(none yet)'}
+            {data.last_line
+              ? sanitizeLastLineForDisplay(data.last_line)
+              : '(none yet)'}
           </Typography>
           <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
             Extracted weight:

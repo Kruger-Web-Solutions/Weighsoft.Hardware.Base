@@ -366,3 +366,4 @@ interface/build/        # React production build
 - [ARCHITECTURE.md](ARCHITECTURE.md) - System overview
 - [EXTENSION-GUIDE.md](EXTENSION-GUIDE.md) - Add custom files
 - [CONFIGURATION.md](CONFIGURATION.md) - Build configuration
+- [OTA-UPLOAD.md](OTA-UPLOAD.md) - OTA firmware upload (ESP32-S3, port 8266)

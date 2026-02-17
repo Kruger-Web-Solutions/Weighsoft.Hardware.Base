@@ -9,3 +9,14 @@ export function formatSerialTimestamp(msSinceBoot: number): string {
   }
   return `Boot + ${msSinceBoot} ms`;
 }
+
+/**
+ * Sanitize last_line for safe display when it contains binary or non-printable UTF-8.
+ * Replaces control chars and replacement chars so the UI shows that data is present.
+ */
+export function sanitizeLastLineForDisplay(line: string): string {
+  if (!line) return line;
+  return line
+    .replace(/[\u0000-\u001F\u007F-\u009F]/g, '\u00B7') // control chars → middle dot
+    .replace(/\uFFFD/g, '\u00B7'); // replacement char → middle dot
+}

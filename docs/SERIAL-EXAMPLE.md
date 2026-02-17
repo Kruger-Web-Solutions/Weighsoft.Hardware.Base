@@ -208,7 +208,7 @@ Returns the last received serial line, extracted weight, and current configurati
 
 **POST** `/rest/serial`
 
-Update serial port and regex configuration. Request body can include any of: `baud_rate`, `data_bits`, `stop_bits`, `parity`, `regex_pattern`. Serial2 is reconfigured immediately.
+Update serial port and regex configuration. Request body should include only config fields: `baud_rate`, `data_bits`, `stop_bits`, `parity`, `regex_pattern` (do not send `last_line`/`weight`/`timestamp`—they are read-only and can cause 400 if resent). Serial2 is reconfigured immediately.
 
 ### WebSocket Endpoint
 
