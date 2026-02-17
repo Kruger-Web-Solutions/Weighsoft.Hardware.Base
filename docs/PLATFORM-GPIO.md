@@ -6,11 +6,42 @@ Different ESP32 platforms have different GPIO mappings for built-in peripherals 
 
 ## Built-in LED Pins
 
-| Platform | Board | LED GPIO | Notes |
-|----------|-------|----------|-------|
-| ESP32-S3 | ESP32-S3-DevKitC-1 | **GPIO48** | RGB LED on most S3 dev boards |
-| ESP32 | ESP32-DevKitC, NodeMCU-32S | **GPIO2** | Blue LED (active HIGH) |
-| ESP8266 | NodeMCU v2/v3 | **GPIO2** | Blue LED (active LOW) |
+| Platform | Board | LED GPIO | Type | Notes |
+|----------|-------|----------|------|-------|
+| ESP32-S3 | ESP32-S3-DevKitC-1 | **GPIO48** | RGB NeoPixel (WS2812) | Requires `neopixelWrite()` function |
+| ESP32 | ESP32-DevKitC, NodeMCU-32S | **GPIO2** | Simple LED | Blue LED (active HIGH) |
+| ESP8266 | NodeMCU v2/v3 | **GPIO2** | Simple LED | Blue LED (active LOW) |
+
+### LED Control Methods
+
+**ESP32-S3 (RGB NeoPixel):**
+```cpp
+// Use neopixelWrite() for RGB control
+neopixelWrite(48, red, green, blue);  // red, green, blue = 0-255
+
+// Turn off
+neopixelWrite(48, 0, 0, 0);
+
+// White
+neopixelWrite(48, 255, 255, 255);
+
+// Red
+neopixelWrite(48, 255, 0, 0);
+```
+
+**ESP32 (Simple LED):**
+```cpp
+// Use digitalWrite() for on/off control
+digitalWrite(2, HIGH);  // LED ON
+digitalWrite(2, LOW);   // LED OFF
+```
+
+**ESP8266 (Simple LED - Inverted):**
+```cpp
+// Inverted logic - LOW = ON, HIGH = OFF
+digitalWrite(2, LOW);   // LED ON
+digitalWrite(2, HIGH);  // LED OFF
+```
 
 ### LED Logic Levels
 
@@ -44,14 +75,22 @@ Different ESP32 platforms have different GPIO mappings for built-in peripherals 
 
 Use preprocessor directives to conditionally compile platform-specific code:
 
-### ESP32-S3 Detection
+### ESP32-S3 Detection (RGB NeoPixel)
 
 ```cpp
 #if defined(CONFIG_IDF_TARGET_ESP32S3)
-  // ESP32-S3 specific code
+  // ESP32-S3 specific code - RGB NeoPixel
   #define LED_PIN 48
-  #define UART_RX_PIN 18
-  #define UART_TX_PIN 17
+  #define HAS_RGB_LED true
+  
+  // Control RGB LED
+  void setLED(bool on, uint8_t r, uint8_t g, uint8_t b) {
+    if (on) {
+      neopixelWrite(LED_PIN, r, g, b);
+    } else {
+      neopixelWrite(LED_PIN, 0, 0, 0);
+    }
+  }
 #endif
 ```
 
@@ -77,24 +116,36 @@ Use preprocessor directives to conditionally compile platform-specific code:
 #endif
 ```
 
-## Example: Platform-Agnostic LED Control
+## Example: Platform-Agnostic LED Control with RGB Support
 
 ```cpp
 // LedExampleService.h
 #if defined(CONFIG_IDF_TARGET_ESP32S3)
   #define LED_PIN 48
+  #define HAS_RGB_LED true
 #else
   #define LED_PIN 2
+  #define HAS_RGB_LED false
 #endif
 
-// ESP32 uses normal logic (HIGH=ON), ESP8266 uses inverted (LOW=ON)
-#ifdef ESP32
-  #define LED_ON 0x1
-  #define LED_OFF 0x0
-#elif defined(ESP8266)
-  #define LED_ON 0x0
-  #define LED_OFF 0x1
-#endif
+// LedExampleService.cpp
+void LedExampleService::onConfigUpdated() {
+  #if defined(CONFIG_IDF_TARGET_ESP32S3)
+  // ESP32-S3: Use neopixelWrite for RGB control
+  if (_state.ledOn) {
+    neopixelWrite(LED_PIN, _state.red, _state.green, _state.blue);
+  } else {
+    neopixelWrite(LED_PIN, 0, 0, 0);  // Off
+  }
+  #else
+  // ESP32/ESP8266: Use digitalWrite for simple LED
+  #ifdef ESP32
+  digitalWrite(LED_PIN, _state.ledOn ? HIGH : LOW);
+  #elif defined(ESP8266)
+  digitalWrite(LED_PIN, _state.ledOn ? LOW : HIGH);  // Inverted
+  #endif
+  #endif
+}
 ```
 
 ## Hardware Capabilities Comparison
@@ -116,15 +167,31 @@ Use preprocessor directives to conditionally compile platform-specific code:
 
 ### 1. LED Not Working on ESP32-S3
 
-**Problem:** Code compiled for ESP32 uses GPIO2, but ESP32-S3 has LED on GPIO48.
+**Problem:** Code compiled for ESP32 uses GPIO2 and `digitalWrite()`, but ESP32-S3 has RGB NeoPixel on GPIO48 requiring `neopixelWrite()`.
 
-**Solution:** Use platform detection to set correct LED pin:
+**Solution:** Use platform detection and appropriate control method:
 
 ```cpp
 #if defined(CONFIG_IDF_TARGET_ESP32S3)
   #define LED_PIN 48
+  #define HAS_RGB_LED true
+  
+  // RGB NeoPixel control
+  void setLED(bool on, uint8_t r, uint8_t g, uint8_t b) {
+    if (on) {
+      neopixelWrite(LED_PIN, r, g, b);
+    } else {
+      neopixelWrite(LED_PIN, 0, 0, 0);
+    }
+  }
 #else
   #define LED_PIN 2
+  #define HAS_RGB_LED false
+  
+  // Simple LED control
+  void setLED(bool on) {
+    digitalWrite(LED_PIN, on ? HIGH : LOW);
+  }
 #endif
 ```
 
@@ -219,7 +286,40 @@ Some GPIO pins have special boot functions and should be used carefully:
 
 ## Testing Platform-Specific Code
 
-### 1. Test LED on All Platforms
+### 1. Test RGB NeoPixel on ESP32-S3
+
+```cpp
+void testRgbLed() {
+  #if defined(CONFIG_IDF_TARGET_ESP32S3)
+  Serial.println("Testing RGB NeoPixel on GPIO48");
+  
+  // Red
+  neopixelWrite(48, 255, 0, 0);
+  delay(1000);
+  
+  // Green
+  neopixelWrite(48, 0, 255, 0);
+  delay(1000);
+  
+  // Blue
+  neopixelWrite(48, 0, 0, 255);
+  delay(1000);
+  
+  // White
+  neopixelWrite(48, 255, 255, 255);
+  delay(1000);
+  
+  // Off
+  neopixelWrite(48, 0, 0, 0);
+  
+  Serial.println("RGB NeoPixel test complete");
+  #else
+  Serial.println("RGB NeoPixel not available on this platform");
+  #endif
+}
+```
+
+### 2. Test Simple LED on All Platforms
 
 ```cpp
 void testLed() {
@@ -233,9 +333,7 @@ void testLed() {
   
   Serial.println("LED test complete");
 }
-```
-
-### 2. Test UART on All Platforms
+```### 3. Test UART on All Platforms
 
 ```cpp
 void testUart() {
