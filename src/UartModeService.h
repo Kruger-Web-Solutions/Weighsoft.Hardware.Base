@@ -25,6 +25,9 @@ class UartModeService : public StatefulService<UartModeState> {
   void setSerialService(SerialService* serialService);
   void setDiagnosticsService(DiagnosticsService* diagnosticsService);
   
+  // Apply current mode (callable from main.cpp after service linking)
+  void applyMode();
+  
   // Check current mode
   bool isLiveMode() const { return _state.mode == (uint8_t)UartModeType::LIVE_MONITORING; }
   bool isDiagnosticsMode() const { return _state.mode == (uint8_t)UartModeType::DIAGNOSTICS; }
@@ -38,7 +41,6 @@ class UartModeService : public StatefulService<UartModeState> {
   DiagnosticsService* _diagnosticsService;
   
   void onModeChanged();
-  void applyMode();
 };
 
 #endif

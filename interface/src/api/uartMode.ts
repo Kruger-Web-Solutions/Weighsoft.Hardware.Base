@@ -1,11 +1,13 @@
 import { AxiosPromise } from 'axios';
-import { AXIOS } from '../api/endpoints';
+import { AXIOS } from './endpoints';
 import { UartModeData } from '../types/uartMode';
 
+export const UART_MODE_ENDPOINT = 'uartMode';
+
 export function readUartMode(): AxiosPromise<UartModeData> {
-  return AXIOS.get('/uartMode');
+  return AXIOS.get(UART_MODE_ENDPOINT);
 }
 
 export function updateUartMode(data: Record<string, any>): AxiosPromise<UartModeData> {
-  return AXIOS.post('/uartMode', data);
+  return AXIOS.post(UART_MODE_ENDPOINT, data);
 }

@@ -65,7 +65,7 @@ const SignalQuality: FC = () => {
           packets and calculating success rate, latency, and jitter.
         </Typography>
         <Typography variant="body2">
-          <strong>Setup:</strong> Connect GPIO16 to GPIO17 with a jumper wire (loopback)
+          <strong>Setup:</strong> Connect GPIO17 to GPIO18 with a jumper wire (loopback)
         </Typography>
       </Alert>
 
@@ -288,7 +288,7 @@ const SignalQuality: FC = () => {
       {status === 'idle' && !isRunning && (
         <Box sx={{ textAlign: 'center', py: 4 }}>
           <Typography variant="body1" color="text.secondary">
-            Connect GPIO16 to GPIO17 and click &quot;Run Quality Test&quot;
+            Connect GPIO17 to GPIO18 and click &quot;Run Quality Test&quot;
           </Typography>
         </Box>
       )}

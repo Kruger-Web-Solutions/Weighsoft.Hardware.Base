@@ -80,7 +80,7 @@ void UartModeService::applyMode() {
     _serialService->resumeSerial();
   } else {
     Serial.println(F("[UartMode] Switching to DIAGNOSTICS mode"));
-    // Stop serial, diagnostics will start Serial2 when needed
+    // Stop serial, diagnostics will start Serial1 when needed
     _serialService->suspendSerial();
   }
 }

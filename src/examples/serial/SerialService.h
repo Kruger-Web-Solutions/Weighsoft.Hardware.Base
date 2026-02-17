@@ -19,8 +19,10 @@
 #define SERIAL_SOCKET_PATH "/ws/serial"
 #define SERIAL_CONFIG_FILE "/config/serialConfig.json"
 
-// ESP32 Serial2 default pins
-#define SERIAL2_RX_PIN 16
+// ESP32 Serial1 pins
+// ESP32-S3: GPIO18=U1RXD (RX), GPIO17=U1TXD (TX) - must match hardware UART1 defaults
+#define SERIAL_PORT Serial1
+#define SERIAL2_RX_PIN 18
 #define SERIAL2_TX_PIN 17
 
 class SerialService : public StatefulService<SerialState> {
@@ -66,19 +68,19 @@ class SerialService : public StatefulService<SerialState> {
 
   String _lineBuffer;   // Accumulates serial data until newline
   bool _serialStarted;  // True after first begin(), so we can call end() before reconfig
-  bool _suspended;      // True when DiagnosticsService is using Serial2
+  bool _suspended;      // True when DiagnosticsService is using Serial1
 
   void configureMqtt();
   void readSerial();       // Called from loop()
-  void applySerialConfig();  // Reconfigures Serial2 with current state
+  void applySerialConfig();  // Reconfigures Serial1 with current state
   String extractWeight(const String& line);  // Extracts first capture group from regex pattern
   uint32_t getSerialConfig();  // Converts databits/parity/stopbits to ESP32 config constant
   void onConfigUpdated();  // Called when config changes (e.g. from REST POST)
 
  public:
   // Coordination with DiagnosticsService
-  void suspendSerial();    // Stop Serial2, allow DiagnosticsService to use it
-  void resumeSerial();     // Restart Serial2 after DiagnosticsService releases it
+  void suspendSerial();    // Stop Serial1, allow DiagnosticsService to use it
+  void resumeSerial();     // Restart Serial1 after DiagnosticsService releases it
   bool isSuspended() const { return _suspended; }
 };
 

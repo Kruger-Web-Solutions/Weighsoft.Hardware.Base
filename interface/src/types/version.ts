@@ -1,8 +1,8 @@
 export interface VersionInfo {
   version: string;
-  apiVersion: string;
-  buildDate: string;
-  buildTime: string;
-  projectName: string;
-  projectUrl: string;
+  api_version: string;
+  build_date: string;
+  build_time: string;
+  project_name: string;
+  project_url: string;
 }

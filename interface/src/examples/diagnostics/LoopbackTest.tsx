@@ -64,14 +64,14 @@ const LoopbackTest: FC = () => {
           Hardware Setup Required
         </Typography>
         <Typography variant="body2" paragraph sx={{ mb: 1 }}>
-          <strong>1.</strong> Disconnect scale from GPIO16
+          <strong>1.</strong> Disconnect scale from GPIO18
           <br />
-          <strong>2.</strong> Connect jumper wire: GPIO16 (RX) ↔ GPIO17 (TX)
+          <strong>2.</strong> Connect jumper wire: GPIO18 (RX) ↔ GPIO17 (TX)
           <br />
           <strong>3.</strong> Click &quot;Start Test&quot; below
         </Typography>
         <Typography variant="caption" color="text.secondary">
-          Wiring: Connect GPIO16 directly to GPIO17 on the ESP32 board
+          Wiring: Connect GPIO18 directly to GPIO17 on the ESP32 board
         </Typography>
       </Alert>
 
@@ -208,9 +208,9 @@ const LoopbackTest: FC = () => {
                 Test Failing - Troubleshooting Steps:
               </Typography>
               <Typography variant="body2" component="div">
-                • Verify jumper wire is securely connected to both GPIO16 and GPIO17
+                • Verify jumper wire is securely connected to both GPIO17 and GPIO18
                 <br />
-                • Check that no other device is connected to GPIO16 or GPIO17
+                • Check that no other device is connected to GPIO17 or GPIO18
                 <br />
                 • Inspect GPIO pins for damage or poor contact
                 <br />• Try a different jumper wire
@@ -224,7 +224,7 @@ const LoopbackTest: FC = () => {
       {(!loopback || loopback.tx_count === 0) && !isRunning && (
         <Box sx={{ textAlign: 'center', py: 4 }}>
           <Typography variant="body1" color="text.secondary">
-            Connect GPIO16 to GPIO17 and click &quot;Start Test&quot; to begin
+            Connect GPIO17 to GPIO18 and click &quot;Start Test&quot; to begin
           </Typography>
         </Box>
       )}

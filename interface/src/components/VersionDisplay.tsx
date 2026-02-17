@@ -37,10 +37,10 @@ const VersionDisplay: FC = () => {
               <strong>Version:</strong> {version.version}
             </Typography>
             <Typography variant="caption" display="block">
-              <strong>API:</strong> {version.apiVersion}
+              <strong>API:</strong> {version.api_version}
             </Typography>
             <Typography variant="caption" display="block">
-              <strong>Build:</strong> {version.buildDate} {version.buildTime}
+              <strong>Build:</strong> {version.build_date} {version.build_time}
             </Typography>
           </Box>
         }
@@ -49,18 +49,18 @@ const VersionDisplay: FC = () => {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
           <InfoIcon fontSize="small" sx={{ color: 'text.secondary' }} />
           <Typography variant="caption" color="text.secondary">
-            {version.projectName} v{version.version}
+            {version.project_name} v{version.version}
           </Typography>
         </Box>
       </Tooltip>
-      {version.projectUrl && (
+      {version.project_url && (
         <Typography variant="caption" color="text.secondary" sx={{ mx: 1 }}>
           •
         </Typography>
       )}
-      {version.projectUrl && (
+      {version.project_url && (
         <Link
-          href={version.projectUrl}
+          href={version.project_url}
           target="_blank"
           rel="noopener noreferrer"
           sx={{ textDecoration: 'none' }}

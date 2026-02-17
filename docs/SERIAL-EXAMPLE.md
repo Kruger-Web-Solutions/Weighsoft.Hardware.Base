@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Serial Monitor service provides real-time monitoring and streaming of serial data from Serial2 (GPIO16/17 on ESP32). It demonstrates the single-layer architecture pattern by composing REST, WebSocket, MQTT, and BLE communication channels directly within the service.
+The Serial Monitor service provides real-time monitoring and streaming of serial data from Serial2 (GPIO17/18 on ESP32-S3, GPIO16/17 on ESP32). It demonstrates the single-layer architecture pattern by composing REST, WebSocket, MQTT, and BLE communication channels directly within the service.
 
 ## Features
 
@@ -22,8 +22,8 @@ The Serial Monitor service provides real-time monitoring and streaming of serial
 ```
 ESP32 Pin          Serial Device (Scale)
 ---------          ---------------------
-GPIO16 (RX2)  <--  TX
-GPIO17 (TX2)  -->  RX (not currently used)
+GPIO17 (RX2)  <--  TX
+GPIO18 (TX2)  -->  RX (not currently used)
 GND           ---  GND
 ```
 
@@ -264,7 +264,7 @@ mosquitto_sub -h broker.example.com -t "weighsoft/serial/+/data"
 #### Test Serial2 Input
 Connect a USB-to-TTL adapter:
 ```
-Adapter TX --> ESP32 GPIO16 (RX2)
+Adapter TX --> ESP32 GPIO17 (RX2)
 Adapter GND --> ESP32 GND
 ```
 
@@ -344,7 +344,7 @@ Verify:
 
 **Wiring**:
 ```
-GPS Module TX --> ESP32 GPIO16 (RX2)
+GPS Module TX --> ESP32 GPIO17 (RX2)
 GPS Module GND --> ESP32 GND
 GPS Module VCC --> ESP32 3.3V
 ```
@@ -436,7 +436,7 @@ If the pattern does not match a line, `last_line` is still sent and `weight` is 
 
 Serial2 uses fixed pins on ESP32 (16/17). To use different pins:
 
-1. Use `Serial1` instead (GPIO9/10) - but may conflict with flash
+1. Use `Serial1` instead (GPIO43/44) - hardware UART0 on ESP32-S3
 2. Use SoftwareSerial library (not recommended for high speeds)
 3. Remap UART pins (advanced, requires IDF configuration)
 
@@ -516,7 +516,7 @@ WN0001.68kg
 
 Possible additions (not yet implemented):
 
-1. **Bidirectional Communication**: Send commands via TX (GPIO17)
+1. **Bidirectional Communication**: Send commands via TX (GPIO18)
 2. **Line Filtering**: Regex patterns to filter which lines are broadcast
 3. **Statistics**: Line count, bytes received, error count
 4. **Buffering**: Store last N lines for late-joining clients

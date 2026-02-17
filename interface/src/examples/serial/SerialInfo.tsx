@@ -6,7 +6,7 @@ import { SectionContent } from '../../components';
 const SerialInfo: FC = () => (
   <SectionContent title="Serial" titleGutter>
     <Typography variant="body1" paragraph>
-      This service monitors Serial2 (GPIO16/17 on ESP32) and streams the data
+      This service monitors Serial1 (GPIO18 RX / GPIO17 TX on ESP32-S3) and streams the data
       across all communication channels in real-time. You can configure baud rate,
       data bits, stop bits, parity, and a regex pattern to extract weight values.
     </Typography>
@@ -71,13 +71,13 @@ const SerialInfo: FC = () => (
     <List dense>
       <ListItem>
         <ListItemText
-          primary="RX (GPIO16)"
+          primary="RX (GPIO17)"
           secondary="Receives data from external device TX"
         />
       </ListItem>
       <ListItem>
         <ListItemText
-          primary="TX (GPIO17)"
+          primary="TX (GPIO18)"
           secondary="Not currently used by this service"
         />
       </ListItem>

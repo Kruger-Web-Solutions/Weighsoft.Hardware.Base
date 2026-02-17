@@ -61,8 +61,8 @@ const BaudDetector: FC = () => {
         <Typography variant="body2">
           <strong>Setup Options:</strong>
           <br />
-          • <strong>Option 1:</strong> Connect GPIO16-17 (loopback) to test detection
-          <br />• <strong>Option 2:</strong> Connect scale to GPIO16 (must be transmitting)
+          • <strong>Option 1:</strong> Connect GPIO17-18 (loopback) to test detection
+          <br />• <strong>Option 2:</strong> Connect scale to GPIO17 (must be transmitting)
         </Typography>
       </Alert>
 
@@ -173,7 +173,7 @@ const BaudDetector: FC = () => {
               <Typography variant="body2" component="div">
                 • Verify scale is powered on and transmitting data
                 <br />
-                • Check wiring: scale TX → GPIO16 (RX), GND → GND
+                • Check wiring: scale TX → GPIO18 (RX), GND → GND
                 <br />
                 • Ensure scale uses a standard baud rate (1200-115200)
                 <br />

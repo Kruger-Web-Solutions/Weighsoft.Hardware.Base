@@ -9,7 +9,7 @@ const DiagnosticsInfo: FC = () => (
   <SectionContent title="UART Diagnostics Tools" titleGutter>
     <Typography variant="body1" paragraph>
       Use these tools to troubleshoot serial connectivity issues before debugging
-      scale wiring or software. All tests use GPIO16 (RX) and GPIO17 (TX) on Serial2.
+      scale wiring or software. All tests use GPIO18 (RX) and GPIO17 (TX) on Serial1.
     </Typography>
 
     <Typography variant="h6" gutterBottom sx={{ mt: 3 }}>
@@ -24,11 +24,11 @@ const DiagnosticsInfo: FC = () => (
         </Typography>
       </Box>
       <Typography variant="body2" paragraph>
-        Verifies that GPIO16 and GPIO17 hardware is functional by sending data
+        Verifies that GPIO18 (RX) and GPIO17 (TX) hardware is functional by sending data
         from TX to RX. This confirms the ESP32 serial hardware is working correctly.
       </Typography>
       <Typography variant="body2" color="text.secondary">
-        <strong>Setup:</strong> Connect GPIO16 to GPIO17 with a jumper wire
+        <strong>Setup:</strong> Connect GPIO18 (RX) to GPIO17 (TX) with a jumper wire
       </Typography>
     </Paper>
 
@@ -44,7 +44,7 @@ const DiagnosticsInfo: FC = () => (
         (1200-115200). Useful when the device baud rate is unknown.
       </Typography>
       <Typography variant="body2" color="text.secondary">
-        <strong>Setup:</strong> Connect scale to GPIO16 (must be actively transmitting data)
+        <strong>Setup:</strong> Connect scale TX to ESP32 GPIO18 (RX) (must be actively transmitting data)
       </Typography>
     </Paper>
 
@@ -60,7 +60,7 @@ const DiagnosticsInfo: FC = () => (
         packets and calculating success rate, latency, and jitter.
       </Typography>
       <Typography variant="body2" color="text.secondary">
-        <strong>Setup:</strong> Connect GPIO16 to GPIO17 with a jumper wire (loopback)
+        <strong>Setup:</strong> Connect GPIO18 (RX) to GPIO17 (TX) with a jumper wire (loopback)
       </Typography>
     </Paper>
 
@@ -100,14 +100,14 @@ const DiagnosticsInfo: FC = () => (
     <List dense>
       <ListItem>
         <ListItemText
-          primary="GPIO16 (RX)"
+          primary="GPIO18 (RX)"
           secondary="Receives data from external device TX"
         />
       </ListItem>
       <ListItem>
         <ListItemText
           primary="GPIO17 (TX)"
-          secondary="Transmits data to external device RX (or loopback to GPIO16)"
+          secondary="Transmits data to external device RX (or loopback to GPIO18)"
         />
       </ListItem>
       <ListItem>

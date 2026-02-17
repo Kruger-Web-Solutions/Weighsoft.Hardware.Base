@@ -42,7 +42,7 @@ const UartModeSwitcher: React.FC<UartModeSwitcherProps> = ({ currentMode }) => {
           <strong>UART Mode:</strong> {activeMode === 'live' ? 'Live Monitoring' : 'Diagnostics Testing'}
         </Typography>
         <Typography variant="caption" color="text.secondary">
-          Only one mode can use the Serial2 (GPIO16/17) hardware at a time.
+          Only one mode can use the Serial2 (GPIO17/18) hardware at a time.
         </Typography>
       </Alert>
 

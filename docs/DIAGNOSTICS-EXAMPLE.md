@@ -2,13 +2,13 @@
 
 ## Overview
 
-The UART Diagnostics service provides comprehensive hardware testing tools for Serial2 (GPIO16/17 on ESP32). It helps troubleshoot serial connectivity issues by testing the hardware functionality, detecting baud rates, and measuring signal quality before debugging scale wiring or software.
+The UART Diagnostics service provides comprehensive hardware testing tools for Serial2 (GPIO17/18 on ESP32-S3, GPIO16/17 on ESP32). It helps troubleshoot serial connectivity issues by testing the hardware functionality, detecting baud rates, and measuring signal quality before debugging scale wiring or software.
 
 This service follows **SOLID principles**, specifically the **Single Responsibility Principle**, by maintaining a clear separation of concerns: SerialService handles external device communication, while DiagnosticsService handles hardware testing and validation.
 
 ## Features
 
-- **Loopback Test**: Verifies GPIO16/17 hardware by sending data from TX to RX (requires jumper wire)
+- **Loopback Test**: Verifies GPIO17/18 hardware by sending data from TX to RX (requires jumper wire)
 - **Baud Rate Detection**: Automatically detects device baud rate by testing common values (1200-115200)
 - **Signal Quality Analysis**: Measures connection reliability, latency, jitter, and packet loss
 - **Real-Time Results**: WebSocket streaming provides live updates during tests
@@ -22,8 +22,8 @@ This service follows **SOLID principles**, specifically the **Single Responsibil
 ```
 ESP32 Pin          Function
 ---------          --------
-GPIO16 (RX2)       Receives data (Serial2)
-GPIO17 (TX2)       Transmits data (Serial2)
+GPIO17 (RX2)       Receives data (Serial2)
+GPIO18 (TX2)       Transmits data (Serial2)
 GND                Common ground
 ```
 
@@ -31,12 +31,12 @@ GND                Common ground
 
 **Loopback Test & Signal Quality Test:**
 ```
-GPIO16 (RX) ←→ GPIO17 (TX)  (jumper wire)
+GPIO17 (RX) ←→ GPIO18 (TX)  (jumper wire)
 ```
 
 **Baud Rate Detection:**
 ```
-Scale/Device TX → GPIO16 (RX)
+Scale/Device TX → GPIO17 (RX)
 Scale/Device GND → GND
 ```
 
@@ -258,7 +258,7 @@ interface/src/examples/diagnostics/
 
 **User Flow:**
 1. Read hardware setup instructions (prominent alert)
-2. Connect GPIO16 to GPIO17 with jumper wire
+2. Connect GPIO17 to GPIO18 with jumper wire
 3. Click "Start Loopback Test"
 4. Watch real-time metrics update
 5. Verify 100% success rate (green) or troubleshoot failures (red)
@@ -291,7 +291,7 @@ interface/src/examples/diagnostics/
 
 **User Flow:**
 1. Select packet count (more = longer test = more accurate)
-2. Connect GPIO16 to GPIO17
+2. Connect GPIO17 to GPIO18
 3. Click "Run Quality Test"
 4. Watch progress bar and metrics update
 5. Review quality rating and detailed metrics
@@ -351,19 +351,19 @@ export interface DiagnosticsData {
 **Solution Steps:**
 1. **Loopback Test First**: Verify ESP32 hardware is functional
    - Navigate to Diagnostics → Loopback Test
-   - Connect GPIO16-17 jumper wire
+   - Connect GPIO17-18 jumper wire
    - Start test, expect 100% success rate
    - If failing: check GPIO pins for damage
 
 2. **Baud Rate Detection**: Find correct scale baud rate
    - Remove jumper wire
-   - Connect scale to GPIO16
+   - Connect scale to GPIO17
    - Navigate to Diagnostics → Baud Detector
    - Start scan, wait for detection
    - Apply detected baud to Serial Config
 
 3. **Signal Quality Check**: Verify connection reliability
-   - Reconnect GPIO16-17 jumper
+   - Reconnect GPIO17-18 jumper
    - Navigate to Diagnostics → Signal Quality
    - Run test with 1000 packets
    - Expect 95%+ quality for reliable operation
@@ -387,7 +387,7 @@ export interface DiagnosticsData {
 
 **Solution:**
 1. Ensure device is actively transmitting data
-2. Connect device TX to GPIO16, GND to GND
+2. Connect device TX to GPIO17, GND to GND
 3. Navigate to Diagnostics → Baud Detector
 4. Click "Start Scan"
 5. Wait for detection (tests 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200)
@@ -405,7 +405,7 @@ export interface DiagnosticsData {
 - Verify jumper wire is firmly connected to both pins
 - Try a different jumper wire (some wires have poor contact)
 - Inspect GPIO pins for bent pins or corrosion
-- Check for other devices connected to GPIO16/17
+- Check for other devices connected to GPIO17/18
 
 #### Baud Rate Detection Results
 
@@ -415,7 +415,7 @@ export interface DiagnosticsData {
 **Troubleshooting (NOT_FOUND):**
 - Verify device is powered on
 - Confirm device is actively transmitting (not in sleep mode)
-- Check wiring: device TX → ESP32 RX (GPIO16)
+- Check wiring: device TX → ESP32 RX (GPIO17)
 - Ensure common ground connection
 - Try manually setting baud in Serial Config if device uses non-standard rate
 
@@ -470,8 +470,8 @@ export interface DiagnosticsData {
 
 **Process:**
 1. Start Serial2 at 115200 baud
-2. Every 100ms: Send "TEST:{counter}" via TX (GPIO17)
-3. Read incoming data from RX (GPIO16)
+2. Every 100ms: Send "TEST:{counter}" via TX (GPIO18)
+3. Read incoming data from RX (GPIO17)
 4. Compare received with sent, increment error count on mismatch
 5. Calculate success rate: (rx_count - error_count) / tx_count * 100
 6. Status = "pass" if success rate >= 95%, else "fail"
@@ -507,7 +507,7 @@ export interface DiagnosticsData {
 
 ### Hardware Considerations
 
-1. **ESP32 Serial2 Pins:** GPIO16 (RX), GPIO17 (TX) are fixed hardware pins
+1. **ESP32 Serial2 Pins:** GPIO17 (RX), GPIO18 (TX) on ESP32-S3 or GPIO16 (RX), GPIO17 (TX) on ESP32 are fixed hardware pins
 2. **Voltage Levels:** ESP32 operates at 3.3V - use level shifters for 5V devices
 3. **Jumper Wire Quality:** Poor quality wires can cause intermittent failures in loopback/signal tests
 4. **GPIO Pin Health:** Bent or corroded pins will cause test failures
@@ -522,7 +522,7 @@ export interface DiagnosticsData {
 ### Best Practices
 
 1. **Run Loopback First:** Always verify hardware before testing with external devices
-2. **Disconnect Scale for Tests:** Loopback and Signal Quality require GPIO16-17 jumper
+2. **Disconnect Scale for Tests:** Loopback and Signal Quality require GPIO17-18 jumper
 3. **Let Scans Complete:** Don't interrupt baud scans early, may miss correct rate
 4. **More Packets = Better Accuracy:** Use 10,000 packet signal tests for production validation
 5. **Regular Health Checks:** Run signal quality tests periodically to detect hardware degradation

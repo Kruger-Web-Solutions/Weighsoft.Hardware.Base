@@ -71,7 +71,7 @@ void DiagnosticsService::begin() {
   _state.signalErrorCount = 0;
 
   _rxBuffer = "";
-  Serial.println(F("[Diagnostics] Ready. GPIO16 (RX) / GPIO17 (TX)"));
+  Serial.println(F("[Diagnostics] Ready. GPIO18 (RX) / GPIO17 (TX)"));
 }
 
 void DiagnosticsService::setSerialService(SerialService* serialService) {
@@ -114,7 +114,7 @@ void DiagnosticsService::stopAllTests() {
 }
 
 void DiagnosticsService::loop() {
-  // Check if any test was just disabled - release Serial2
+  // Check if any test was just disabled - release Serial1
   static bool wasLoopbackActive = false;
   static bool wasBaudScanActive = false;
   static bool wasSignalTestActive = false;
@@ -122,9 +122,9 @@ void DiagnosticsService::loop() {
   bool anyTestActive = _state.loopbackEnabled || _state.baudScanEnabled || _state.signalTestEnabled;
   bool anyTestWasActive = wasLoopbackActive || wasBaudScanActive || wasSignalTestActive;
   
-  // If all tests stopped, release Serial2 back to SerialService
+  // If all tests stopped, release Serial1 back to SerialService
   if (!anyTestActive && anyTestWasActive && _serialStarted) {
-    Serial.println(F("[Diagnostics] All tests stopped - releasing Serial2"));
+    Serial.println(F("[Diagnostics] All tests stopped - releasing Serial1"));
     stopSerial();
     releaseSerialControl();
   }
@@ -148,26 +148,27 @@ void DiagnosticsService::loop() {
 
 void DiagnosticsService::startSerial(uint32_t baud) {
   if (_serialStarted) {
-    Serial2.end();
+    DIAG_SERIAL_PORT.end();
   }
   // Increase RX buffer from default 256 to 1024 bytes to handle bursts
-  Serial2.setRxBufferSize(1024);
-  Serial2.begin(baud, SERIAL_8N1, DIAG_RX_PIN, DIAG_TX_PIN);
+  DIAG_SERIAL_PORT.setRxBufferSize(1024);
+  DIAG_SERIAL_PORT.begin(baud, SERIAL_8N1, DIAG_RX_PIN, DIAG_TX_PIN);
+  delay(100);  // ESP32-S3: Allow hardware to stabilize after Serial1 init
   _serialStarted = true;
-  Serial.printf("[Diagnostics] Serial2 started: %lu baud, GPIO16 (RX), GPIO17 (TX), RX buffer=1024\n", (unsigned long)baud);
+  Serial.printf("[Diagnostics] Serial1 started: %lu baud, GPIO18 (RX), GPIO17 (TX), RX buffer=1024\n", (unsigned long)baud);
 }
 
 void DiagnosticsService::stopSerial() {
   if (_serialStarted) {
-    Serial2.end();
+    DIAG_SERIAL_PORT.end();
     _serialStarted = false;
-    Serial.println(F("[Diagnostics] Serial2 stopped"));
+    Serial.println(F("[Diagnostics] Serial1 stopped"));
   }
 }
 
 String DiagnosticsService::readSerialLine() {
-  while (Serial2.available()) {
-    char c = Serial2.read();
+  while (DIAG_SERIAL_PORT.available()) {
+    char c = DIAG_SERIAL_PORT.read();
     if (c == '\n' || c == '\r') {
       if (_rxBuffer.length() > 0) {
         String line = _rxBuffer;
@@ -199,7 +200,7 @@ void DiagnosticsService::runLoopbackTest() {
     // Use static buffer to avoid String memory fragmentation
     char testMsg[32];
     snprintf(testMsg, sizeof(testMsg), "TEST:%lu", (unsigned long)_state.loopbackTxCount);
-    Serial2.println(testMsg);
+    DIAG_SERIAL_PORT.println(testMsg);
     _state.loopbackLastTest = testMsg;
     _loopbackLastSend = millis();
   }
@@ -234,6 +235,13 @@ void DiagnosticsService::runLoopbackTest() {
 void DiagnosticsService::runBaudScan() {
   // Initialize scan if just started
   if (_baudTestStartTime == 0) {
+    Serial.println(F("[Diagnostics] === STARTING BAUD SCAN ==="));
+    Serial.println(F("[Diagnostics] Ensure your device is connected:"));
+    Serial.println(F("[Diagnostics]   Device TX -> ESP32 GPIO18 (RX)"));
+    Serial.println(F("[Diagnostics]   Device GND -> ESP32 GND"));
+    Serial.println(F("[Diagnostics]   Device must be actively transmitting data!"));
+    
+    requestSerialControl();  // Stop SerialService
     _baudTestStartTime = millis();
     _lastWsBroadcast = millis();
     _state.baudCurrentIndex = 0;
@@ -245,12 +253,28 @@ void DiagnosticsService::runBaudScan() {
     update([](DiagnosticsState& state) { return StateUpdateResult::CHANGED; }, "diag_hw");
   }
 
-  // Read any data at current baud rate
+  // Read any data at current baud rate (check hardware buffer status)
+  int available = DIAG_SERIAL_PORT.available();
+  
+  // Periodic status update every 500ms
+  static unsigned long lastStatusLog = 0;
+  if (millis() - lastStatusLog >= 500) {
+    Serial.printf("[Diagnostics] Baud scan status: testing %lu baud, %d bytes in buffer, %u packets received so far\n",
+                  (unsigned long)DIAG_BAUD_RATES[_state.baudCurrentIndex], available, _state.baudTestPackets);
+    lastStatusLog = millis();
+  }
+  
+  if (available > 0) {
+    Serial.printf("[Diagnostics] Baud scan: %d bytes available in buffer at %lu baud\n", 
+                  available, (unsigned long)DIAG_BAUD_RATES[_state.baudCurrentIndex]);
+  }
+  
   String line = readSerialLine();
   if (line.length() > 0) {
     _state.baudTestPackets++;
-    Serial.printf("[Diagnostics] Baud scan: received data at %lu baud (packet %u)\n",
-                  (unsigned long)DIAG_BAUD_RATES[_state.baudCurrentIndex], _state.baudTestPackets);
+    Serial.printf("[Diagnostics] Baud scan: received LINE at %lu baud (packet %u): '%s' (%d chars)\n",
+                  (unsigned long)DIAG_BAUD_RATES[_state.baudCurrentIndex], _state.baudTestPackets, 
+                  line.c_str(), line.length());
     
     // If we get 3+ valid packets, assume this is the correct baud
     if (_state.baudTestPackets >= 3) {
@@ -318,7 +342,7 @@ void DiagnosticsService::runSignalQualityTest() {
       millis() - _lastTestTime >= SIGNAL_TEST_INTERVAL_MS) {
     unsigned long sendTime = micros();
     // Use printf to avoid String concatenation memory fragmentation
-    Serial2.printf("SIG:%lu:%lu\n", (unsigned long)_state.signalSentPackets, sendTime);
+    DIAG_SERIAL_PORT.printf("SIG:%lu:%lu\n", (unsigned long)_state.signalSentPackets, sendTime);
     _state.signalSentPackets++;
     _lastTestTime = millis();
   }

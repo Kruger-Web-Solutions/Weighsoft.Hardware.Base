@@ -1,4 +1,5 @@
 #include <examples/serial/SerialService.h>
+#include <regex.h>  // POSIX regex
 
 #ifdef ESP32
 #include <HardwareSerial.h>
@@ -70,33 +71,48 @@ void SerialService::begin() {
   _lineBuffer = "";
   _serialStarted = false;
 
-  // Start Serial2 with loaded config
-  Serial.println(F("[Serial] Initializing Serial2..."));
+  // Start Serial1 with loaded config
+  Serial.println(F("[Serial] Initializing Serial1..."));
   applySerialConfig();
 }
 
 void SerialService::loop() {
-  // Skip reading if suspended (DiagnosticsService is using Serial2)
+  // Skip reading if suspended (DiagnosticsService is using Serial1)
   if (_suspended) {
     return;
   }
 
-  // Raw byte diagnostic: log every single byte that arrives on Serial2
-  static unsigned long totalBytes = 0;
-  while (Serial2.available()) {
-    char c = Serial2.read();
-    totalBytes++;
-    // Log each byte as hex + printable char
-    if (c >= 32 && c <= 126) {
-      Serial.printf("[Serial] RX byte #%lu: 0x%02X '%c'\n", totalBytes, (uint8_t)c, c);
-    } else {
-      Serial.printf("[Serial] RX byte #%lu: 0x%02X (control)\n", totalBytes, (uint8_t)c);
+  // Debug: Show incoming data periodically
+  static unsigned long lastDebug = 0;
+  static String debugBuffer = "";
+  
+  // Heartbeat: confirm loop is running and show Serial1 status
+  static unsigned long lastHeartbeat = 0;
+  if (millis() - lastHeartbeat >= 5000) {
+    int avail = SERIAL_PORT.available();
+    Serial.printf("[Serial] Heartbeat: loop running, suspended=%d, serialStarted=%d, available=%d\n",
+                  _suspended, _serialStarted, avail);
+    lastHeartbeat = millis();
+  }
+  
+  // Read serial data and assemble lines
+  while (SERIAL_PORT.available()) {
+    char c = SERIAL_PORT.read();
+    
+    // Collect data for debug output
+    if (debugBuffer.length() < 200) {
+      if (c >= 32 && c < 127) {
+        debugBuffer += c;  // Printable ASCII
+      } else {
+        char hex[5];
+        sprintf(hex, "\\x%02X", (uint8_t)c);
+        debugBuffer += hex;
+      }
     }
 
-    // Line assembly (same logic as before)
+    // Line assembly (accepts both \r and \n as terminators)
     if (c == '\n' || c == '\r') {
       if (_lineBuffer.length() > 0) {
-        Serial.printf("[Serial] Complete line: '%s'\n", _lineBuffer.c_str());
         String extracted = extractWeight(_lineBuffer);
         update([&](SerialState& state) {
           state.lastLine = _lineBuffer;
@@ -104,30 +120,38 @@ void SerialService::loop() {
           state.timestamp = millis();
           return StateUpdateResult::CHANGED;
         }, "serial_hw");
-        if (extracted.length() > 0) {
-          Serial.printf("[Serial] Weight extracted: '%s'\n", extracted.c_str());
-        }
       }
       _lineBuffer = "";
     } else {
       _lineBuffer += c;
-      if (_lineBuffer.length() > 512) {
-        Serial.println(F("[Serial] WARNING: Line exceeded 512 chars, discarded"));
+      // Prevent memory overflow - larger buffer for industrial scales
+      if (_lineBuffer.length() > 2048) {
+        Serial.printf("[Serial] WARNING: Line exceeded 2048 chars (first 100): %.100s...\n", 
+                      _lineBuffer.c_str());
         _lineBuffer = "";
       }
     }
   }
-
-  // Heartbeat disabled - remove if debugging needed
-  // static unsigned long lastDiag = 0;
-  // if (millis() - lastDiag >= 5000) {
-  //   lastDiag = millis();
-  //   Serial.printf("[Serial] Heartbeat: started=%d, totalRX=%lu, buffer=%d chars, baud=%lu\n",
-  //                 _serialStarted, totalBytes, _lineBuffer.length(), (unsigned long)_state.baudrate);
-  // }
+  
+  // Print debug sample every 2 seconds
+  if (millis() - lastDebug >= 2000 && debugBuffer.length() > 0) {
+    Serial.printf("[Serial] Sample (first 200 chars): %s\n", debugBuffer.c_str());
+    Serial.printf("[Serial] Buffer length: %d, Current baud: %lu\n", 
+                  _lineBuffer.length(), (unsigned long)_state.baudrate);
+    debugBuffer = "";
+    lastDebug = millis();
+  }
 }
 
 void SerialService::onConfigUpdated() {
+  Serial.printf("[Serial] Config update triggered - baud=%lu, regex='%s'\n",
+                (unsigned long)_state.baudrate, _state.regexPattern.c_str());
+  
+  // Persist config to flash
+  bool saved = _fsPersistence.writeToFS();
+  Serial.printf("[Serial] Config persisted to flash: %s\n", saved ? "SUCCESS" : "FAILED");
+  
+  // Apply new serial configuration
   applySerialConfig();
 }
 
@@ -157,17 +181,21 @@ uint32_t SerialService::getSerialConfig() {
 void SerialService::applySerialConfig() {
 #ifdef ESP32
   if (_serialStarted) {
-    Serial2.end();
-    Serial.println(F("[Serial] Stopping Serial2 for reconfiguration..."));
+    SERIAL_PORT.end();
+    Serial.println(F("[Serial] Stopping Serial1 for reconfiguration..."));
   }
+  
   uint32_t baud = _state.baudrate;
   if (baud < SERIAL_MIN_BAUDRATE || baud > SERIAL_MAX_BAUDRATE) {
     baud = SERIAL_DEFAULT_BAUDRATE;
   }
+  
   uint32_t config = getSerialConfig();
-  Serial2.begin(baud, config, SERIAL2_RX_PIN, SERIAL2_TX_PIN);
+  SERIAL_PORT.begin(baud, config, SERIAL2_RX_PIN, SERIAL2_TX_PIN);
+  delay(100);  // Allow hardware to stabilize
   _serialStarted = true;
-  Serial.printf("[Serial] Serial2 started: %lu baud, %u%c%u, RX=GPIO%d, TX=GPIO%d\n",
+  
+  Serial.printf("[Serial] Serial1 started: %lu baud, %u%c%u, RX=GPIO%d, TX=GPIO%d\n",
                 (unsigned long)baud, _state.databits,
                 _state.parity == 0 ? 'N' : (_state.parity == 1 ? 'E' : 'O'),
                 _state.stopbits, SERIAL2_RX_PIN, SERIAL2_TX_PIN);
@@ -179,36 +207,52 @@ String SerialService::extractWeight(const String& line) {
   if (pattern.length() == 0) {
     return "";
   }
-  int openParen = pattern.indexOf('(');
-  int closeParen = pattern.indexOf(')', openParen);
-  if (openParen < 0 || closeParen <= openParen) {
+  
+  // Use POSIX regex for pattern matching
+  regex_t regex;
+  regmatch_t matches[2]; // 0 = full match, 1 = first capture group
+  
+  // Compile the regex pattern
+  int reti = regcomp(&regex, pattern.c_str(), REG_EXTENDED);
+  if (reti != 0) {
+    char error_buffer[100];
+    regerror(reti, &regex, error_buffer, sizeof(error_buffer));
+    Serial.printf("[Serial] Regex compile error: %s\n", error_buffer);
     return "";
   }
-  String prefix = pattern.substring(0, openParen);
-  int searchStart = 0;
-  if (prefix.length() > 0) {
-    int prefixPos = line.indexOf(prefix);
-    if (prefixPos < 0) return "";
-    searchStart = prefixPos + prefix.length();
-  }
-  int i = searchStart;
-  while (i < (int)line.length() && (line.charAt(i) == ' ' || line.charAt(i) == '\t')) {
-    i++;
-  }
-  if (i >= (int)line.length() || !isDigit(line.charAt(i))) {
-    return "";
-  }
-  int start = i;
-  while (i < (int)line.length() && isDigit(line.charAt(i))) {
-    i++;
-  }
-  if (i < (int)line.length() && line.charAt(i) == '.') {
-    i++;
-    while (i < (int)line.length() && isDigit(line.charAt(i))) {
-      i++;
+  
+  // Execute the regex match
+  reti = regexec(&regex, line.c_str(), 2, matches, 0);
+  regfree(&regex);
+  
+  if (reti == 0) {
+    // Match found - extract first capture group if present, otherwise full match
+    int start = matches[1].rm_so >= 0 ? matches[1].rm_so : matches[0].rm_so;
+    int end = matches[1].rm_eo >= 0 ? matches[1].rm_eo : matches[0].rm_eo;
+    
+    if (start >= 0 && end > start) {
+      String extracted = line.substring(start, end);
+      
+      // Replace comma with period for locales that use comma as decimal separator
+      extracted.replace(',', '.');
+      
+      // Convert to float and back to clean up (remove leading zeros, standardize format)
+      float value = extracted.toFloat();
+      
+      // Only return if we actually got a valid number
+      if (value != 0.0f || extracted.indexOf('0') >= 0) {
+        return String(value, 2); // Return with 2 decimal places
+      }
     }
+  } else if (reti == REG_NOMATCH) {
+    // No match - this is normal, not an error
+  } else {
+    char error_buffer[100];
+    regerror(reti, &regex, error_buffer, sizeof(error_buffer));
+    Serial.printf("[Serial] Regex match error: %s\n", error_buffer);
   }
-  return line.substring(start, i);
+  
+  return "";
 }
 
 void SerialService::readSerial() {
@@ -249,8 +293,8 @@ void SerialService::configureBle() {
 
 void SerialService::suspendSerial() {
   if (_serialStarted && !_suspended) {
-    Serial.println(F("[Serial] Suspending - DiagnosticsService taking control of Serial2"));
-    Serial2.end();
+    Serial.println(F("[Serial] Suspending - DiagnosticsService taking control of Serial1"));
+    SERIAL_PORT.end();
     _serialStarted = false;
     _suspended = true;
   }
@@ -258,7 +302,7 @@ void SerialService::suspendSerial() {
 
 void SerialService::resumeSerial() {
   if (_suspended) {
-    Serial.println(F("[Serial] Resuming - restarting Serial2"));
+    Serial.println(F("[Serial] Resuming - restarting Serial1"));
     _suspended = false;
     applySerialConfig();
   }

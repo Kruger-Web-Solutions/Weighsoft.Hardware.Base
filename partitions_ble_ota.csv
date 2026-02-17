@@ -1,8 +1,13 @@
 # Name,   Type, SubType, Offset,  Size, Flags
-# Partition scheme for BLE-enabled builds with OTA support on 4MB flash
+# Partition scheme for BLE-enabled builds with OTA support
+# Total layout: 5.3MB — requires 8MB+ flash (e.g. ESP32-S3)
+# WARNING: Does NOT work on 4MB flash (node32s) — causes boot loop!
+# See docs/CONFIGURATION.md "OTA Limitations" for details.
+#
 # Dual app partitions: app0/app1: 2.5MB each, filesystem: 192KB
-nvs,      data, nvs,     0x9000,  0x5000,
-otadata,  data, ota,     0xe000,  0x2000,
+nvs,      data, nvs,     0x9000,  0x4000,
+otadata,  data, ota,     0xd000,  0x2000,
+phy_init, data, phy,     0xf000,  0x1000,
 app0,     app,  ota_0,   0x10000, 0x280000,
 app1,     app,  ota_1,   0x290000,0x280000,
 spiffs,   data, spiffs,  0x510000,0x30000,
