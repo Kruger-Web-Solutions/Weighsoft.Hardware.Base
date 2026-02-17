@@ -36,6 +36,7 @@ import AXIOS from './endpoints';
 ```
 
 **Why**: The `AXIOS` instance in `endpoints.ts` is pre-configured with:
+
 - JWT token interceptor
 - Base URL handling
 - Error handling
@@ -86,6 +87,7 @@ import { useRest } from '../../utils/useRest';
 ```
 
 **Available hooks**:
+
 - `useRest<T>` - For configuration forms with manual save
 - `useWs<T>` - For real-time monitoring via WebSocket
 - `updateValue` - Helper for form field updates
@@ -302,6 +304,7 @@ export const MY_DEVICE_SOCKET_PATH = `${WS_BASE_URL}mydevice`;
 ```
 
 **Why**: This pattern ensures:
+
 - Correct protocol (ws:// or wss://)
 - Correct host and port
 - Consistent WebSocket prefix
@@ -577,6 +580,7 @@ import MyDeviceIcon from '@mui/icons-material/DeviceThermostat';
 ```
 
 **Label Guidelines**:
+
 - ✅ "LED" (not "LED Example")
 - ✅ "Serial" (not "Serial Monitor")
 - ✅ "My Device" (not "My Device Control Panel")
@@ -590,6 +594,7 @@ import MyDevice from '../examples/mydevice/MyDevice';
 ```
 
 **Path Guidelines**:
+
 - Use kebab-case for URLs: `my-device`, `led-control`
 - Match the menu path exactly
 - Include `/*` wildcard for nested routes
@@ -630,12 +635,14 @@ export function readMyDeviceData(signal?: AbortSignal) {
 ```
 
 **Why this matters:**
+
 - `AXIOS` is pre-configured with JWT interceptor
 - Every request automatically includes `Authorization: Bearer <token>` header
 - Plain `fetch()` requires manual token handling
 - Without auth token, all protected endpoints return 401
 
 **Troubleshooting 401 Errors:**
+
 1. Check if you're using `AXIOS` (correct) or `fetch()` (wrong)
 2. Verify endpoint is imported as relative path: `'mydevice'` not `'/rest/mydevice'`
 3. Confirm `AXIOS` is imported from `'./endpoints'`
@@ -683,12 +690,14 @@ const hasBle = import.meta.env.VITE_FT_BLE;
 ```
 
 **Why this matters:**
+
 - Feature flags are loaded from backend API at runtime via `/rest/features`
 - `FeaturesContext` provides the correct flags for the connected device
 - `import.meta.env` is for build-time Vite environment variables (not used here)
 - Using wrong approach causes TypeScript compilation errors
 
 **Available features:**
+
 - `features.mqtt` - MQTT support enabled
 - `features.ble` - BLE support enabled
 - `features.project` - Custom project features
@@ -751,6 +760,7 @@ if (!data) return <FormLoader />;
 **Root Cause**: Using plain `fetch()` instead of `AXIOS`, which bypasses JWT authentication.
 
 **Solution**:
+
 ```typescript
 // ❌ WRONG - No authentication token
 export function readMyDeviceData(signal?: AbortSignal) {
@@ -772,6 +782,7 @@ export function readMyDeviceData(): AxiosPromise<MyDeviceData> {
 **Problem**: Wrong import path for AXIOS.
 
 **Solution**:
+
 ```typescript
 // ✅ CORRECT
 import { AXIOS } from './endpoints';
@@ -782,6 +793,7 @@ import { AXIOS } from './endpoints';
 **Problem**: Hooks are in `utils/`, not `components/`.
 
 **Solution**:
+
 ```typescript
 // ✅ CORRECT
 import { useRest, useWs } from '../../utils';
@@ -792,6 +804,7 @@ import { useRest, useWs } from '../../utils';
 **Problem**: `useRest` doesn't return a `loading` property.
 
 **Solution**:
+
 ```typescript
 // ✅ CORRECT
 const { data } = useRest<T>({ read });
@@ -803,6 +816,7 @@ if (!data) return <FormLoader />;
 **Problem**: Hardcoded WebSocket path or wrong URL construction.
 
 **Solution**:
+
 ```typescript
 // ✅ CORRECT
 import { WEB_SOCKET_ROOT } from '../../api/endpoints';
@@ -817,6 +831,7 @@ const { connected, data } = useWs<T>(WEBSOCKET_URL);
 **Root Cause**: Python processes (serial monitors, scripts) are holding the COM port open.
 
 **Solution - ALWAYS kill Python processes before upload:**
+
 ```powershell
 # Kill all Python processes first
 Get-Process python* | Stop-Process -Force
@@ -834,6 +849,7 @@ python -m platformio run -e esp32s3 -t upload
 **Root Cause**: This project doesn't use Vite environment variables for feature flags. Feature flags come from the backend API.
 
 **Solution**:
+
 ```typescript
 // ❌ WRONG - Vite syntax not used here
 const hasMqtt = import.meta.env.FT_MQTT;
@@ -858,11 +874,13 @@ const MyComponent: FC = () => {
 **Problem**: Uploaded firmware but new menu items don't appear in UI.
 
 **Root Causes:**
+
 1. **PROGMEM_WWW is defined**: Web interface is embedded in firmware, not SPIFFS
 2. **Device wasn't physically reset**: ESP32 is still running old firmware
 3. **Frontend build errors**: Check for TypeScript/compilation errors
 
 **Solution:**
+
 ```powershell
 # 1. Check for build errors
 npm run build
@@ -882,12 +900,14 @@ python -m platformio run -e esp32s3 -t upload
 **Root Cause**: When `PROGMEM_WWW` is defined, interface is embedded in firmware. Device needs physical reset to load new firmware.
 
 **Solution:**
+
 1. Verify upload completed successfully (check for "SUCCESS" in output)
 2. **Press EN/RST button** on ESP32-S3 to perform hard reset
 3. Monitor serial output to confirm new firmware boots
 4. Check browser cache (Ctrl+Shift+R for hard refresh)
 
 **How to verify firmware loaded:**
+
 - Serial output shows service initialization messages
 - Check service counter in boot logs (e.g., "[9/10] Weight Forwarder service loaded OK")
 - API endpoints respond without 401 errors
@@ -897,6 +917,7 @@ python -m platformio run -e esp32s3 -t upload
 **Problem**: Hardcoded WebSocket path or wrong URL construction.
 
 **Solution**:
+
 ```typescript
 // ✅ CORRECT
 import { WEB_SOCKET_ROOT } from '../../api/endpoints';

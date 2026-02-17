@@ -15,6 +15,7 @@ This document explains the UART Serial1 GPIO pin assignments for different ESP32
 | GND | GND | Common ground (required) |
 
 **Why GPIO17/18?**
+
 - Hardware UART1 pins (U1RXD/U1TXD) on ESP32-S3
 - Won't conflict with USB Serial monitor on GPIO43/44
 
@@ -27,6 +28,7 @@ This document explains the UART Serial1 GPIO pin assignments for different ESP32
 | GND | GND | Common ground (required) |
 
 **Why GPIO16/17?**
+
 - Default Serial2 pins on classic ESP32
 - Well-tested, widely used for UART2
 
@@ -62,7 +64,8 @@ If you need to use different GPIO pins (e.g., hardware conflict, PCB design), up
 
 After changing the header files, update **hardcoded GPIO numbers** in:
 
-#### Backend C++ Files:
+#### Backend C++ Files
+
 - `src/examples/diagnostics/DiagnosticsService.cpp`
   - Line 74: `Serial.println(F("[Diagnostics] Ready. GPIO17 (RX) / GPIO18 (TX)"));`
   - Line 157: `Serial.printf("[Diagnostics] Serial2 started: %lu baud, GPIO17 (RX), GPIO18 (TX)...`
@@ -71,7 +74,8 @@ After changing the header files, update **hardcoded GPIO numbers** in:
 - `src/UartMode.h`
   - Line 6: Comment explaining GPIO pins
 
-#### Frontend TypeScript Files:
+#### Frontend TypeScript Files
+
 - `interface/src/components/UartModeSwitcher.tsx`
   - Line 45: Info message about Serial2 pins
   
@@ -97,7 +101,8 @@ After changing the header files, update **hardcoded GPIO numbers** in:
   - Line 68: Setup instructions
   - Line 291: Initial state message
 
-#### Documentation Markdown Files:
+#### Documentation Markdown Files
+
 - `docs/DIAGNOSTICS-EXAMPLE.md`
   - Line 5: Service overview
   - Lines 11, 25-26: Hardware specs
@@ -126,11 +131,13 @@ python -m platformio run -t upload -e esp32s3
 ### Safe Pins on ESP32-S3
 
 ✅ **Recommended for UART:**
+
 - GPIO17, GPIO18 (used in this project - hardware UART1)
 - GPIO19, GPIO20
 - GPIO21, GPIO47
 
 ⚠️ **Avoid These:**
+
 - GPIO0, GPIO3, GPIO45, GPIO46 (strapping pins - affect boot mode)
 - GPIO26-GPIO32 (connected to SPI flash/PSRAM on some modules)
 - GPIO33-GPIO37 (used by Octal flash/PSRAM if present)
@@ -139,11 +146,13 @@ python -m platformio run -t upload -e esp32s3
 ### Safe Pins on ESP32 (Classic)
 
 ✅ **Recommended for UART:**
+
 - GPIO16, GPIO17 (default Serial2, used in this project)
 - GPIO25, GPIO26
 - GPIO32, GPIO33
 
 ⚠️ **Avoid These:**
+
 - GPIO0, GPIO2, GPIO5, GPIO12, GPIO15 (strapping pins)
 - GPIO6-GPIO11 (connected to SPI flash)
 - GPIO34-GPIO39 (input only, can't be used for TX)

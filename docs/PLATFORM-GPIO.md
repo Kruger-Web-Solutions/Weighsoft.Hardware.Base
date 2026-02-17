@@ -15,6 +15,7 @@ Different ESP32 platforms have different GPIO mappings for built-in peripherals 
 ### LED Control Methods
 
 **ESP32-S3 (RGB NeoPixel):**
+
 ```cpp
 // Use neopixelWrite() for RGB control
 neopixelWrite(48, red, green, blue);  // red, green, blue = 0-255
@@ -30,6 +31,7 @@ neopixelWrite(48, 255, 0, 0);
 ```
 
 **ESP32 (Simple LED):**
+
 ```cpp
 // Use digitalWrite() for on/off control
 digitalWrite(2, HIGH);  // LED ON
@@ -37,6 +39,7 @@ digitalWrite(2, LOW);   // LED OFF
 ```
 
 **ESP8266 (Simple LED - Inverted):**
+
 ```cpp
 // Inverted logic - LOW = ON, HIGH = OFF
 digitalWrite(2, LOW);   // LED ON
@@ -46,10 +49,12 @@ digitalWrite(2, HIGH);  // LED OFF
 ### LED Logic Levels
 
 **ESP32 / ESP32-S3:**
+
 - `HIGH` (1) = LED ON
 - `LOW` (0) = LED OFF
 
 **ESP8266:**
+
 - `HIGH` (1) = LED OFF (inverted)
 - `LOW` (0) = LED ON
 
@@ -58,6 +63,7 @@ digitalWrite(2, HIGH);  // LED OFF
 ### Serial0 (USB/Debug)
 
 **All Platforms:**
+
 - TX: GPIO1 (usually reserved for USB serial)
 - RX: GPIO3 (usually reserved for USB serial)
 
@@ -232,6 +238,7 @@ void LedExampleService::onConfigUpdated() {
 **Advantage:** No USB-to-UART chip needed for programming/debugging
 
 **Configuration:**
+
 ```ini
 ; platformio.ini
 build_flags =
@@ -241,6 +248,7 @@ build_flags =
 ```
 
 **Why disable USB CDC?**
+
 - Serial monitor over USB CDC can cause conflicts with Serial0 debugging
 - Hardware UART0 is more reliable for serial debugging
 - USB is still available for programming via esptool
@@ -254,6 +262,7 @@ build_flags =
 | ESP32-S3 | 8MB | `partitions_ble_ota.csv` | ✅ Yes | 2x 2.5MB app slots (BLE + OTA) |
 
 **Why no OTA on 4MB ESP32 with BLE?**
+
 - Firmware with BLE = ~2.2MB
 - OTA needs 2 app slots = 4.4MB minimum
 - 4MB flash can't fit dual slots
@@ -271,6 +280,7 @@ Some GPIO pins have special boot functions and should be used carefully:
 | ESP8266 | GPIO0, GPIO2, GPIO15 | Boot mode pins |
 
 **Safe GPIO for General Use:**
+
 - ESP32: GPIO4, GPIO16-23, GPIO25-27, GPIO32-33
 - ESP32-S3: GPIO1-14, GPIO17-21, GPIO38-48
 

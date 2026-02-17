@@ -94,6 +94,7 @@ graph TB
 **Purpose**: Root component, providers, and theming
 
 **Structure**:
+
 ```tsx
 <CustomTheme>
   <SnackbarProvider>
@@ -105,12 +106,14 @@ graph TB
 ```
 
 **Responsibilities**:
+
 - Apply Material-UI theme
 - Configure snackbar notifications (notistack)
 - Load feature flags from backend
 - Initialize routing
 
 **Theme Configuration**: `interface/src/CustomTheme.tsx`
+
 - Material-UI theme customization
 - Typography, palette, spacing
 - Responsive font sizes
@@ -121,6 +124,7 @@ graph TB
 **File**: `interface/src/index.tsx`
 
 **Structure**:
+
 ```tsx
 <BrowserRouter>
   <App />
@@ -133,13 +137,15 @@ graph TB
 
 ### 1. Features Context
 
-**Files**: 
+**Files**:
+
 - `interface/src/contexts/features/FeaturesLoader.tsx`
 - `interface/src/contexts/features/context.ts`
 
 **Purpose**: Load and provide feature flags from backend
 
 **State**:
+
 ```typescript
 interface Features {
   project: boolean;
@@ -152,12 +158,14 @@ interface Features {
 ```
 
 **Loading Flow**:
+
 1. Component mounts
 2. Fetch `/rest/features`
 3. Store in context state
 4. Render children when loaded
 
 **Usage**:
+
 ```typescript
 const { features } = useContext(FeaturesContext);
 if (features.mqtt) {
@@ -170,12 +178,14 @@ if (features.mqtt) {
 ### 2. Authentication Context
 
 **Files**:
+
 - `interface/src/contexts/authentication/Authentication.tsx`
 - `interface/src/contexts/authentication/context.ts`
 
 **Purpose**: Manage authentication state and JWT tokens
 
 **State**:
+
 ```typescript
 interface AuthenticationContext {
   me?: Me;  // Current user
@@ -191,10 +201,12 @@ interface Me {
 ```
 
 **Token Storage**:
+
 - `rememberMe=true`: localStorage (persistent)
 - `rememberMe=false`: sessionStorage (session only)
 
 **Initialization Flow**:
+
 1. Component mounts
 2. Check for existing token in storage
 3. Verify token with `/rest/verifyAuthorization`
@@ -202,6 +214,7 @@ interface Me {
 5. Update context state
 
 **Sign In Flow**:
+
 1. POST credentials to `/rest/signIn`
 2. Receive JWT token and user info
 3. Store token in storage
@@ -209,9 +222,11 @@ interface Me {
 5. Axios interceptor adds token to requests
 
 **Security Fallback**:
+
 - If `FT_SECURITY` disabled, context provides admin user without authentication
 
 **Token Injection**:
+
 ```typescript
 // Axios request interceptor
 axios.interceptors.request.use(config => {
@@ -230,6 +245,7 @@ axios.interceptors.request.use(config => {
 **Purpose**: Manage page title and UI state
 
 **State**:
+
 ```typescript
 interface LayoutContextValue {
   title: string;
@@ -237,6 +253,7 @@ interface LayoutContextValue {
 ```
 
 **Usage**:
+
 ```typescript
 const { setTitle } = useLayoutTitle("Page Title");
 ```
@@ -250,6 +267,7 @@ const { setTitle } = useLayoutTitle("Page Title");
 **File**: `interface/src/AppRouting.tsx`
 
 **Routes**:
+
 ```tsx
 <Routes>
   <Route path="/unauthorized" element={<Redirect to="/" />} />
@@ -259,7 +277,8 @@ const { setTitle } = useLayoutTitle("Page Title");
 </Routes>
 ```
 
-**Purpose**: 
+**Purpose**:
+
 - Handle unauthenticated routes
 - Sign-in page (if security enabled)
 - Delegate to authenticated routing
@@ -271,6 +290,7 @@ const { setTitle } = useLayoutTitle("Page Title");
 **File**: `interface/src/AuthenticatedRouting.tsx`
 
 **Routes**:
+
 ```tsx
 <Routes>
   {features.project && <Route path="/{PROJECT_PATH}/*" element={<ProjectRouting />} />}
@@ -285,6 +305,7 @@ const { setTitle } = useLayoutTitle("Page Title");
 ```
 
 **Purpose**:
+
 - Feature-based routing
 - Admin-only routes
 - Default route resolution
@@ -294,6 +315,7 @@ const { setTitle } = useLayoutTitle("Page Title");
 ### Level 3: Feature Routing
 
 **WiFi Management** (`interface/src/framework/wifi/WiFiConnection.tsx`):
+
 ```tsx
 <RouterTabs>
   <Route path="status" element={<WiFiStatusForm />} />
@@ -302,6 +324,7 @@ const { setTitle } = useLayoutTitle("Page Title");
 ```
 
 **MQTT** (`interface/src/framework/mqtt/Mqtt.tsx`):
+
 ```tsx
 <RouterTabs>
   <Route path="status" element={<MqttStatusForm />} />
@@ -310,6 +333,7 @@ const { setTitle } = useLayoutTitle("Page Title");
 ```
 
 **System** (`interface/src/framework/system/System.tsx`):
+
 ```tsx
 <RouterTabs>
   <Route path="status" element={<SystemStatusForm />} />
@@ -323,6 +347,7 @@ const { setTitle } = useLayoutTitle("Page Title");
 **File**: `interface/src/project/ProjectRouting.tsx`
 
 **Routes**:
+
 ```tsx
 <Routes>
   <Route index element={<Navigate to="demo/information" />} />
@@ -331,6 +356,7 @@ const { setTitle } = useLayoutTitle("Page Title");
 ```
 
 **Demo Project** (`interface/src/project/DemoProject.tsx`):
+
 ```tsx
 <RouterTabs>
   <Route path="information" element={<DemoInformation />} />
@@ -349,6 +375,7 @@ const { setTitle } = useLayoutTitle("Page Title");
 **Purpose**: REST API state management
 
 **Type Signature**:
+
 ```typescript
 interface RestResult<D> {
   loadData: () => void;
@@ -366,12 +393,14 @@ function useRest<D>(
 ```
 
 **Features**:
+
 - Automatic loading on mount
 - Loading state management
 - Error handling with snackbar
 - Manual save trigger
 
 **Usage Example**:
+
 ```typescript
 const { loadData, saveData, saving, data, setData, errorMessage } = 
   useRest(WIFI_SETTINGS_ENDPOINT);
@@ -382,6 +411,7 @@ const { loadData, saveData, saving, data, setData, errorMessage } =
 ```
 
 **Endpoints** (`interface/src/api/`):
+
 - `wifi.ts` - WiFi endpoints
 - `mqtt.ts` - MQTT endpoints
 - `security.ts` - Security endpoints
@@ -395,6 +425,7 @@ const { loadData, saveData, saving, data, setData, errorMessage } =
 **Purpose**: WebSocket real-time communication
 
 **Type Signature**:
+
 ```typescript
 interface WsResult<D> {
   data?: D;
@@ -410,6 +441,7 @@ function useWs<D>(
 ```
 
 **Features**:
+
 - Automatic reconnection (sockette)
 - Client ID tracking (ignore own updates)
 - Throttled transmission (debounce)
@@ -418,6 +450,7 @@ function useWs<D>(
 **Message Flow**:
 
 **Receive**:
+
 1. WebSocket message received
 2. Parse JSON
 3. Check `origin_id !== clientId`
@@ -425,6 +458,7 @@ function useWs<D>(
 5. Trigger re-render
 
 **Send**:
+
 1. User updates UI
 2. `updateData()` called
 3. Throttle applied (100ms default)
@@ -432,6 +466,7 @@ function useWs<D>(
 5. Send via WebSocket
 
 **Usage Example**:
+
 ```typescript
 const { data, updateData, connected } = 
   useWs("/ws/lightState", { led_on: false });
@@ -448,16 +483,19 @@ const { data, updateData, connected } =
 **Base URL**: `/rest/`
 
 **Interceptors**:
+
 - **Request**: Inject JWT token from authentication context
 - **Response**: Handle 401 (redirect to sign-in)
 
 **Helper Functions**:
+
 ```typescript
 function restEndpoint<T>(path: string): Endpoint<T>
 function webSocketUrl(path: string): string
 ```
 
 **File Upload**:
+
 ```typescript
 function postUpload<T>(
   path: string, 
@@ -488,7 +526,8 @@ function postUpload<T>(
    - Click to select
 5. **WiFiNetworkSelector** - Scan + select workflow
 
-**State Management**: 
+**State Management**:
+
 - Settings: `useRest` for WiFiSettings
 - Status: `useRest` for WiFiStatus (read-only)
 - Scanner: Manual fetch trigger
@@ -510,7 +549,8 @@ function postUpload<T>(
    - Client ID, keep-alive
    - Clean session flag
 
-**State Management**: 
+**State Management**:
+
 - Settings: `useRest` for MqttSettings
 - Status: `useRest` for MqttStatus (read-only, auto-refresh)
 
@@ -555,6 +595,7 @@ function postUpload<T>(
    - Confirms successful update
 
 **State Management**:
+
 - Status: `useRest` for SystemStatus (auto-refresh)
 - OTA: `useRest` for OTASettings
 - Upload: `useFileUpload` hook
@@ -579,6 +620,7 @@ function postUpload<T>(
    - Uses `useRest`
 
 **Data Types** (`interface/src/project/types.ts`):
+
 ```typescript
 interface LightState {
   led_on: boolean;
@@ -633,9 +675,9 @@ interface LightMqttSettings {
 
 **Files**: `interface/src/components/`
 
-4. **ButtonRow** - Action button container
-5. **SectionContent** - Page section wrapper
-6. **MessageBox** - Info/warning/error display
+1. **ButtonRow** - Action button container
+2. **SectionContent** - Page section wrapper
+3. **MessageBox** - Info/warning/error display
 
 ### Loading Components
 
@@ -669,6 +711,7 @@ interface LightMqttSettings {
 **Approach**: React Context API + Custom Hooks
 
 **Rationale**:
+
 - Small to medium state complexity
 - Context API sufficient for global state
 - Custom hooks encapsulate logic
@@ -694,6 +737,7 @@ interface LightMqttSettings {
 ### Data Flow Patterns
 
 **REST Pattern**:
+
 ```
 Component → useRest → Axios → Backend
                 ↓
@@ -703,6 +747,7 @@ Component → useRest → Axios → Backend
 ```
 
 **WebSocket Pattern**:
+
 ```
 Component → useWs → WebSocket → Backend
     ↑                    ↓
@@ -711,6 +756,7 @@ Component → useWs → WebSocket → Backend
 ```
 
 **Context Pattern**:
+
 ```
 Provider → Context → Consumer
              ↓
@@ -724,6 +770,7 @@ Provider → Context → Consumer
 **Library**: async-validator
 
 **Pattern**:
+
 ```typescript
 const schema = new Schema({
   ssid: { required: true, max: 32 },
@@ -740,6 +787,7 @@ schema.validate(formData, (errors) => {
 ```
 
 **Validators** (`interface/src/validators/`):
+
 - `wifi.ts` - WiFi validation rules
 - `mqtt.ts` - MQTT validation rules
 - `security.ts` - User validation rules
@@ -750,11 +798,13 @@ schema.validate(formData, (errors) => {
 ### Development Mode
 
 **Proxy**: `interface/package.json`
+
 ```json
 "proxy": "http://192.168.0.23"
 ```
 
 **Setup Proxy**: `interface/src/setupProxy.js`
+
 - Proxies REST requests
 - Proxies WebSocket connections
 
@@ -769,12 +819,14 @@ schema.validate(formData, (errors) => {
 **Output**: `interface/build/` directory
 
 **Optimization**:
+
 - Minified JavaScript
 - Gzipped assets
 - No source maps
 - Tree shaking
 
-**Deployment**: 
+**Deployment**:
+
 - Option 1: Compiled into PROGMEM (C++ byte arrays)
 - Option 2: Uploaded to LittleFS (`/www/` directory)
 

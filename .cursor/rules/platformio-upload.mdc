@@ -12,11 +12,13 @@ When uploading firmware to ESP32 devices, **ALWAYS** kill Python processes first
 Before running any upload command:
 
 1. **Kill Python processes**:
+
    ```powershell
    Get-Process python* | Stop-Process -Force
    ```
 
 2. **Then upload**:
+
    ```powershell
    python -m platformio run -e esp32s3 -t upload
    ```
@@ -31,12 +33,14 @@ Before running any upload command:
 ## Examples
 
 ### ❌ BAD - Upload without killing processes
+
 ```powershell
 python -m platformio run -e esp32s3 -t upload
 # ERROR: Could not open COM10, the port is busy
 ```
 
 ### ✅ GOOD - Kill then upload
+
 ```powershell
 Get-Process python* | Stop-Process -Force
 python -m platformio run -e esp32s3 -t upload

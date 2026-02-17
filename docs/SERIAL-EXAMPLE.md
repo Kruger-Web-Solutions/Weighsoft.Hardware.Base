@@ -92,12 +92,14 @@ class SerialState {
 #### SerialService
 
 **Protocol Composition**:
+
 - `HttpEndpoint<SerialState>` - REST API at `/rest/serial`
 - `WebSocketTxRx<SerialState>` - WebSocket at `/ws/serial`
 - `MqttPubSub<SerialState>` - MQTT topic: `weighsoft/serial/{unique_id}/data`
 - `BlePubSub<SerialState>` - BLE service/characteristic UUIDs defined inline
 
 **Line Reading Logic**:
+
 ```cpp
 void SerialService::readSerial() {
   while (Serial2.available()) {
@@ -122,6 +124,7 @@ void SerialService::readSerial() {
 ```
 
 **Safety Features**:
+
 - Maximum line length: 512 characters
 - Ignores carriage returns (`\r`)
 - Origin tracking prevents feedback loops
@@ -146,17 +149,20 @@ interface/src/examples/serial/
 ### UI Components
 
 #### SerialInfo
+
 - Overview of the service
 - Feature list
 - Hardware wiring instructions
 - Communication channel details
 
 #### SerialRest
+
 - Polls REST API every 2 seconds
 - Displays last received line with timestamp
 - Useful for low-frequency updates or testing
 
 #### SerialWebSocket
+
 - Real-time streaming display
 - Keeps last 100 lines in memory
 - Auto-scrolls to bottom
@@ -164,6 +170,7 @@ interface/src/examples/serial/
 - Timestamped entries
 
 #### SerialBle
+
 - BLE connection instructions
 - Service UUID: `12340000-e8f2-537e-4f6c-d104768a1234`
 - Characteristic UUID: `12340001-e8f2-537e-4f6c-d104768a1234`
@@ -178,6 +185,7 @@ interface/src/examples/serial/
 Returns the last received serial line, extracted weight, and current configuration.
 
 **Response**:
+
 ```json
 {
   "last_line": "Weight: 12.5 kg",
@@ -192,6 +200,7 @@ Returns the last received serial line, extracted weight, and current configurati
 ```
 
 **Fields**:
+
 - `last_line` (string): Most recently received complete line
 - `weight` (string): Extracted value from first regex capture group, or empty
 - `timestamp` (number): ESP32 millis() when line was received
@@ -208,6 +217,7 @@ Update serial port and regex configuration. Request body can include any of: `ba
 Streams real-time data as lines arrive.
 
 **Message Format**:
+
 ```json
 {
   "last_line": "Weight: 12.5 kg",
@@ -217,6 +227,7 @@ Streams real-time data as lines arrive.
 ```
 
 **Connection**:
+
 ```typescript
 const ws = new WebSocket('ws://192.168.x.x/ws/serial');
 ws.onmessage = (event) => {
@@ -232,6 +243,7 @@ ws.onmessage = (event) => {
 Where `{unique_id}` is the device's unique identifier (MAC-based).
 
 **Payload**:
+
 ```json
 {
   "last_line": "Weight: 12.5 kg",
@@ -241,6 +253,7 @@ Where `{unique_id}` is the device's unique identifier (MAC-based).
 ```
 
 **Subscribe Example** (mosquitto_sub):
+
 ```bash
 mosquitto_sub -h broker.example.com -t "weighsoft/serial/+/data"
 ```
@@ -253,6 +266,7 @@ mosquitto_sub -h broker.example.com -t "weighsoft/serial/+/data"
 **Properties**: READ, NOTIFY
 
 **Value Format**: UTF-8 JSON string
+
 ```json
 {"last_line":"Weight: 12.5 kg","weight":"12.5","timestamp":12345678}
 ```
@@ -262,13 +276,16 @@ mosquitto_sub -h broker.example.com -t "weighsoft/serial/+/data"
 ### 1. Backend Testing
 
 #### Test Serial2 Input
+
 Connect a USB-to-TTL adapter:
+
 ```
 Adapter TX --> ESP32 GPIO17 (RX2)
 Adapter GND --> ESP32 GND
 ```
 
 Send test data:
+
 ```bash
 # Using screen (Linux/Mac)
 screen /dev/ttyUSB0 115200
@@ -280,27 +297,33 @@ screen /dev/ttyUSB0 115200
 Type lines and press Enter - they should appear in all channels.
 
 #### Verify REST API
+
 ```bash
 curl http://192.168.x.x/rest/serial
 ```
 
 Expected response:
+
 ```json
 {"last_line":"test data","timestamp":12345}
 ```
 
 #### Verify WebSocket
+
 Use browser console or wscat:
+
 ```bash
 wscat -c ws://192.168.x.x/ws/serial
 ```
 
 #### Verify MQTT
+
 ```bash
 mosquitto_sub -h your-broker -t "weighsoft/serial/+/data" -v
 ```
 
 #### Verify BLE
+
 1. Open nRF Connect app
 2. Scan for ESP32 device
 3. Connect and find service `12340000-e8f2-537e-4f6c-d104768a1234`
@@ -312,7 +335,7 @@ mosquitto_sub -h your-broker -t "weighsoft/serial/+/data" -v
 1. **Navigation**: Verify "Serial Monitor" appears in Project menu
 2. **Information Tab**: Check documentation renders correctly
 3. **REST View**: Verify 2-second polling shows last line
-4. **Live Stream**: 
+4. **Live Stream**:
    - Verify WebSocket connection establishes
    - Lines appear in real-time
    - Timestamps are correct
@@ -323,12 +346,14 @@ mosquitto_sub -h your-broker -t "weighsoft/serial/+/data" -v
 ### 3. Integration Testing
 
 Send a continuous stream of test data:
+
 ```bash
 # Linux/Mac
 while true; do echo "Test line $(date +%s)"; sleep 1; done > /dev/ttyUSB0
 ```
 
 Verify:
+
 - REST API returns most recent line
 - WebSocket streams all lines
 - MQTT publishes all lines
@@ -343,6 +368,7 @@ Verify:
 **Hardware**: GPS module with NMEA output (TX only)
 
 **Wiring**:
+
 ```
 GPS Module TX --> ESP32 GPIO17 (RX2)
 GPS Module GND --> ESP32 GND
@@ -350,6 +376,7 @@ GPS Module VCC --> ESP32 3.3V
 ```
 
 **Expected Data**:
+
 ```
 $GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*47
 $GPRMC,123519,A,4807.038,N,01131.000,E,022.4,084.4,230394,003.1,W*6A
@@ -362,6 +389,7 @@ Each NMEA sentence will be streamed across all channels.
 **Hardware**: Arduino/Sensor board sending CSV data
 
 **Example Data**:
+
 ```
 timestamp,temp,humidity,pressure
 1234567890,23.5,65.2,1013.25
@@ -373,6 +401,7 @@ Parse lines on client side (WebSocket/MQTT subscriber).
 ### Debug Monitor
 
 Monitor debug output from another microcontroller:
+
 ```
 [DEBUG] Sensor initialized
 [INFO] Reading value: 42
@@ -397,6 +426,7 @@ View real-time logs via WebSocket in browser.
 
 - Default limit is 512 characters per line
 - Increase in `SerialService.cpp`:
+
   ```cpp
   if (_lineBuffer.length() > 1024) {  // Increase from 512
   ```
@@ -404,6 +434,7 @@ View real-time logs via WebSocket in browser.
 ### High CPU Usage
 
 If receiving data at very high rates (>1000 lines/sec):
+
 - Add rate limiting in `readSerial()`
 - Increase buffer size
 - Consider hardware flow control
@@ -482,20 +513,24 @@ void SerialService::readSerial() {
 ### Weighing Scale Output Examples
 
 **Format: `WN0001.68kg`** (common in industrial scales)
+
 - Regex pattern: `(\d+\.\d+)` → extracts `0001.68`
 - Regex pattern: `WN(\d+\.\d+)` → extracts `0001.68`
 - Typical baud: 9600
 
 **Format: `Weight: 12.5 kg`**
+
 - Regex pattern: `(\d+\.\d+)` → extracts `12.5`
 - Regex pattern: `Weight:\s*(\d+\.\d+)` → extracts `12.5`
 - Typical baud: 9600 or 115200
 
 **Format: `ST,GS,+00012.5kg`** (A&D scales)
+
 - Regex pattern: `([+-]?\d+\.\d+)` → extracts `+00012.5`
 - Typical baud: 9600
 
 **Testing your scale:**
+
 ```bash
 # On Raspberry Pi or Linux PC
 cat /dev/ttyUSB0

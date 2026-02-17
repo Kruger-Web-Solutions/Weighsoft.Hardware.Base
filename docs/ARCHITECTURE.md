@@ -7,6 +7,7 @@ The ESP8266-React framework is a comprehensive IoT platform that provides a secu
 ## System Purpose
 
 This framework enables developers to rapidly build IoT applications with:
+
 - **Web-based configuration** - Modern, responsive UI for device configuration
 - **Real-time communication** - WebSocket and MQTT support for live updates
 - **Secure access control** - JWT-based authentication and authorization
@@ -16,6 +17,7 @@ This framework enables developers to rapidly build IoT applications with:
 ## Technology Stack
 
 ### Backend (ESP8266/ESP32)
+
 - **Platform**: Arduino framework on ESP8266/ESP32
 - **Language**: C++ (C++11/14 features)
 - **Web Server**: ESPAsyncWebServer (async, non-blocking)
@@ -25,6 +27,7 @@ This framework enables developers to rapidly build IoT applications with:
 - **Build System**: PlatformIO
 
 ### Frontend (React SPA)
+
 - **Framework**: React 18.1.0
 - **Language**: TypeScript 4.6.4
 - **UI Library**: Material-UI (MUI) 5.8.0
@@ -61,14 +64,18 @@ graph TB
 ## Core Architectural Principles
 
 ### 1. Stateful Service Pattern
+
 All data management in the framework is built around the `StatefulService<T>` template, which provides:
+
 - Thread-safe state access (mutex on ESP32)
 - Event-driven update notifications
 - Origin tracking for update propagation
 - Composable infrastructure components
 
 ### 2. Single-Layer Service Architecture
+
 Weighsoft services use a **single-layer pattern** for protocol integration:
+
 - Application services directly compose framework components (`HttpEndpoint`, `WebSocketTxRx`, `MqttPubSub`, `BlePubSub`)
 - Protocol configuration (MQTT topics, BLE UUIDs) is managed inline within the service
 - No separate settings services for protocol configuration
@@ -79,7 +86,9 @@ Weighsoft services use a **single-layer pattern** for protocol integration:
 **Rationale**: Industrial IoT devices typically have one primary function (scale, relay, sensor) and don't need runtime configuration of protocol parameters. Inline configuration is simpler and sufficient.
 
 ### 3. Infrastructure Composition
+
 Services compose infrastructure components rather than using inheritance:
+
 - `HttpEndpoint<T>` - REST API exposure
 - `FSPersistence<T>` - Filesystem persistence
 - `WebSocketTxRx<T>` - Real-time bidirectional communication
@@ -87,17 +96,20 @@ Services compose infrastructure components rather than using inheritance:
 - `BlePubSub<T>` - BLE characteristic-based communication (Phase 2)
 
 ### 4. Security by Design
+
 - JWT-based authentication with configurable expiry
 - Authorization predicates (NONE_REQUIRED, IS_AUTHENTICATED, IS_ADMIN)
 - Secure WebSocket filtering
 - Request wrapping for protected endpoints
 
 ### 5. Feature Modularity
+
 - Compile-time feature flags (FT_SECURITY, FT_MQTT, FT_NTP, FT_OTA, FT_UPLOAD_FIRMWARE, FT_BLE)
 - Conditional compilation for memory optimization
 - Optional services based on project requirements
 
 ### 6. Event-Driven Updates
+
 - Update handlers propagate state changes
 - Origin ID prevents circular updates across multiple channels
 - Multiple communication channels (REST, WebSocket, MQTT, BLE) synchronized automatically
@@ -105,12 +117,14 @@ Services compose infrastructure components rather than using inheritance:
 ## System Capabilities
 
 ### Core Features (Always Available)
+
 - **WiFi Management**: Station mode configuration, network scanning, connection status
 - **Access Point**: Configurable AP mode (always-on or fallback), SSID configuration
 - **System Management**: Status monitoring, restart, factory reset
 - **Feature Discovery**: Dynamic feature flag exposure to frontend
 
 ### Optional Features (Configurable)
+
 - **Security**: JWT authentication, user management, role-based access control
 - **MQTT**: Broker connection, pub/sub topics, Home Assistant integration
 - **NTP**: Network time synchronization, timezone configuration
@@ -145,12 +159,14 @@ Services compose infrastructure components rather than using inheritance:
 ## Memory Considerations
 
 ### Backend Memory Profile
+
 - **Minimum Flash**: 2MB (recommended 4MB)
 - **RAM Usage**: ~40-50KB framework overhead
 - **PROGMEM WWW**: ~150KB for frontend assets (optional)
 - **LittleFS**: Configurable partition size
 
 ### Optimization Strategies
+
 1. **Feature Flags**: Disable unused features at compile time
 2. **PROGMEM Storage**: Serve frontend from flash instead of filesystem
 3. **Buffer Sizing**: Configurable JSON buffer sizes per service
@@ -159,18 +175,21 @@ Services compose infrastructure components rather than using inheritance:
 ## Deployment Models
 
 ### 1. PROGMEM WWW (Default)
+
 - Frontend compiled into firmware
 - No filesystem upload needed
 - Faster page loads
 - Requires larger flash partition
 
 ### 2. Filesystem WWW
+
 - Frontend served from LittleFS
 - Separate upload step required
 - Smaller firmware binary
 - Frontend updatable independently
 
 ### 3. Hybrid
+
 - Critical pages in PROGMEM
 - Assets in filesystem
 - Balance between size and flexibility
@@ -207,18 +226,21 @@ This documentation is organized into multiple files:
 ## Quick Start for Developers
 
 ### Understanding the Framework
+
 1. Read [C4-CONTEXT.md](C4-CONTEXT.md) for system boundaries
 2. Study [C4-CONTAINER.md](C4-CONTAINER.md) for container interactions
 3. Review [C4-COMPONENT-BACKEND.md](C4-COMPONENT-BACKEND.md) for service patterns
 4. Examine [DESIGN-PATTERNS.md](DESIGN-PATTERNS.md) for implementation patterns
 
 ### Extending the Framework
+
 1. Follow [EXTENSION-GUIDE.md](EXTENSION-GUIDE.md) for step-by-step instructions
 2. Reference the demo light control service in `src/LightStateService.*`
 3. Use [API-REFERENCE.md](API-REFERENCE.md) for endpoint design
 4. Check [SEQUENCE-DIAGRAMS.md](SEQUENCE-DIAGRAMS.md) for interaction patterns
 
 ### Configuration and Deployment
+
 1. Review [CONFIGURATION.md](CONFIGURATION.md) for build options
 2. Modify `features.ini` to enable/disable features
 3. Customize `factory_settings.ini` for default values

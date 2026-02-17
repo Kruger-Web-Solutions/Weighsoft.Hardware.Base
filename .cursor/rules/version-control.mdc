@@ -23,6 +23,7 @@ When you finish implementing features, fixing bugs, or updating documentation:
 ## When This Applies (ALWAYS)
 
 **Applies to ALL changes in:**
+
 - Backend: `src/`, `lib/framework/`
 - Frontend: `interface/src/`
 - Documentation: `docs/`
@@ -47,6 +48,7 @@ git commit --trailer "Co-authored-by: Cursor <cursoragent@cursor.com>" -m "type:
 ### 2. Commit Message Format
 
 Use conventional commit format:
+
 - `feat: add new sensor service`
 - `fix: resolve WebSocket reconnection issue`
 - `refactor: improve StatefulService thread safety`
@@ -54,6 +56,7 @@ Use conventional commit format:
 - `test: add unit tests for LightStateService`
 
 For multi-line messages, use a file:
+
 ```bash
 git commit --trailer "Co-authored-by: Cursor <cursoragent@cursor.com>" -F commit_msg.txt
 ```
@@ -82,6 +85,7 @@ git push
 ## Automatic Commit Process
 
 **When to trigger:** Immediately after:
+
 - All TODOs marked complete
 - Feature implementation finished
 - Bug fix applied
@@ -89,6 +93,7 @@ git push
 - Any code changes made
 
 **Commit message template:**
+
 ```bash
 git commit --trailer "Co-authored-by: Cursor <cursoragent@cursor.com>" -m "type(scope): description
 

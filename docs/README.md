@@ -7,12 +7,14 @@ This documentation provides comprehensive architecture, design patterns, API ref
 ## Quick Start
 
 ### For Developers
+
 1. **New to the framework?** Start with [ARCHITECTURE.md](ARCHITECTURE.md)
 2. **Need to understand the system?** Review the C4 diagrams
 3. **Want to add features?** Follow the [EXTENSION-GUIDE.md](EXTENSION-GUIDE.md)
 4. **Need API docs?** See [API-REFERENCE.md](API-REFERENCE.md)
 
 ### For AI Agents
+
 1. Read [ARCHITECTURE.md](ARCHITECTURE.md) for system overview
 2. Study [DESIGN-PATTERNS.md](DESIGN-PATTERNS.md) for implementation patterns
 3. Reference [API-REFERENCE.md](API-REFERENCE.md) for endpoint contracts
@@ -170,24 +172,31 @@ For developers maintaining the codebase:
 ## Troubleshooting
 
 ### Can't find component interaction flow?
+
 → See [SEQUENCE-DIAGRAMS.md](SEQUENCE-DIAGRAMS.md)
 
 ### Don't understand data movement?
+
 → See [DATA-FLOWS.md](DATA-FLOWS.md)
 
 ### Need API contract details?
+
 → See [API-REFERENCE.md](API-REFERENCE.md)
 
 ### How do I implement a pattern?
+
 → See [DESIGN-PATTERNS.md](DESIGN-PATTERNS.md) and [EXTENSION-GUIDE.md](EXTENSION-GUIDE.md)
 
 ### Where does this file belong?
+
 → See [FILE-REFERENCE.md](FILE-REFERENCE.md)
 
 ### How do I secure an endpoint?
+
 → See [SECURITY.md](SECURITY.md)
 
 ### How do I change build settings?
+
 → See [CONFIGURATION.md](CONFIGURATION.md)
 
 ## Contributing
@@ -225,13 +234,14 @@ When adding new features:
 
 - **Main README**: [../README.md](../README.md) - Project overview
 - **Framework Source**: `lib/framework/` - Implementation reference
-- **Example Projects**: 
+- **Example Projects**:
   - [LED-EXAMPLE.md](LED-EXAMPLE.md) - Simple LED control
   - [SERIAL-EXAMPLE.md](SERIAL-EXAMPLE.md) - Serial port monitoring
 
 ## Feedback
 
 For documentation improvements, please:
+
 1. Check if information exists elsewhere first
 2. Submit clear, specific suggestions
 3. Include examples where helpful
@@ -239,6 +249,7 @@ For documentation improvements, please:
 ## Next Steps
 
 Choose your path:
+
 - **Learn**: Start with [ARCHITECTURE.md](ARCHITECTURE.md)
 - **Build**: Jump to [EXTENSION-GUIDE.md](EXTENSION-GUIDE.md)
 - **Reference**: Use [API-REFERENCE.md](API-REFERENCE.md)

@@ -263,6 +263,7 @@ C:\Project\Weighsoft.Hardware.Base\
 ### Generated Directories
 
 **Not in Git**:
+
 ```
 /.pio/                  # PlatformIO build artifacts
 interface/node_modules/ # NPM dependencies
@@ -273,10 +274,12 @@ interface/build/        # React production build
 ### Uploaded to Device
 
 **Firmware**:
+
 - `.pio/build/{env}/firmware.bin` - Main firmware
 - `.pio/build/{env}/spiffs.bin` - Filesystem image (if not PROGMEM_WWW)
 
 **Filesystem** (uploaded separately if not PROGMEM_WWW):
+
 ```
 /www/
 ├── index.html
@@ -289,6 +292,7 @@ interface/build/        # React production build
 ```
 
 **Configuration** (created at runtime):
+
 ```
 /config/
 ├── wifiSettings.json
@@ -306,6 +310,7 @@ interface/build/        # React production build
 ### main.cpp
 
 **Responsibilities**:
+
 - Create AsyncWebServer instance
 - Create ESP8266React framework instance
 - Create custom service instances
@@ -316,6 +321,7 @@ interface/build/        # React production build
 ### ESP8266React.cpp
 
 **Responsibilities**:
+
 - Initialize filesystem
 - Create all framework services
 - Register WWW routes (PROGMEM or filesystem)
@@ -325,6 +331,7 @@ interface/build/        # React production build
 ### StatefulService Template
 
 **Responsibilities**:
+
 - Store state object
 - Provide thread-safe access
 - Manage update handlers
@@ -333,6 +340,7 @@ interface/build/        # React production build
 ### Infrastructure Templates
 
 **Responsibilities**:
+
 - HttpEndpoint: Expose REST API
 - FSPersistence: Save/load from filesystem
 - WebSocketTxRx: Real-time bidirectional sync
@@ -341,11 +349,13 @@ interface/build/        # React production build
 ## File Naming Conventions
 
 ### Backend (C++)
+
 - `.h` - Header files
 - `.cpp` - Implementation files
 - PascalCase: `WiFiSettingsService.h`
 
 ### Frontend (TypeScript/React)
+
 - `.tsx` - React components
 - `.ts` - TypeScript modules
 - PascalCase for components: `WiFiSettingsForm.tsx`

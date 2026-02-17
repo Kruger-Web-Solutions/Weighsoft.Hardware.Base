@@ -8,14 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+
 - (Future changes will be listed here)
 
 ### Changed
+
 - (Future changes will be listed here)
 
 ## [0.6.0] - 2026-02-17
 
 ### Added
+
 - **Weight Stream Forwarder**: Multi-protocol weight data distribution service
   - WebSocket broadcasting to connected clients
   - HTTP Server-Sent Events (SSE) streaming
@@ -30,12 +33,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Line ending options (CRLF/LF) for testing serial parsing
 
 ### Changed
+
 - Updated `FRONTEND-PATTERNS.md` with weight forwarder context management examples
 - Fixed Weight Forwarder frontend to use features context and correct useWs hook
 
 ## [0.5.0] - 2026-02-15
 
 ### Added
+
 - **ESP32-S3 Platform Support**: Extended multi-platform capabilities
   - Optimized partition scheme for ESP32-S3
   - Platform-specific configurations in `platformio.ini`
@@ -44,6 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.4.0] - 2026-02-14
 
 ### Added
+
 - **Comprehensive UART Documentation**: Major documentation overhaul
   - Updated `SERIAL-EXAMPLE.md` with 525 lines of detailed UART mode system documentation
   - Architecture diagrams, API references, troubleshooting guides
@@ -52,6 +58,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.3.0] - 2026-02-13
 
 ### Added
+
 - **UART Mode Management**: Persistent mode switcher (Live Monitoring vs Diagnostics)
   - `UartModeService` for backend state management with flash persistence (`/config/uartMode.json`)
   - `UartModeSwitcher` React component for UI mode control
@@ -64,12 +71,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - SerialService properly resumes after diagnostics mode ends
 
 ### Changed
+
 - Updated boot sequence to include UartModeService initialization ([x/10] now)
 - Main.cpp now links UartModeService with Serial and Diagnostics services for coordination
 - API documentation updated with UART Mode Management endpoints
 - Frontend components refactored to support mode-aware rendering
 
 ### Fixed
+
 - Diagnostics signal quality test: Reduced packet rate to prevent loss
 - Diagnostics signal quality test: Fixed packet counts to realistic values
 - Diagnostics: Prevented Serial2 hardware buffer overflow in signal test
@@ -81,6 +90,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.2.0] - 2024-02-12
 
 ### Added
+
 - **UART Diagnostics Project**: Complete hardware testing suite
   - Loopback Test: Verifies GPIO16-17 hardware functionality with echo packets
   - Baud Rate Detection: Automatically detects device baud rate (1200-115200)
@@ -101,6 +111,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Automatic version control rule (`.cursor/rules/version-control.mdc` updated)
 
 ### Changed
+
 - Updated `main.cpp` boot sequence to [x/8] for diagnostics service
 - Updated `API-REFERENCE.md` with diagnostics endpoints
 - Updated `FILE-REFERENCE.md` with new diagnostics files
@@ -108,11 +119,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Version control rule now enforces automatic commit/push after task completion
 
 ### Fixed
+
 - None in this release
 
 ## [0.1.0] - 2024-01-10
 
 ### Added
+
 - Initial serial monitoring service
 - Serial2 (GPIO16/17) monitoring and streaming
 - Configurable serial port settings (baud rate, data bits, stop bits, parity)
@@ -132,9 +145,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Comprehensive project documentation
 
 ### Changed
+
 - N/A (initial release)
 
 ### Fixed
+
 - Serial2 not initializing on boot
 - Baud rate configuration not persisting after reboot
 - Line ending parsing (now accepts both `\r` and `\n`)

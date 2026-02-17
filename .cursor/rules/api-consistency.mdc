@@ -23,6 +23,7 @@ Pattern: `/rest/{serviceName}`
 ```
 
 Examples:
+
 - `/rest/wifiSettings` - WiFi configuration
 - `/rest/mqttSettings` - MQTT configuration
 - `/rest/lightState` - Light control
@@ -36,6 +37,7 @@ Pattern: `/ws/{serviceName}`
 ```
 
 Examples:
+
 - `/ws/lightState` - Real-time light status
 - `/ws/systemStatus` - System monitoring
 
@@ -271,6 +273,7 @@ When adding new endpoint, update @docs/API-REFERENCE.md with:
 ### REST API Example
 
 Reference: WiFiSettingsService
+
 - Endpoint: `/rest/wifiSettings`
 - Method: GET, PUT
 - Security: IS_ADMIN
@@ -278,6 +281,7 @@ Reference: WiFiSettingsService
 ### WebSocket Example
 
 Reference: @src/LightStateService.h
+
 - Endpoint: `/ws/lightState`
 - Real-time bidirectional
 - Security: IS_AUTHENTICATED
@@ -285,6 +289,7 @@ Reference: @src/LightStateService.h
 ### MQTT Example
 
 Reference: LightStateService
+
 - Status topic: `{device}/lightState`
 - Command topic: `{device}/lightState/set`
 - Format: Home Assistant compatible
@@ -292,6 +297,7 @@ Reference: LightStateService
 ## What NOT to Do
 
 ❌ Inconsistent endpoint paths:
+
 ```cpp
 "/api/wifi"           // Wrong prefix
 "/settings/wifi"      // Wrong prefix
@@ -299,6 +305,7 @@ Reference: LightStateService
 ```
 
 ❌ Mixed naming conventions:
+
 ```cpp
 root["WiFi_SSID"] = ...;      // Wrong: use snake_case
 root["wifiSsid"] = ...;       // Wrong: use snake_case
@@ -306,6 +313,7 @@ root["wifi_ssid"] = ...;      // Correct
 ```
 
 ❌ Ignoring security:
+
 ```cpp
 HttpEndpoint<MyState> _endpoint(
   ...,
@@ -316,11 +324,13 @@ HttpEndpoint<MyState> _endpoint(
 ```
 
 ❌ Undocumented endpoints:
+
 ```cpp
 // Added new endpoint but didn't update @docs/API-REFERENCE.md
 ```
 
 ❌ Inconsistent status codes:
+
 ```cpp
 return request->send(200, ...);  // Should be 400 for errors
 ```

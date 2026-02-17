@@ -196,6 +196,7 @@ AuthenticationPredicates::IS_ADMIN
 Reference: @src/LightStateService.h and @src/LightStateService.cpp
 
 Shows:
+
 - State class with read/update methods
 - StatefulService inheritance
 - Infrastructure composition
@@ -289,6 +290,7 @@ public:
 ### Common BLE Mistakes
 
 ❌ Configuring BLE in `begin()`:
+
 ```cpp
 void MyService::begin() {
   configureBle();  // ❌ BLEServer not ready yet!
@@ -296,6 +298,7 @@ void MyService::begin() {
 ```
 
 ✅ Use callback in main.cpp:
+
 ```cpp
 esp8266React.onBleServerStarted([](BLEServer* bleServer) {
   myService->setBleServer(bleServer);
@@ -306,6 +309,7 @@ esp8266React.onBleServerStarted([](BLEServer* bleServer) {
 ## MQTT PubSub Constructor Pattern
 
 **Correct signature:**
+
 ```cpp
 MqttPubSub(
   StateRead<T> read,      // Serialization function
@@ -317,6 +321,7 @@ MqttPubSub(
 ```
 
 **Common mistake:**
+
 ```cpp
 ❌ _mqttPubSub(MyState::read, MyState::read, ...)  // Wrong: read twice
 ✅ _mqttPubSub(MyState::read, MyState::update, ...) // Correct
@@ -329,6 +334,7 @@ MqttPubSub(
 ### Settings Service
 
 Stores configuration, no real-time updates needed:
+
 - ✅ HttpEndpoint (REST API for forms)
 - ✅ FSPersistence (save/load config)
 - ❌ WebSocket (not needed)
@@ -339,6 +345,7 @@ Example: WiFiSettingsService
 ### Status Service
 
 Real-time status display:
+
 - ✅ WebSocketTxRx (live updates)
 - ❌ HttpEndpoint (read-only via WebSocket)
 - ❌ FSPersistence (not persisted)
@@ -349,6 +356,7 @@ Example: LightStateService
 ### Configuration + Status
 
 Both settings and live status:
+
 - ✅ HttpEndpoint (configuration API)
 - ✅ WebSocketTxRx (live status)
 - ✅ FSPersistence (save config)
@@ -357,12 +365,14 @@ Both settings and live status:
 ## What NOT to Do
 
 ❌ Don't inherit from infrastructure components:
+
 ```cpp
 class MyService : public HttpEndpoint<MyState> {  // WRONG
 };
 ```
 
 ❌ Don't skip JSON serialization methods:
+
 ```cpp
 class MyState {
   String value;
@@ -371,11 +381,13 @@ class MyState {
 ```
 
 ❌ Don't access _state directly:
+
 ```cpp
 _state.value = "new";  // NOT thread-safe
 ```
 
 ❌ Don't skip begin() implementation:
+
 ```cpp
 // Must load persisted state in begin()
 void MyService::begin() {
@@ -384,6 +396,7 @@ void MyService::begin() {
 ```
 
 ❌ Don't forget to register in main.cpp:
+
 ```cpp
 // Service won't work without begin() call
 myService.begin();

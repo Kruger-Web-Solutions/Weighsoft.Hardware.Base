@@ -13,6 +13,7 @@ This document captures critical lessons learned during the Weight Stream Forward
 **Root Cause**: Used plain `fetch()` API instead of the project's `AXIOS` instance, bypassing JWT authentication.
 
 **Wrong Implementation**:
+
 ```typescript
 // ❌ WRONG - No JWT token sent
 export function readWeightForwarder(signal?: AbortSignal) {
@@ -27,6 +28,7 @@ export function readWeightForwarder(signal?: AbortSignal) {
 ```
 
 **Correct Implementation**:
+
 ```typescript
 // ✅ CORRECT - AXIOS includes JWT automatically
 import { AxiosPromise } from 'axios';
@@ -38,12 +40,14 @@ export function readWeightForwarder(): AxiosPromise<WeightForwarderData> {
 ```
 
 **Why This Matters**:
+
 - `AXIOS` is pre-configured with JWT interceptor
 - Every request automatically includes `Authorization: Bearer <token>` header
 - Plain `fetch()` requires manual token handling
 - Without auth token, all protected endpoints return 401
 
 **Prevention**:
+
 - ALWAYS use `AXIOS` for API calls
 - Check existing examples (Serial, LED) for correct pattern
 - Never use `fetch()` for backend API communication
@@ -55,6 +59,7 @@ export function readWeightForwarder(): AxiosPromise<WeightForwarderData> {
 **Root Cause**: Tried to read feature flags from `import.meta.env` (Vite-specific), but this project loads flags from backend API at runtime.
 
 **Wrong Implementation**:
+
 ```typescript
 // ❌ WRONG - Vite syntax not used here
 const hasMqtt = import.meta.env.FT_MQTT;
@@ -62,6 +67,7 @@ const hasBle = import.meta.env.VITE_FT_BLE;
 ```
 
 **Correct Implementation**:
+
 ```typescript
 // ✅ CORRECT - Use FeaturesContext
 import { useContext } from 'react';
@@ -88,11 +94,13 @@ const WeightForwarderConfig: FC = () => {
 ```
 
 **Why This Matters**:
+
 - Feature flags are device-specific and loaded from `/rest/features` API
 - `import.meta.env` is for build-time environment variables (not used in this project)
 - Using wrong approach causes compilation errors
 
 **Prevention**:
+
 - ALWAYS use `FeaturesContext` for runtime feature detection
 - Check `features.mqtt`, `features.ble`, etc.
 - Reference LED or Serial examples for correct usage
@@ -104,6 +112,7 @@ const WeightForwarderConfig: FC = () => {
 **Root Cause**: Hooks are in `utils/` directory, not `components/` or `hooks/`.
 
 **Wrong Implementations**:
+
 ```typescript
 // ❌ WRONG - Hooks are not in components
 import { useWs } from '../../components';
@@ -116,17 +125,20 @@ import { useWs } from '../../utils/useWs';
 ```
 
 **Correct Implementation**:
+
 ```typescript
 // ✅ CORRECT - Import from utils index
 import { useWs, useRest } from '../../utils';
 ```
 
 **Why This Matters**:
+
 - Project structure uses `utils/` for custom hooks
 - Importing from wrong location causes module resolution errors
 - Wastes time debugging import paths
 
 **Prevention**:
+
 - ALWAYS import hooks from `../../utils`
 - Check existing examples for correct import patterns
 - Use auto-complete to verify import paths
@@ -138,6 +150,7 @@ import { useWs, useRest } from '../../utils';
 **Root Cause**: Assumed component availability without checking project components.
 
 **Wrong Implementation**:
+
 ```typescript
 // ❌ WRONG - ValidatedForm doesn't exist
 import { ValidatedForm } from '../../components';
@@ -148,6 +161,7 @@ import { ValidatedForm } from '../../components';
 ```
 
 **Correct Implementation**:
+
 ```typescript
 // ✅ CORRECT - Use SectionContent, FormLoader, ButtonRow
 import { SectionContent, FormLoader, ButtonRow } from '../../components';
@@ -176,11 +190,13 @@ return (
 ```
 
 **Why This Matters**:
+
 - Using non-existent components causes compilation errors
 - Each project has specific component patterns
 - Need to follow project conventions
 
 **Prevention**:
+
 - Check `interface/src/components/` for available components
 - Reference existing examples (LED, Serial) for correct patterns
 - Use `SectionContent`, `FormLoader`, `ButtonRow` for forms
@@ -190,16 +206,19 @@ return (
 **Issue**: Successfully uploaded firmware but new menu item didn't appear in UI.
 
 **Root Causes**:
+
 1. **PROGMEM_WWW**: Web interface embedded in firmware, not SPIFFS filesystem
 2. **No Hard Reset**: Device was running old firmware after upload
 3. **Browser Cache**: Old interface cached in browser
 
 **Wrong Assumptions**:
+
 - Upload automatically restarts device with new firmware
 - Filesystem upload affects the web interface
 - Browser refresh is sufficient
 
 **Correct Process**:
+
 ```powershell
 # 1. Kill Python processes (COM port busy prevention)
 Get-Process python* | Stop-Process -Force
@@ -217,12 +236,14 @@ python -m platformio run -e esp32s3 -t upload
 ```
 
 **Why This Matters**:
+
 - `PROGMEM_WWW` means interface is part of firmware binary
 - Auto-reset after upload doesn't always trigger firmware reload
 - Physical reset ensures new firmware loads
 - 401 errors indicate old firmware still running (no endpoint)
 
 **Prevention**:
+
 - ALWAYS physically reset device after firmware upload
 - Check serial output for service initialization
 - Verify service counter in boot logs
@@ -235,11 +256,13 @@ python -m platformio run -e esp32s3 -t upload
 **Root Cause**: Python processes (serial monitors, scripts) holding COM port open.
 
 **Wrong Approach**:
+
 - Try upload multiple times hoping it works
 - Manually close suspected applications
 - Reboot computer
 
 **Correct Process**:
+
 ```powershell
 # ALWAYS kill Python processes before upload
 Get-Process python* | Stop-Process -Force
@@ -249,11 +272,13 @@ python -m platformio run -e esp32s3 -t upload
 ```
 
 **Why This Matters**:
+
 - Windows COM ports can only be accessed by one process
 - Serial monitors and scripts prevent uploads
 - Systematic approach saves time
 
 **Prevention**:
+
 - Created `.cursor/rules/platformio-upload.mdc` to enforce this
 - ALWAYS kill Python processes before upload
 - Make it a habit, not an afterthought
@@ -261,24 +286,28 @@ python -m platformio run -e esp32s3 -t upload
 ## Best Practices Summary
 
 ### API Layer
+
 1. ✅ Use `AXIOS` for all API calls (never `fetch()`)
 2. ✅ Import from `'./endpoints'` for API files
 3. ✅ Use relative paths: `'mydevice'` not `'/rest/mydevice'`
 4. ✅ Follow AxiosPromise return type signature
 
 ### Feature Detection
+
 1. ✅ Use `FeaturesContext` for runtime flags
 2. ✅ Never use `import.meta.env` for feature flags
 3. ✅ Check `features.mqtt`, `features.ble`, etc.
 4. ✅ Reference existing examples for patterns
 
 ### Component Imports
+
 1. ✅ Import hooks from `'../../utils'`
 2. ✅ Import shared components from `'../../components'`
 3. ✅ Use `SectionContent`, `FormLoader`, `ButtonRow`
 4. ✅ Check available components before using
 
 ### Deployment Process
+
 1. ✅ Kill Python processes before upload
 2. ✅ Upload firmware with `python -m platformio`
 3. ✅ Physically reset device (EN/RST button)
@@ -286,6 +315,7 @@ python -m platformio run -e esp32s3 -t upload
 5. ✅ Hard refresh browser (Ctrl+Shift+R)
 
 ### Debugging Checklist
+
 - [ ] Using `AXIOS` not `fetch()`?
 - [ ] Using `FeaturesContext` not `import.meta.env`?
 - [ ] Importing hooks from `../../utils`?
@@ -298,6 +328,7 @@ python -m platformio run -e esp32s3 -t upload
 **Issues Caused Total Delay**: ~2 hours of debugging
 
 **Breakdown**:
+
 - Authentication issue: 30 minutes
 - Feature flags issue: 15 minutes
 - Import path issues: 20 minutes
@@ -330,18 +361,21 @@ The following documents were updated to prevent these issues:
 ## Recommendations for Future Work
 
 ### Before Implementation
+
 1. Read `FRONTEND-PATTERNS.md` - Authentication and Feature Flags sections
 2. Check existing examples (LED, Serial) for correct patterns
 3. Review available components in `interface/src/components/`
 4. Understand deployment process (PROGMEM_WWW implications)
 
 ### During Implementation
+
 1. Use `AXIOS` for all API calls (check examples)
 2. Use `FeaturesContext` for feature detection (never `import.meta.env`)
 3. Import hooks from `../../utils`
 4. Use `SectionContent`, `FormLoader`, `ButtonRow` for forms
 
 ### After Implementation
+
 1. Kill Python processes before upload
 2. Upload firmware
 3. Physically reset device (EN/RST)
@@ -349,6 +383,7 @@ The following documents were updated to prevent these issues:
 5. Hard refresh browser
 
 ### Testing Checklist
+
 - [ ] Backend compiles without errors
 - [ ] Frontend compiles without TypeScript errors
 - [ ] API endpoints return data (no 401)
@@ -360,6 +395,7 @@ The following documents were updated to prevent these issues:
 ## Conclusion
 
 Most issues were caused by:
+
 1. Not using project-specific patterns (AXIOS, FeaturesContext)
 2. Incorrect import paths
 3. Assuming component availability

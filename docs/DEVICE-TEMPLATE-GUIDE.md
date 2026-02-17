@@ -15,19 +15,22 @@ Before starting, decide which pattern fits your device:
 **Use for**: Controllable devices where users send commands and receive status
 
 **Characteristics**:
+
 - ✅ Read + write state
 - ✅ User controls device via UI
 - ✅ Bidirectional communication
 - ✅ State persistence (optional)
 
 **Examples**:
+
 - Relays (on/off control)
 - Motors (speed, direction)
 - Displays (text, brightness)
 - Actuators (position, state)
 - LED strips (color, brightness)
 
-**Template Location**: 
+**Template Location**:
+
 - Backend: `src/examples/led/`
 - Frontend: `interface/src/examples/led/`
 
@@ -36,12 +39,14 @@ Before starting, decide which pattern fits your device:
 **Use for**: Read-only devices that stream data to the system
 
 **Characteristics**:
+
 - ✅ Read-only streaming
 - ✅ Device pushes data to channels
 - ✅ Real-time monitoring
 - ✅ Data logging
 
 **Examples**:
+
 - Sensors (temperature, humidity, pressure)
 - GPS modules (location, speed)
 - Weight scales (readings, units)
@@ -49,6 +54,7 @@ Before starting, decide which pattern fits your device:
 - Data collectors (multi-sensor)
 
 **Template Location**:
+
 - Backend: `src/examples/serial/`
 - Frontend: `interface/src/examples/serial/`
 
@@ -66,6 +72,7 @@ cp -r src/examples/serial src/examples/mydevice
 ```
 
 **Files created**:
+
 - `MyDeviceState.h` - State structure
 - `MyDeviceService.h` - Service header
 - `MyDeviceService.cpp` - Service implementation
@@ -73,11 +80,13 @@ cp -r src/examples/serial src/examples/mydevice
 #### Step 2: Rename Classes
 
 **Find and replace** in your new files:
+
 - `LedExample` → `MyDevice` (or `Serial` → `MyDevice`)
 - `LED_EXAMPLE` → `MY_DEVICE`
 - `ledExample` → `myDevice`
 
 **Files to update**:
+
 - `MyDeviceState.h`
 - `MyDeviceService.h`
 - `MyDeviceService.cpp`
@@ -224,6 +233,7 @@ cp -r interface/src/examples/serial interface/src/examples/mydevice
 ```
 
 **Files created**:
+
 - `MyDevice.tsx` - Main router with tabs
 - `MyDeviceInfo.tsx` - Documentation tab
 - `MyDeviceRest.tsx` - REST polling (optional)
@@ -270,6 +280,7 @@ export const MY_DEVICE_SOCKET_PATH = `${WS_BASE_URL}myDevice`;
 #### Step 9: Customize Components
 
 **Rename and update** all component files:
+
 - `LedExample.tsx` → `MyDevice.tsx`
 - `LedExampleInfo.tsx` → `MyDeviceInfo.tsx`
 - etc.
@@ -344,6 +355,7 @@ Before you finish, check these common mistakes from real implementations:
 ### Always Update These Files
 
 **`docs/API-REFERENCE.md`**:
+
 ```markdown
 ### My Device Endpoints
 
@@ -360,7 +372,9 @@ Returns current device state.
 ```
 
 #### WebSocket: /ws/myDevice
+
 Real-time streaming of device state.
+
 ```
 
 **`docs/FILE-REFERENCE.md`**:
@@ -376,6 +390,7 @@ Real-time streaming of device state.
 ```
 
 **`README.md`**:
+
 - Add your device to the project structure description
 
 ### Create Device-Specific Documentation
@@ -415,6 +430,7 @@ Common issues and solutions.
 Before committing, verify:
 
 ### Backend Tests
+
 - [ ] Code compiles for ESP8266
 - [ ] Code compiles for ESP32
 - [ ] No memory issues (check free heap)
@@ -424,6 +440,7 @@ Before committing, verify:
 - [ ] BLE service advertises with correct UUID
 
 ### Frontend Tests
+
 - [ ] Frontend builds without errors: `npm run build`
 - [ ] No TypeScript errors
 - [ ] UI components load correctly
@@ -433,6 +450,7 @@ Before committing, verify:
 - [ ] BLE instructions are accurate
 
 ### Integration Tests
+
 - [ ] Device responds via REST
 - [ ] WebSocket shows live updates
 - [ ] MQTT messages appear in broker
@@ -471,11 +489,13 @@ const { connected, updateData, data } = useWs<MyDeviceData>(WEBSOCKET_URL);
 ### File Naming Conventions
 
 **Backend** (PascalCase for classes):
+
 - `MyDeviceState.h`
 - `MyDeviceService.h`
 - `MyDeviceService.cpp`
 
 **Frontend** (PascalCase for components, lowercase for API/types):
+
 - `MyDevice.tsx`
 - `MyDeviceInfo.tsx`
 - `MyDeviceWebSocket.tsx`
@@ -485,6 +505,7 @@ const { connected, updateData, data } = useWs<MyDeviceData>(WEBSOCKET_URL);
 ## Time Estimates
 
 With this guide:
+
 - **Backend**: 15-20 minutes
 - **Frontend**: 15-20 minutes
 - **Documentation**: 10-15 minutes
@@ -492,6 +513,7 @@ With this guide:
 - **Total**: 30-60 minutes
 
 Without this guide (first time):
+
 - **Total**: 1-2 hours (discovering patterns, fixing mistakes)
 
 ## Next Steps
@@ -514,6 +536,7 @@ Without this guide (first time):
 ## Getting Help
 
 If stuck:
+
 1. Check `docs/FRONTEND-PATTERNS.md` for import/hook issues
 2. Check `docs/EXTENSION-GUIDE.md` for detailed examples
 3. Check `.cursor/rules/adding-device-projects.mdc` for comprehensive guidelines

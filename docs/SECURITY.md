@@ -9,11 +9,13 @@ This document describes the security architecture of the ESP8266-React framework
 ### Authentication vs Authorization
 
 **Authentication**: Verify identity (who are you?)
+
 - Handled by JWT tokens
 - Sign in with username/password
 - Token stored in browser
 
 **Authorization**: Verify permissions (what can you do?)
+
 - Handled by authentication predicates
 - Three levels: NONE_REQUIRED, IS_AUTHENTICATED, IS_ADMIN
 - Checked on every request
@@ -23,6 +25,7 @@ This document describes the security architecture of the ESP8266-React framework
 ### Token Structure
 
 **Header**:
+
 ```json
 {
   "typ": "JWT",
@@ -31,6 +34,7 @@ This document describes the security architecture of the ESP8266-React framework
 ```
 
 **Payload**:
+
 ```json
 {
   "username": "admin",
@@ -82,6 +86,7 @@ bool validateToken(const String& token, User& user) {
 **Usage**: Public endpoints (sign-in, features)
 
 **Implementation**:
+
 ```cpp
 server->on("/rest/features", HTTP_GET, handler);  // No security wrapper
 ```
@@ -93,6 +98,7 @@ server->on("/rest/features", HTTP_GET, handler);  // No security wrapper
 **Usage**: User-level endpoints (status, basic config)
 
 **Implementation**:
+
 ```cpp
 server->on("/rest/wifiStatus", HTTP_GET, 
     securityManager->wrapRequest(handler, AuthenticationPredicates::IS_AUTHENTICATED)
@@ -106,6 +112,7 @@ server->on("/rest/wifiStatus", HTTP_GET,
 **Usage**: Administrative endpoints (security, firmware upload)
 
 **Implementation**:
+
 ```cpp
 server->on("/rest/securitySettings", HTTP_GET,
     securityManager->wrapRequest(handler, AuthenticationPredicates::IS_ADMIN)
@@ -178,6 +185,7 @@ bool valid = verifyPassword(plainPassword, hashedPassword);
 **Minimum Length**: 8 characters (recommended)
 
 **Validation** (frontend):
+
 ```typescript
 password: [
     { required: true },
@@ -197,18 +205,21 @@ password: [
 ### Changing Defaults
 
 **Method 1**: Via factory_settings.ini before first flash
+
 ```ini
 -D FACTORY_ADMIN_USERNAME=\"myadmin\"
 -D FACTORY_ADMIN_PASSWORD=\"mySecureP@ssw0rd\"
 ```
 
 **Method 2**: Via UI after deployment
+
 1. Sign in as admin
 2. Navigate to Security section
 3. Edit users
 4. Save
 
 **Method 3**: Via REST API
+
 ```bash
 curl -X POST http://device/rest/securitySettings \
   -H "Authorization: Bearer TOKEN" \
@@ -220,6 +231,7 @@ curl -X POST http://device/rest/securitySettings \
 ### Secret Generation
 
 **Default**: Randomly generated on first boot
+
 ```cpp
 jwtSecret = SettingValue::format("#{random}-#{random}");
 ```
@@ -231,6 +243,7 @@ jwtSecret = SettingValue::format("#{random}-#{random}");
 ### Secret Rotation
 
 **Manual Rotation**:
+
 1. Sign in as admin
 2. Edit `/config/securitySettings.json` manually
 3. Restart device
@@ -243,12 +256,14 @@ jwtSecret = SettingValue::format("#{random}-#{random}");
 ### Threat Model
 
 **Assumed Threats**:
+
 - Unauthorized local network access
 - Man-in-the-middle attacks (no HTTPS by default)
 - Brute force attacks on weak passwords
 - Token theft from browser storage
 
 **Not Protected Against**:
+
 - Physical access to device
 - Serial port access
 - Flash memory dump
@@ -259,6 +274,7 @@ jwtSecret = SettingValue::format("#{random}-#{random}");
 **Not Built-In**: Requires additional setup
 
 **Options**:
+
 1. Reverse proxy (nginx) with TLS termination
 2. ESP32 with mbedTLS (custom implementation)
 3. VPN for secure access
@@ -268,6 +284,7 @@ jwtSecret = SettingValue::format("#{random}-#{random}");
 **Recommendation**: Deploy on isolated VLAN or subnet
 
 **Firewall Rules**:
+
 - Allow port 80 (HTTP) only from trusted networks
 - Allow port 8266 (OTA) only from admin network
 - Block internet access if not needed
@@ -279,6 +296,7 @@ jwtSecret = SettingValue::format("#{random}-#{random}");
 **Support**: Username/password authentication
 
 **Configuration**:
+
 ```json
 {
   "username": "mqtt_user",
@@ -299,6 +317,7 @@ jwtSecret = SettingValue::format("#{random}-#{random}");
 **Broker-Side**: Configure access control lists
 
 **Example** (Mosquitto):
+
 ```
 user mqtt_device
 topic readwrite homeassistant/sensor/esp_temp/#
@@ -339,6 +358,7 @@ topic read homeassistant/status
 **Attack**: Brute force default passwords
 
 **Mitigation**:
+
 - Change defaults immediately
 - Use strong passwords (12+ chars, mixed case, numbers, symbols)
 - Consider disabling guest account
@@ -348,6 +368,7 @@ topic read homeassistant/status
 **Attack**: XSS or local storage access
 
 **Mitigation**:
+
 - Keep firmware updated
 - Use HTTPS
 - Short token expiry (default 1 hour)
@@ -358,6 +379,7 @@ topic read homeassistant/status
 **Attack**: Intercept MQTT messages
 
 **Mitigation**:
+
 - Use MQTT authentication
 - Enable TLS (port 8883)
 - Use broker ACLs
@@ -368,6 +390,7 @@ topic read homeassistant/status
 **Attack**: Serial console access, flash dump
 
 **Mitigation**:
+
 - Physically secure device
 - Disable serial in production build
 - Use flash encryption (ESP32 only)
@@ -378,6 +401,7 @@ topic read homeassistant/status
 **Attack**: Discover devices on network
 
 **Mitigation**:
+
 - Change default AP SSID pattern
 - Use hidden SSID (AP mode)
 - Network isolation
@@ -387,12 +411,14 @@ topic read homeassistant/status
 
 ### Current Logging
 
-**Serial Output**: 
+**Serial Output**:
+
 - Connection events
 - Errors
 - State changes (debug builds)
 
 **Not Logged**:
+
 - Authentication attempts
 - Failed sign-ins
 - API access logs
@@ -400,6 +426,7 @@ topic read homeassistant/status
 ### Recommendations
 
 Add logging for:
+
 - Failed authentication attempts
 - Admin actions (user management, factory reset)
 - Firmware uploads
@@ -412,6 +439,7 @@ Add logging for:
 **User Data**: Usernames stored in device
 
 **Rights**:
+
 - Right to access: Export securitySettings.json
 - Right to erasure: Factory reset or delete user
 - Right to portability: JSON format

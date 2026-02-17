@@ -21,6 +21,7 @@ Sign in and receive JWT token.
 **Security**: None (public endpoint)
 
 **Request**:
+
 ```json
 {
   "username": "admin",
@@ -29,6 +30,7 @@ Sign in and receive JWT token.
 ```
 
 **Response** (200 OK):
+
 ```json
 {
   "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
@@ -38,6 +40,7 @@ Sign in and receive JWT token.
 ```
 
 **Errors**:
+
 - 401: Invalid credentials
 
 #### GET /rest/verifyAuthorization
@@ -47,6 +50,7 @@ Verify JWT token validity.
 **Security**: IS_AUTHENTICATED
 
 **Response** (200 OK):
+
 ```json
 {
   "username": "admin",
@@ -55,6 +59,7 @@ Verify JWT token validity.
 ```
 
 **Errors**:
+
 - 401: Invalid or expired token
 
 ### WiFi Management
@@ -66,6 +71,7 @@ Get WiFi configuration.
 **Security**: IS_ADMIN
 
 **Response** (200 OK):
+
 ```json
 {
   "ssid": "MyWiFi",
@@ -87,6 +93,7 @@ Update WiFi configuration.
 **Security**: IS_ADMIN
 
 **Request**:
+
 ```json
 {
   "ssid": "NewWiFi",
@@ -110,6 +117,7 @@ Get current WiFi connection status.
 **Security**: IS_AUTHENTICATED
 
 **Response** (200 OK):
+
 ```json
 {
   "status": "connected",
@@ -132,6 +140,7 @@ Scan for available WiFi networks.
 **Security**: IS_ADMIN
 
 **Response** (200 OK):
+
 ```json
 {
   "networks": [
@@ -155,6 +164,7 @@ Get Access Point configuration.
 **Security**: IS_ADMIN
 
 **Response** (200 OK):
+
 ```json
 {
   "provision_mode": 1,
@@ -184,6 +194,7 @@ Get Access Point status.
 **Security**: IS_AUTHENTICATED
 
 **Response** (200 OK):
+
 ```json
 {
   "active": true,
@@ -202,6 +213,7 @@ Get MQTT broker configuration.
 **Security**: IS_ADMIN
 
 **Response** (200 OK):
+
 ```json
 {
   "enabled": true,
@@ -231,6 +243,7 @@ Get MQTT connection status.
 **Security**: IS_AUTHENTICATED
 
 **Response** (200 OK):
+
 ```json
 {
   "enabled": true,
@@ -248,6 +261,7 @@ Get NTP configuration.
 **Security**: IS_ADMIN
 
 **Response** (200 OK):
+
 ```json
 {
   "enabled": true,
@@ -272,6 +286,7 @@ Get NTP synchronization status.
 **Security**: IS_AUTHENTICATED
 
 **Response** (200 OK):
+
 ```json
 {
   "enabled": true,
@@ -293,6 +308,7 @@ Get BLE configuration.
 **Platform**: ESP32 only (returns 404 on ESP8266)
 
 **Response** (200 OK):
+
 ```json
 {
   "enabled": true,
@@ -309,6 +325,7 @@ Update BLE configuration.
 **Request**: Same structure as GET response
 
 **Notes**:
+
 - Changing `device_name` requires BLE restart
 - Device name appears in BLE scans
 - Changes take effect immediately
@@ -322,6 +339,7 @@ Get BLE connection status.
 **Platform**: ESP32 only
 
 **Response** (200 OK):
+
 ```json
 {
   "enabled": true,
@@ -332,6 +350,7 @@ Get BLE connection status.
 ```
 
 **Field Descriptions**:
+
 - `enabled`: Whether BLE server is running
 - `connected_devices`: Number of active BLE connections
 - `device_name`: Current advertised device name
@@ -346,6 +365,7 @@ Get OTA configuration.
 **Security**: IS_ADMIN
 
 **Response** (200 OK):
+
 ```json
 {
   "enabled": true,
@@ -371,6 +391,7 @@ Get security settings including users.
 **Security**: IS_ADMIN
 
 **Response** (200 OK):
+
 ```json
 {
   "users": [
@@ -406,6 +427,7 @@ Get system information.
 **Security**: IS_AUTHENTICATED
 
 **Response** (200 OK):
+
 ```json
 {
   "esp_platform": "esp8266",
@@ -430,6 +452,7 @@ Restart the device.
 **Request**: Empty body
 
 **Response** (200 OK):
+
 ```json
 {
   "message": "Restarting device..."
@@ -445,6 +468,7 @@ Perform factory reset.
 **Request**: Empty body
 
 **Response** (200 OK):
+
 ```json
 {
   "message": "Factory reset complete"
@@ -460,6 +484,7 @@ Upload new firmware.
 **Request**: `multipart/form-data` with firmware binary
 
 **Response** (200 OK):
+
 ```json
 {
   "message": "Firmware uploaded successfully"
@@ -475,6 +500,7 @@ Get enabled feature flags.
 **Security**: None (public)
 
 **Response** (200 OK):
+
 ```json
 {
   "project": true,
@@ -495,6 +521,7 @@ Get LED state.
 **Security**: IS_AUTHENTICATED
 
 **Response** (200 OK):
+
 ```json
 {
   "led_on": false
@@ -508,6 +535,7 @@ Update LED state.
 **Security**: IS_AUTHENTICATED
 
 **Request**:
+
 ```json
 {
   "led_on": true
@@ -523,6 +551,7 @@ Get last received serial line, extracted weight, and serial/regex configuration.
 **Security**: IS_AUTHENTICATED
 
 **Response** (200 OK):
+
 ```json
 {
   "last_line": "Weight: 12.5 kg",
@@ -537,6 +566,7 @@ Get last received serial line, extracted weight, and serial/regex configuration.
 ```
 
 **Field Descriptions**:
+
 - `last_line`: Most recently received complete line from Serial2
 - `weight`: Extracted value from first regex capture group, or empty string
 - `timestamp`: ESP32 millis() when line was received
@@ -553,6 +583,7 @@ Get current UART diagnostic test state (loopback, baud scan, signal quality).
 **Security**: IS_AUTHENTICATED
 
 **Response** (200 OK):
+
 ```json
 {
   "loopback": {
@@ -592,6 +623,7 @@ Get current UART diagnostic test state (loopback, baud scan, signal quality).
 **Field Descriptions**:
 
 **Loopback Test**:
+
 - `enabled`: Test is currently running
 - `status`: "idle", "running", "pass" (≥95% success), "fail" (<95%)
 - `tx_count`, `rx_count`, `error_count`: Packet counters
@@ -600,6 +632,7 @@ Get current UART diagnostic test state (loopback, baud scan, signal quality).
 - `uptime_seconds`: Test duration
 
 **Baud Scan**:
+
 - `enabled`: Scan is currently running
 - `status`: "idle", "scanning", "found", "not_found"
 - `detected_baud`: Detected baud rate (0 if not found)
@@ -608,6 +641,7 @@ Get current UART diagnostic test state (loopback, baud scan, signal quality).
 - `test_packets`: Packets received at current baud
 
 **Signal Quality**:
+
 - `enabled`: Test is currently running
 - `status`: "idle", "running", "complete"
 - `quality_percent`: Success rate 0-100%
@@ -624,6 +658,7 @@ Start/stop diagnostic tests and configure parameters.
 **Security**: IS_AUTHENTICATED
 
 **Start Loopback Test**:
+
 ```json
 {
   "loopback_enabled": true
@@ -631,6 +666,7 @@ Start/stop diagnostic tests and configure parameters.
 ```
 
 **Stop Loopback Test**:
+
 ```json
 {
   "loopback_enabled": false
@@ -638,6 +674,7 @@ Start/stop diagnostic tests and configure parameters.
 ```
 
 **Start Baud Scan**:
+
 ```json
 {
   "baud_scan_enabled": true
@@ -645,6 +682,7 @@ Start/stop diagnostic tests and configure parameters.
 ```
 
 **Stop Baud Scan**:
+
 ```json
 {
   "baud_scan_enabled": false
@@ -652,6 +690,7 @@ Start/stop diagnostic tests and configure parameters.
 ```
 
 **Start Signal Quality Test**:
+
 ```json
 {
   "signal_test_enabled": true,
@@ -660,6 +699,7 @@ Start/stop diagnostic tests and configure parameters.
 ```
 
 **Stop Signal Quality Test**:
+
 ```json
 {
   "signal_test_enabled": false
@@ -675,6 +715,7 @@ Get MQTT topic configuration for light.
 **Security**: IS_AUTHENTICATED
 
 **Response** (200 OK):
+
 ```json
 {
   "unique_id": "light-abc123",
@@ -698,6 +739,7 @@ Get weight stream forwarder configuration and status.
 **Security**: IS_AUTHENTICATED
 
 **Response** (200 OK):
+
 ```json
 {
   "protocol": 0,
@@ -715,6 +757,7 @@ Get weight stream forwarder configuration and status.
 ```
 
 **Field Descriptions**:
+
 - `protocol`: Forward protocol (0=HTTP POST, 1=WebSocket Client, 2=MQTT, 3=BLE Client)
 - `target_url`: HTTP POST endpoint URL
 - `ws_url`: WebSocket client endpoint URL
@@ -728,12 +771,14 @@ Get weight stream forwarder configuration and status.
 - `last_forward_time`: Timestamp of last successful forward (millis)
 
 **Protocol Values**:
+
 - `0` - HTTP POST: Posts JSON to `target_url` on each weight update
 - `1` - WebSocket Client: Connects to `ws_url` and streams JSON
 - `2` - MQTT: Publishes JSON to `mqtt_topic` (requires FT_MQTT=1)
 - `3` - BLE Client: Connects to remote BLE device and writes JSON to characteristic (requires FT_BLE=1)
 
 **Display Mode**:
+
 - `false` (Standard): `{"last_line":"...", "weight":"...", "timestamp":123}`
 - `true` (LCD): `{"line1":"Weight: 12.5 kg ", "line2":"..."}`  (16 chars per line, padded/truncated)
 
@@ -746,6 +791,7 @@ Update weight forwarder configuration.
 **Security**: IS_AUTHENTICATED
 
 **Request**:
+
 ```json
 {
   "protocol": 1,
@@ -758,6 +804,7 @@ Update weight forwarder configuration.
 **Response**: Same as GET
 
 **Behavior**:
+
 - Protocol switch is handled automatically (previous protocol resources cleaned up)
 - Configuration persists to flash on update
 - Automatic reconnection for WebSocket and BLE protocols
@@ -776,6 +823,7 @@ Update weight forwarder configuration.
 ### Message Format
 
 **Client ID Message** (Server → Client on connect):
+
 ```json
 {
   "type": "id",
@@ -784,6 +832,7 @@ Update weight forwarder configuration.
 ```
 
 **Payload Message** (Bidirectional):
+
 ```json
 {
   "type": "payload",
@@ -803,6 +852,7 @@ Real-time LED state synchronization.
 **Security**: IS_AUTHENTICATED
 
 **Payload Format**:
+
 ```json
 {
   "led_on": true
@@ -818,6 +868,7 @@ Real-time serial data streaming.
 **Security**: IS_AUTHENTICATED
 
 **Payload Format**:
+
 ```json
 {
   "last_line": "Weight: 12.5 kg",
@@ -829,6 +880,7 @@ Real-time serial data streaming.
 **Behavior**: Server → Client only. New lines from Serial2 are automatically pushed to all connected clients.
 
 **Flow**:
+
 1. Client connects
 2. Server sends client ID
 3. Server sends current state
@@ -842,6 +894,7 @@ Real-time UART mode change notifications.
 **Security**: IS_AUTHENTICATED
 
 **Message Format**:
+
 ```json
 {
   "mode": "live"
@@ -857,6 +910,7 @@ Real-time weight forwarder status and configuration streaming.
 **Security**: IS_AUTHENTICATED
 
 **Payload Format**:
+
 ```json
 {
   "protocol": 1,
@@ -876,6 +930,7 @@ Real-time weight forwarder status and configuration streaming.
 **Behavior**: Bidirectional - client can update configuration, server broadcasts status updates (connection state, errors, last forward time).
 
 **Usage**:
+
 - **Client → Server**: Send configuration updates (same as POST /rest/weightForwarder)
 - **Server → Client**: Automatic updates when connection status changes, errors occur, or configuration is modified
 - **Frequency**: Updates pushed on every connection state change, error, or successful forward
@@ -887,6 +942,7 @@ Real-time UART diagnostic test updates.
 **Security**: IS_AUTHENTICATED
 
 **Payload Format**:
+
 ```json
 {
   "loopback": {
@@ -926,6 +982,7 @@ Real-time UART diagnostic test updates.
 **Behavior**: Bidirectional - client can start/stop tests, server broadcasts real-time test updates.
 
 **Usage**:
+
 - **Client → Server**: Send `{"loopback_enabled": true}` to start loopback test
 - **Server → Client**: Automatic updates every time test state changes (new packet sent/received)
 - **Frequency**: Updates pushed on every test event (100ms for loopback, varies for other tests)
@@ -941,6 +998,7 @@ Projects define their own MQTT topic structure. The framework provides two examp
 **Base Path**: Configured in project settings (e.g., `homeassistant/light/{unique_id}`)
 
 **Topics**:
+
 - `{mqtt_path}/config` - Home Assistant discovery
 - `{mqtt_path}/state` - Device publishes state updates
 - `{mqtt_path}/set` - Device subscribes to commands
@@ -950,9 +1008,11 @@ Projects define their own MQTT topic structure. The framework provides two examp
 **Base Path**: `weighsoft/serial/{unique_id}`
 
 **Topics**:
+
 - `weighsoft/serial/{unique_id}/data` - Device publishes serial lines
 
 **Example**:
+
 ```
 Topic: weighsoft/serial/a4e57cdb7928/data
 Payload: {"last_line":"Weight: 12.5 kg","weight":"12.5","timestamp":12345678}
@@ -963,6 +1023,7 @@ Payload: {"last_line":"Weight: 12.5 kg","weight":"12.5","timestamp":12345678}
 **Topic**: `{mqtt_path}/config`
 
 **Payload** (Published by device):
+
 ```json
 {
   "name": "ESP Light",
@@ -983,6 +1044,7 @@ Payload: {"last_line":"Weight: 12.5 kg","weight":"12.5","timestamp":12345678}
 **Topic**: `{mqtt_path}/state`
 
 **Payload** (Published by device):
+
 ```json
 {
   "state": "ON"
@@ -1000,6 +1062,7 @@ Payload: {"last_line":"Weight: 12.5 kg","weight":"12.5","timestamp":12345678}
 **Topic**: `{mqtt_path}/set`
 
 **Payload** (Subscribed by device):
+
 ```json
 {
   "state": "OFF"
@@ -1023,11 +1086,13 @@ When BLE is enabled (`FT_BLE=1`), services expose characteristics for wireless c
 **Properties**: READ | WRITE | NOTIFY
 
 **Value Format**: UTF-8 JSON string
+
 ```json
 {"led_on":true}
 ```
 
 **Usage**:
+
 - READ: Get current LED state
 - WRITE: Change LED state (triggers notifications to all subscribers)
 - NOTIFY: Receive updates when state changes from any source
@@ -1041,11 +1106,13 @@ When BLE is enabled (`FT_BLE=1`), services expose characteristics for wireless c
 **Properties**: READ | NOTIFY
 
 **Value Format**: UTF-8 JSON string
+
 ```json
 {"last_line":"Weight: 12.5 kg","weight":"12.5","timestamp":12345678}
 ```
 
 **Usage**:
+
 - READ: Get last received serial line and extracted weight
 - NOTIFY: Receive updates as new lines arrive from Serial2
 
@@ -1067,11 +1134,13 @@ When BLE is enabled (`FT_BLE=1`), services expose characteristics for wireless c
 ### JWT Token Format
 
 **Header**:
+
 ```
 Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...
 ```
 
 **JWT Payload**:
+
 ```json
 {
   "username": "admin",
@@ -1085,6 +1154,7 @@ Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...
 ### CORS Headers
 
 When `ENABLE_CORS` is defined:
+
 ```
 Access-Control-Allow-Origin: *
 Access-Control-Allow-Headers: Accept, Content-Type, Authorization
@@ -1094,6 +1164,7 @@ Access-Control-Allow-Credentials: true
 ## Error Response Format
 
 **Standard Error Response**:
+
 ```json
 {
   "message": "Error description"
@@ -1101,6 +1172,7 @@ Access-Control-Allow-Credentials: true
 ```
 
 **Validation Error Example**:
+
 ```json
 {
   "message": "Invalid SSID length"

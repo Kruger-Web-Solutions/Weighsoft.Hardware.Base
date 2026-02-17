@@ -30,11 +30,13 @@ GND                Common ground
 ### Test-Specific Wiring
 
 **Loopback Test & Signal Quality Test:**
+
 ```
 GPIO17 (RX) ←→ GPIO18 (TX)  (jumper wire)
 ```
 
 **Baud Rate Detection:**
+
 ```
 Scale/Device TX → GPIO17 (RX)
 Scale/Device GND → GND
@@ -109,15 +111,18 @@ class DiagnosticsState {
 #### DiagnosticsService
 
 **Protocol Composition**:
+
 - `HttpEndpoint<DiagnosticsState>` - REST API at `/rest/diagnostics`
 - `WebSocketTxRx<DiagnosticsState>` - WebSocket at `/ws/diagnostics`
 
 **Test Methods**:
+
 - `runLoopbackTest()` - Sends "TEST:123" packets at 100ms intervals, verifies echo
 - `runBaudScan()` - Tests baud rates 1200-115200, waits 500ms per rate for data
 - `runSignalQualityTest()` - Sends timestamped packets, calculates latency/jitter/quality
 
 **Hardware Control**:
+
 - `startSerial(baud)` - Configures and starts Serial2 at specified baud rate
 - `stopSerial()` - Stops Serial2
 - `readSerialLine()` - Reads line-based data with overflow protection
@@ -250,6 +255,7 @@ interface/src/examples/diagnostics/
 #### LoopbackTest
 
 **UX Features:**
+
 - Large START/STOP button
 - Real-time success rate display (large, color-coded)
 - Sent/Received/Errors metrics in cards
@@ -257,6 +263,7 @@ interface/src/examples/diagnostics/
 - Troubleshooting alerts when test fails
 
 **User Flow:**
+
 1. Read hardware setup instructions (prominent alert)
 2. Connect GPIO17 to GPIO18 with jumper wire
 3. Click "Start Loopback Test"
@@ -266,6 +273,7 @@ interface/src/examples/diagnostics/
 #### BaudDetector
 
 **UX Features:**
+
 - Setup instructions for two modes (loopback OR scale)
 - Progress bar with percentage
 - Horizontal stepper showing current baud being tested
@@ -274,6 +282,7 @@ interface/src/examples/diagnostics/
 - Troubleshooting alerts when not found
 
 **User Flow:**
+
 1. Connect scale (must be transmitting) OR jumper wire
 2. Click "Start Scan"
 3. Watch progress stepper (1200 → 2400 → 4800 → ...)
@@ -282,6 +291,7 @@ interface/src/examples/diagnostics/
 #### SignalQuality
 
 **UX Features:**
+
 - Packet count selector (100, 1000, 10000)
 - Circular progress meter for quality percentage
 - Color-coded quality ratings (EXCELLENT/GOOD/FAIR/POOR)
@@ -290,6 +300,7 @@ interface/src/examples/diagnostics/
 - Recommendations for poor quality
 
 **User Flow:**
+
 1. Select packet count (more = longer test = more accurate)
 2. Connect GPIO17 to GPIO18
 3. Click "Run Quality Test"
@@ -349,6 +360,7 @@ export interface DiagnosticsData {
 #### Problem: Scale Not Sending Data
 
 **Solution Steps:**
+
 1. **Loopback Test First**: Verify ESP32 hardware is functional
    - Navigate to Diagnostics → Loopback Test
    - Connect GPIO17-18 jumper wire
@@ -371,6 +383,7 @@ export interface DiagnosticsData {
 #### Problem: Intermittent Data Loss
 
 **Solution:**
+
 1. Run Signal Quality Test
 2. Check quality percentage:
    - **95-100%**: Excellent, no action needed
@@ -386,6 +399,7 @@ export interface DiagnosticsData {
 #### Problem: Unknown Device Baud Rate
 
 **Solution:**
+
 1. Ensure device is actively transmitting data
 2. Connect device TX to GPIO17, GND to GND
 3. Navigate to Diagnostics → Baud Detector
@@ -402,6 +416,7 @@ export interface DiagnosticsData {
 - **Status: FAIL (<95% success)**: Hardware problem or wiring issue
 
 **Troubleshooting:**
+
 - Verify jumper wire is firmly connected to both pins
 - Try a different jumper wire (some wires have poor contact)
 - Inspect GPIO pins for bent pins or corrosion
@@ -413,6 +428,7 @@ export interface DiagnosticsData {
 - **Status: NOT_FOUND**: No data received at any tested rate
 
 **Troubleshooting (NOT_FOUND):**
+
 - Verify device is powered on
 - Confirm device is actively transmitting (not in sleep mode)
 - Check wiring: device TX → ESP32 RX (GPIO17)
@@ -422,12 +438,14 @@ export interface DiagnosticsData {
 #### Signal Quality Results
 
 **Quality Ratings:**
+
 - **95-100% (EXCELLENT)**: Production-ready, reliable connection
 - **80-94% (GOOD)**: Acceptable for most uses, minor improvements possible
 - **60-79% (FAIR)**: May work but expect occasional errors
 - **<60% (POOR)**: Unreliable, must fix before production use
 
 **Metric Interpretation:**
+
 - **Avg Latency**: Normal range 0.1-2ms (loopback), higher indicates issues
 - **Jitter**: Low jitter (<0.5ms) is good, high jitter indicates noise/interference
 - **Packet Loss**: Should be <1%, higher indicates connection problems
@@ -451,12 +469,14 @@ export interface DiagnosticsData {
 ### Separation of Concerns
 
 **DiagnosticsService:**
+
 - Hardware testing and validation
 - Interactive tests with immediate feedback
 - WebSocket-only for real-time UI updates
 - Does NOT communicate with external devices during normal operation
 
 **SerialService:**
+
 - External device communication (scales, sensors)
 - Continuous monitoring and data streaming
 - Multi-channel broadcasting (REST, WS, MQTT, BLE)
@@ -469,6 +489,7 @@ export interface DiagnosticsData {
 **Test Packet Format:** `TEST:123` (counter increments)
 
 **Process:**
+
 1. Start Serial2 at 115200 baud
 2. Every 100ms: Send "TEST:{counter}" via TX (GPIO18)
 3. Read incoming data from RX (GPIO17)
@@ -481,6 +502,7 @@ export interface DiagnosticsData {
 **Tested Rates:** 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200
 
 **Process:**
+
 1. Start at first baud rate (1200)
 2. Wait 500ms for incoming data
 3. If 3+ packets received: FOUND (return detected baud)
@@ -493,6 +515,7 @@ export interface DiagnosticsData {
 **Test Packet Format:** `SIG:123:1234567890` (seq:timestamp)
 
 **Process:**
+
 1. Start Serial2 at 115200 baud
 2. Send N packets (user configurable: 100-10000)
 3. Each packet includes sequence number and timestamp

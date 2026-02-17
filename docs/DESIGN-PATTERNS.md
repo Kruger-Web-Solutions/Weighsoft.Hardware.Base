@@ -9,11 +9,13 @@ This document catalogs the key design patterns used in the ESP8266-React framewo
 **Intent**: Provide a reusable base class for managing state with thread-safe access and event-driven updates.
 
 **When to Use**:
+
 - Managing any configuration or runtime state
 - Need automatic synchronization across multiple interfaces
 - Require thread-safe state access (ESP32)
 
 **Structure**:
+
 ```cpp
 template <class T>
 class StatefulService {
@@ -24,6 +26,7 @@ class StatefulService {
 ```
 
 **Implementation Example**:
+
 ```cpp
 // 1. Define state class
 class TemperatureSettings {
@@ -56,6 +59,7 @@ private:
 ```
 
 **Benefits**:
+
 - Consistent state management
 - Automatic propagation
 - Thread-safe on ESP32
@@ -66,11 +70,13 @@ private:
 **Intent**: Build services by composing infrastructure components rather than inheritance.
 
 **When to Use**:
+
 - Creating new services
 - Need REST API, persistence, WebSocket, or MQTT
 - Want flexible feature combinations
 
 **Structure**:
+
 ```cpp
 class MyService : public StatefulService<MySettings> {
     HttpEndpoint<MySettings> _httpEndpoint;      // REST API
@@ -81,6 +87,7 @@ class MyService : public StatefulService<MySettings> {
 ```
 
 **Implementation Example**:
+
 ```cpp
 TemperatureService::TemperatureService(
     AsyncWebServer* server, 
@@ -113,6 +120,7 @@ TemperatureService::TemperatureService(
 ```
 
 **Benefits**:
+
 - Pick only needed features
 - Clear separation of concerns
 - Easy to test individual components
@@ -123,11 +131,13 @@ TemperatureService::TemperatureService(
 **Intent**: Provide static functions for bidirectional JSON conversion.
 
 **When to Use**:
+
 - Every state class
 - Need REST API or MQTT integration
 - Filesystem persistence
 
 **Structure**:
+
 ```cpp
 class Settings {
 public:
@@ -139,6 +149,7 @@ public:
 ```
 
 **Implementation Example**:
+
 ```cpp
 class TemperatureSettings {
 public:
@@ -169,6 +180,7 @@ public:
 ```
 
 **Benefits**:
+
 - Centralized serialization logic
 - Type-safe
 - Reusable across infrastructure
@@ -179,11 +191,13 @@ public:
 **Intent**: React to state changes through registered callbacks.
 
 **When to Use**:
+
 - Hardware control based on config
 - Cascading updates
 - Logging or notifications
 
 **Structure**:
+
 ```cpp
 statefulService->addUpdateHandler([&](const String& originId) {
     // React to state change
@@ -191,6 +205,7 @@ statefulService->addUpdateHandler([&](const String& originId) {
 ```
 
 **Implementation Example**:
+
 ```cpp
 class TemperatureService : public StatefulService<TemperatureSettings> {
 public:
@@ -213,6 +228,7 @@ private:
 ```
 
 **Best Practices**:
+
 - Use `allowRemove=false` for infrastructure handlers (FSPersistence, WebSocketTx)
 - Use `allowRemove=true` (default) for application logic
 - Check origin ID to prevent loops
@@ -223,11 +239,13 @@ private:
 **Intent**: Prevent circular updates when state changes propagate across multiple channels.
 
 **When to Use**:
+
 - Publishing to MQTT
 - Broadcasting to WebSockets
 - Any bidirectional communication
 
 **Structure**:
+
 ```cpp
 void onUpdate(const String& originId) {
     if (originId != "mqtt") {
@@ -237,6 +255,7 @@ void onUpdate(const String& originId) {
 ```
 
 **Implementation Example**:
+
 ```cpp
 class LightStateService : public StatefulService<LightState> {
     MqttPubSub<LightState> _mqttPubSub;
@@ -254,12 +273,14 @@ class LightStateService : public StatefulService<LightState> {
 ```
 
 **Origin ID Values**:
+
 - `"http"` - REST API
 - `"mqtt"` - MQTT message
 - `"websocket:{id}"` - WebSocket client
 - `"internal"` - Code initialization
 
 **Benefits**:
+
 - Prevents infinite loops
 - Enables bidirectional sync
 - Clear update source tracking
@@ -269,21 +290,25 @@ class LightStateService : public StatefulService<LightState> {
 **Intent**: Provide sensible defaults with dynamic value substitution.
 
 **When to Use**:
+
 - Need unique values per device
 - Default configurations
 - Factory reset behavior
 
 **Structure**:
+
 ```cpp
 settings.clientId = root["client_id"] | SettingValue::format("#{platform}-#{unique_id}");
 ```
 
 **Available Placeholders**:
+
 - `#{platform}` - "esp8266" or "esp32"
 - `#{unique_id}` - MAC-derived unique ID
 - `#{random}` - Random hex string
 
 **Implementation Example**:
+
 ```cpp
 static StateUpdateResult update(JsonObject& root, MqttSettings& settings) {
     settings.clientId = root["client_id"] | 
@@ -296,6 +321,7 @@ static StateUpdateResult update(JsonObject& root, MqttSettings& settings) {
 ```
 
 **Benefits**:
+
 - Unique defaults per device
 - No hardcoded values
 - Factory reset friendly
@@ -305,17 +331,20 @@ static StateUpdateResult update(JsonObject& root, MqttSettings& settings) {
 **Intent**: Manage server state in React components with loading states.
 
 **When to Use**:
+
 - Configuration forms
 - Need to read and update server state
 - Manual save button
 
 **Structure**:
+
 ```typescript
 const { data, setData, saveData, saving, loadData } = 
     useRest<DataType>(endpoint, initialData);
 ```
 
 **Implementation Example**:
+
 ```typescript
 const TemperatureSettings: FC = () => {
     const { data, setData, saveData, saving } = 
@@ -340,6 +369,7 @@ const TemperatureSettings: FC = () => {
 ```
 
 **Benefits**:
+
 - Automatic loading on mount
 - Loading state management
 - Error handling with snackbar
@@ -349,17 +379,20 @@ const TemperatureSettings: FC = () => {
 **Intent**: Real-time bidirectional state sync via WebSocket.
 
 **When to Use**:
+
 - Real-time status display
 - Live control (switches, sliders)
 - Multiple clients need sync
 
 **Structure**:
+
 ```typescript
 const { data, updateData, connected } = 
     useWs<DataType>(endpoint, initialData);
 ```
 
 **Implementation Example**:
+
 ```typescript
 const LightControl: FC = () => {
     const { data, updateData, connected } = 
@@ -380,6 +413,7 @@ const LightControl: FC = () => {
 ```
 
 **Benefits**:
+
 - Real-time sync
 - Optimistic updates
 - Automatic reconnection
@@ -390,16 +424,19 @@ const LightControl: FC = () => {
 **Intent**: Manage global authentication state in React.
 
 **When to Use**:
+
 - Need user info across app
 - JWT token management
 - Protected routes
 
 **Structure**:
+
 ```typescript
 const { me, signIn, signOut } = useContext(AuthenticationContext);
 ```
 
 **Implementation Example**:
+
 ```typescript
 const SignInPage: FC = () => {
     const { signIn } = useContext(AuthenticationContext);
@@ -424,6 +461,7 @@ const SignInPage: FC = () => {
 ```
 
 **Benefits**:
+
 - Centralized auth state
 - Automatic token injection
 - Easy access control
@@ -433,16 +471,19 @@ const SignInPage: FC = () => {
 **Intent**: Protect routes based on authentication status.
 
 **When to Use**:
+
 - Protected pages
 - Admin-only sections
 - Role-based access
 
 **Structure**:
+
 ```typescript
 <Route element={<RequireAdmin><Component /></RequireAdmin>} />
 ```
 
 **Implementation Example**:
+
 ```typescript
 <Routes>
     <Route 
@@ -465,6 +506,7 @@ const SignInPage: FC = () => {
 ```
 
 **Benefits**:
+
 - Declarative access control
 - Automatic redirects
 - Clean route definitions
@@ -474,6 +516,7 @@ const SignInPage: FC = () => {
 **Intent**: Simplify multi-protocol services by composing framework components directly without separate settings services.
 
 **When to Use**:
+
 - Building application-specific services (scale, relay, display, sensors)
 - Need multiple communication channels (REST, WebSocket, MQTT, BLE)
 - Want to minimize tech debt and simplify maintenance
@@ -484,6 +527,7 @@ const SignInPage: FC = () => {
 **Solution**: Application services directly compose framework components and manage protocol-specific configuration inline.
 
 **Structure**:
+
 ```cpp
 class LedExampleService : public StatefulService<LedExampleState> {
   HttpEndpoint<LedExampleState> _httpEndpoint;
@@ -502,6 +546,7 @@ class LedExampleService : public StatefulService<LedExampleState> {
 ```
 
 **Implementation Example**:
+
 ```cpp
 LedExampleService::LedExampleService(
     AsyncWebServer* server,
@@ -574,6 +619,7 @@ ledExampleService = new LedExampleService(
 ```
 
 When a user changes LED state via WebSocket:
+
 1. `WebSocketTxRx` calls `StatefulService::update(json, WS_ORIGIN_ID)`
 2. State changes, `callUpdateHandlers(WS_ORIGIN_ID)` is invoked
 3. Update handler calls `onConfigUpdated()` (updates hardware)
@@ -601,6 +647,7 @@ class LedExampleService : public StatefulService<LedExampleState> {
 ```
 
 **Benefits**:
+
 - **Simplicity**: One service class, inline configuration
 - **Maintainability**: No separate settings services to sync
 - **Clarity**: All protocol config in one place
@@ -608,6 +655,7 @@ class LedExampleService : public StatefulService<LedExampleState> {
 - **Scale**: Pattern works for serial devices, relays, displays, sensors
 
 **When Not to Use**:
+
 - User needs runtime configuration of protocol parameters (topics, UUIDs) - rare in industrial devices
 - Multiple independent applications need to share the same protocol settings
 - Protocol configuration is complex and benefits from dedicated UI
@@ -615,6 +663,7 @@ class LedExampleService : public StatefulService<LedExampleState> {
 **Comparison**:
 
 **Two-Layer (OLD - Complex)**:
+
 ```
 MqttSettingsService → manages topics, settings UI, persistence
 LedMqttSettingsService → demo-specific MQTT settings
@@ -622,15 +671,18 @@ LedStateService → depends on LedMqttSettingsService
 ```
 
 **Single-Layer (NEW - Simple)**:
+
 ```
 LedExampleService → inline topics, direct MQTT client composition
 ```
 
 **Related Patterns**:
+
 - Pattern 2: Service Composition (compose framework components)
 - Pattern 5: Origin Tracking (prevent feedback loops)
 
 **Examples**:
+
 - `src/examples/led/LedExampleService.cpp` - Complete working example
 - `docs/LED-EXAMPLE.md` - Detailed implementation guide
 
@@ -639,11 +691,13 @@ LedExampleService → inline topics, direct MQTT client composition
 ### 1. Direct State Access
 
 **Don't**:
+
 ```cpp
 digitalWrite(LED_PIN, service._state.ledOn);  // Not thread-safe!
 ```
 
 **Do**:
+
 ```cpp
 service.read([&](LightState& state) {
     digitalWrite(LED_PIN, state.ledOn ? HIGH : LOW);
@@ -653,6 +707,7 @@ service.read([&](LightState& state) {
 ### 2. Ignoring StateUpdateResult
 
 **Don't**:
+
 ```cpp
 static StateUpdateResult update(JsonObject& root, Settings& settings) {
     settings.value = root["value"];
@@ -661,6 +716,7 @@ static StateUpdateResult update(JsonObject& root, Settings& settings) {
 ```
 
 **Do**:
+
 ```cpp
 static StateUpdateResult update(JsonObject& root, Settings& settings) {
     int newValue = root["value"] | 0;
@@ -678,6 +734,7 @@ static StateUpdateResult update(JsonObject& root, Settings& settings) {
 ### 3. Creating Update Loops
 
 **Don't**:
+
 ```cpp
 addUpdateHandler([&](const String& originId) {
     // Always publish, creates loop!
@@ -686,6 +743,7 @@ addUpdateHandler([&](const String& originId) {
 ```
 
 **Do**:
+
 ```cpp
 addUpdateHandler([&](const String& originId) {
     if (originId != "mqtt") {

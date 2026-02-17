@@ -22,6 +22,7 @@ The **LED Example Project** (`src/examples/led/` and `interface/src/examples/led
 - **Complete UI**: React components for all control methods
 
 **Use LED Example as template for**:
+
 - Controllable devices (relays, motors, actuators)
 - Bidirectional state (read + write)
 - Device configuration interfaces
@@ -37,6 +38,7 @@ The **Serial Example Project** (`src/examples/serial/` and `interface/src/exampl
 - **Complete documentation**: Hardware wiring, use cases, troubleshooting
 
 **Use Serial Example as template for**:
+
 - Sensors and data sources (GPS, temperature, weight scales)
 - Read-only data streams
 - Log monitoring and data collection
@@ -65,6 +67,7 @@ class MyDeviceService : public StatefulService<MyDeviceState> {
 ```
 
 **Benefits**:
+
 - One service class manages all protocols
 - Configuration is inline (no separate settings UI needed)
 - Easy to add/remove protocols per device type
@@ -73,6 +76,7 @@ class MyDeviceService : public StatefulService<MyDeviceState> {
 **Copy the LED or Serial Example**:
 
 For controllable devices (LED pattern):
+
 1. Copy `src/examples/led/` → `src/examples/mydevice/`
 2. Rename classes: `LedExampleService` → `MyDeviceService`
 3. Modify state struct to match your device
@@ -80,6 +84,7 @@ For controllable devices (LED pattern):
 5. Implement device-specific hardware control
 
 For data sources (Serial pattern):
+
 1. Copy `src/examples/serial/` → `src/examples/mysensor/`
 2. Rename classes: `SerialService` → `MySensorService`
 3. Modify state struct for your data format
@@ -93,6 +98,7 @@ Before implementing your device, review these common mistakes from real implemen
 ### Backend Mistakes
 
 ❌ **Wrong MqttPubSub constructor**
+
 ```cpp
 // ❌ WRONG - Passing read function twice
 _mqttPubSub(MyState::read, MyState::read, ...)
@@ -102,6 +108,7 @@ _mqttPubSub(MyState::read, MyState::update, ...)
 ```
 
 ❌ **Forgetting BLE server callback**
+
 ```cpp
 // ❌ WRONG - Configuring BLE in begin()
 void begin() {
@@ -116,6 +123,7 @@ esp8266React.onBleServerStarted([](BLEServer* bleServer) {
 ```
 
 ❌ **Missing loop() call in main.cpp**
+
 ```cpp
 // Don't forget to call loop() for services that need periodic execution
 void loop() {
@@ -127,6 +135,7 @@ void loop() {
 ### Frontend Mistakes
 
 ❌ **Wrong import paths**
+
 ```typescript
 // ❌ WRONG
 import { AXIOS } from './axios-fetch';  // Doesn't exist
@@ -138,6 +147,7 @@ import { useRest } from '../../utils';
 ```
 
 ❌ **Hardcoded WebSocket paths**
+
 ```typescript
 // ❌ WRONG - Duplicates /ws/ prefix
 export const MY_SOCKET_PATH = '/ws/mydevice';
@@ -147,6 +157,7 @@ export const MY_SOCKET_PATH = `${WS_BASE_URL}mydevice`;
 ```
 
 ❌ **Wrong useRest destructuring**
+
 ```typescript
 // ❌ WRONG - 'loading' doesn't exist
 const { data, loading } = useRest<T>({ read });
@@ -157,6 +168,7 @@ if (!data) return <FormLoader />;
 ```
 
 ❌ **Wrong useWs signature**
+
 ```typescript
 // ❌ WRONG - useWs doesn't take object parameter
 const { data } = useWs<T>({ url: WEBSOCKET_URL });
@@ -168,6 +180,7 @@ const { data } = useWs<T>(WEBSOCKET_URL);
 ### Integration Mistakes
 
 ❌ **Inconsistent naming**
+
 ```typescript
 // Menu says "Serial Monitor" but route is "serial"
 <LayoutMenuItem path="/serial" label="Serial Monitor" />
@@ -177,6 +190,7 @@ const { data } = useWs<T>(WEBSOCKET_URL);
 ```
 
 ❌ **Not updating all documentation**
+
 - Update API-REFERENCE.md with new endpoints
 - Update FILE-REFERENCE.md with new files
 - Update README.md if it's a major feature
@@ -187,6 +201,7 @@ const { data } = useWs<T>(WEBSOCKET_URL);
 ### Requirements
 
 We'll create a service that:
+
 - Reads temperature from a DHT22 sensor
 - Exposes current temperature via REST and WebSocket
 - Publishes to MQTT (Home Assistant compatible)
@@ -628,6 +643,7 @@ export default ProjectRouting;
 ## Quick Reference Checklist
 
 ### Backend Service
+
 - [ ] Define state class(es) with read/update methods
 - [ ] Create service inheriting StatefulService<T>
 - [ ] Compose infrastructure (HttpEndpoint, FSPersistence, WebSocket, MQTT)
@@ -636,6 +652,7 @@ export default ProjectRouting;
 - [ ] Register in main.cpp
 
 ### Frontend
+
 - [ ] Define TypeScript types
 - [ ] Create API endpoints
 - [ ] Build form components (useRest for config)
@@ -644,6 +661,7 @@ export default ProjectRouting;
 - [ ] Add to navigation menu
 
 ### Testing
+
 - [ ] Test REST endpoints with Postman/curl
 - [ ] Test WebSocket with browser dev tools
 - [ ] Test MQTT with mosquitto_pub/sub
