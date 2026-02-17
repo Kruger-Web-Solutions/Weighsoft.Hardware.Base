@@ -53,11 +53,32 @@ LedExampleService::LedExampleService(AsyncWebServer* server,
 
 void LedExampleService::begin() {
   _state.ledOn = DEFAULT_LED_STATE;
+  _state.red = DEFAULT_LED_RED;
+  _state.green = DEFAULT_LED_GREEN;
+  _state.blue = DEFAULT_LED_BLUE;
+  
+  #if defined(CONFIG_IDF_TARGET_ESP32S3)
+  Serial.println("[LED] ESP32-S3 RGB NeoPixel detected on GPIO48");
+  #endif
+  
   onConfigUpdated();
 }
 
 void LedExampleService::onConfigUpdated() {
+  #if defined(CONFIG_IDF_TARGET_ESP32S3)
+  // ESP32-S3: Use neopixelWrite for RGB control
+  if (_state.ledOn) {
+    neopixelWrite(LED_PIN, _state.red, _state.green, _state.blue);
+    Serial.printf("[LED] RGB NeoPixel: ON (R=%d, G=%d, B=%d)\n", _state.red, _state.green, _state.blue);
+  } else {
+    neopixelWrite(LED_PIN, 0, 0, 0);  // Off
+    Serial.println("[LED] RGB NeoPixel: OFF");
+  }
+  #else
+  // ESP32/ESP8266: Use digitalWrite for simple LED
   digitalWrite(LED_PIN, _state.ledOn ? LED_ON : LED_OFF);
+  Serial.printf("[LED] Simple LED: %s\n", _state.ledOn ? "ON" : "OFF");
+  #endif
 }
 
 void LedExampleService::configureMqtt() {

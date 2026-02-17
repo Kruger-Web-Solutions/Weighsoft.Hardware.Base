@@ -13,16 +13,21 @@
 #include <BLECharacteristic.h>
 #endif
 
-// ESP32-S3 has built-in LED on GPIO48 (ESP32-S3-DevKitC-1)
+// ESP32-S3 has RGB NeoPixel LED on GPIO48 (ESP32-S3-DevKitC-1)
 // ESP32 has built-in LED on GPIO2 (most boards)
 // ESP8266 has built-in LED on GPIO2 (NodeMCU)
 #if defined(CONFIG_IDF_TARGET_ESP32S3)
 #define LED_PIN 48
+#define HAS_RGB_LED true
 #else
 #define LED_PIN 2
+#define HAS_RGB_LED false
 #endif
 
 #define DEFAULT_LED_STATE false
+#define DEFAULT_LED_RED 255
+#define DEFAULT_LED_GREEN 255
+#define DEFAULT_LED_BLUE 255
 #define OFF_STATE "OFF"
 #define ON_STATE "ON"
 
@@ -42,18 +47,47 @@
 class LedExampleState {
  public:
   bool ledOn;
+  uint8_t red;    // RGB red value (0-255)
+  uint8_t green;  // RGB green value (0-255)
+  uint8_t blue;   // RGB blue value (0-255)
 
   static void read(LedExampleState& settings, JsonObject& root) {
     root["led_on"] = settings.ledOn;
+    root["red"] = settings.red;
+    root["green"] = settings.green;
+    root["blue"] = settings.blue;
+    root["has_rgb"] = HAS_RGB_LED;
   }
 
   static StateUpdateResult update(JsonObject& root, LedExampleState& ledState) {
     boolean newState = root["led_on"] | DEFAULT_LED_STATE;
+    uint8_t newRed = root["red"] | ledState.red;
+    uint8_t newGreen = root["green"] | ledState.green;
+    uint8_t newBlue = root["blue"] | ledState.blue;
+    
+    bool changed = false;
+    
     if (ledState.ledOn != newState) {
       ledState.ledOn = newState;
-      return StateUpdateResult::CHANGED;
+      changed = true;
     }
-    return StateUpdateResult::UNCHANGED;
+    
+    if (ledState.red != newRed) {
+      ledState.red = newRed;
+      changed = true;
+    }
+    
+    if (ledState.green != newGreen) {
+      ledState.green = newGreen;
+      changed = true;
+    }
+    
+    if (ledState.blue != newBlue) {
+      ledState.blue = newBlue;
+      changed = true;
+    }
+    
+    return changed ? StateUpdateResult::CHANGED : StateUpdateResult::UNCHANGED;
   }
 
   static void haRead(LedExampleState& settings, JsonObject& root) {
