@@ -1,13 +1,14 @@
-import { FC, useEffect } from 'react';
-import { Box, Chip, Paper, Table, TableBody, TableCell, TableRow, Typography } from '@mui/material';
+import { FC } from 'react';
+import { Chip, Paper, Table, TableBody, TableCell, TableRow, Typography } from '@mui/material';
+import { WEB_SOCKET_ROOT } from '../../api/endpoints';
 import { ForwardProtocol, type WeightForwarderData } from '../../types/weightForwarder';
 import { useWs } from '../../utils/useWs';
 import { SectionContent } from '../../components';
 
-const WEIGHT_FORWARDER_SOCKET_PATH = '/ws/weightForwarder';
+export const WEIGHT_FORWARDER_WEBSOCKET_URL = WEB_SOCKET_ROOT + "weightForwarder";
 
 const WeightForwarderStatus: FC = () => {
-  const { connected: wsConnected, data } = useWs<WeightForwarderData>(WEIGHT_FORWARDER_SOCKET_PATH);
+  const { connected: wsConnected, data } = useWs<WeightForwarderData>(WEIGHT_FORWARDER_WEBSOCKET_URL);
 
   const getProtocolLabel = (protocol: ForwardProtocol) => {
     switch (protocol) {
