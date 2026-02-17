@@ -41,6 +41,7 @@ Designed to work with the PlatformIO IDE with [limited setup](#getting-started).
 ## Features
 
 ### Core Capabilities
+
 - 🔒 **Security First** - JWT authentication, protected endpoints, role-based access
 - 📡 **Network Management** - WiFi scanner, configurable Access Point with auto-failover
 - ⏰ **Time Synchronization** - NTP integration for accurate timestamps
@@ -50,6 +51,7 @@ Designed to work with the PlatformIO IDE with [limited setup](#getting-started).
 - 🎨 **Light & Dark Mode** - Theme preferences saved per user on ESP device
 
 ### Technical Highlights
+
 - ⚡ Responsive React UI with Material-UI components
 - 🎨 Weighsoft branding with professional color scheme (Curious Blue & Bunting)
 - 💾 Persistent configuration storage
@@ -64,15 +66,18 @@ All features are [configurable at compile-time](#selecting-features) to optimize
 ### Prerequisites
 
 **Required:**
+
 - [PlatformIO](https://platformio.org/) >= 6.0 - Development platform
 - [Node.js](https://nodejs.org) >= 14.x - For building the React interface
 - [Python](https://python.org) >= 3.7 - For PlatformIO and build scripts
 
 **Hardware:**
+
 - ESP8266 (min 4MB flash) or ESP32 module
 - USB-to-serial adapter (for initial programming)
 
 **Optional:**
+
 - [Git](https://git-scm.com/) - Version control
 - [VS Code](https://code.visualstudio.com/) - Recommended IDE with PlatformIO extension
 
@@ -112,7 +117,7 @@ Resource                         | Description
 
 ### Building the firmware
 
-Once the platform and libraries are downloaded the back end should successfully build within PlatformIO. 
+Once the platform and libraries are downloaded the back end should successfully build within PlatformIO.
 
 The firmware may be built by pressing the "Build" button:
 
@@ -126,7 +131,7 @@ platformio run
 
 #### Uploading the firmware
 
-The project is configured to upload over a serial connection by default. You can change this to use OTA updates by uncommenting the relevant lines in ['platformio.ini'](platformio.ini). 
+The project is configured to upload over a serial connection by default. You can change this to use OTA updates by uncommenting the relevant lines in ['platformio.ini'](platformio.ini).
 
 The firmware may be uploaded to the device by pressing the "Upload" button:
 
@@ -146,7 +151,7 @@ The interface will be automatically built by PlatformIO before it builds the fir
 
 #### Serving the interface from PROGMEM
 
-By default, the project is configured to serve the interface from PROGMEM. 
+By default, the project is configured to serve the interface from PROGMEM.
 
 > **Tip**: You do not need to upload a file system image unless you configure the framework to [serve the interface from the filesystem](#serving-the-interface-from-the-filesystem).
 
@@ -156,7 +161,7 @@ When building for ESP32 (e.g. **node32s** or **esp32s3**), the project uses cust
 
 #### Serving the interface from the filesystem
 
-If you choose to serve the interface from the filesystem you will need to change the default configuration and upload the file system image manually. 
+If you choose to serve the interface from the filesystem you will need to change the default configuration and upload the file system image manually.
 
 Disable `-D PROGMEM_WWW build` flag in ['platformio.ini'](platformio.ini) and re-build the firmware. The build process will now copy the compiled interface to the `data/` directory and it may be uploaded to the device by pressing the "Upload File System image" button:
 
@@ -205,6 +210,7 @@ Install the npm dependencies, if required and start the development server:
 npm install
 npm start
 ```
+
 > **Tip**: You can (optionally) speed up the build by commenting out the call to build_interface.py under "extra scripts" during local development. This will prevent the npm process from building the production release every time the firmware is compiled significantly decreasing the build time.
 
 ## Selecting features
@@ -249,14 +255,14 @@ Customize the settings as you see fit, for example you might configure your home
 
 By default, the factory settings configure the device to bring up an access point on start up which can be used to configure the device:
 
-* SSID: Weighsoft-HW
-* Password: esp-react
+- SSID: Weighsoft-HW
+- Password: esp-react
 
 **Note:** The actual AP SSID is configured in [factory_settings.ini](factory_settings.ini)
 
 ### Security settings and user credentials
 
-By default, the factory settings configure two user accounts with the following credentials: 
+By default, the factory settings configure two user accounts with the following credentials:
 
 Username | Password
 -------- | --------
@@ -278,11 +284,14 @@ Changing factory time zone setting is a common requirement. This requires a litt
 
 Various settings support placeholder substitution, indicated by comments in [factory_settings.ini](factory_settings.ini). This can be particularly useful where settings need to be unique, such as the Access Point SSID or MQTT client id. The following placeholders are supported:
 
-Placeholder  | Substituted value 
+Placeholder  | Substituted value
 -----------  | -----------------
-#{platform}  | The microcontroller platform, e.g. "esp32" or "esp8266"
-#{unique_id} | A unique identifier derived from the MAC address, e.g. "0b0a859d6816"
-#{random}    | A random number encoded as a hex string, e.g. "55722f94"
+
+# {platform}  | The microcontroller platform, e.g. "esp32" or "esp8266"
+
+# {unique_id} | A unique identifier derived from the MAC address, e.g. "0b0a859d6816"
+
+# {random}    | A random number encoded as a hex string, e.g. "55722f94"
 
 You may use SettingValue::format in your own code if you require the use of these placeholders. This is demonstrated in the demo project:
 
@@ -362,7 +371,6 @@ const theme = responsiveFontSizes(
 
 You can replace the app icon is located at ['interface/public/app/icon.png'](interface/public/app/icon.png) with one of your preference. A 256 x 256 PNG is recommended for best compatibility.
 
-
 ### Changing the app name
 
 The app name displayed on the sign in page and on the menu bar can be modified by editing the REACT_APP_NAME property in ['interface/.env'](interface/.env)
@@ -395,6 +403,7 @@ The back end is a set of REST endpoints hosted by a [ESPAsyncWebServer](https://
 The framework's source is split up by feature, for example [WiFiScanner.h](lib/framework/WiFiScanner.h) implements the end points for scanning for available networks where as [WiFiSettingsService.h](lib/framework/WiFiSettingsService.h) handles configuring the WiFi settings and managing the WiFi connection.
 
 For detailed architecture documentation, see:
+
 - [Architecture Overview](docs/ARCHITECTURE.md)
 - [C4 Diagrams](docs/C4-CONTEXT.md)
 - [Design Patterns](docs/DESIGN-PATTERNS.md)
@@ -407,7 +416,7 @@ For detailed architecture documentation, see:
 
 ### Initializing the framework
 
-The ['src/main.cpp'](src/main.cpp) file constructs the webserver and initializes the framework. You can add endpoints to the server here to support your IoT project. The main loop is also accessable so you can run your own code easily. 
+The ['src/main.cpp'](src/main.cpp) file constructs the webserver and initializes the framework. You can add endpoints to the server here to support your IoT project. The main loop is also accessable so you can run your own code easily.
 
 The following code creates the web server and esp8266React framework:
 
@@ -525,7 +534,6 @@ Callback         | Signature                                                | Pu
 JsonStateReader  | void read(T& settings, JsonObject& root)                 | Reading the state object into a JsonObject
 JsonStateUpdater | StateUpdateResult update(JsonObject& root, T& settings)  | Updating the state from a JsonObject, returning the appropriate StateUpdateResult
 
-
 The static functions below can be used to facilitate the serialization/deserialization of the light state:
 
 ```cpp
@@ -565,7 +573,7 @@ lightStateService->update(jsonObject, LightState::update, "timer");
 
 #### Endpoints
 
-The framework provides an [HttpEndpoint.h](lib/framework/HttpEndpoint.h) class which may be used to register GET and POST handlers to read and update the state over HTTP. You may construct an HttpEndpoint as a part of the StatefulService or separately if you prefer. 
+The framework provides an [HttpEndpoint.h](lib/framework/HttpEndpoint.h) class which may be used to register GET and POST handlers to read and update the state over HTTP. You may construct an HttpEndpoint as a part of the StatefulService or separately if you prefer.
 
 The code below demonstrates how to extend the LightStateService class to provide an unsecured endpoint:
 
@@ -727,17 +735,20 @@ esp8266React.getWiFiSettingsService()->addUpdateHandler(
 ### Common Issues
 
 **Build Errors:**
+
 - Ensure PlatformIO is up to date: `pio upgrade`
 - Clean build: `pio run -t clean`
 - Check [platformio.ini](platformio.ini) for correct board configuration
 
 **Upload Errors:**
+
 - **COM port busy**: Serial monitors or Python/PlatformIO can hold the port. Run [scripts/kill-for-test.ps1](scripts/kill-for-test.ps1) to stop Python and other PowerShell processes, then upload again. On Windows you can also run: `taskkill /F /IM python.exe`
 - Verify USB connection and correct port in PlatformIO (`upload_port` in platformio.ini)
 - Hold BOOT button on ESP8266/ESP32 during upload if the device does not enter bootloader
 - Check power supply (min 500mA)
 
 **WiFi Connection Issues:**
+
 - Reset to factory defaults via serial: `factory reset`
 - Check WiFi credentials in [factory_settings.ini](factory_settings.ini)
 - Verify 2.4GHz network (5GHz not supported)
@@ -775,9 +786,9 @@ This project is licensed under the MIT License - see the [LICENSE.txt](LICENSE.t
 
 ## Libraries Used
 
-* [React](https://reactjs.org/)
-* [Material-UI](https://mui.com/)
-* [notistack](https://github.com/iamhosseindhv/notistack)
-* [ArduinoJson](https://github.com/bblanchon/ArduinoJson)
-* [ESPAsyncWebServer](https://github.com/me-no-dev/ESPAsyncWebServer)
-* [AsyncMqttClient](https://github.com/marvinroger/async-mqtt-client)
+- [React](https://reactjs.org/)
+- [Material-UI](https://mui.com/)
+- [notistack](https://github.com/iamhosseindhv/notistack)
+- [ArduinoJson](https://github.com/bblanchon/ArduinoJson)
+- [ESPAsyncWebServer](https://github.com/me-no-dev/ESPAsyncWebServer)
+- [AsyncMqttClient](https://github.com/marvinroger/async-mqtt-client)
