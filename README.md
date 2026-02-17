@@ -105,9 +105,10 @@ Resource                         | Description
 -------------------------------- | ----------------------------------------------------------------------
 [interface/](interface)          | React based front end
 [lib/framework/](lib/framework)  | C++ back end for the ESP8266/ESP32 device
-[src/](src)                      | The main.cpp and example projects (LED, Serial)
-[scripts/](scripts)              | Scripts that build the React interface as part of the platformio build
+[src/](src)                      | The main.cpp and example projects (LED, Serial, Diagnostics, Weight Forwarder)
+[scripts/](scripts)              | Build scripts (React interface for PlatformIO); [kill-for-test.ps1](scripts/kill-for-test.ps1) frees COM port before upload
 [platformio.ini](platformio.ini) | PlatformIO project configuration file
+[features.ini](features.ini)     | Compile-time feature flags (MQTT, NTP, OTA, BLE, etc.)
 
 ### Building the firmware
 
@@ -151,15 +152,7 @@ By default, the project is configured to serve the interface from PROGMEM.
 
 The interface will consume ~150k of program space which can be problematic if you already have a large binary artefact or if you have added large dependencies to the interface. The ESP32 binaries are fairly large in there simplest form so the addition of the interface resources requires us to use special partitioning for the ESP32.
 
-When building using the "node32s" profile, the project uses the custom [min_spiffs.csv](https://github.com/espressif/arduino-esp32/blob/master/tools/partitions/min_spiffs.csv) partitioning mode. You may want to disable this if you are manually uploading the file system image:
-
-
-```ini
-[env:node32s]
-board_build.partitions = min_spiffs.csv
-platform = espressif32
-board = node32s
-```
+When building for ESP32 (e.g. **node32s** or **esp32s3**), the project uses custom partition schemes (e.g. `partitions_ble.csv`, `partitions_ble_ota.csv`). See [Configuration](docs/CONFIGURATION.md) for partition options and OTA limitations when BLE is enabled on 4MB flash.
 
 #### Serving the interface from the filesystem
 
@@ -227,6 +220,7 @@ Customize the settings as you see fit. A value of 0 will disable the specified f
   -D FT_NTP=1
   -D FT_OTA=1
   -D FT_UPLOAD_FIRMWARE=1
+  -D FT_BLE=1
 ```
 
 Flag               | Description
@@ -236,7 +230,8 @@ FT_SECURITY        | Controls whether the [security features](#security-features
 FT_MQTT            | Controls whether the MQTT features are enabled. Disable this if your project does not require MQTT support.
 FT_NTP             | Controls whether network time protocol synchronization features are enabled. Disable this if your project does not require accurate time.
 FT_OTA             | Controls whether OTA update support is enabled. Disable this if you won't be using the remote update feature.
-FT_UPLOAD_FIRMWARE | Controls the whether the manual upload firmware feature is enabled. Disable this if you won't be manually uploading firmware.
+FT_UPLOAD_FIRMWARE | Controls whether the manual upload firmware feature is enabled. Disable this if you won't be manually uploading firmware.
+FT_BLE             | Controls whether BLE (Bluetooth Low Energy) is enabled. Required for Serial/Weight Forwarder BLE features. See [CONFIGURATION](docs/CONFIGURATION.md) for OTA limitations when BLE is enabled on 4MB flash.
 
 ## Factory settings
 
@@ -303,31 +298,22 @@ You may use SettingValue::format in your own code if you require the use of thes
 
 ## Building for different devices
 
-This project supports ESP8266 and ESP32 platforms. To support OTA programming, enough free space to upload the new sketch and file system image will be required. It is recommended that a board with at least 2mb of flash is used.
+This project supports ESP8266 and ESP32 platforms. To support OTA programming, enough free space to upload the new sketch and file system image will be required. It is recommended that a board with at least 2MB of flash is used.
 
-The pre-configured environments are "esp12e" and "node32s". These are common ESP8266/ESP32 variants with 4mb of flash:
+Pre-configured environments in ['platformio.ini'](platformio.ini):
 
-![ESP12E](/media/esp12e.jpg?raw=true "ESP12E") ![ESP32](/media/esp32.jpg?raw=true "ESP32")
+| Environment | Board | Flash | Notes |
+|-------------|-------|-------|-------|
+| **esp32s3** (default) | ESP32-S3 DevKitC-1 | 8MB | BLE + OTA, native USB |
+| node32s | Node32s (ESP32) | 4MB | BLE; OTA not available with BLE (see [CONFIGURATION](docs/CONFIGURATION.md)) |
+| esp32dev | Generic ESP32 | 4MB | Development/troubleshooting |
+| esp12e | ESP8266 | 4MB | ESP8266 variant |
 
-The settings file ['platformio.ini'](platformio.ini) configures the supported environments. Modify these, or add new environments for the devides you need to support. The default environments are as follows:
-
-```ini
-[env:esp12e]
-platform = espressif8266
-board = esp12e
-board_build.f_cpu = 160000000L
-
-[env:node32s]
-platform = espressif32
-board = node32s
-```
-
-If you want to build for a different device, all you need to do is re-configure ['platformio.ini'](platformio.ini) and select an alternative environment by modifying the default_envs variable. Building for the common esp32 "node32s" board for example:
+Select an environment by setting `default_envs` in the `[platformio]` section, for example:
 
 ```ini
 [platformio]
-;default_envs = esp12e
-default_envs = node32s
+default_envs = esp32s3
 ```
 
 ## Customizing and theming
@@ -413,8 +399,11 @@ For detailed architecture documentation, see:
 - [C4 Diagrams](docs/C4-CONTEXT.md)
 - [Design Patterns](docs/DESIGN-PATTERNS.md)
 - [API Reference](docs/API-REFERENCE.md)
+- [Configuration](docs/CONFIGURATION.md) - Partitions, OTA, upload methods, feature flags
 - [LED Example](docs/LED-EXAMPLE.md) - Simple LED control demo
 - [Serial Example](docs/SERIAL-EXAMPLE.md) - Serial port monitoring service
+- [Diagnostics Example](docs/DIAGNOSTICS-EXAMPLE.md) - UART diagnostics (loopback, baud scan, signal quality)
+- [Weight Forwarder](docs/WEIGHT-FORWARDER-LESSONS.md) - Weight stream forwarding (WebSocket, HTTP, MQTT, BLE)
 
 ### Initializing the framework
 
@@ -743,8 +732,9 @@ esp8266React.getWiFiSettingsService()->addUpdateHandler(
 - Check [platformio.ini](platformio.ini) for correct board configuration
 
 **Upload Errors:**
-- Verify USB connection and correct port in PlatformIO
-- Hold BOOT button on ESP8266 during upload
+- **COM port busy**: Serial monitors or Python/PlatformIO can hold the port. Run [scripts/kill-for-test.ps1](scripts/kill-for-test.ps1) to stop Python and other PowerShell processes, then upload again. On Windows you can also run: `taskkill /F /IM python.exe`
+- Verify USB connection and correct port in PlatformIO (`upload_port` in platformio.ini)
+- Hold BOOT button on ESP8266/ESP32 during upload if the device does not enter bootloader
 - Check power supply (min 500mA)
 
 **WiFi Connection Issues:**
