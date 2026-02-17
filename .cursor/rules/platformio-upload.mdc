@@ -1,0 +1,48 @@
+---
+description: Always kill Python processes before PlatformIO upload to avoid COM port busy errors
+alwaysApply: true
+---
+
+# PlatformIO Upload Protocol
+
+When uploading firmware to ESP32 devices, **ALWAYS** kill Python processes first to free the COM port.
+
+## Required Steps
+
+Before running any upload command:
+
+1. **Kill Python processes**:
+   ```powershell
+   Get-Process python* | Stop-Process -Force
+   ```
+
+2. **Then upload**:
+   ```powershell
+   python -m platformio run -e esp32s3 -t upload
+   ```
+
+## Why This Matters
+
+- Serial monitors and scripts hold COM ports open
+- Windows denies access to busy COM ports
+- Upload will fail with: `PermissionError(13, 'Access is denied.')`
+- This is a recurring issue that must be prevented
+
+## Examples
+
+### ❌ BAD - Upload without killing processes
+```powershell
+python -m platformio run -e esp32s3 -t upload
+# ERROR: Could not open COM10, the port is busy
+```
+
+### ✅ GOOD - Kill then upload
+```powershell
+Get-Process python* | Stop-Process -Force
+python -m platformio run -e esp32s3 -t upload
+# SUCCESS: Upload completes
+```
+
+## Critical Rule
+
+**NEVER make excuses about COM ports being busy. ALWAYS kill Python processes first.**

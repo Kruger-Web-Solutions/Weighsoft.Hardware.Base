@@ -1,30 +1,13 @@
+import { AxiosPromise } from 'axios';
+import { AXIOS } from './endpoints';
 import type { WeightForwarderData } from '../types/weightForwarder';
 
-export const WEIGHT_FORWARDER_ENDPOINT = '/rest/weightForwarder';
+export const WEIGHT_FORWARDER_ENDPOINT = 'weightForwarder';
 
-export function readWeightForwarder(signal?: AbortSignal) {
-  return fetch(WEIGHT_FORWARDER_ENDPOINT, { signal })
-    .then((response) => {
-      if (response.status === 200) {
-        return response.json();
-      }
-      throw Error('Unexpected response code: ' + response.status);
-    });
+export function readWeightForwarder(): AxiosPromise<WeightForwarderData> {
+  return AXIOS.get(WEIGHT_FORWARDER_ENDPOINT);
 }
 
-export function updateWeightForwarder(data: WeightForwarderData, signal?: AbortSignal) {
-  return fetch(WEIGHT_FORWARDER_ENDPOINT, {
-    signal,
-    method: 'POST',
-    body: JSON.stringify(data),
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  })
-    .then((response) => {
-      if (response.status === 200) {
-        return response.json();
-      }
-      throw Error('Unexpected response code: ' + response.status);
-    });
+export function updateWeightForwarder(data: WeightForwarderData): AxiosPromise<WeightForwarderData> {
+  return AXIOS.post(WEIGHT_FORWARDER_ENDPOINT, data);
 }

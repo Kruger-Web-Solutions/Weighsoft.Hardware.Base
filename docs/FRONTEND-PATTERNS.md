@@ -594,19 +594,122 @@ import MyDevice from '../examples/mydevice/MyDevice';
 - Match the menu path exactly
 - Include `/*` wildcard for nested routes
 
+## Authentication and API Security
+
+### Critical: Use AXIOS for All API Calls
+
+**The AXIOS instance automatically includes JWT authentication**. Using plain `fetch()` will result in **401 Unauthorized** errors because the authentication token won't be sent.
+
+**✅ CORRECT - AXIOS includes auth automatically:**
+
+```typescript
+// In API files (interface/src/api/mydevice.ts)
+import { AxiosPromise } from 'axios';
+import { AXIOS } from './endpoints';
+import { MyDeviceData } from '../types/mydevice';
+
+export const MY_DEVICE_ENDPOINT = 'mydevice';  // Relative path, no /rest/ prefix
+
+export function readMyDeviceData(): AxiosPromise<MyDeviceData> {
+  return AXIOS.get(MY_DEVICE_ENDPOINT);
+}
+
+export function updateMyDeviceData(data: MyDeviceData): AxiosPromise<MyDeviceData> {
+  return AXIOS.post(MY_DEVICE_ENDPOINT, data);
+}
+```
+
+**❌ WRONG - fetch() bypasses authentication:**
+
+```typescript
+// ❌ NO JWT token sent - will get 401 Unauthorized
+export function readMyDeviceData(signal?: AbortSignal) {
+  return fetch('/rest/mydevice', { signal })
+    .then(response => response.json());
+}
+```
+
+**Why this matters:**
+- `AXIOS` is pre-configured with JWT interceptor
+- Every request automatically includes `Authorization: Bearer <token>` header
+- Plain `fetch()` requires manual token handling
+- Without auth token, all protected endpoints return 401
+
+**Troubleshooting 401 Errors:**
+1. Check if you're using `AXIOS` (correct) or `fetch()` (wrong)
+2. Verify endpoint is imported as relative path: `'mydevice'` not `'/rest/mydevice'`
+3. Confirm `AXIOS` is imported from `'./endpoints'`
+
+## Feature Flag Detection
+
+### Use FeaturesContext for Feature Flags
+
+Feature flags must be checked using React context, NOT environment variables.
+
+**✅ CORRECT - FeaturesContext:**
+
+```typescript
+import { useContext } from 'react';
+import { FeaturesContext } from '../../contexts/features';
+
+const MyDeviceConfig: FC = () => {
+  const { features } = useContext(FeaturesContext);
+  
+  const getAvailableProtocols = () => {
+    const protocols = [
+      { value: 0, label: 'HTTP POST' },
+      { value: 1, label: 'WebSocket Client' },
+    ];
+    if (features.mqtt) {
+      protocols.push({ value: 2, label: 'MQTT' });
+    }
+    if (features.ble) {
+      protocols.push({ value: 3, label: 'BLE Client' });
+    }
+    return protocols;
+  };
+  // ... rest of component
+};
+```
+
+**❌ WRONG - import.meta.env:**
+
+```typescript
+// ❌ TypeScript error: Property 'env' does not exist on type 'ImportMeta'
+const hasMqtt = import.meta.env.FT_MQTT;
+
+// ❌ This is Vite-specific and not used in this project
+const hasBle = import.meta.env.VITE_FT_BLE;
+```
+
+**Why this matters:**
+- Feature flags are loaded from backend API at runtime via `/rest/features`
+- `FeaturesContext` provides the correct flags for the connected device
+- `import.meta.env` is for build-time Vite environment variables (not used here)
+- Using wrong approach causes TypeScript compilation errors
+
+**Available features:**
+- `features.mqtt` - MQTT support enabled
+- `features.ble` - BLE support enabled
+- `features.project` - Custom project features
+
 ## Common Patterns Summary
 
 ### Imports Checklist
 
 ```typescript
-// ✅ API imports
+// ✅ API imports (CRITICAL: Use AXIOS for auth)
 import { AXIOS } from '../../api/endpoints';
 
 // ✅ Hook imports
 import { useRest, useWs } from '../../utils';
 
 // ✅ Component imports
-import { SectionContent, FormLoader } from '../../components';
+import { SectionContent, FormLoader, ButtonRow } from '../../components';
+
+// ✅ Feature flags
+import { FeaturesContext } from '../../contexts/features';
+import { useContext } from 'react';
 
 // ✅ WebSocket URL
 import { WEB_SOCKET_ROOT } from '../../api/endpoints';
@@ -641,6 +744,29 @@ if (!data) return <FormLoader />;
 
 ## Troubleshooting
 
+### "401 Unauthorized" on API requests
+
+**Problem**: API calls return 401 Unauthorized even though user is logged in.
+
+**Root Cause**: Using plain `fetch()` instead of `AXIOS`, which bypasses JWT authentication.
+
+**Solution**:
+```typescript
+// ❌ WRONG - No authentication token
+export function readMyDeviceData(signal?: AbortSignal) {
+  return fetch('/rest/mydevice', { signal })
+    .then(response => response.json());
+}
+
+// ✅ CORRECT - AXIOS includes JWT automatically
+import { AxiosPromise } from 'axios';
+import { AXIOS } from './endpoints';
+
+export function readMyDeviceData(): AxiosPromise<MyDeviceData> {
+  return AXIOS.get('mydevice');  // Relative path, auth automatic
+}
+```
+
 ### "Cannot find module './axios-fetch'"
 
 **Problem**: Wrong import path for AXIOS.
@@ -673,6 +799,100 @@ if (!data) return <FormLoader />;
 ```
 
 ### WebSocket not connecting
+
+**Problem**: Hardcoded WebSocket path or wrong URL construction.
+
+**Solution**:
+```typescript
+// ✅ CORRECT
+import { WEB_SOCKET_ROOT } from '../../api/endpoints';
+const WEBSOCKET_URL = `${WEB_SOCKET_ROOT}mydevice`;
+const { connected, data } = useWs<T>(WEBSOCKET_URL);
+```
+
+### "COM port busy" during upload
+
+**Problem**: Upload fails with `PermissionError(13, 'Access is denied.')` or "COM10 port is busy".
+
+**Root Cause**: Python processes (serial monitors, scripts) are holding the COM port open.
+
+**Solution - ALWAYS kill Python processes before upload:**
+```powershell
+# Kill all Python processes first
+Get-Process python* | Stop-Process -Force
+
+# Then upload
+python -m platformio run -e esp32s3 -t upload
+```
+
+**Permanent Solution**: This is documented in `.cursor/rules/platformio-upload.mdc` to ensure it's always followed.
+
+### "Property 'env' does not exist on type 'ImportMeta'"
+
+**Problem**: Trying to read feature flags from `import.meta.env` (Vite syntax).
+
+**Root Cause**: This project doesn't use Vite environment variables for feature flags. Feature flags come from the backend API.
+
+**Solution**:
+```typescript
+// ❌ WRONG - Vite syntax not used here
+const hasMqtt = import.meta.env.FT_MQTT;
+
+// ✅ CORRECT - Use FeaturesContext
+import { useContext } from 'react';
+import { FeaturesContext } from '../../contexts/features';
+
+const MyComponent: FC = () => {
+  const { features } = useContext(FeaturesContext);
+  
+  if (features.mqtt) {
+    // MQTT is enabled
+  }
+};
+```
+
+## Deployment Issues
+
+### Menu item not appearing after upload
+
+**Problem**: Uploaded firmware but new menu items don't appear in UI.
+
+**Root Causes:**
+1. **PROGMEM_WWW is defined**: Web interface is embedded in firmware, not SPIFFS
+2. **Device wasn't physically reset**: ESP32 is still running old firmware
+3. **Frontend build errors**: Check for TypeScript/compilation errors
+
+**Solution:**
+```powershell
+# 1. Check for build errors
+npm run build
+
+# 2. Upload firmware (kills Python processes first)
+Get-Process python* | Stop-Process -Force
+python -m platformio run -e esp32s3 -t upload
+
+# 3. CRITICAL: Physically press EN/RST button on ESP32
+# New firmware won't load without hard reset!
+```
+
+### Changes not reflecting after upload
+
+**Problem**: Uploaded new firmware but changes don't appear.
+
+**Root Cause**: When `PROGMEM_WWW` is defined, interface is embedded in firmware. Device needs physical reset to load new firmware.
+
+**Solution:**
+1. Verify upload completed successfully (check for "SUCCESS" in output)
+2. **Press EN/RST button** on ESP32-S3 to perform hard reset
+3. Monitor serial output to confirm new firmware boots
+4. Check browser cache (Ctrl+Shift+R for hard refresh)
+
+**How to verify firmware loaded:**
+- Serial output shows service initialization messages
+- Check service counter in boot logs (e.g., "[9/10] Weight Forwarder service loaded OK")
+- API endpoints respond without 401 errors
+
+## WebSocket not connecting
 
 **Problem**: Hardcoded WebSocket path or wrong URL construction.
 

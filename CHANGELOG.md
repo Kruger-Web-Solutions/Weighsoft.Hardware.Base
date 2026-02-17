@@ -8,6 +8,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- (Future changes will be listed here)
+
+### Changed
+- (Future changes will be listed here)
+
+## [0.6.0] - 2026-02-17
+
+### Added
+- **Weight Stream Forwarder**: Multi-protocol weight data distribution service
+  - WebSocket broadcasting to connected clients
+  - HTTP Server-Sent Events (SSE) streaming
+  - UDP unicast/broadcast support
+  - MQTT publishing with retained messages
+  - Frontend UI with real-time weight display and protocol status indicators
+  - REST API (`/rest/weightForwarder`) and WebSocket (`/ws/weightForwarder`)
+  - Comprehensive documentation in `WEIGHT-FORWARDER-LESSONS.md`
+- **PowerShell Serial Testing Utilities**: Development tooling for UART debugging
+  - `test-serial-stream.ps1` for simulating scale data output
+  - Configurable weight patterns and update rates
+  - Line ending options (CRLF/LF) for testing serial parsing
+
+### Changed
+- Updated `FRONTEND-PATTERNS.md` with weight forwarder context management examples
+- Fixed Weight Forwarder frontend to use features context and correct useWs hook
+
+## [0.5.0] - 2026-02-15
+
+### Added
+- **ESP32-S3 Platform Support**: Extended multi-platform capabilities
+  - Optimized partition scheme for ESP32-S3
+  - Platform-specific configurations in `platformio.ini`
+  - Documentation updated in `docs/` for ESP32-S3 specifics
+
+## [0.4.0] - 2026-02-14
+
+### Added
+- **Comprehensive UART Documentation**: Major documentation overhaul
+  - Updated `SERIAL-EXAMPLE.md` with 525 lines of detailed UART mode system documentation
+  - Architecture diagrams, API references, troubleshooting guides
+  - Frontend integration patterns and WebSocket communication details
+
+## [0.3.0] - 2026-02-13
+
+### Added
 - **UART Mode Management**: Persistent mode switcher (Live Monitoring vs Diagnostics)
   - `UartModeService` for backend state management with flash persistence (`/config/uartMode.json`)
   - `UartModeSwitcher` React component for UI mode control
@@ -24,6 +68,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Main.cpp now links UartModeService with Serial and Diagnostics services for coordination
 - API documentation updated with UART Mode Management endpoints
 - Frontend components refactored to support mode-aware rendering
+
+### Fixed
+- Diagnostics signal quality test: Reduced packet rate to prevent loss
+- Diagnostics signal quality test: Fixed packet counts to realistic values
+- Diagnostics: Prevented Serial2 hardware buffer overflow in signal test
+- Diagnostics: Prevented memory exhaustion in signal quality test
+- Diagnostics: Prevented WebSocket queue overflow with update throttling
+- Diagnostics: Resolved min() type mismatch compilation error
+- Serial: Disabled heartbeat logging to reduce log spam
 
 ## [0.2.0] - 2024-02-12
 
@@ -90,6 +143,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Version History
 
+- **0.6.0** - Weight Stream Forwarder + PowerShell Testing Tools
+- **0.5.0** - ESP32-S3 Platform Support
+- **0.4.0** - Comprehensive UART Documentation Update
+- **0.3.0** - UART Mode Management System
 - **0.2.0** - UART Diagnostics + Software Versioning
 - **0.1.0** - Initial Release (Serial Monitoring + LED Example)
 
