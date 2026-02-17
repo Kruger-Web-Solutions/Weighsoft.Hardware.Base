@@ -15,7 +15,7 @@
 #define API_VERSION "v1"
 
 // Project information
-#define PROJECT_NAME "Weighsoft Hardware Base"
+#define PROJECT_NAME "Weighsoft Serial"
 #define PROJECT_URL "https://github.com/henzard/Weighsoft.Hardware.Base"
 
 #endif

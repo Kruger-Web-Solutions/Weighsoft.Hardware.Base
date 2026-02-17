@@ -117,7 +117,7 @@ When completing a major feature or fix:
 #include "version.h"
 
 void setup() {
-  Serial.printf("Weighsoft Hardware Base v%s\n", VERSION_STRING);
+  Serial.printf("Weighsoft Serial v%s\n", VERSION_STRING);
   Serial.printf("API Version: %s\n", API_VERSION);
 }
 ```
@@ -230,7 +230,7 @@ import packageJson from '../package.json';
 #include "version.h"
 
 void setup() {
-  Serial.println(F("=== Weighsoft Hardware Base ==="));
+  Serial.println(F("=== Weighsoft Serial ==="));
   Serial.printf("Version: %s\n", VERSION_STRING);
   Serial.printf("Build: %s %s\n", BUILD_DATE, BUILD_TIME);
 }

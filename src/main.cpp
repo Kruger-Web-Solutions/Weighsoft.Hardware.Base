@@ -24,7 +24,7 @@ void setup() {
   Serial.begin(SERIAL_BAUD_RATE);
   delay(500);
   
-  Serial.println(F("\n\n=== Weighsoft Hardware Base ==="));
+  Serial.println(F("\n\n=== Weighsoft Serial ==="));
   Serial.printf("Version: %s\n", VERSION_STRING);
   Serial.printf("Build: %s %s\n", BUILD_DATE, BUILD_TIME);
   Serial.printf("API: %s\n", API_VERSION);
