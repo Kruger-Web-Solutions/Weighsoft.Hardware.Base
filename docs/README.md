@@ -7,12 +7,14 @@ This documentation provides comprehensive architecture, design patterns, API ref
 ## Quick Start
 
 ### For Developers
+
 1. **New to the framework?** Start with [ARCHITECTURE.md](ARCHITECTURE.md)
 2. **Need to understand the system?** Review the C4 diagrams
 3. **Want to add features?** Follow the [EXTENSION-GUIDE.md](EXTENSION-GUIDE.md)
 4. **Need API docs?** See [API-REFERENCE.md](API-REFERENCE.md)
 
 ### For AI Agents
+
 1. Read [ARCHITECTURE.md](ARCHITECTURE.md) for system overview
 2. Study [DESIGN-PATTERNS.md](DESIGN-PATTERNS.md) for implementation patterns
 3. Reference [API-REFERENCE.md](API-REFERENCE.md) for endpoint contracts
@@ -46,6 +48,9 @@ This documentation provides comprehensive architecture, design patterns, API ref
 | [DESIGN-PATTERNS.md](DESIGN-PATTERNS.md) | Pattern catalog with implementation examples |
 | [FILE-REFERENCE.md](FILE-REFERENCE.md) | Complete file structure guide |
 | [CONFIGURATION.md](CONFIGURATION.md) | Build system, feature flags, factory settings |
+| [OTA-UPLOAD.md](OTA-UPLOAD.md) | OTA firmware upload (ESP32-S3): setup, port 8266, commands |
+| [PIN-CONFIGURATION.md](PIN-CONFIGURATION.md) | GPIO and hardware pin reference for ESP32-S3, Serial2, I2C, etc. |
+| [PLATFORM-GPIO.md](PLATFORM-GPIO.md) | Platform-specific GPIO notes, partition schemes |
 | [SECURITY.md](SECURITY.md) | Security architecture, JWT, authentication |
 
 ### Practical Guides
@@ -53,6 +58,11 @@ This documentation provides comprehensive architecture, design patterns, API ref
 | Document | Description |
 |----------|-------------|
 | [EXTENSION-GUIDE.md](EXTENSION-GUIDE.md) | Step-by-step guide to add custom features |
+| [DEVICE-TEMPLATE-GUIDE.md](DEVICE-TEMPLATE-GUIDE.md) | Quick start checklist for new device projects |
+| [LED-EXAMPLE.md](LED-EXAMPLE.md) | LED control example - template for controllable devices |
+| [DIAGNOSTICS-EXAMPLE.md](DIAGNOSTICS-EXAMPLE.md) | UART diagnostics example with loopback and baud detection |
+| [SERIAL-EXAMPLE.md](SERIAL-EXAMPLE.md) | Serial monitoring example - template for read-only data sources |
+| [WEIGHT-FORWARDER-LESSONS.md](WEIGHT-FORWARDER-LESSONS.md) | Multi-protocol weight forwarding patterns (WebSocket, SSE, UDP, MQTT) |
 
 ## Learning Paths
 
@@ -168,24 +178,31 @@ For developers maintaining the codebase:
 ## Troubleshooting
 
 ### Can't find component interaction flow?
+
 → See [SEQUENCE-DIAGRAMS.md](SEQUENCE-DIAGRAMS.md)
 
 ### Don't understand data movement?
+
 → See [DATA-FLOWS.md](DATA-FLOWS.md)
 
 ### Need API contract details?
+
 → See [API-REFERENCE.md](API-REFERENCE.md)
 
 ### How do I implement a pattern?
+
 → See [DESIGN-PATTERNS.md](DESIGN-PATTERNS.md) and [EXTENSION-GUIDE.md](EXTENSION-GUIDE.md)
 
 ### Where does this file belong?
+
 → See [FILE-REFERENCE.md](FILE-REFERENCE.md)
 
 ### How do I secure an endpoint?
+
 → See [SECURITY.md](SECURITY.md)
 
 ### How do I change build settings?
+
 → See [CONFIGURATION.md](CONFIGURATION.md)
 
 ## Contributing
@@ -223,11 +240,14 @@ When adding new features:
 
 - **Main README**: [../README.md](../README.md) - Project overview
 - **Framework Source**: `lib/framework/` - Implementation reference
-- **Demo Project**: `src/Light*` - Working example
+- **Example Projects**:
+  - [LED-EXAMPLE.md](LED-EXAMPLE.md) - Simple LED control
+  - [SERIAL-EXAMPLE.md](SERIAL-EXAMPLE.md) - Serial port monitoring
 
 ## Feedback
 
 For documentation improvements, please:
+
 1. Check if information exists elsewhere first
 2. Submit clear, specific suggestions
 3. Include examples where helpful
@@ -235,6 +255,7 @@ For documentation improvements, please:
 ## Next Steps
 
 Choose your path:
+
 - **Learn**: Start with [ARCHITECTURE.md](ARCHITECTURE.md)
 - **Build**: Jump to [EXTENSION-GUIDE.md](EXTENSION-GUIDE.md)
 - **Reference**: Use [API-REFERENCE.md](API-REFERENCE.md)

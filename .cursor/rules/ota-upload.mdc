@@ -1,0 +1,38 @@
+---
+description: OTA firmware upload is supported; use port 8266 and document in docs
+alwaysApply: false
+---
+
+# OTA (Over-The-Air) Upload Rule
+
+## OTA Is Supported
+
+**Do not assume OTA is impossible or "not available".** This project supports OTA and it has been used successfully.
+
+- **ESP32-S3** (default env): OTA **is supported** (8MB flash, `partitions_ble_ota.csv`).
+- Device config: **System → OTA SETTINGS** in the web UI — Enable OTA, **Port 8266**, Password **esp-react** (defaults).
+
+## When Discussing or Performing OTA
+
+1. **Port**: Use **8266** unless the user has changed it in the device’s OTA Settings. The web UI (System → OTA SETTINGS) shows the actual port.
+2. **Password**: Default is **esp-react**; must match `--auth=` in `platformio.ini` and the device’s OTA Settings.
+3. **Documentation**: Point to **@docs/OTA-UPLOAD.md** for full steps (device setup, `platformio.ini`, upload command, troubleshooting).
+4. **platformio.ini**: For OTA, set `upload_protocol = espota`, `upload_port = <device IP>`, and `upload_flags = --port=8266 --auth=esp-react` (or the user’s port/password).
+
+## Upload Command
+
+```powershell
+python -m platformio run -e esp32s3 -t upload
+```
+
+## Do Not
+
+- Say OTA is "not supported" or "not possible" for the **esp32s3** env.
+- Use a different OTA port (e.g. 115) unless the user has explicitly set that port in the device’s OTA Settings.
+- Omit or contradict the steps in **docs/OTA-UPLOAD.md**.
+
+## Reference
+
+- **Full OTA guide**: @docs/OTA-UPLOAD.md
+- **OTA API**: @docs/API-REFERENCE.md (GET/POST `/rest/otaSettings`)
+- **USB upload / COM port**: @.cursor/rules/platformio-upload.mdc (kill Python before USB upload if port is busy)

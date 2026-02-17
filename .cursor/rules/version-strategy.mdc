@@ -1,0 +1,92 @@
+---
+description: SemVer strategy for master and feature branches (serial, display, led)
+alwaysApply: false
+---
+
+# Version Strategy
+
+## Overview
+
+This project uses SemVer (MAJOR.MINOR.PATCH) with a multi-branch strategy:
+- **master**: Framework version (general capabilities)
+- **Feature branches**: Feature completion version (may differ from master)
+
+## Version Locations
+
+Always update together:
+- `interface/package.json` → `"version"`
+- `src/version.h` → `VERSION_MAJOR`, `VERSION_MINOR`, `VERSION_PATCH`, `VERSION_STRING`
+- `CHANGELOG.md` → Document changes under `[version]` heading
+
+## Bumping Rules
+
+### Master Branch
+
+- **PATCH**: Doc fixes, rule updates, dependency patches
+- **MINOR**: General improvements merged from features (new patterns, docs, capabilities)
+- **MAJOR**: Breaking framework changes (API redesign, architecture overhaul)
+
+### Feature Branches (serial, display, led, etc.)
+
+- **PATCH**: Bug fixes, refinements
+- **MINOR**: Feature milestones (e.g., first working prototype, new capability)
+- **MAJOR**: Breaking changes within that feature
+
+## Current Versions (as of Feb 2026)
+
+- **master**: 0.6.1 → 0.7.0 after merging serial general docs
+- **serial**: 0.6.1 (synced with master after merge)
+- **display**: TBD (start from master version when branched)
+
+## Workflow
+
+1. Feature branch reaches milestone → bump feature branch version
+2. Feature branch has general improvements → merge to master → bump master version
+3. Feature branch syncs from master: `git merge master` (optional, keeps in sync)
+
+## Commands
+
+```powershell
+# Bump version (updates package.json, version.h, creates git tag)
+cd interface
+npm version patch|minor|major
+
+# Update CHANGELOG.md and src/version.h manually
+git add CHANGELOG.md src/version.h
+git commit --amend --no-edit
+git push
+git push --tags
+```
+
+## Example: Master 0.6.1 → 0.7.0
+
+```powershell
+# On master after merging general docs from serial
+cd interface
+npm version minor  # 0.6.1 → 0.7.0
+
+# Update version.h
+# #define VERSION_MAJOR 0
+# #define VERSION_MINOR 7  # was 6
+# #define VERSION_PATCH 0  # was 1
+# #define VERSION_STRING "0.7.0"
+
+# Update CHANGELOG.md
+# ## [0.7.0] - 2026-02-17
+# ### Added
+# - Merged general docs/rules from serial branch
+# - OTA upload documentation and rules
+# - Hardware pin configuration docs
+# - Multi-protocol weight forwarder patterns
+# - Diagnostics example for UART testing
+
+git add CHANGELOG.md src/version.h
+git commit --amend --no-edit
+git push
+git push --tags
+```
+
+## Reference
+
+- **Software Versioning Rule**: @.cursor/rules/software-versioning.mdc (npm version workflow)
+- **Feature Branch Workflow**: @.cursor/rules/feature-branch-workflow.mdc

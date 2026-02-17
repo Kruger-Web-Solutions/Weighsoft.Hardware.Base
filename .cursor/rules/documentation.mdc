@@ -31,16 +31,27 @@ Reference these files instead of creating new ones:
 - **Data Flows**: @docs/DATA-FLOWS.md
 - **Sequence Diagrams**: @docs/SEQUENCE-DIAGRAMS.md
 - **File Reference**: @docs/FILE-REFERENCE.md
+- **OTA Upload**: @docs/OTA-UPLOAD.md
+- **Pin Configuration**: @docs/PIN-CONFIGURATION.md
+- **Platform GPIO**: @docs/PLATFORM-GPIO.md
+
+### Example Documentation
+
+- **LED Example**: @docs/LED-EXAMPLE.md
+- **Diagnostics Example**: @docs/DIAGNOSTICS-EXAMPLE.md
+- **Device Template**: @docs/DEVICE-TEMPLATE-GUIDE.md
 
 ## When to Create Documentation
 
 ✅ **DO create docs for:**
+
 - New architectural patterns not covered in existing docs
 - New features with complex workflows
 - Breaking changes that affect existing patterns
 - API endpoints not in @docs/API-REFERENCE.md
 
 ❌ **DON'T create docs for:**
+
 - Temporary or experimental code
 - Self-explanatory code
 - Duplicating information already in existing docs
@@ -49,6 +60,7 @@ Reference these files instead of creating new ones:
 ## When to Update Documentation
 
 Update existing docs when:
+
 - Adding new REST/WebSocket endpoints → Update @docs/API-REFERENCE.md
 - Changing architectural patterns → Update @docs/DESIGN-PATTERNS.md
 - Adding new feature → Update @docs/EXTENSION-GUIDE.md with example
