@@ -1,6 +1,6 @@
 {
   "name": "esp8266-react",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "private": true,
   "proxy": "http://192.168.0.23",
   "dependencies": {
