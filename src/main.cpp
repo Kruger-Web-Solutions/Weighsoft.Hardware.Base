@@ -2,6 +2,7 @@
 #include <examples/led/LedExampleService.h>
 #include <examples/serial/SerialService.h>
 #include <examples/diagnostics/DiagnosticsService.h>
+#include <examples/weightforwarder/WeightForwarderService.h>
 #include "VersionService.h"
 #include "UartModeService.h"
 #include "version.h"
@@ -16,6 +17,7 @@ SerialService* serialService;
 DiagnosticsService* diagnosticsService;
 VersionService* versionService;
 UartModeService* uartModeService;
+WeightForwarderService* weightForwarderService;
 
 void setup() {
   // start serial and filesystem
@@ -79,6 +81,7 @@ void setup() {
   Serial.println(F("[6/10] LED example loaded OK"));
 
   Serial.println(F("[7/10] Initializing Serial monitor service..."));
+  delay(500);  // ESP32-S3: Delay before SerialService initialization
   serialService = new SerialService(
       server,
       esp8266React->getFS(),
@@ -88,6 +91,7 @@ void setup() {
       ,nullptr  // BLE server will be configured via callback
 #endif
       );
+  delay(200);  // ESP32-S3: Delay after SerialService creation
   serialService->begin();
   Serial.println(F("[7/10] Serial service loaded OK"));
 
@@ -99,11 +103,26 @@ void setup() {
   diagnosticsService->begin();
   Serial.println(F("[8/10] Diagnostics service loaded OK"));
 
-  // Link services for Serial2 coordination
+  // Link services for Serial1 coordination
   diagnosticsService->setSerialService(serialService);
   uartModeService->setSerialService(serialService);
   uartModeService->setDiagnosticsService(diagnosticsService);
-  Serial.println(F("[8/10] Services linked for Serial2 coordination"));
+  Serial.println(F("[8/10] Services linked for Serial1 coordination"));
+  
+  // Apply persisted UART mode now that all services are linked
+  uartModeService->applyMode();
+  Serial.println(F("[8/10] Persisted UART mode applied"));
+
+  Serial.println(F("[9/10] Initializing Weight Forwarder service..."));
+  weightForwarderService = new WeightForwarderService(
+      server,
+      esp8266React->getFS(),
+      esp8266React->getSecurityManager(),
+      esp8266React->getMqttClient(),
+      serialService
+      );
+  weightForwarderService->begin();
+  Serial.println(F("[9/10] Weight Forwarder service loaded OK"));
 
 #if FT_ENABLED(FT_BLE)
   // Register callbacks after both services exist so callback never sees null
@@ -121,7 +140,7 @@ void setup() {
       }
     }
   );
-  Serial.println(F("[9/10] BLE callbacks registered OK"));
+  Serial.println(F("[10/10] BLE callbacks registered OK"));
 #endif
 
   Serial.println(F("[10/10] Starting web server..."));
@@ -143,4 +162,7 @@ void loop() {
   
   // run diagnostic tests
   diagnosticsService->loop();
+  
+  // process weight forwarding
+  weightForwarderService->loop();
 }

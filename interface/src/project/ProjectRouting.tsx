@@ -4,6 +4,7 @@ import { Navigate, Routes, Route } from 'react-router-dom';
 import LedExample from '../examples/led/LedExample';
 import SerialMonitor from '../examples/serial/SerialMonitor';
 import Diagnostics from '../examples/diagnostics/Diagnostics';
+import WeightForwarder from '../examples/weightforwarder/WeightForwarder';
 
 const ProjectRouting: FC = () => {
   return (
@@ -24,6 +25,10 @@ const ProjectRouting: FC = () => {
         // UART Diagnostics project routes
       }
       <Route path="diagnostics/*" element={<Diagnostics />} />
+      {
+        // Weight Forwarder project routes
+      }
+      <Route path="weightforwarder/*" element={<WeightForwarder />} />
     </Routes>
   );
 };

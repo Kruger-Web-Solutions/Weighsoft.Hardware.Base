@@ -691,6 +691,80 @@ Update MQTT topic configuration.
 
 **Request**: Same structure as GET response
 
+#### GET /rest/weightForwarder
+
+Get weight stream forwarder configuration and status.
+
+**Security**: IS_AUTHENTICATED
+
+**Response** (200 OK):
+```json
+{
+  "protocol": 0,
+  "target_url": "http://192.168.1.50:8080/weight",
+  "ws_url": "ws://192.168.1.50:8080/ws",
+  "mqtt_topic": "remote/device/weight",
+  "ble_service_uuid": "12340000-e8f2-537e-4f6c-d104768a1234",
+  "ble_char_uuid": "12340001-e8f2-537e-4f6c-d104768a1234",
+  "enabled": true,
+  "display_mode": false,
+  "connected": true,
+  "last_error": "",
+  "last_forward_time": 1234567890
+}
+```
+
+**Field Descriptions**:
+- `protocol`: Forward protocol (0=HTTP POST, 1=WebSocket Client, 2=MQTT, 3=BLE Client)
+- `target_url`: HTTP POST endpoint URL
+- `ws_url`: WebSocket client endpoint URL
+- `mqtt_topic`: MQTT publish topic
+- `ble_service_uuid`: Remote BLE service UUID to connect to
+- `ble_char_uuid`: Remote BLE characteristic UUID to write to
+- `enabled`: Master enable/disable toggle
+- `display_mode`: Data format toggle (false=standard JSON, true=16-char LCD format)
+- `connected`: Current connection status to remote device
+- `last_error`: Most recent error message (empty if no error)
+- `last_forward_time`: Timestamp of last successful forward (millis)
+
+**Protocol Values**:
+- `0` - HTTP POST: Posts JSON to `target_url` on each weight update
+- `1` - WebSocket Client: Connects to `ws_url` and streams JSON
+- `2` - MQTT: Publishes JSON to `mqtt_topic` (requires FT_MQTT=1)
+- `3` - BLE Client: Connects to remote BLE device and writes JSON to characteristic (requires FT_BLE=1)
+
+**Display Mode**:
+- `false` (Standard): `{"last_line":"...", "weight":"...", "timestamp":123}`
+- `true` (LCD): `{"line1":"Weight: 12.5 kg ", "line2":"..."}`  (16 chars per line, padded/truncated)
+
+**Note**: Protocol availability is controlled by feature flags. If `FT_MQTT=0`, MQTT protocol is not selectable. If `FT_BLE=0`, BLE Client protocol is not selectable.
+
+#### POST /rest/weightForwarder
+
+Update weight forwarder configuration.
+
+**Security**: IS_AUTHENTICATED
+
+**Request**:
+```json
+{
+  "protocol": 1,
+  "ws_url": "ws://192.168.1.100:3000/weight",
+  "enabled": true,
+  "display_mode": true
+}
+```
+
+**Response**: Same as GET
+
+**Behavior**:
+- Protocol switch is handled automatically (previous protocol resources cleaned up)
+- Configuration persists to flash on update
+- Automatic reconnection for WebSocket and BLE protocols
+- Rate limited to max 10 forwards per second
+- Skips forwarding if WiFi disconnected
+- Errors are logged to `last_error` field and forwarding continues
+
 ## WebSocket Endpoints
 
 **Base Path**: `/ws/`
@@ -775,6 +849,36 @@ Real-time UART mode change notifications.
 ```
 
 **Direction**: Server → Client (broadcast on mode change)
+
+#### /ws/weightForwarder
+
+Real-time weight forwarder status and configuration streaming.
+
+**Security**: IS_AUTHENTICATED
+
+**Payload Format**:
+```json
+{
+  "protocol": 1,
+  "target_url": "http://192.168.1.50:8080/weight",
+  "ws_url": "ws://192.168.1.50:8080/ws",
+  "mqtt_topic": "remote/device/weight",
+  "ble_service_uuid": "12340000-e8f2-537e-4f6c-d104768a1234",
+  "ble_char_uuid": "12340001-e8f2-537e-4f6c-d104768a1234",
+  "enabled": true,
+  "display_mode": false,
+  "connected": true,
+  "last_error": "",
+  "last_forward_time": 1234567890
+}
+```
+
+**Behavior**: Bidirectional - client can update configuration, server broadcasts status updates (connection state, errors, last forward time).
+
+**Usage**:
+- **Client → Server**: Send configuration updates (same as POST /rest/weightForwarder)
+- **Server → Client**: Automatic updates when connection status changes, errors occur, or configuration is modified
+- **Frequency**: Updates pushed on every connection state change, error, or successful forward
 
 #### /ws/diagnostics
 
