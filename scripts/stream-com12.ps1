@@ -1,6 +1,6 @@
 # Serial data streamer for COM12
 param(
-    [string]$Port = "COM12",
+    [string]$Port = "COM13",
     [int]$BaudRate = 9600,
     [int]$DelayMs = 500
 )
