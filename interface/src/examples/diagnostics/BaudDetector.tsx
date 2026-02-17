@@ -62,7 +62,7 @@ const BaudDetector: FC = () => {
           <strong>Setup Options:</strong>
           <br />
           • <strong>Option 1:</strong> Connect GPIO17-18 (loopback) to test detection
-          <br />• <strong>Option 2:</strong> Connect scale to GPIO17 (must be transmitting)
+          <br />• <strong>Option 2:</strong> Connect scale TX to GPIO18 (RX) - must be transmitting
         </Typography>
       </Alert>
 

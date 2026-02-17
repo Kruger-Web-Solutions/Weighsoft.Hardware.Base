@@ -71,13 +71,13 @@ const SerialInfo: FC = () => (
     <List dense>
       <ListItem>
         <ListItemText
-          primary="RX (GPIO17)"
+          primary="RX (GPIO18)"
           secondary="Receives data from external device TX"
         />
       </ListItem>
       <ListItem>
         <ListItemText
-          primary="TX (GPIO18)"
+          primary="TX (GPIO17)"
           secondary="Not currently used by this service"
         />
       </ListItem>
