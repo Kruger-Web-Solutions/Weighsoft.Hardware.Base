@@ -1,22 +1,11 @@
 
 import { FC } from 'react';
 
-import { Box, Divider, Drawer, Toolbar, Typography, styled, useTheme } from '@mui/material';
+import { Box, Divider, Drawer, Toolbar, Typography } from '@mui/material';
 
 import { PROJECT_NAME } from '../../api/env';
 import LayoutMenu from './LayoutMenu';
 import { DRAWER_WIDTH } from './Layout';
-
-const LayoutDrawerLogo = styled('img')(({ theme }) => ({
-  [theme.breakpoints.down("sm")]: {
-    height: 24,
-    marginRight: theme.spacing(2)
-  },
-  [theme.breakpoints.up("sm")]: {
-    height: 36,
-    marginRight: theme.spacing(2)
-  }
-}));
 
 interface LayoutDrawerProps {
   mobileOpen: boolean;
@@ -24,14 +13,10 @@ interface LayoutDrawerProps {
 }
 
 const LayoutDrawer: FC<LayoutDrawerProps> = ({ mobileOpen, onClose }) => {
-  const theme = useTheme();
-  const iconSrc = theme.palette.mode === 'dark' ? '/app/icon dark.png' : '/app/icon.png';
-
   const drawer = (
     <>
       <Toolbar disableGutters>
         <Box display="flex" alignItems="center" px={2}>
-          <LayoutDrawerLogo src={iconSrc} alt={PROJECT_NAME} />
           <Typography variant="h6" color="textPrimary">
             {PROJECT_NAME}
           </Typography>

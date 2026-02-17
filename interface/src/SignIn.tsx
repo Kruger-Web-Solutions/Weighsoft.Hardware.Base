@@ -17,7 +17,6 @@ const SignIn: FC = () => {
   const authenticationContext = useContext(AuthenticationContext);
   const { enqueueSnackbar } = useSnackbar();
   const theme = useTheme();
-  const iconSrc = theme.palette.mode === 'dark' ? '/app/icon dark.png' : '/app/icon.png';
 
   const [signInRequest, setSignInRequest] = useState<SignInRequest>({
     username: '',
@@ -69,11 +68,7 @@ const SignIn: FC = () => {
         sx={{
           textAlign: "center",
           padding: 2,
-          paddingTop: "200px",
-          backgroundImage: `url("${iconSrc}")`,
-          backgroundRepeat: "no-repeat",
-          backgroundPosition: "50% 16px",
-          backgroundSize: "auto 150px",
+          paddingTop: 3,
           width: "100%"
         }}
       >
