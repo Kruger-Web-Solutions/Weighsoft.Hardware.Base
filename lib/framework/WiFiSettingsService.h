@@ -22,7 +22,8 @@
 #define WIFI_SETTINGS_FILE "/config/wifiSettings.json"
 #define WIFI_SETTINGS_SERVICE_PATH "/rest/wifiSettings"
 
-#define WIFI_RECONNECTION_DELAY 1000 * 30
+#define WIFI_RECONNECTION_DELAY 1000 * 30  // max interval between reconnect attempts
+#define WIFI_RECONNECT_IMMEDIATE_DELAY 1000 * 2  // fast retry immediately after disconnect
 
 class WiFiSettings {
  public:
@@ -95,6 +96,8 @@ class WiFiSettingsService : public StatefulService<WiFiSettings> {
   HttpEndpoint<WiFiSettings> _httpEndpoint;
   FSPersistence<WiFiSettings> _fsPersistence;
   unsigned long _lastConnectionAttempt;
+  unsigned long _reconnectDelay;  // current retry interval (ramps up after repeated failures)
+  uint8_t _reconnectAttempts;     // count of consecutive failed attempts
 
 #ifdef ESP32
   bool _stopping;
