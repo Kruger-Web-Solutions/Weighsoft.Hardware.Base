@@ -1,10 +1,11 @@
-import { FC } from "react";
+import { FC, useEffect } from "react";
 
 import { Avatar, Button, Divider, List, ListItem, ListItemAvatar, ListItemText, Theme, useTheme } from "@mui/material";
 import SettingsInputComponentIcon from '@mui/icons-material/SettingsInputComponent';
 import SettingsInputAntennaIcon from '@mui/icons-material/SettingsInputAntenna';
 import DeviceHubIcon from '@mui/icons-material/DeviceHub';
 import WifiIcon from '@mui/icons-material/Wifi';
+import SignalWifi4BarIcon from '@mui/icons-material/SignalWifi4Bar';
 import DnsIcon from '@mui/icons-material/Dns';
 import RefreshIcon from '@mui/icons-material/Refresh';
 
@@ -59,10 +60,19 @@ const dnsServers = ({ dns_ip_1, dns_ip_2 }: WiFiStatus) => {
   return dns_ip_1 + (dns_ip_2 ? ',' + dns_ip_2 : '');
 };
 
+const POLL_INTERVAL_MS = 5000;
+
 const WiFiStatusForm: FC = () => {
   const {
     loadData, data, errorMessage
   } = useRest<WiFiStatus>({ read: WiFiApi.readWiFiStatus });
+
+  // Auto-poll: mirrors the reconnect loop so the status reflects reconnection without
+  // the user having to manually refresh
+  useEffect(() => {
+    const timer = setInterval(loadData, POLL_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [loadData]);
 
   const theme = useTheme();
 
@@ -134,6 +144,18 @@ const WiFiStatusForm: FC = () => {
                   </Avatar>
                 </ListItemAvatar>
                 <ListItemText primary="DNS Server IP" secondary={dnsServers(data)} />
+              </ListItem>
+              <Divider variant="inset" component="li" />
+              <ListItem>
+                <ListItemAvatar>
+                  <Avatar>
+                    <SignalWifi4BarIcon />
+                  </Avatar>
+                </ListItemAvatar>
+                <ListItemText
+                  primary="Signal Strength (RSSI)"
+                  secondary={`${data.rssi} dBm${data.rssi >= -50 ? ' — Excellent' : data.rssi >= -67 ? ' — Good' : data.rssi >= -80 ? ' — Fair' : ' — Weak'}`}
+                />
               </ListItem>
               <Divider variant="inset" component="li" />
             </>
