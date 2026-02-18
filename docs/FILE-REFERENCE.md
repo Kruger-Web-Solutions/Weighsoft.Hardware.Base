@@ -27,9 +27,15 @@ C:\Project\Weighsoft.Hardware.Base\
 ├── scripts\                   # Build scripts
 │   └── build_interface.py     # Interface build automation
 └── src\                       # Main application code
-    ├── main.cpp               # Entry point
-    ├── LightStateService.*    # Demo: Light control
-    └── LightMqttSettingsService.*  # Demo: MQTT config
+    ├── main.cpp               # Entry point, service initialization
+    └── examples\              # Example projects
+        ├── led\               # LED Example: Bidirectional control
+        │   ├── LedExampleService.h
+        │   └── LedExampleService.cpp
+        └── serial\            # Serial Example: Data streaming
+            ├── SerialState.h
+            ├── SerialService.h
+            └── SerialService.cpp
 ```
 
 ## Backend Structure (C++)
@@ -70,17 +76,23 @@ C:\Project\Weighsoft.Hardware.Base\
 
 ### /src/ - Application Code
 
-**Purpose**: Main application and custom services
+**Purpose**: Main application and example projects
 
 **Files**:
 
 | File | Purpose |
 |------|---------|
-| `main.cpp` | Entry point, setup(), loop() |
-| `LightStateService.h/cpp` | Demo: LED control service |
-| `LightMqttSettingsService.h/cpp` | Demo: MQTT topic configuration |
+| `main.cpp` | Entry point, setup(), loop(), service initialization |
 
-**Pattern**: Add your custom services here
+**Example Projects**:
+
+| Directory | Files | Purpose |
+|-----------|-------|---------|
+| `examples/led/` | `LedExampleService.h/cpp` | LED control with 4 channels (REST, WS, MQTT, BLE) |
+| `examples/serial/` | `SerialState.h`, `SerialService.h/cpp` | Serial2 monitoring and streaming |
+| `examples/diagnostics/` | `DiagnosticsState.h`, `DiagnosticsService.h/cpp` | UART hardware testing (loopback, baud scan, signal quality) |
+
+**Pattern**: Create your custom services in `examples/yourdevice/`
 
 ### /src/examples/ - Device Examples
 
@@ -194,14 +206,49 @@ C:\Project\Weighsoft.Hardware.Base\
 |------|---------|
 | `ProjectRouting.tsx` | Custom feature routing |
 | `ProjectMenu.tsx` | Custom menu items |
-| `DemoProject.tsx` | Demo tabs |
-| `DemoInformation.tsx` | Demo documentation |
-| `LightStateRestForm.tsx` | REST example |
-| `LightStateWebSocketForm.tsx` | WebSocket example |
-| `LightMqttSettingsForm.tsx` | MQTT config example |
-| `api.ts` | Custom API endpoints |
+
+### /interface/src/examples/ - Example Projects
+
+**LED Example** (`examples/led/`):
+
+| File | Purpose |
+|------|---------|
+| `LedExample.tsx` | Main router with tabs |
+| `LedExampleInfo.tsx` | Documentation and wiring |
+| `LedControlRest.tsx` | REST control form |
+| `LedControlWebSocket.tsx` | WebSocket real-time control |
+| `LedControlBle.tsx` | BLE connection instructions |
+| `api.ts` | LED API endpoints |
 | `types.ts` | TypeScript types |
-| `validators.ts` | Form validation |
+
+**Serial Example** (`examples/serial/`):
+
+| File | Purpose |
+|------|---------|
+| `SerialMonitor.tsx` | Main router with tabs |
+| `SerialInfo.tsx` | Documentation and hardware setup |
+| `SerialConfig.tsx` | Serial port and regex configuration form |
+| `SerialRest.tsx` | REST polling view |
+| `SerialWebSocket.tsx` | Real-time streaming view |
+| `SerialBle.tsx` | BLE connection instructions |
+
+**Diagnostics Example** (`examples/diagnostics/`):
+
+| File | Purpose |
+|------|---------|
+| `Diagnostics.tsx` | Main router with tabs |
+| `DiagnosticsInfo.tsx` | Documentation and use cases |
+| `LoopbackTest.tsx` | Loopback test UI with live results |
+| `BaudDetector.tsx` | Baud rate scanner UI with progress |
+| `SignalQuality.tsx` | Signal quality test UI with metrics |
+
+### /interface/src/api/ - API Layer
+
+| File | Purpose |
+|------|---------|
+| `endpoints.ts` | Base URLs and WebSocket paths |
+| `serial.ts` | Serial example API functions |
+| `diagnostics.ts` | Diagnostics API functions |
 
 ### /interface/src/examples/ - Device Example UIs
 
@@ -242,6 +289,8 @@ C:\Project\Weighsoft.Hardware.Base\
 
 | File | Purpose |
 |------|---------|
+| `serial.ts` | Serial data types |
+| `diagnostics.ts` | Diagnostics test state types |
 | `wifi.ts` | WiFi types |
 | `mqtt.ts` | MQTT types |
 | `security.ts` | Security types |
@@ -273,6 +322,7 @@ C:\Project\Weighsoft.Hardware.Base\
 ### Generated Directories
 
 **Not in Git**:
+
 ```
 /.pio/                  # PlatformIO build artifacts
 interface/node_modules/ # NPM dependencies
@@ -283,10 +333,12 @@ interface/build/        # React production build
 ### Uploaded to Device
 
 **Firmware**:
+
 - `.pio/build/{env}/firmware.bin` - Main firmware
 - `.pio/build/{env}/spiffs.bin` - Filesystem image (if not PROGMEM_WWW)
 
 **Filesystem** (uploaded separately if not PROGMEM_WWW):
+
 ```
 /www/
 ├── index.html
@@ -299,6 +351,7 @@ interface/build/        # React production build
 ```
 
 **Configuration** (created at runtime):
+
 ```
 /config/
 ├── wifiSettings.json
@@ -307,7 +360,8 @@ interface/build/        # React production build
 ├── mqttSettings.json
 ├── ntpSettings.json
 ├── otaSettings.json
-└── brokerSettings.json
+├── brokerSettings.json
+└── serialConfig.json
 ```
 
 ## Key File Responsibilities
@@ -315,6 +369,7 @@ interface/build/        # React production build
 ### main.cpp
 
 **Responsibilities**:
+
 - Create AsyncWebServer instance
 - Create ESP8266React framework instance
 - Create custom service instances
@@ -325,6 +380,7 @@ interface/build/        # React production build
 ### ESP8266React.cpp
 
 **Responsibilities**:
+
 - Initialize filesystem
 - Create all framework services
 - Register WWW routes (PROGMEM or filesystem)
@@ -334,6 +390,7 @@ interface/build/        # React production build
 ### StatefulService Template
 
 **Responsibilities**:
+
 - Store state object
 - Provide thread-safe access
 - Manage update handlers
@@ -342,6 +399,7 @@ interface/build/        # React production build
 ### Infrastructure Templates
 
 **Responsibilities**:
+
 - HttpEndpoint: Expose REST API
 - FSPersistence: Save/load from filesystem
 - WebSocketTxRx: Real-time bidirectional sync
@@ -350,11 +408,13 @@ interface/build/        # React production build
 ## File Naming Conventions
 
 ### Backend (C++)
+
 - `.h` - Header files
 - `.cpp` - Implementation files
 - PascalCase: `WiFiSettingsService.h`
 
 ### Frontend (TypeScript/React)
+
 - `.tsx` - React components
 - `.ts` - TypeScript modules
 - PascalCase for components: `WiFiSettingsForm.tsx`
@@ -365,3 +425,6 @@ interface/build/        # React production build
 - [ARCHITECTURE.md](ARCHITECTURE.md) - System overview
 - [EXTENSION-GUIDE.md](EXTENSION-GUIDE.md) - Add custom files
 - [CONFIGURATION.md](CONFIGURATION.md) - Build configuration
+- [OTA-UPLOAD.md](OTA-UPLOAD.md) - OTA firmware upload (ESP32-S3, port 8266)
+- [PIN-CONFIGURATION.md](PIN-CONFIGURATION.md) - GPIO and hardware pin reference
+- [PLATFORM-GPIO.md](PLATFORM-GPIO.md) - Platform-specific GPIO notes
