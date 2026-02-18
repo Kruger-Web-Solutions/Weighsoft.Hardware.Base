@@ -14,6 +14,8 @@ export interface WeightForwarderData {
   ble_char_uuid: string;
   enabled: boolean;
   display_mode: boolean;
+  auth_username?: string;
+  auth_password?: string;
   connected: boolean;
   last_error: string;
   last_forward_time: number;

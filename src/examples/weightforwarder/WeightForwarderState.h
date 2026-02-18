@@ -16,6 +16,8 @@ class WeightForwarderState {
   String bleCharUuid;     // BLE: "12340001-e8f2-537e-4f6c-d104768a1234"
   bool enabled;
   bool displayMode;  // true = {"line1","line2"}, false = {"last_line","weight","timestamp"}
+  String authUsername;  // Optional: for HTTP POST to protected endpoints (e.g. /rest/display)
+  String authPassword;
 
   // Runtime status (not persisted)
   bool connected;
@@ -32,6 +34,8 @@ class WeightForwarderState {
     root["ble_char_uuid"] = state.bleCharUuid;
     root["enabled"] = state.enabled;
     root["display_mode"] = state.displayMode;
+    root["auth_username"] = state.authUsername;
+    root["auth_password"] = state.authPassword;
 
     // Runtime status
     root["connected"] = state.connected;
@@ -49,6 +53,8 @@ class WeightForwarderState {
     root["ble_char_uuid"] = state.bleCharUuid;
     root["enabled"] = state.enabled;
     root["display_mode"] = state.displayMode;
+    root["auth_username"] = state.authUsername;
+    root["auth_password"] = state.authPassword;
   }
 
   // Config update for FSPersistence (loads from flash)
@@ -61,6 +67,8 @@ class WeightForwarderState {
     state.bleCharUuid = root["ble_char_uuid"] | "";
     state.enabled = root["enabled"] | false;
     state.displayMode = root["display_mode"] | false;
+    state.authUsername = root["auth_username"] | "";
+    state.authPassword = root["auth_password"] | "";
 
     // Validate protocol against feature flags
 #if !FT_ENABLED(FT_MQTT)
@@ -139,6 +147,21 @@ class WeightForwarderState {
       bool newMode = root["display_mode"];
       if (newMode != state.displayMode) {
         state.displayMode = newMode;
+        changed = true;
+      }
+    }
+
+    if (root.containsKey("auth_username")) {
+      String v = root["auth_username"].as<String>();
+      if (v != state.authUsername) {
+        state.authUsername = v;
+        changed = true;
+      }
+    }
+    if (root.containsKey("auth_password")) {
+      String v = root["auth_password"].as<String>();
+      if (v != state.authPassword) {
+        state.authPassword = v;
         changed = true;
       }
     }

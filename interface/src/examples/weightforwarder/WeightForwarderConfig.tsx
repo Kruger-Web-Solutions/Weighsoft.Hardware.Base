@@ -83,25 +83,77 @@ const WeightForwarderConfig: FC = () => {
         </FormControl>
 
         {data.protocol === ForwardProtocol.HTTP && (
-          <TextField
-            fullWidth
-            label="Target URL"
-            value={data.target_url}
-            onChange={(e) => setField('target_url')(e.target.value)}
-            placeholder="http://192.168.1.50:8080/weight"
-            helperText="HTTP endpoint to POST weight data"
-          />
+          <>
+            <TextField
+              fullWidth
+              label="Target URL"
+              value={data.target_url}
+              onChange={(e) => setField('target_url')(e.target.value)}
+              placeholder="http://192.168.1.50:8080/weight or http://192.168.3.100/rest/display"
+              helperText="HTTP endpoint to POST weight data"
+            />
+            <Box sx={{ mt: 1 }}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Target login (username)"
+                type="text"
+                autoComplete="username"
+                value={data.auth_username ?? ''}
+                onChange={(e) => setField('auth_username')(e.target.value)}
+                placeholder="Leave empty if target does not require login"
+                helperText="Required when target requires login (e.g. display device returns HTTP 401)"
+                sx={{ mb: 1 }}
+              />
+              <TextField
+                fullWidth
+                size="small"
+                label="Target login (password)"
+                type="password"
+                autoComplete="current-password"
+                value={data.auth_password ?? ''}
+                onChange={(e) => setField('auth_password')(e.target.value)}
+                placeholder="Password for target device"
+              />
+            </Box>
+          </>
         )}
 
         {data.protocol === ForwardProtocol.WS && (
+          <>
           <TextField
             fullWidth
             label="WebSocket URL"
             value={data.ws_url}
             onChange={(e) => setField('ws_url')(e.target.value)}
-            placeholder="ws://192.168.1.50:8080/ws"
+            placeholder="ws://192.168.3.100/ws/display"
             helperText="WebSocket endpoint for real-time streaming"
           />
+          <Box sx={{ mt: 1 }}>
+            <TextField
+              fullWidth
+              size="small"
+              label="Target login (username)"
+              type="text"
+              autoComplete="username"
+              value={data.auth_username ?? ''}
+              onChange={(e) => setField('auth_username')(e.target.value)}
+              placeholder="Leave empty if target does not require login"
+              helperText="Required when target requires login (token appended as ?access_token=)"
+              sx={{ mb: 1 }}
+            />
+            <TextField
+              fullWidth
+              size="small"
+              label="Target login (password)"
+              type="password"
+              autoComplete="current-password"
+              value={data.auth_password ?? ''}
+              onChange={(e) => setField('auth_password')(e.target.value)}
+              placeholder="Password for target device"
+            />
+          </Box>
+          </>
         )}
 
         {data.protocol === ForwardProtocol.MQTT && features.mqtt && (

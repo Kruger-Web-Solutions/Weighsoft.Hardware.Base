@@ -35,20 +35,10 @@ const SerialConfig: FC = () => {
     setData((prev) => (prev ? { ...prev, [key]: value } : prev));
   };
 
-  if (!data) {
-    return (
-      <SectionContent title="Configuration" titleGutter>
-        <FormLoader onRetry={loadData} errorMessage={errorMessage} />
-      </SectionContent>
-    );
-  }
-
-  const handleApply = () => {
-    saveData();
-  };
-
   // Keep "Current Data Preview" in sync with device (poll every 2s); only update last_line/weight/timestamp
+  // Hook must be above the early return to satisfy Rules of Hooks
   useEffect(() => {
+    if (!data) return;
     const interval = setInterval(() => {
       readSerialData()
         .then((res) => {
@@ -66,7 +56,19 @@ const SerialConfig: FC = () => {
         .catch(() => {});
     }, 2000);
     return () => clearInterval(interval);
-  }, [setData]);
+  }, [data, setData]);
+
+  if (!data) {
+    return (
+      <SectionContent title="Configuration" titleGutter>
+        <FormLoader onRetry={loadData} errorMessage={errorMessage} />
+      </SectionContent>
+    );
+  }
+
+  const handleApply = () => {
+    saveData();
+  };
 
   return (
     <SectionContent title="Serial Port Configuration" titleGutter>

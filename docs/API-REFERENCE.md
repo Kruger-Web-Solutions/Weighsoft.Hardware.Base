@@ -750,6 +750,8 @@ Get weight stream forwarder configuration and status.
   "ble_char_uuid": "12340001-e8f2-537e-4f6c-d104768a1234",
   "enabled": true,
   "display_mode": false,
+  "auth_username": "",
+  "auth_password": "",
   "connected": true,
   "last_error": "",
   "last_forward_time": 1234567890
@@ -759,16 +761,20 @@ Get weight stream forwarder configuration and status.
 **Field Descriptions**:
 
 - `protocol`: Forward protocol (0=HTTP POST, 1=WebSocket Client, 2=MQTT, 3=BLE Client)
-- `target_url`: HTTP POST endpoint URL
+- `target_url`: HTTP POST endpoint URL (e.g. `http://192.168.3.100/rest/display` for display device)
 - `ws_url`: WebSocket client endpoint URL
 - `mqtt_topic`: MQTT publish topic
 - `ble_service_uuid`: Remote BLE service UUID to connect to
 - `ble_char_uuid`: Remote BLE characteristic UUID to write to
 - `enabled`: Master enable/disable toggle
 - `display_mode`: Data format toggle (false=standard JSON, true=16-char LCD format)
+- `auth_username`: Optional username for HTTP target when it requires login (e.g. display device returns 401)
+- `auth_password`: Optional password for HTTP target; used to obtain JWT via target's `/rest/signIn`
 - `connected`: Current connection status to remote device
 - `last_error`: Most recent error message (empty if no error)
 - `last_forward_time`: Timestamp of last successful forward (millis)
+
+**HTTP target authentication**: When `target_url` points to a protected endpoint (e.g. a display device's `/rest/display`), set `auth_username` and `auth_password` to the target device's admin credentials. The forwarder will sign in to the target's `/rest/signIn`, obtain a JWT, and send `Authorization: Bearer <token>` with each POST. On 401 it re-logs in and retries once.
 
 **Protocol Values**:
 

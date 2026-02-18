@@ -48,6 +48,11 @@ SerialService::SerialService(AsyncWebServer* server,
   _serialStarted = false;
   _suspended = false;  // Not suspended initially
 
+  // Disable FSPersistence auto-handler: serial_hw updates fire ~2x/sec and would
+  // thrash flash writes, risking filesystem corruption.  We persist explicitly
+  // in onConfigUpdated() instead (only on actual config changes).
+  _fsPersistence.disableUpdateHandler();
+
   addUpdateHandler([this](const String& originId) {
     // Skip "serial_hw" (data from scale) and "init" (begin() will call applySerialConfig() itself)
     if (originId != "serial_hw" && originId != "init") {
