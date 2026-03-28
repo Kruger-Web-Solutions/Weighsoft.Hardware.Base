@@ -1,0 +1,9 @@
+# Name,   Type, SubType, Offset,  Size, Flags
+# Partition scheme for 4MB flash with OTA support (NO BLE)
+# Two app slots of 1.75MB each, 448KB filesystem
+# Supports firmware up to ~1.75MB (current build ~1.65MB)
+nvs,      data, nvs,     0x9000,  0x5000,
+otadata,  data, ota,     0xe000,  0x2000,
+app0,     app,  ota_0,   0x10000, 0x1C0000,
+app1,     app,  ota_1,   0x1D0000,0x1C0000,
+spiffs,   data, spiffs,  0x390000,0x70000,
