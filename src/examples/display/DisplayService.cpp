@@ -46,17 +46,30 @@ DisplayService::DisplayService(RemoteWeightService* remoteWeightService)
 
 // ─── begin() ───────────────────────────────────────────────────────────────
 void DisplayService::begin() {
-  _tft.init();
-  _tft.setRotation(1);       // landscape, USB connector to the right
-  _tft.fillScreen(COL_BG);
-  _tft.setTextDatum(MC_DATUM);
-
-  // Backlight on (GPIO15)
+  // Backlight on FIRST so we can see the colour test
   pinMode(TFT_BL, OUTPUT);
   digitalWrite(TFT_BL, HIGH);
 
+  _tft.init();
+  _tft.setRotation(1);  // landscape
+
+  // Colour test: RED → GREEN → BLUE → BLACK (1 sec each)
+  // If any colour shows the driver is correct.
+  Serial.println(F("[Display] Colour test: RED"));
+  _tft.fillScreen(TFT_RED);
+  delay(1000);
+  Serial.println(F("[Display] Colour test: GREEN"));
+  _tft.fillScreen(TFT_GREEN);
+  delay(1000);
+  Serial.println(F("[Display] Colour test: BLUE"));
+  _tft.fillScreen(TFT_BLUE);
+  delay(1000);
+
+  _tft.fillScreen(COL_BG);
+  _tft.setTextDatum(MC_DATUM);
+
   drawSplash();
-  Serial.println(F("[Display] TFT ready — ILI9488 480x320"));
+  Serial.println(F("[Display] TFT ready — ST7796 480x320"));
 }
 
 // ─── loop() — called every iteration of main loop() ────────────────────────
