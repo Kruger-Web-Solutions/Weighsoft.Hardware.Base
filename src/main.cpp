@@ -4,6 +4,9 @@
 #include <examples/diagnostics/DiagnosticsService.h>
 #include <examples/weightforwarder/WeightForwarderService.h>
 #include <examples/remoteweight/RemoteWeightService.h>
+#ifdef HAS_TFT_DISPLAY
+#include <examples/display/DisplayService.h>
+#endif
 #include "VersionService.h"
 #include "UartModeService.h"
 #include "version.h"
@@ -20,6 +23,9 @@ VersionService* versionService;
 UartModeService* uartModeService;
 WeightForwarderService* weightForwarderService;
 RemoteWeightService* remoteWeightService;
+#ifdef HAS_TFT_DISPLAY
+DisplayService* displayService;
+#endif
 
 void setup() {
   // start serial and filesystem
@@ -134,6 +140,13 @@ void setup() {
   remoteWeightService->begin();
   Serial.println(F("[9.5/10] Remote Weight receiver loaded OK"));
 
+#ifdef HAS_TFT_DISPLAY
+  Serial.println(F("[9.8/10] Initializing TFT Display service..."));
+  displayService = new DisplayService(remoteWeightService);
+  displayService->begin();
+  Serial.println(F("[9.8/10] TFT Display service loaded OK"));
+#endif
+
 #if FT_ENABLED(FT_BLE)
   // Register callbacks after both services exist so callback never sees null
   esp8266React->getBleSettingsService()->onBleServerStarted(
@@ -175,4 +188,9 @@ void loop() {
   
   // process weight forwarding
   weightForwarderService->loop();
+
+#ifdef HAS_TFT_DISPLAY
+  // update TFT display
+  displayService->loop();
+#endif
 }

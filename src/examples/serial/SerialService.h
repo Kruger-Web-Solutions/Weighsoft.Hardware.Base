@@ -21,10 +21,16 @@
 #define SERIAL_CONFIG_FILE "/config/serialConfig.json"
 
 // ESP32 Serial1 pins
-// ESP32-S3: GPIO18=U1RXD (RX), GPIO17=U1TXD (TX) - must match hardware UART1 defaults
+// Default: GPIO18=RX, GPIO17=TX (ESP32-S3 UART1 defaults)
+// Override via build flags: -DSERIAL2_RX_PIN=16 -DSERIAL2_TX_PIN=17
+// esp32dev (display board) uses GPIO16 for RX to free GPIO18 for SPI SCK
 #define SERIAL_PORT Serial1
+#ifndef SERIAL2_RX_PIN
 #define SERIAL2_RX_PIN 18
+#endif
+#ifndef SERIAL2_TX_PIN
 #define SERIAL2_TX_PIN 17
+#endif
 
 class SerialService : public StatefulService<SerialState> {
  public:
