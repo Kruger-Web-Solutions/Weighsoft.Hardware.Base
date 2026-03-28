@@ -222,6 +222,8 @@ bool WeightForwarderService::fetchHttpAuthToken(const String& baseUrl) {
 
   String signInUrl = baseUrl + "/rest/signIn";
   HTTPClient http;
+  http.setConnectTimeout(1000);
+  http.setTimeout(2000);
   http.begin(signInUrl);
   http.addHeader("Content-Type", "application/json");
 
@@ -265,6 +267,8 @@ void WeightForwarderService::forwardViaHttp(const String& lastLine, const String
   }
 
   HTTPClient http;
+  http.setConnectTimeout(1000);
+  http.setTimeout(2000);
   http.begin(_state.targetUrl);
   http.addHeader("Content-Type", "application/json");
 

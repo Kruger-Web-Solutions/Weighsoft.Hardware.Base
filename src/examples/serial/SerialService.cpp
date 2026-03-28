@@ -46,7 +46,9 @@ SerialService::SerialService(AsyncWebServer* server,
   _mqttUniqueId = SettingValue::format("serial-#{unique_id}");
   _mqttClient->onConnect(std::bind(&SerialService::configureMqtt, this));
   _serialStarted = false;
-  _suspended = false;  // Not suspended initially
+  _suspended = false;
+  _regexCompiled = false;
+  _compiledPattern = "";
 
   // Disable FSPersistence auto-handler: serial_hw updates fire ~2x/sec and would
   // thrash flash writes, risking filesystem corruption.  We persist explicitly
@@ -82,40 +84,22 @@ void SerialService::begin() {
 }
 
 void SerialService::loop() {
-  // Skip reading if suspended (DiagnosticsService is using Serial1)
   if (_suspended) {
     return;
   }
 
-  // Debug: Show incoming data periodically
-  static unsigned long lastDebug = 0;
-  static String debugBuffer = "";
-  
-  // Heartbeat: confirm loop is running and show Serial1 status
   static unsigned long lastHeartbeat = 0;
-  if (millis() - lastHeartbeat >= 5000) {
-    int avail = SERIAL_PORT.available();
-    Serial.printf("[Serial] Heartbeat: loop running, suspended=%d, serialStarted=%d, available=%d\n",
-                  _suspended, _serialStarted, avail);
+  if (millis() - lastHeartbeat >= 30000) {
+    Serial.printf("[Serial] Heartbeat: heap=%lu, serialStarted=%d\n",
+                  (unsigned long)ESP.getFreeHeap(), _serialStarted);
     lastHeartbeat = millis();
   }
-  
-  // Read serial data and assemble lines
-  while (SERIAL_PORT.available()) {
-    char c = SERIAL_PORT.read();
-    
-    // Collect data for debug output
-    if (debugBuffer.length() < 200) {
-      if (c >= 32 && c < 127) {
-        debugBuffer += c;  // Printable ASCII
-      } else {
-        char hex[5];
-        sprintf(hex, "\\x%02X", (uint8_t)c);
-        debugBuffer += hex;
-      }
-    }
 
-    // Line assembly (accepts both \r and \n as terminators)
+  int bytesRead = 0;
+  while (SERIAL_PORT.available() && bytesRead < 512) {
+    char c = SERIAL_PORT.read();
+    bytesRead++;
+
     if (c == '\n' || c == '\r') {
       if (_lineBuffer.length() > 0) {
         String extracted = extractWeight(_lineBuffer);
@@ -129,34 +113,25 @@ void SerialService::loop() {
       _lineBuffer = "";
     } else {
       _lineBuffer += c;
-      // Prevent memory overflow - larger buffer for industrial scales
-      if (_lineBuffer.length() > 2048) {
-        Serial.printf("[Serial] WARNING: Line exceeded 2048 chars (first 100): %.100s...\n", 
-                      _lineBuffer.c_str());
+      if (_lineBuffer.length() > 512) {
         _lineBuffer = "";
       }
     }
-  }
-  
-  // Print debug sample every 2 seconds
-  if (millis() - lastDebug >= 2000 && debugBuffer.length() > 0) {
-    Serial.printf("[Serial] Sample (first 200 chars): %s\n", debugBuffer.c_str());
-    Serial.printf("[Serial] Buffer length: %d, Current baud: %lu\n", 
-                  _lineBuffer.length(), (unsigned long)_state.baudrate);
-    debugBuffer = "";
-    lastDebug = millis();
   }
 }
 
 void SerialService::onConfigUpdated() {
   Serial.printf("[Serial] Config update triggered - baud=%lu, regex='%s'\n",
                 (unsigned long)_state.baudrate, _state.regexPattern.c_str());
-  
-  // Persist config to flash
+
   bool saved = _fsPersistence.writeToFS();
   Serial.printf("[Serial] Config persisted to flash: %s\n", saved ? "SUCCESS" : "FAILED");
-  
-  // Apply new serial configuration
+
+  // Force regex recompile on next extractWeight() call
+  if (_state.regexPattern != _compiledPattern) {
+    compileRegex(_state.regexPattern);
+  }
+
   applySerialConfig();
 }
 
@@ -207,56 +182,57 @@ void SerialService::applySerialConfig() {
 #endif
 }
 
+void SerialService::compileRegex(const String& pattern) {
+  freeRegex();
+  if (pattern.length() == 0) return;
+
+  int reti = regcomp(&_compiledRegex, pattern.c_str(), REG_EXTENDED);
+  if (reti != 0) {
+    char buf[100];
+    regerror(reti, &_compiledRegex, buf, sizeof(buf));
+    Serial.printf("[Serial] Regex compile error: %s\n", buf);
+    regfree(&_compiledRegex);
+    return;
+  }
+  _regexCompiled = true;
+  _compiledPattern = pattern;
+  Serial.printf("[Serial] Regex compiled OK: '%s'\n", pattern.c_str());
+}
+
+void SerialService::freeRegex() {
+  if (_regexCompiled) {
+    regfree(&_compiledRegex);
+    _regexCompiled = false;
+    _compiledPattern = "";
+  }
+}
+
 String SerialService::extractWeight(const String& line) {
   const String& pattern = _state.regexPattern;
-  if (pattern.length() == 0) {
-    return "";
+  if (pattern.length() == 0) return "";
+
+  // Recompile only when pattern changes
+  if (!_regexCompiled || pattern != _compiledPattern) {
+    compileRegex(pattern);
   }
-  
-  // Use POSIX regex for pattern matching
-  regex_t regex;
-  regmatch_t matches[2]; // 0 = full match, 1 = first capture group
-  
-  // Compile the regex pattern
-  int reti = regcomp(&regex, pattern.c_str(), REG_EXTENDED);
-  if (reti != 0) {
-    char error_buffer[100];
-    regerror(reti, &regex, error_buffer, sizeof(error_buffer));
-    Serial.printf("[Serial] Regex compile error: %s\n", error_buffer);
-    return "";
-  }
-  
-  // Execute the regex match
-  reti = regexec(&regex, line.c_str(), 2, matches, 0);
-  regfree(&regex);
-  
+  if (!_regexCompiled) return "";
+
+  regmatch_t matches[2];
+  int reti = regexec(&_compiledRegex, line.c_str(), 2, matches, 0);
+
   if (reti == 0) {
-    // Match found - extract first capture group if present, otherwise full match
     int start = matches[1].rm_so >= 0 ? matches[1].rm_so : matches[0].rm_so;
     int end = matches[1].rm_eo >= 0 ? matches[1].rm_eo : matches[0].rm_eo;
-    
+
     if (start >= 0 && end > start) {
       String extracted = line.substring(start, end);
-      
-      // Replace comma with period for locales that use comma as decimal separator
       extracted.replace(',', '.');
-      
-      // Convert to float and back to clean up (remove leading zeros, standardize format)
       float value = extracted.toFloat();
-      
-      // Only return if we actually got a valid number
       if (value != 0.0f || extracted.indexOf('0') >= 0) {
-        return String(value, 2); // Return with 2 decimal places
+        return String(value, 2);
       }
     }
-  } else if (reti == REG_NOMATCH) {
-    // No match - this is normal, not an error
-  } else {
-    char error_buffer[100];
-    regerror(reti, &regex, error_buffer, sizeof(error_buffer));
-    Serial.printf("[Serial] Regex match error: %s\n", error_buffer);
   }
-  
   return "";
 }
 

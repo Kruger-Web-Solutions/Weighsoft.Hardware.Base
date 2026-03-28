@@ -6,6 +6,7 @@
 #include <MqttPubSub.h>
 #include <WebSocketTxRx.h>
 #include <SettingValue.h>
+#include <regex.h>
 #include <examples/serial/SerialState.h>
 
 #if FT_ENABLED(FT_BLE)
@@ -70,10 +71,17 @@ class SerialService : public StatefulService<SerialState> {
   bool _serialStarted;  // True after first begin(), so we can call end() before reconfig
   bool _suspended;      // True when DiagnosticsService is using Serial1
 
+  // Cached compiled regex to avoid recompiling on every serial line
+  regex_t _compiledRegex;
+  bool _regexCompiled;
+  String _compiledPattern;
+  void compileRegex(const String& pattern);
+  void freeRegex();
+
   void configureMqtt();
   void readSerial();       // Called from loop()
   void applySerialConfig();  // Reconfigures Serial1 with current state
-  String extractWeight(const String& line);  // Extracts first capture group from regex pattern
+  String extractWeight(const String& line);  // Uses cached compiled regex
   uint32_t getSerialConfig();  // Converts databits/parity/stopbits to ESP32 config constant
   void onConfigUpdated();  // Called when config changes (e.g. from REST POST)
 
