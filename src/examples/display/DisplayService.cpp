@@ -46,30 +46,44 @@ DisplayService::DisplayService(RemoteWeightService* remoteWeightService)
 
 // ─── begin() ───────────────────────────────────────────────────────────────
 void DisplayService::begin() {
-  // Backlight on FIRST so we can see the colour test
+  // Backlight on FIRST
   pinMode(TFT_BL, OUTPUT);
   digitalWrite(TFT_BL, HIGH);
 
+  // Manual RESET pulse — give display plenty of time (many cheap panels need this)
+  pinMode(TFT_RST, OUTPUT);
+  digitalWrite(TFT_RST, HIGH); delay(50);
+  digitalWrite(TFT_RST, LOW);  delay(200);
+  digitalWrite(TFT_RST, HIGH); delay(200);
+
   _tft.init();
+  delay(200);
+
+  // Force display out of sleep and turn display ON — some ILI9486 panels
+  // need this even after init() because the init sequence in TFT_eSPI
+  // may not send DISPON for all panel variants.
+  _tft.writecommand(0x11);  // SLPOUT — exit sleep mode
+  delay(150);
+  _tft.writecommand(0x29);  // DISPON — display on
+  delay(50);
+
   _tft.setRotation(1);  // landscape
 
-  // Colour test: RED → GREEN → BLUE → BLACK (1 sec each)
-  // If any colour shows the driver is correct.
+  // Colour flash test — watch the screen for 1 sec each
   Serial.println(F("[Display] Colour test: RED"));
-  _tft.fillScreen(TFT_RED);
-  delay(1000);
+  _tft.fillScreen(TFT_RED);   delay(1000);
   Serial.println(F("[Display] Colour test: GREEN"));
-  _tft.fillScreen(TFT_GREEN);
-  delay(1000);
+  _tft.fillScreen(TFT_GREEN); delay(1000);
   Serial.println(F("[Display] Colour test: BLUE"));
-  _tft.fillScreen(TFT_BLUE);
-  delay(1000);
+  _tft.fillScreen(TFT_BLUE);  delay(1000);
+  Serial.println(F("[Display] Colour test: WHITE"));
+  _tft.fillScreen(TFT_WHITE); delay(1000);
 
   _tft.fillScreen(COL_BG);
   _tft.setTextDatum(MC_DATUM);
 
   drawSplash();
-  Serial.println(F("[Display] TFT ready — ST7796 480x320"));
+  Serial.println(F("[Display] TFT begin() done"));
 }
 
 // ─── loop() — called every iteration of main loop() ────────────────────────
