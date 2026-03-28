@@ -3,6 +3,7 @@
 #include <examples/serial/SerialService.h>
 #include <examples/diagnostics/DiagnosticsService.h>
 #include <examples/weightforwarder/WeightForwarderService.h>
+#include <examples/remoteweight/RemoteWeightService.h>
 #include "VersionService.h"
 #include "UartModeService.h"
 #include "version.h"
@@ -18,6 +19,7 @@ DiagnosticsService* diagnosticsService;
 VersionService* versionService;
 UartModeService* uartModeService;
 WeightForwarderService* weightForwarderService;
+RemoteWeightService* remoteWeightService;
 
 void setup() {
   // start serial and filesystem
@@ -123,6 +125,14 @@ void setup() {
       );
   weightForwarderService->begin();
   Serial.println(F("[9/10] Weight Forwarder service loaded OK"));
+
+  Serial.println(F("[9.5/10] Initializing Remote Weight receiver..."));
+  remoteWeightService = new RemoteWeightService(
+      server,
+      esp8266React->getSecurityManager()
+      );
+  remoteWeightService->begin();
+  Serial.println(F("[9.5/10] Remote Weight receiver loaded OK"));
 
 #if FT_ENABLED(FT_BLE)
   // Register callbacks after both services exist so callback never sees null

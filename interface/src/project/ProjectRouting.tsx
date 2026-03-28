@@ -5,6 +5,7 @@ import LedExample from '../examples/led/LedExample';
 import SerialMonitor from '../examples/serial/SerialMonitor';
 import Diagnostics from '../examples/diagnostics/Diagnostics';
 import WeightForwarder from '../examples/weightforwarder/WeightForwarder';
+import RemoteWeightMonitor from '../examples/remoteweight/RemoteWeightMonitor';
 
 const ProjectRouting: FC = () => {
   return (
@@ -29,6 +30,10 @@ const ProjectRouting: FC = () => {
         // Weight Forwarder project routes
       }
       <Route path="weightforwarder/*" element={<WeightForwarder />} />
+      {
+        // Remote Weight receiver (from another ESP)
+      }
+      <Route path="remote-weight/*" element={<RemoteWeightMonitor />} />
     </Routes>
   );
 };
