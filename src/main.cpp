@@ -135,6 +135,7 @@ void setup() {
   Serial.println(F("[9.5/10] Initializing Remote Weight receiver..."));
   remoteWeightService = new RemoteWeightService(
       server,
+      esp8266React->getFS(),
       esp8266React->getSecurityManager()
       );
   remoteWeightService->begin();

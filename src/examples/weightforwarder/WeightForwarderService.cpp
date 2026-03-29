@@ -63,8 +63,8 @@ WeightForwarderService::WeightForwarderService(AsyncWebServer* server,
 void WeightForwarderService::begin() {
   // Load persisted config from flash
   _fsPersistence.readFromFS();
-  Serial.printf("[WeightForwarder] Loaded config: protocol=%d, enabled=%d, displayMode=%d\n",
-                (int)_state.protocol, _state.enabled, _state.displayMode);
+  Serial.printf("[WeightForwarder] Loaded config: protocol=%d, enabled=%d, targets=%d\n",
+                (int)_state.protocol, _state.enabled, _state.targetUrlCount);
 
   // Clear runtime status
   _state.connected = false;
@@ -184,31 +184,32 @@ void WeightForwarderService::forwardWeight(const String& lastLine, const String&
   }
 }
 
-void WeightForwarderService::formatJson(DynamicJsonDocument& doc, const String& lastLine, const String& weight) {
-  if (_state.displayMode) {
-    // Display format for LCD devices (16 chars per line)
-    String line1 = weight;
-    String line2 = lastLine;
-
-    // Pad to 16 chars
-    while (line1.length() < 16)
-      line1 += " ";
-    while (line2.length() < 16)
-      line2 += " ";
-
-    // Truncate if too long
-    if (line1.length() > 16)
-      line1 = line1.substring(0, 16);
-    if (line2.length() > 16)
-      line2 = line2.substring(0, 16);
-
-    doc["line1"] = line1;
-    doc["line2"] = line2;
-  } else {
-    // Standard format
-    doc["last_line"] = lastLine;
-    doc["weight"] = weight;
-    doc["timestamp"] = millis();
+void WeightForwarderService::formatJson(DynamicJsonDocument& doc, const String& lastLine, const String& weight, OutputFormat fmt) {
+  switch (fmt) {
+    case FMT_LCD: {
+      String line1 = weight;
+      String line2 = lastLine;
+      while (line1.length() < 16) line1 += " ";
+      while (line2.length() < 16) line2 += " ";
+      if (line1.length() > 16) line1 = line1.substring(0, 16);
+      if (line2.length() > 16) line2 = line2.substring(0, 16);
+      doc["line1"] = line1;
+      doc["line2"] = line2;
+      break;
+    }
+    case FMT_TFT:
+      doc["weight"] = weight;
+      doc["last_line"] = lastLine;
+      doc["timestamp"] = millis();
+      doc["unit"] = "kg";
+      doc["status"] = "live";
+      break;
+    case FMT_STANDARD:
+    default:
+      doc["last_line"] = lastLine;
+      doc["weight"] = weight;
+      doc["timestamp"] = millis();
+      break;
   }
 }
 
@@ -269,8 +270,9 @@ bool WeightForwarderService::forwardViaHttpSingle(const String& url, int idx, co
 #ifdef ESP32
   if (url.isEmpty()) return false;
 
+  OutputFormat fmt = (idx < _state.targetUrlCount) ? _state.targetFormats[idx] : FMT_STANDARD;
   DynamicJsonDocument doc(256);
-  formatJson(doc, lastLine, weight);
+  formatJson(doc, lastLine, weight, fmt);
   String json;
   serializeJson(doc, json);
 
@@ -317,9 +319,16 @@ void WeightForwarderService::forwardViaHttp(const String& lastLine, const String
   if (_state.targetUrlCount == 0) return;
 
   int successCount = 0;
+  int httpCount = 0;
   String lastErr = "";
 
   for (int i = 0; i < _state.targetUrlCount; i++) {
+    if (_state.targetFormats[i] == FMT_SERIAL) {
+      forwardViaSerial(lastLine, weight);
+      successCount++;
+      continue;
+    }
+    httpCount++;
     if (forwardViaHttpSingle(_state.targetUrls[i], i, lastLine, weight)) {
       successCount++;
     } else {
@@ -337,6 +346,10 @@ void WeightForwarderService::forwardViaHttp(const String& lastLine, const String
 #endif
 }
 
+void WeightForwarderService::forwardViaSerial(const String& lastLine, const String& weight) {
+  Serial1.println(weight);
+}
+
 void WeightForwarderService::forwardViaWs(const String& lastLine, const String& weight) {
 #ifdef ESP32
   if (!_wsClient || !_wsClient->isConnected()) {
@@ -349,7 +362,7 @@ void WeightForwarderService::forwardViaWs(const String& lastLine, const String& 
   }
 
   DynamicJsonDocument doc(256);
-  formatJson(doc, lastLine, weight);
+  formatJson(doc, lastLine, weight, FMT_STANDARD);
 
   String json;
   serializeJson(doc, json);
@@ -375,7 +388,7 @@ void WeightForwarderService::forwardViaMqtt(const String& lastLine, const String
   }
 
   DynamicJsonDocument doc(256);
-  formatJson(doc, lastLine, weight);
+  formatJson(doc, lastLine, weight, FMT_STANDARD);
 
   String json;
   serializeJson(doc, json);
@@ -404,7 +417,7 @@ void WeightForwarderService::forwardViaBle(const String& lastLine, const String&
 
   if (_bleRemoteChar && _bleRemoteChar->canWrite()) {
     DynamicJsonDocument doc(256);
-    formatJson(doc, lastLine, weight);
+    formatJson(doc, lastLine, weight, FMT_STANDARD);
 
     String json;
     serializeJson(doc, json);

@@ -63,10 +63,11 @@ class WeightForwarderService : public StatefulService<WeightForwarderState> {
   void onConfigUpdated();
   void onSerialWeightUpdate(const String& originId);
   void forwardWeight(const String& lastLine, const String& weight);
-  void formatJson(DynamicJsonDocument& doc, const String& lastLine, const String& weight);
+  void formatJson(DynamicJsonDocument& doc, const String& lastLine, const String& weight, OutputFormat fmt);
 
   // Protocol-specific forwarding
   void forwardViaHttp(const String& lastLine, const String& weight);
+  void forwardViaSerial(const String& lastLine, const String& weight);
   void forwardViaWs(const String& lastLine, const String& weight);
   void forwardViaMqtt(const String& lastLine, const String& weight);
   void forwardViaBle(const String& lastLine, const String& weight);

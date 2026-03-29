@@ -1,5 +1,6 @@
 #ifdef HAS_TFT_DISPLAY
 
+#include <ESPFS.h>
 #include <examples/display/DisplayService.h>
 
 // ─── Layout constants ──────────────────────────────────────────────────────
@@ -29,6 +30,7 @@ DisplayService::DisplayService(RemoteWeightService* remoteWeightService)
       _needsWeightRedraw(false),
       _lastWeightTime(0),
       _drawnConnected(false),
+      _displayOn(true),
       _lastStatusDraw(0) {
   // Register for weight updates from RemoteWeightService.
   // This runs in an async HTTP task — only set flag + copy strings, no TFT calls.
@@ -78,8 +80,24 @@ void DisplayService::begin() {
   Serial.println(F("[Display] TFT begin() done"));
 }
 
-// ─── loop() — called every iteration of main loop() ────────────────────────
+void DisplayService::setBacklight(bool on) {
+  digitalWrite(TFT_BL, on ? HIGH : LOW);
+}
+
 void DisplayService::loop() {
+  bool shouldBeOn = _remoteWeightService->isDisplayEnabled();
+  if (shouldBeOn != _displayOn) {
+    _displayOn = shouldBeOn;
+    setBacklight(_displayOn);
+    if (_displayOn) {
+      drawSplash();
+    } else {
+      _tft.fillScreen(TFT_BLACK);
+    }
+    Serial.printf("[Display] %s\n", _displayOn ? "Enabled" : "Disabled");
+  }
+  if (!_displayOn) return;
+
   unsigned long now = millis();
   bool connected    = (now - _lastWeightTime) < DISPLAY_TIMEOUT_MS && _lastWeightTime > 0;
 

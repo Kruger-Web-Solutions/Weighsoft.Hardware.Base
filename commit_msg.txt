@@ -1,0 +1,10 @@
+feat: add per-URL output format and service enable/disable toggles
+
+- Replace global displayMode with per-URL OutputFormat enum (Standard, LCD, TFT, Serial)
+- Add forwardViaSerial() for FMT_SERIAL targets (Serial1.println)
+- Add enabled/displayEnabled flags to RemoteWeightState with FSPersistence
+- Add DisplayService backlight control tied to RemoteWeight displayEnabled
+- Frontend: per-target format dropdown, enable/disable checkboxes on Remote Weight page
+- Restore firebeetle32 to USB upload (COM10)
+
+Builds: firebeetle32 SUCCESS / esp32dev SUCCESS

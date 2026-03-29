@@ -1,16 +1,22 @@
-import React, { FC, useState, useEffect, useRef } from 'react';
-import { Typography, Box, Button, Chip } from '@mui/material';
-import { SectionContent } from '../../components';
-import { WEB_SOCKET_ROOT } from '../../api/endpoints';
+import React, { FC, useState, useEffect, useRef, useCallback } from 'react';
+import {
+  Typography, Box, Button, Chip, Checkbox, FormControlLabel, Divider
+} from '@mui/material';
+import SaveIcon from '@mui/icons-material/Save';
+import { SectionContent, ButtonRow } from '../../components';
+import { WEB_SOCKET_ROOT, AXIOS } from '../../api/endpoints';
 import { useWs } from '../../utils';
 import { useLayoutTitle } from '../../components';
 
 export const REMOTE_WEIGHT_WS_URL = WEB_SOCKET_ROOT + "remoteWeight";
+const REMOTE_WEIGHT_ENDPOINT = 'remoteWeight';
 
 interface RemoteWeightData {
   weight: string;
   last_line: string;
   timestamp: number;
+  enabled: boolean;
+  display_enabled: boolean;
 }
 
 const RemoteWeightMonitor: FC = () => {
@@ -19,6 +25,19 @@ const RemoteWeightMonitor: FC = () => {
   const { connected, data } = useWs<RemoteWeightData>(REMOTE_WEIGHT_WS_URL);
   const [history, setHistory] = useState<Array<{ weight: string; line: string; time: Date }>>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const [enabled, setEnabled] = useState(true);
+  const [displayEnabled, setDisplayEnabled] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    if (data && !loaded) {
+      setEnabled(data.enabled ?? true);
+      setDisplayEnabled(data.display_enabled ?? true);
+      setLoaded(true);
+    }
+  }, [data, loaded]);
 
   useEffect(() => {
     if (data?.weight) {
@@ -34,11 +53,44 @@ const RemoteWeightMonitor: FC = () => {
     }
   }, [data]);
 
+  const saveConfig = useCallback(async () => {
+    setSaving(true);
+    try {
+      await AXIOS.post(REMOTE_WEIGHT_ENDPOINT, { enabled, display_enabled: displayEnabled });
+    } finally {
+      setSaving(false);
+    }
+  }, [enabled, displayEnabled]);
+
   const formatTime = (d: Date) =>
     d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
   return (
     <SectionContent title='Remote Weight Receiver' titleGutter>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mb: 2 }}>
+        <FormControlLabel
+          control={<Checkbox checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />}
+          label="Enable Remote Weight Receiver"
+        />
+        <FormControlLabel
+          control={<Checkbox checked={displayEnabled} onChange={(e) => setDisplayEnabled(e.target.checked)} />}
+          label="Enable TFT Display"
+        />
+        <ButtonRow>
+          <Button
+            startIcon={<SaveIcon />}
+            variant="contained"
+            size="small"
+            onClick={saveConfig}
+            disabled={saving}
+          >
+            Save
+          </Button>
+        </ButtonRow>
+      </Box>
+
+      <Divider sx={{ mb: 2 }} />
+
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
         <Chip
           label={connected ? 'Connected' : 'Disconnected'}

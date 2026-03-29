@@ -19,7 +19,14 @@ import { SectionContent, FormLoader, ButtonRow } from '../../components';
 import { FeaturesContext } from '../../contexts/features';
 import { useRest } from '../../utils';
 import { updateWeightForwarder, readWeightForwarder } from '../../api/weightForwarder';
-import { ForwardProtocol, type WeightForwarderData } from '../../types/weightForwarder';
+import { ForwardProtocol, OutputFormat, type WeightForwarderData } from '../../types/weightForwarder';
+
+const OUTPUT_FORMAT_OPTIONS = [
+  { value: OutputFormat.STANDARD, label: 'Standard JSON' },
+  { value: OutputFormat.LCD, label: 'LCD Display (16-char)' },
+  { value: OutputFormat.TFT, label: 'TFT Display (3.5")' },
+  { value: OutputFormat.SERIAL, label: 'Serial Output (TX)' },
+];
 
 const WeightForwarderConfig: FC = () => {
   const { features } = useContext(FeaturesContext);
@@ -36,7 +43,11 @@ const WeightForwarderConfig: FC = () => {
     setData((prev) => (prev ? { ...prev, [key]: value } : prev));
   };
 
-  const getUrls = (): string[] => data?.target_urls?.length ? data.target_urls : (data?.target_url ? [data.target_url] : ['']);
+  const getUrls = (): string[] =>
+    data?.target_urls?.length ? data.target_urls : (data?.target_url ? [data.target_url] : ['']);
+
+  const getFormats = (): OutputFormat[] =>
+    data?.target_formats?.length ? data.target_formats : getUrls().map(() => OutputFormat.STANDARD);
 
   const setUrl = (idx: number, value: string) => {
     const urls = [...getUrls()];
@@ -44,14 +55,28 @@ const WeightForwarderConfig: FC = () => {
     setData((prev) => prev ? { ...prev, target_urls: urls, target_url: urls[0] ?? '' } : prev);
   };
 
+  const setFormat = (idx: number, value: OutputFormat) => {
+    const fmts = [...getFormats()];
+    fmts[idx] = value;
+    setData((prev) => prev ? { ...prev, target_formats: fmts } : prev);
+  };
+
   const addUrl = () => {
     if (getUrls().length >= 5) return;
-    setData((prev) => prev ? { ...prev, target_urls: [...getUrls(), ''], target_url: getUrls()[0] ?? '' } : prev);
+    const urls = [...getUrls(), ''];
+    const fmts = [...getFormats(), OutputFormat.STANDARD];
+    setData((prev) => prev ? { ...prev, target_urls: urls, target_formats: fmts, target_url: urls[0] ?? '' } : prev);
   };
 
   const removeUrl = (idx: number) => {
     const urls = getUrls().filter((_, i) => i !== idx);
-    setData((prev) => prev ? { ...prev, target_urls: urls.length ? urls : [''], target_url: urls[0] ?? '' } : prev);
+    const fmts = getFormats().filter((_, i) => i !== idx);
+    setData((prev) => prev ? {
+      ...prev,
+      target_urls: urls.length ? urls : [''],
+      target_formats: fmts.length ? fmts : [OutputFormat.STANDARD],
+      target_url: urls[0] ?? ''
+    } : prev);
   };
 
   if (!data) {
@@ -108,21 +133,34 @@ const WeightForwarderConfig: FC = () => {
           <>
             <Box>
               <Typography variant="subtitle2" sx={{ mb: 1, color: 'text.secondary' }}>
-                Target URLs (max 5) — gewig word na ALLE URLs gestuur
+                Targets (max 5) — weight data is sent to ALL targets
               </Typography>
               {getUrls().map((url, idx) => (
-                <Box key={idx} display="flex" alignItems="center" gap={1} sx={{ mb: 1 }}>
+                <Box key={idx} display="flex" alignItems="flex-start" gap={1} sx={{ mb: 1.5 }}>
                   <TextField
-                    fullWidth
+                    sx={{ flex: 2 }}
                     size="small"
-                    label={`Target URL ${idx + 1}`}
+                    label={`Target ${idx + 1} URL`}
                     value={url}
                     onChange={(e) => setUrl(idx, e.target.value)}
                     placeholder="http://192.168.1.50/rest/remoteWeight"
-                    helperText={idx === 0 ? 'HTTP endpoint to POST weight data' : undefined}
+                    disabled={getFormats()[idx] === OutputFormat.SERIAL}
+                    helperText={getFormats()[idx] === OutputFormat.SERIAL ? 'No URL needed for serial output' : undefined}
                   />
+                  <FormControl sx={{ minWidth: 160 }} size="small">
+                    <InputLabel>Format</InputLabel>
+                    <Select
+                      value={getFormats()[idx] ?? OutputFormat.STANDARD}
+                      onChange={(e) => setFormat(idx, e.target.value as OutputFormat)}
+                      label="Format"
+                    >
+                      {OUTPUT_FORMAT_OPTIONS.map((opt) => (
+                        <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
                   {getUrls().length > 1 && (
-                    <IconButton onClick={() => removeUrl(idx)} color="error" size="small" title="Remove">
+                    <IconButton onClick={() => removeUrl(idx)} color="error" size="small" title="Remove" sx={{ mt: 0.5 }}>
                       <DeleteIcon fontSize="small" />
                     </IconButton>
                   )}
@@ -130,7 +168,7 @@ const WeightForwarderConfig: FC = () => {
               ))}
               {getUrls().length < 5 && (
                 <Button startIcon={<AddIcon />} size="small" onClick={addUrl} variant="outlined">
-                  Add Target URL
+                  Add Target
                 </Button>
               )}
             </Box>
@@ -144,7 +182,7 @@ const WeightForwarderConfig: FC = () => {
                 value={data.auth_username ?? ''}
                 onChange={(e) => setField('auth_username')(e.target.value)}
                 placeholder="Leave empty if target does not require login"
-                helperText="Used for all targets (e.g. admin)"
+                helperText="Used for all HTTP targets (e.g. admin)"
                 sx={{ mb: 1 }}
               />
               <TextField
@@ -229,16 +267,6 @@ const WeightForwarderConfig: FC = () => {
             />
           </>
         )}
-
-        <FormControlLabel
-          control={
-            <Checkbox
-              checked={data.display_mode}
-              onChange={(e) => setField('display_mode')(e.target.checked)}
-            />
-          }
-          label="Display Mode (16-char line1/line2 format for LCD devices)"
-        />
 
         <ButtonRow>
           <Button

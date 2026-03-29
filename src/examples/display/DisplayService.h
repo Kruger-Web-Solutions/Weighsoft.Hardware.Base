@@ -22,19 +22,18 @@ class DisplayService {
   TFT_eSPI _tft;
   RemoteWeightService* _remoteWeightService;
 
-  // Double-buffer: async handler writes here, loop() reads safely
   volatile bool _needsWeightRedraw;
   String _pendingWeight;
   String _pendingLine;
   unsigned long _lastWeightTime;
 
-  // Track state to avoid full redraws every loop tick
   String _drawnWeight;
   bool _drawnConnected;
+  bool _displayOn;
 
-  // Status bar refresh
   unsigned long _lastStatusDraw;
 
+  void setBacklight(bool on);
   void drawSplash();
   void drawWeightScreen(const String& weight, const String& line, bool connected);
   void drawStatusBar(bool connected, unsigned long ageMs);
