@@ -59,14 +59,6 @@ void DisplayService::begin() {
   _tft.init();
   delay(200);
 
-  // Force display out of sleep and turn display ON — some ILI9486 panels
-  // need this even after init() because the init sequence in TFT_eSPI
-  // may not send DISPON for all panel variants.
-  _tft.writecommand(0x11);  // SLPOUT — exit sleep mode
-  delay(150);
-  _tft.writecommand(0x29);  // DISPON — display on
-  delay(50);
-
   _tft.setRotation(1);  // landscape
 
   // Colour flash test — watch the screen for 1 sec each
