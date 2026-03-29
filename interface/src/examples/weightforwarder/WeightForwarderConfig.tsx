@@ -5,12 +5,16 @@ import {
   Checkbox,
   FormControl,
   FormControlLabel,
+  IconButton,
   InputLabel,
   MenuItem,
   Select,
   TextField,
+  Typography,
 } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
+import AddIcon from '@mui/icons-material/Add';
+import DeleteIcon from '@mui/icons-material/Delete';
 import { SectionContent, FormLoader, ButtonRow } from '../../components';
 import { FeaturesContext } from '../../contexts/features';
 import { useRest } from '../../utils';
@@ -30,6 +34,24 @@ const WeightForwarderConfig: FC = () => {
 
   const setField = (key: keyof WeightForwarderData) => (value: any) => {
     setData((prev) => (prev ? { ...prev, [key]: value } : prev));
+  };
+
+  const getUrls = (): string[] => data?.target_urls?.length ? data.target_urls : (data?.target_url ? [data.target_url] : ['']);
+
+  const setUrl = (idx: number, value: string) => {
+    const urls = [...getUrls()];
+    urls[idx] = value;
+    setData((prev) => prev ? { ...prev, target_urls: urls, target_url: urls[0] ?? '' } : prev);
+  };
+
+  const addUrl = () => {
+    if (getUrls().length >= 5) return;
+    setData((prev) => prev ? { ...prev, target_urls: [...getUrls(), ''], target_url: getUrls()[0] ?? '' } : prev);
+  };
+
+  const removeUrl = (idx: number) => {
+    const urls = getUrls().filter((_, i) => i !== idx);
+    setData((prev) => prev ? { ...prev, target_urls: urls.length ? urls : [''], target_url: urls[0] ?? '' } : prev);
   };
 
   if (!data) {
@@ -84,14 +106,34 @@ const WeightForwarderConfig: FC = () => {
 
         {data.protocol === ForwardProtocol.HTTP && (
           <>
-            <TextField
-              fullWidth
-              label="Target URL"
-              value={data.target_url}
-              onChange={(e) => setField('target_url')(e.target.value)}
-              placeholder="http://192.168.1.50:8080/weight or http://192.168.3.100/rest/display"
-              helperText="HTTP endpoint to POST weight data"
-            />
+            <Box>
+              <Typography variant="subtitle2" sx={{ mb: 1, color: 'text.secondary' }}>
+                Target URLs (max 5) — gewig word na ALLE URLs gestuur
+              </Typography>
+              {getUrls().map((url, idx) => (
+                <Box key={idx} display="flex" alignItems="center" gap={1} sx={{ mb: 1 }}>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label={`Target URL ${idx + 1}`}
+                    value={url}
+                    onChange={(e) => setUrl(idx, e.target.value)}
+                    placeholder="http://192.168.1.50/rest/remoteWeight"
+                    helperText={idx === 0 ? 'HTTP endpoint to POST weight data' : undefined}
+                  />
+                  {getUrls().length > 1 && (
+                    <IconButton onClick={() => removeUrl(idx)} color="error" size="small" title="Remove">
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                  )}
+                </Box>
+              ))}
+              {getUrls().length < 5 && (
+                <Button startIcon={<AddIcon />} size="small" onClick={addUrl} variant="outlined">
+                  Add Target URL
+                </Button>
+              )}
+            </Box>
             <Box sx={{ mt: 1 }}>
               <TextField
                 fullWidth
@@ -102,7 +144,7 @@ const WeightForwarderConfig: FC = () => {
                 value={data.auth_username ?? ''}
                 onChange={(e) => setField('auth_username')(e.target.value)}
                 placeholder="Leave empty if target does not require login"
-                helperText="Required when target requires login (e.g. display device returns HTTP 401)"
+                helperText="Used for all targets (e.g. admin)"
                 sx={{ mb: 1 }}
               />
               <TextField

@@ -41,8 +41,8 @@ WeightForwarderService::WeightForwarderService(AsyncWebServer* server,
     _bleRemoteChar(nullptr),
     _lastBleReconnectAttempt(0)
 #endif
-    ,_lastForwardTime(0),
-    _httpAuthTokenValid(false) {
+    ,_lastForwardTime(0) {
+  clearAuthTokens();
   // Disable FSPersistence auto-handler: internal status updates (connection state,
   // errors, forward time) fire frequently and would thrash flash writes.
   // We persist explicitly in onConfigUpdated() instead.
@@ -70,8 +70,7 @@ void WeightForwarderService::begin() {
   _state.connected = false;
   _state.lastError = "";
   _state.lastForwardTime = 0;
-  _httpAuthTokenValid = false;
-  _httpAuthToken = "";
+  clearAuthTokens();
 
   // Initialize protocol if enabled
   if (_state.enabled) {
@@ -96,12 +95,18 @@ void WeightForwarderService::loop() {
 #endif
 }
 
+void WeightForwarderService::clearAuthTokens() {
+  for (int i = 0; i < MAX_TARGET_URLS; i++) {
+    _httpAuthTokens[i] = "";
+    _httpAuthTokensValid[i] = false;
+  }
+}
+
 void WeightForwarderService::onConfigUpdated() {
   Serial.println(F("[WeightForwarder] Config updated"));
 
-  // Invalidate cached HTTP auth token so new credentials are used
-  _httpAuthTokenValid = false;
-  _httpAuthToken = "";
+  // Invalidate all cached HTTP auth tokens (credentials or URLs may have changed)
+  clearAuthTokens();
 
   // Persist config to flash
   bool saved = _fsPersistence.writeToFS();
@@ -216,9 +221,9 @@ String WeightForwarderService::getHttpBaseUrl(const String& targetUrl) const {
   return targetUrl.substring(0, slash);
 }
 
-bool WeightForwarderService::fetchHttpAuthToken(const String& baseUrl) {
+bool WeightForwarderService::fetchHttpAuthToken(const String& baseUrl, int idx) {
 #ifdef ESP32
-  if (baseUrl.isEmpty() || _state.authUsername.isEmpty()) return false;
+  if (baseUrl.isEmpty() || _state.authUsername.isEmpty() || idx < 0 || idx >= MAX_TARGET_URLS) return false;
 
   String signInUrl = baseUrl + "/rest/signIn";
   HTTPClient http;
@@ -241,17 +246,17 @@ bool WeightForwarderService::fetchHttpAuthToken(const String& baseUrl) {
     if (deserializeJson(respDoc, resp) == DeserializationError::Ok) {
       const char* token = respDoc["access_token"];
       if (token && strlen(token) > 0) {
-        _httpAuthToken = token;
-        _httpAuthTokenValid = true;
+        _httpAuthTokens[idx] = token;
+        _httpAuthTokensValid[idx] = true;
         ok = true;
-        Serial.println(F("[WeightForwarder] HTTP auth sign-in OK"));
+        Serial.printf("[WeightForwarder] HTTP auth OK for target %d\n", idx);
       }
     }
   }
   if (!ok) {
-    _httpAuthToken = "";
-    _httpAuthTokenValid = false;
-    Serial.printf("[WeightForwarder] HTTP auth sign-in failed: %d\n", code);
+    _httpAuthTokens[idx] = "";
+    _httpAuthTokensValid[idx] = false;
+    Serial.printf("[WeightForwarder] HTTP auth failed for target %d: %d\n", idx, code);
   }
   http.end();
   return ok;
@@ -260,72 +265,75 @@ bool WeightForwarderService::fetchHttpAuthToken(const String& baseUrl) {
 #endif
 }
 
-void WeightForwarderService::forwardViaHttp(const String& lastLine, const String& weight) {
+bool WeightForwarderService::forwardViaHttpSingle(const String& url, int idx, const String& lastLine, const String& weight) {
 #ifdef ESP32
-  if (_state.targetUrl.isEmpty()) {
-    return;
-  }
+  if (url.isEmpty()) return false;
+
+  DynamicJsonDocument doc(256);
+  formatJson(doc, lastLine, weight);
+  String json;
+  serializeJson(doc, json);
 
   HTTPClient http;
   http.setConnectTimeout(1000);
   http.setTimeout(2000);
-  http.begin(_state.targetUrl);
+  http.begin(url);
   http.addHeader("Content-Type", "application/json");
 
-  // Optional auth for protected endpoints (e.g. display device /rest/display)
   if (!_state.authUsername.isEmpty()) {
-    if (!_httpAuthTokenValid || _httpAuthToken.isEmpty()) {
-      String baseUrl = getHttpBaseUrl(_state.targetUrl);
-      if (!fetchHttpAuthToken(baseUrl)) {
-        update([](WeightForwarderState& state) {
-          state.connected = false;
-          state.lastError = "HTTP auth failed";
-          return StateUpdateResult::CHANGED;
-        }, "internal");
+    if (!_httpAuthTokensValid[idx] || _httpAuthTokens[idx].isEmpty()) {
+      if (!fetchHttpAuthToken(getHttpBaseUrl(url), idx)) {
         http.end();
-        return;
+        return false;
       }
     }
-    http.addHeader("Authorization", "Bearer " + _httpAuthToken);
+    http.addHeader("Authorization", "Bearer " + _httpAuthTokens[idx]);
   }
-
-  DynamicJsonDocument doc(256);
-  formatJson(doc, lastLine, weight);
-
-  String json;
-  serializeJson(doc, json);
 
   int code = http.POST(json);
 
   // On 401, retry once after re-login
   if (code == 401 && !_state.authUsername.isEmpty()) {
-    _httpAuthTokenValid = false;
-    _httpAuthToken = "";
-    String baseUrl = getHttpBaseUrl(_state.targetUrl);
-    if (fetchHttpAuthToken(baseUrl)) {
+    _httpAuthTokensValid[idx] = false;
+    _httpAuthTokens[idx] = "";
+    if (fetchHttpAuthToken(getHttpBaseUrl(url), idx)) {
       http.end();
-      http.begin(_state.targetUrl);
+      http.begin(url);
       http.addHeader("Content-Type", "application/json");
-      http.addHeader("Authorization", "Bearer " + _httpAuthToken);
+      http.addHeader("Authorization", "Bearer " + _httpAuthTokens[idx]);
       code = http.POST(json);
     }
   }
 
-  if (code == 200) {
-    update([](WeightForwarderState& state) {
-      state.connected = true;
-      state.lastError = "";
-      state.lastForwardTime = millis();
-      return StateUpdateResult::CHANGED;
-    }, "internal");
-  } else {
-    update([code](WeightForwarderState& state) {
-      state.connected = false;
-      state.lastError = "HTTP " + String(code);
-      return StateUpdateResult::CHANGED;
-    }, "internal");
-  }
   http.end();
+  return (code == 200);
+#else
+  return false;
+#endif
+}
+
+void WeightForwarderService::forwardViaHttp(const String& lastLine, const String& weight) {
+#ifdef ESP32
+  if (_state.targetUrlCount == 0) return;
+
+  int successCount = 0;
+  String lastErr = "";
+
+  for (int i = 0; i < _state.targetUrlCount; i++) {
+    if (forwardViaHttpSingle(_state.targetUrls[i], i, lastLine, weight)) {
+      successCount++;
+    } else {
+      lastErr = "Target " + String(i + 1) + " failed";
+    }
+  }
+
+  int total = _state.targetUrlCount;
+  update([successCount, total, lastErr](WeightForwarderState& state) {
+    state.connected = (successCount > 0);
+    state.lastError = (successCount == total) ? "" : lastErr;
+    state.lastForwardTime = millis();
+    return StateUpdateResult::CHANGED;
+  }, "internal");
 #endif
 }
 
@@ -499,15 +507,15 @@ void WeightForwarderService::initWebSocketClient() {
   String path = pathIdx > 0 ? url.substring(pathIdx) : "/";
 
   // If auth credentials are set, sign in to get JWT and append as query parameter
-  // (WebSocket endpoints use ?access_token=<JWT> for auth)
+  // (WebSocket endpoints use ?access_token=<JWT> for auth) — use slot 0 for WS auth
   if (!_state.authUsername.isEmpty()) {
     String baseUrl = "http://" + host + (port != 80 ? ":" + String(port) : "");
-    if (!_httpAuthTokenValid || _httpAuthToken.isEmpty()) {
-      fetchHttpAuthToken(baseUrl);
+    if (!_httpAuthTokensValid[0] || _httpAuthTokens[0].isEmpty()) {
+      fetchHttpAuthToken(baseUrl, 0);
     }
-    if (_httpAuthTokenValid && !_httpAuthToken.isEmpty()) {
+    if (_httpAuthTokensValid[0] && !_httpAuthTokens[0].isEmpty()) {
       path += (path.indexOf('?') >= 0 ? "&" : "?");
-      path += "access_token=" + _httpAuthToken;
+      path += "access_token=" + _httpAuthTokens[0];
       Serial.println(F("[WeightForwarder] WS auth token appended"));
     } else {
       Serial.println(F("[WeightForwarder] WS auth sign-in failed, connecting without token"));

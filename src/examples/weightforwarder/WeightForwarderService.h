@@ -52,11 +52,13 @@ class WeightForwarderService : public StatefulService<WeightForwarderState> {
   unsigned long _lastForwardTime;
   static constexpr unsigned long MIN_FORWARD_INTERVAL = 500;  // 500ms = 2/sec max (prevents loop starvation)
 
-  // HTTP auth for protected targets (e.g. /rest/display); not persisted
-  String _httpAuthToken;
-  bool _httpAuthTokenValid;
+  // HTTP auth per target URL (one JWT token cached per endpoint); not persisted
+  String _httpAuthTokens[MAX_TARGET_URLS];
+  bool _httpAuthTokensValid[MAX_TARGET_URLS];
+  void clearAuthTokens();
   String getHttpBaseUrl(const String& targetUrl) const;
-  bool fetchHttpAuthToken(const String& baseUrl);
+  bool fetchHttpAuthToken(const String& baseUrl, int idx);
+  bool forwardViaHttpSingle(const String& url, int idx, const String& lastLine, const String& weight);
 
   void onConfigUpdated();
   void onSerialWeightUpdate(const String& originId);

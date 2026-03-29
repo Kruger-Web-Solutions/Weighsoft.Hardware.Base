@@ -7,7 +7,8 @@ export enum ForwardProtocol {
 
 export interface WeightForwarderData {
   protocol: ForwardProtocol;
-  target_url: string;
+  target_urls: string[];   // multi-target HTTP endpoints
+  target_url: string;      // legacy / first entry (backward compat)
   ws_url: string;
   mqtt_topic: string;
   ble_service_uuid: string;
