@@ -66,10 +66,13 @@ void WeightForwarderService::begin() {
   Serial.printf("[WeightForwarder] Loaded config: protocol=%d, enabled=%d, targets=%d\n",
                 (int)_state.protocol, _state.enabled, _state.targetUrlCount);
 
-  // Clear runtime status
   _state.connected = false;
   _state.lastError = "";
   _state.lastForwardTime = 0;
+  _pendingWeight = "";
+  _pendingLine = "";
+  _weightLastChangedAt = 0;
+  _lastForwardedWeight = "";
   clearAuthTokens();
 
   // Initialize protocol if enabled
@@ -80,7 +83,6 @@ void WeightForwarderService::begin() {
 
 void WeightForwarderService::loop() {
 #ifdef ESP32
-  // WebSocket client loop
   if (_wsClient) {
     _wsClient->loop();
     checkWsConnection();
@@ -88,17 +90,27 @@ void WeightForwarderService::loop() {
 #endif
 
 #if FT_ENABLED(FT_BLE)
-  // BLE reconnection check
   if (_state.protocol == PROTOCOL_BLE && _state.enabled) {
     checkBleConnection();
   }
 #endif
+
+  if (!_pendingWeight.isEmpty()
+      && (millis() - _weightLastChangedAt) >= WEIGHT_DEBOUNCE_MS
+      && (millis() - _lastForwardTime) >= MIN_FORWARD_INTERVAL) {
+    if (_pendingWeight != _lastForwardedWeight) {
+      _lastForwardedWeight = _pendingWeight;
+      forwardWeight(_pendingLine, _pendingWeight);
+    }
+  }
 }
 
 void WeightForwarderService::clearAuthTokens() {
   for (int i = 0; i < MAX_TARGET_URLS; i++) {
     _httpAuthTokens[i] = "";
     _httpAuthTokensValid[i] = false;
+    _targetFailCount[i] = 0;
+    _targetNextRetry[i] = 0;
   }
 }
 
@@ -135,15 +147,16 @@ void WeightForwarderService::onConfigUpdated() {
 }
 
 void WeightForwarderService::onSerialWeightUpdate(const String& originId) {
-  // Only forward actual hardware data, not config updates
   if (originId != "serial_hw" || !_state.enabled) {
     return;
   }
-
-  // Read current serial state
   _serialService->read([this](SerialState& serialState) {
     if (!serialState.weight.isEmpty()) {
-      forwardWeight(serialState.lastLine, serialState.weight);
+      if (serialState.weight != _pendingWeight) {
+        _weightLastChangedAt = millis();
+      }
+      _pendingWeight = serialState.weight;
+      _pendingLine = serialState.lastLine;
     }
   });
 }
@@ -228,8 +241,8 @@ bool WeightForwarderService::fetchHttpAuthToken(const String& baseUrl, int idx) 
 
   String signInUrl = baseUrl + "/rest/signIn";
   HTTPClient http;
-  http.setConnectTimeout(1000);
-  http.setTimeout(2000);
+  http.setConnectTimeout(HTTP_CONNECT_TIMEOUT_MS);
+  http.setTimeout(HTTP_RESPONSE_TIMEOUT_MS);
   http.begin(signInUrl);
   http.addHeader("Content-Type", "application/json");
 
@@ -270,6 +283,16 @@ bool WeightForwarderService::forwardViaHttpSingle(const String& url, int idx, co
 #ifdef ESP32
   if (url.isEmpty()) return false;
 
+  // Skip targets that have been failing — check backoff window
+  if (_targetFailCount[idx] >= TARGET_FAIL_THRESHOLD) {
+    if (millis() < _targetNextRetry[idx]) {
+      return false;  // still in backoff, don't block
+    }
+    // backoff expired — try again and reset
+    _targetFailCount[idx] = 0;
+    Serial.printf("[WeightForwarder] Retrying target %d after backoff\n", idx + 1);
+  }
+
   OutputFormat fmt = (idx < _state.targetUrlCount) ? _state.targetFormats[idx] : FMT_STANDARD;
   DynamicJsonDocument doc(256);
   formatJson(doc, lastLine, weight, fmt);
@@ -277,8 +300,8 @@ bool WeightForwarderService::forwardViaHttpSingle(const String& url, int idx, co
   serializeJson(doc, json);
 
   HTTPClient http;
-  http.setConnectTimeout(1000);
-  http.setTimeout(2000);
+  http.setConnectTimeout(HTTP_CONNECT_TIMEOUT_MS);
+  http.setTimeout(HTTP_RESPONSE_TIMEOUT_MS);
   http.begin(url);
   http.addHeader("Content-Type", "application/json");
 
@@ -307,8 +330,20 @@ bool WeightForwarderService::forwardViaHttpSingle(const String& url, int idx, co
     }
   }
 
+  bool ok = (code == 200);
+  if (ok) {
+    _targetFailCount[idx] = 0;
+    _targetNextRetry[idx] = 0;
+  } else {
+    _targetFailCount[idx]++;
+    if (_targetFailCount[idx] >= TARGET_FAIL_THRESHOLD) {
+      _targetNextRetry[idx] = millis() + TARGET_FAIL_BACKOFF_MS;
+      Serial.printf("[WeightForwarder] Target %d failed %d times, backing off %ds\n",
+                    idx + 1, _targetFailCount[idx], TARGET_FAIL_BACKOFF_MS / 1000);
+    }
+  }
   http.end();
-  return (code == 200);
+  return ok;
 #else
   return false;
 #endif

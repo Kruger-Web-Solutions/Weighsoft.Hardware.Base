@@ -50,11 +50,25 @@ class WeightForwarderService : public StatefulService<WeightForwarderState> {
 #endif
 
   unsigned long _lastForwardTime;
-  static constexpr unsigned long MIN_FORWARD_INTERVAL = 500;  // 500ms = 2/sec max (prevents loop starvation)
+  static constexpr unsigned long MIN_FORWARD_INTERVAL = 500;
+  static constexpr unsigned long WEIGHT_DEBOUNCE_MS = 300;
+  static constexpr int HTTP_CONNECT_TIMEOUT_MS = 800;
+  static constexpr int HTTP_RESPONSE_TIMEOUT_MS = 1500;
+  static constexpr int TARGET_FAIL_BACKOFF_MS = 30000;
+  static constexpr int TARGET_FAIL_THRESHOLD = 3;
 
-  // HTTP auth per target URL (one JWT token cached per endpoint); not persisted
+  // Debounce: store latest weight, only forward after it stabilises
+  String _pendingWeight;
+  String _pendingLine;
+  unsigned long _weightLastChangedAt;
+  String _lastForwardedWeight;
+
+  // HTTP auth per target URL
   String _httpAuthTokens[MAX_TARGET_URLS];
   bool _httpAuthTokensValid[MAX_TARGET_URLS];
+  // Per-target failure tracking to skip offline targets
+  int _targetFailCount[MAX_TARGET_URLS];
+  unsigned long _targetNextRetry[MAX_TARGET_URLS];
   void clearAuthTokens();
   String getHttpBaseUrl(const String& targetUrl) const;
   bool fetchHttpAuthToken(const String& baseUrl, int idx);
