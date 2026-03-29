@@ -97,10 +97,11 @@ void WeightForwarderService::loop() {
 
   if (!_pendingWeight.isEmpty()
       && (millis() - _weightLastChangedAt) >= WEIGHT_DEBOUNCE_MS
-      && (millis() - _lastForwardTime) >= MIN_FORWARD_INTERVAL) {
-    if (_pendingWeight != _lastForwardedWeight) {
+      && (millis() - _lastForwardTime) >= MIN_FORWARD_INTERVAL
+      && _pendingWeight != _lastForwardedWeight) {
+    forwardWeight(_pendingLine, _pendingWeight);
+    if (_state.lastError.isEmpty()) {
       _lastForwardedWeight = _pendingWeight;
-      forwardWeight(_pendingLine, _pendingWeight);
     }
   }
 }
