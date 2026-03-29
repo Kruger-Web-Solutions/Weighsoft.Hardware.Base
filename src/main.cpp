@@ -1,79 +1,103 @@
 #include <ESP8266React.h>
 #include <examples/led/LedExampleService.h>
+#include <examples/weighing/WeighingService.h>
+#include "VersionService.h"
+#include "version.h"
 
 #define SERIAL_BAUD_RATE 115200
 
-// Use pointers to avoid early construction issues on ESP32
-AsyncWebServer* server;
-ESP8266React* esp8266React;
+AsyncWebServer*    server;
+ESP8266React*      esp8266React;
 LedExampleService* ledExampleService;
+WeighingService*   weighingService;
+VersionService*    versionService;
 
 void setup() {
-  // start serial and filesystem
   Serial.begin(SERIAL_BAUD_RATE);
   delay(500);
-  
-  Serial.println(F("\n\n=== Weighsoft Hardware UI Starting ==="));
+
+  Serial.println(F("\n\n=== Weighsoft Weighing Board Starting ==="));
+  Serial.printf("Version: %s  Build: %s %s\n", VERSION_STRING, BUILD_DATE, BUILD_TIME);
   #ifdef ESP32
-  Serial.print(F("ESP-IDF version: "));
+  Serial.print(F("ESP-IDF: "));
   Serial.println(esp_get_idf_version());
   #endif
   Serial.print(F("Free heap: "));
   Serial.println(ESP.getFreeHeap());
-  
-  Serial.println(F("[1/6] Creating web server..."));
-  server = new AsyncWebServer(80);
-  Serial.println(F("[1/6] Web server created OK"));
-  
-  Serial.println(F("[2/6] Initializing framework..."));
-  esp8266React = new ESP8266React(server);
-  Serial.println(F("[2/6] Framework created OK"));
-  
-  Serial.println(F("[3/6] Starting framework services..."));
-  esp8266React->begin();
-  Serial.println(F("[3/6] Framework initialized OK"));
 
-  Serial.println(F("[4/6] Initializing LED example service..."));
+  Serial.println(F("[1/7] Creating web server..."));
+  server = new AsyncWebServer(80);
+  Serial.println(F("[1/7] Web server created OK"));
+
+  Serial.println(F("[2/7] Initializing framework..."));
+  esp8266React = new ESP8266React(server);
+  Serial.println(F("[2/7] Framework created OK"));
+
+  Serial.println(F("[3/7] Starting framework services..."));
+  esp8266React->begin();
+  Serial.println(F("[3/7] Framework initialized OK"));
+
+  Serial.println(F("[4/7] Initializing version service (OIML 6.2.1)..."));
+  versionService = new VersionService(
+      server,
+      esp8266React->getSecurityManager()
+  );
+  versionService->begin();
+  Serial.println(F("[4/7] Version service loaded OK"));
+
+  Serial.println(F("[5/7] Initializing LED example service..."));
   ledExampleService = new LedExampleService(
       server,
       esp8266React->getSecurityManager(),
       esp8266React->getMqttClient()
 #if FT_ENABLED(FT_BLE)
-      ,nullptr  // BLE server will be configured via callback
+      , nullptr  // BLE server will be configured via callback
 #endif
-      );
-  Serial.println(F("[4/6] LED example service created OK"));
+  );
+  ledExampleService->begin();
+  Serial.println(F("[5/7] LED example service loaded OK"));
+
+  Serial.println(F("[6/7] Initializing weighing service..."));
+  weighingService = new WeighingService(
+      server,
+      esp8266React->getFS(),
+      esp8266React->getSecurityManager(),
+      esp8266React->getMqttClient()
+#if FT_ENABLED(FT_BLE)
+      , nullptr  // BLE server will be configured via callback
+#endif
+  );
+  weighingService->begin();
+  Serial.println(F("[6/7] Weighing service loaded OK"));
 
 #if FT_ENABLED(FT_BLE)
-  // Register callback to configure BLE when server is ready
+  // Single BLE callback for both LED and Weighing services
   esp8266React->getBleSettingsService()->onBleServerStarted(
     [](BLEServer* bleServer) {
-      Serial.println(F("[LED] BLE server ready callback received"));
+      Serial.println(F("[BLE] Server ready - configuring services..."));
       if (ledExampleService) {
-        // Update the service's BLE server pointer
         ledExampleService->setBleServer(bleServer);
         ledExampleService->configureBle();
       }
+      if (weighingService) {
+        weighingService->setBleServer(bleServer);
+        weighingService->configureBle();
+      }
     }
   );
-  Serial.println(F("[4/6] BLE callback registered OK"));
+  Serial.println(F("[6/7] BLE callbacks registered OK"));
 #endif
 
-  // load the initial LED settings
-  ledExampleService->begin();
-  Serial.println(F("[4/6] LED example loaded OK"));
-
-  Serial.println(F("[5/6] Starting web server..."));
-  // start the server
+  Serial.println(F("[7/7] Starting web server..."));
   server->begin();
-  Serial.println(F("[5/6] Web server started OK"));
-  
+  Serial.println(F("[7/7] Web server started OK"));
+
   Serial.println(F("=== System Ready! ==="));
   Serial.print(F("Free heap after init: "));
   Serial.println(ESP.getFreeHeap());
 }
 
 void loop() {
-  // run the framework's loop function
   esp8266React->loop();
+  weighingService->loop();
 }

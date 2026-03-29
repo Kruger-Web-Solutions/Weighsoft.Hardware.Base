@@ -45,3 +45,6 @@ export const uploadFile = (url: string, file: File, config?: FileUploadConfig): 
     ...(config || {})
   });
 };
+
+export const DISPLAY_SOCKET_PATH = WEB_SOCKET_ROOT + 'display';
+export const WEIGHING_SOCKET_PATH = WEB_SOCKET_ROOT + 'weighing';

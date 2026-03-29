@@ -62,6 +62,7 @@ This documentation provides comprehensive architecture, design patterns, API ref
 | [LED-EXAMPLE.md](LED-EXAMPLE.md) | LED control example - template for controllable devices |
 | [DIAGNOSTICS-EXAMPLE.md](DIAGNOSTICS-EXAMPLE.md) | UART diagnostics example with loopback and baud detection |
 | [SERIAL-EXAMPLE.md](SERIAL-EXAMPLE.md) | Serial monitoring example - template for read-only data sources |
+| [WEIGHING-EXAMPLE.md](WEIGHING-EXAMPLE.md) | Weighing Board - ADS1231 load cell, calibration, OIML D31:2023 type approval |
 | [WEIGHT-FORWARDER-LESSONS.md](WEIGHT-FORWARDER-LESSONS.md) | Multi-protocol weight forwarding patterns (WebSocket, SSE, UDP, MQTT) |
 
 ## Learning Paths
@@ -243,6 +244,7 @@ When adding new features:
 - **Example Projects**:
   - [LED-EXAMPLE.md](LED-EXAMPLE.md) - Simple LED control
   - [SERIAL-EXAMPLE.md](SERIAL-EXAMPLE.md) - Serial port monitoring
+  - [WEIGHING-EXAMPLE.md](WEIGHING-EXAMPLE.md) - Weighing Board with OIML type approval
 
 ## Feedback
 
