@@ -83,12 +83,19 @@ Connect your USB-UART adapter to **SK1**:
 
 ### Entering Flash Mode (No Auto-Reset Circuit)
 
-The PCB has no auto-reset transistors, so boot mode must be entered manually:
+The PCB has no auto-reset transistors and no BOOT button fitted. Boot mode is entered by bridging **SK3**, a 2-pin 2.54mm header that pulls **GPIO0 LOW** at power-on.
 
-1. Hold **S1** (BOOT button on PCB)
-2. Power on / press reset
-3. Release S1 — ESP32 is now in download mode
-4. Run upload command
+**Procedure:**
+
+1. **Bridge SK3** — short the two pins with a jumper cap or wire (pulls GPIO0 to GND)
+2. **Power cycle the board** — remove and reapply power (or press reset if fitted); the ESP32 boots into download mode
+3. **Run the upload command** — see below
+4. **Remove the bridge from SK3**
+5. **Power cycle again** — the ESP32 now boots normally into application firmware
+
+> If the upload fails with *"No serial data received"*, the bridge was not in place before power-on. Remove power, re-bridge SK3, reapply power, then retry.
+
+**SK3 location:** Top side of PCB at coordinates (65.3 mm, 10.5 mm) — near SK2 (another 2-pin header at 74.5 mm, 10.5 mm).
 
 ### Upload Commands
 
