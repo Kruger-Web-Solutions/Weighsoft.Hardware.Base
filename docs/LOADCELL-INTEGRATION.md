@@ -68,34 +68,47 @@ Driver implemented in `src/examples/weighing/ADS1231.h/.cpp`.
 The custom PCB (**scale_wifi**) has **no USB-to-UART bridge chip** (no CP2102/CH340/FTDI).
 You need an **external USB-UART adapter** (3.3V logic level).
 
-### Programming Header: SK1 (4-pin, 2.54mm)
+### PCB Header Reference
 
-Connect your USB-UART adapter to **SK1**:
+| Header | Pins | Signals | Purpose |
+|--------|------|---------|---------|
+| **SK1** | 4-pin, 3.81mm | VIN, NC, NC, GND | Power input only — **not** a programming header |
+| **SK2** | 2-pin, 2.54mm | GPIO3/RXD0, GPIO1/TXD0 | **UART0 programming/serial** |
+| **SK3** | 2-pin, 2.54mm | GPIO16, GPIO17 | Serial2 (RX/TX) loopback — **not** boot mode |
+| **S1** | tactile button | GPIO0 → GND | **Boot mode** — the only way to enter download mode |
 
-| SK1 Pin | Signal | Adapter Connection |
+**SK3 location:** top edge of PCB at (65.3 mm, 10.5 mm).  
+**SK2 location:** top edge of PCB at (74.5 mm, 10.5 mm).
+
+### Connecting a USB-UART Adapter
+
+Connect to **SK2** and a nearby GND point:
+
+| SK2 Pin | Signal | Adapter Connection |
 |---------|--------|--------------------|
-| 1 | GND | GND |
-| 2 | TXD (ESP TX) | RX on adapter |
-| 3 | RXD (ESP RX) | TX on adapter |
-| 4 | 3.3V / GPIO0 | See schematic |
+| 1 (left) | GPIO3 / RXD0 | **TX** on adapter |
+| 2 (right) | GPIO1 / TXD0 | **RX** on adapter |
+| — | GND | GND (use SK1 pin 4 or any GND test point) |
 
-> TX on ESP32 → RX on adapter. TX on adapter → RX on ESP32 (they cross over).
+> TX on adapter → RX on ESP32 (GPIO3). RX on adapter ← TX from ESP32 (GPIO1). They cross over.
 
-### Entering Flash Mode (No Auto-Reset Circuit)
+### Entering Flash Mode (Boot Mode)
 
-The PCB has no auto-reset transistors and no BOOT button fitted. Boot mode is entered by bridging **SK3**, a 2-pin 2.54mm header that pulls **GPIO0 LOW** at power-on.
+The PCB has **no auto-reset circuit**. Boot mode is entered via **S1** — a tactile button that pulls **GPIO0 LOW**.
+
+**GPIO0** connects only to S1 and a 10 kΩ pull-up to 3.3V. When S1 is pressed it pulls GPIO0 to GND, signalling the ESP32 to boot into download mode at the next power-on.
 
 **Procedure:**
 
-1. **Bridge SK3** — short the two pins with a jumper cap or wire (pulls GPIO0 to GND)
-2. **Power cycle the board** — remove and reapply power (or press reset if fitted); the ESP32 boots into download mode
-3. **Run the upload command** — see below
-4. **Remove the bridge from SK3**
-5. **Power cycle again** — the ESP32 now boots normally into application firmware
+1. **Press and hold S1** (top-right area of PCB, near SK2)
+2. **Power cycle the board** — remove and reapply power while still holding S1
+3. **Keep holding S1 for ~2 seconds** after power-on, then release
+4. **Run the upload command** — see below
+5. **Power cycle again** after upload completes to boot into normal firmware
 
-> If the upload fails with *"No serial data received"*, the bridge was not in place before power-on. Remove power, re-bridge SK3, reapply power, then retry.
+> If S1 is not populated on your board, short the two S1 footprint pads that connect to GPIO0 to the adjacent GND pads using tweezers or a wire while power cycling.
 
-**SK3 location:** Top side of PCB at coordinates (65.3 mm, 10.5 mm) — near SK2 (another 2-pin header at 74.5 mm, 10.5 mm).
+> **"No serial data received"** means GPIO0 was not LOW at boot. Redo from step 1.
 
 ### Upload Commands
 
