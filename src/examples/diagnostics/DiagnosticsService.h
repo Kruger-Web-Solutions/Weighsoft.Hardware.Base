@@ -14,9 +14,15 @@ class SerialService;
 
 // Use same GPIO pins as Serial1
 // ESP32-S3: GPIO18=U1RXD (RX), GPIO17=U1TXD (TX) - must match hardware UART1 defaults
+// Override via build flags: -DDIAG_RX_PIN=xx -DDIAG_TX_PIN=xx
+// esp32dev (display board): DIAG pins overridden to avoid conflict with TFT SCK/MISO on GPIO17/18
 #define DIAG_SERIAL_PORT Serial1
+#ifndef DIAG_RX_PIN
 #define DIAG_RX_PIN 18
+#endif
+#ifndef DIAG_TX_PIN
 #define DIAG_TX_PIN 17
+#endif
 
 class DiagnosticsService : public StatefulService<DiagnosticsState> {
  public:
