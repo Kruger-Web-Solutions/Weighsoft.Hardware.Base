@@ -62,4 +62,3 @@ For USB upload, comment the OTA block in `platformio.ini` and uncomment the `esp
 - OTA API: [API-REFERENCE.md](API-REFERENCE.md) — GET/POST `/rest/otaSettings`
 - Build and feature flags: [CONFIGURATION.md](CONFIGURATION.md)
 - USB upload / COM port: [.cursor/rules/platformio-upload.mdc](../.cursor/rules/platformio-upload.mdc) (kill Python before USB upload if port is busy)
-- SK3 boot mode: [PLATFORM-GPIO.md](PLATFORM-GPIO.md#sk3-hardware-boot-mode) — SK3 must be bridged (GPIO0 to GND) and rebooted to enter download mode before USB flashing

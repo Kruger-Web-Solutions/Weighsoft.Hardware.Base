@@ -269,34 +269,6 @@ build_flags =
 
 **Solution:** Use 8MB ESP32-S3 for BLE + OTA support.
 
-## SK3 Hardware Boot Mode
-
-The **SK3** board requires a manual bridging step to enter the ESP32 bootloader (download mode) for USB firmware flashing. Unlike dev-kit boards with an onboard auto-reset circuit, SK3 does not enter boot mode automatically.
-
-### How to Flash SK3
-
-1. **Bridge SK3** — short the boot-mode bridge on the SK3 board (connects GPIO0 to GND).
-2. **Reboot the device** — press the reset button (or power-cycle) while the bridge is in place.
-3. The ESP32 will now boot into download mode.
-4. **Upload firmware** via USB as normal:
-   ```powershell
-   Get-Process python* | Stop-Process -Force
-   python -m platformio run -e esp32s3 -t upload
-   ```
-5. **Remove the bridge** after flashing completes.
-6. **Reboot again** — the device will boot into normal firmware.
-
-> **Why?** The ESP32 samples GPIO0 at reset. Pulling GPIO0 LOW (bridged to GND) forces the bootloader; leaving it HIGH (or floating with internal pull-up) boots normally.
-
-### Symptoms if Bridge is Missing
-
-| Symptom | Cause |
-|---------|-------|
-| `A fatal error occurred: Failed to connect to ESP32` | Board did not enter boot mode — bridge GPIO0 and reboot |
-| Upload times out silently | Same — bridge missing or not held long enough through reset |
-
----
-
 ## Pin Strapping Warnings
 
 Some GPIO pins have special boot functions and should be used carefully:
