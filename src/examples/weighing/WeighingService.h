@@ -24,6 +24,9 @@
 #define WEIGHING_AUDIT_PATH     "/rest/weighingAudit"
 #define WEIGHING_CONFIG_FILE    "/config/weighing.json"
 
+// WeighingState has ~27 JSON fields; 1024 default overflows ArduinoJson
+#define WEIGHING_JSON_SIZE 2048
+
 // Stability detection: rolling buffer of N readings
 #define WEIGHING_STABILITY_SAMPLES 8
 
@@ -74,6 +77,7 @@ class WeighingService : public StatefulService<WeighingState> {
 
   // Internal state for loop()
   unsigned long _lastAztTime;
+  unsigned long _lastBroadcast;
   float         _stabilityBuf[WEIGHING_STABILITY_SAMPLES];
   uint8_t       _stabilityIdx;
   bool          _stabilityFull;

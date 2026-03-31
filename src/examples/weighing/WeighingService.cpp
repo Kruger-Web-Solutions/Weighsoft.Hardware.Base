@@ -15,20 +15,23 @@ WeighingService::WeighingService(AsyncWebServer*  server,
                   server,
                   WEIGHING_ENDPOINT_PATH,
                   securityManager,
-                  AuthenticationPredicates::IS_AUTHENTICATED),
+                  AuthenticationPredicates::IS_AUTHENTICATED,
+                  WEIGHING_JSON_SIZE),
     _fsPersistence(WeighingState::readConfig,
                    WeighingState::updateConfig,
                    this,
                    fs,
-                   WEIGHING_CONFIG_FILE),
-    _mqttPubSub(WeighingState::read, WeighingState::update, this, mqttClient),
+                   WEIGHING_CONFIG_FILE,
+                   WEIGHING_JSON_SIZE),
+    _mqttPubSub(WeighingState::read, WeighingState::update, this, mqttClient, "", "", false, WEIGHING_JSON_SIZE),
     _webSocket(WeighingState::read,
                WeighingState::update,
                this,
                server,
                WEIGHING_SOCKET_PATH,
                securityManager,
-               AuthenticationPredicates::IS_AUTHENTICATED),
+               AuthenticationPredicates::IS_AUTHENTICATED,
+               WEIGHING_JSON_SIZE),
     _mqttClient(mqttClient),
     _server(server),
     _securityManager(securityManager),
@@ -41,6 +44,7 @@ WeighingService::WeighingService(AsyncWebServer*  server,
     _bleCharacteristic(nullptr),
 #endif
     _lastAztTime(0),
+    _lastBroadcast(0),
     _stabilityIdx(0),
     _stabilityFull(false),
     _powerOnZeroDone(false)
@@ -106,24 +110,22 @@ void WeighingService::begin() {
 
 void WeighingService::loop() {
   if (!_adc.isConnected()) {
-    // ADC not responding
-    update([&](WeighingState& s) {
-      bool changed = s.adcConnected;
+    updateWithoutPropagation([&](WeighingState& s) {
       s.adcConnected = false;
       s.stable       = false;
-      return changed ? StateUpdateResult::CHANGED : StateUpdateResult::UNCHANGED;
-    }, "weighing_hw");
+      return StateUpdateResult::CHANGED;
+    });
     return;
   }
 
   // Read averaged raw value
   int32_t raw = _adc.readRawAverage(_state.samplesToAverage);
   if (raw == INT32_MIN) {
-    update([&](WeighingState& s) {
+    updateWithoutPropagation([&](WeighingState& s) {
       s.adcConnected = false;
       s.stable       = false;
       return StateUpdateResult::CHANGED;
-    }, "weighing_hw");
+    });
     return;
   }
 
@@ -196,8 +198,8 @@ void WeighingService::loop() {
     }
   }
 
-  // Publish hardware state
-  update([&](WeighingState& s) {
+  // Update state silently (no broadcast) to avoid flooding WebSocket clients
+  updateWithoutPropagation([&](WeighingState& s) {
     s.rawValue     = raw;
     s.grossWeight  = gross;
     s.netWeight    = net;
@@ -208,7 +210,14 @@ void WeighingService::loop() {
     s.underload    = underload;
     s.adcConnected = true;
     return StateUpdateResult::CHANGED;
-  }, "weighing_hw");
+  });
+
+  // Broadcast to WS/MQTT/BLE at max ~5 Hz to prevent queue overflow
+  unsigned long now = millis();
+  if (now - _lastBroadcast >= 200) {
+    _lastBroadcast = now;
+    callUpdateHandlers("weighing_hw");
+  }
 }
 
 bool WeighingService::computeStability(float weight) {
@@ -279,23 +288,25 @@ void WeighingService::executeClearTare() {
 }
 
 void WeighingService::executeZero() {
-  if (!_state.stable) {
-    Serial.println("[Weighing] Zero rejected: not stable");
-    return;
-  }
-  float manualRange = (_state.manualZeroRange / 100.0f) * _state.maxCapacity;
-  if (fabsf(_state.grossWeight) > manualRange) {
-    Serial.printf("[Weighing] Zero rejected: gross=%.3f exceeds range=%.3f\n",
-                  _state.grossWeight, manualRange);
-    return;
+  bool uncalibrated = (_state.calibrationFactor == 1.0f);
+
+  if (!uncalibrated) {
+    if (!_state.stable) {
+      Serial.println("[Weighing] Zero rejected: not stable");
+      return;
+    }
+    float manualRange = (_state.manualZeroRange / 100.0f) * _state.maxCapacity;
+    if (fabsf(_state.grossWeight) > manualRange) {
+      Serial.printf("[Weighing] Zero rejected: gross=%.3f exceeds range=%.3f\n",
+                    _state.grossWeight, manualRange);
+      return;
+    }
+  } else {
+    Serial.println("[Weighing] Uncalibrated — skipping stability/range checks");
   }
 
-  // Adjust zeroOffset so current reading becomes 0
   int32_t oldOffset = _state.zeroOffset;
-  int32_t rawCorrection = 0;
-  if (_state.calibrationFactor != 0.0f) {
-    rawCorrection = (int32_t)(_state.grossWeight / _state.calibrationFactor);
-  }
+  int32_t rawCorrection = _state.rawValue - _state.zeroOffset;
 
   update([&](WeighingState& s) {
     s.zeroOffset   = s.zeroOffset + rawCorrection;
@@ -310,7 +321,8 @@ void WeighingService::executeZero() {
 }
 
 void WeighingService::executeCalibration(float knownWeight) {
-  if (!_state.stable) {
+  bool uncalibrated = (_state.calibrationFactor == 1.0f);
+  if (!uncalibrated && !_state.stable) {
     Serial.println("[Weighing] Calibration rejected: not stable");
     return;
   }
@@ -351,10 +363,7 @@ void WeighingService::executeCalibration(float knownWeight) {
 }
 
 void WeighingService::executePowerOnZero() {
-  int32_t rawCorrection = 0;
-  if (_state.calibrationFactor != 0.0f) {
-    rawCorrection = (int32_t)(_state.grossWeight / _state.calibrationFactor);
-  }
+  int32_t rawCorrection = _state.rawValue - _state.zeroOffset;
   _state.zeroOffset += rawCorrection;
   _auditTrail.logEvent("zero", "zero_offset",
                        "power_on", String(_state.zeroOffset),

@@ -55,6 +55,7 @@ const WeighingLive: FC = () => {
   }
 
   const decPlaces = data.decimal_places ?? 2;
+  const uncalibrated = data.calibration_factor === 1.0;
 
   return (
     <SectionContent title="Live Stream (WebSocket)" titleGutter>
@@ -128,7 +129,7 @@ const WeighingLive: FC = () => {
       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
         <Button
           variant="contained"
-          disabled={!data.stable}
+          disabled={!uncalibrated && !data.stable}
           onClick={() => sendCommand({ tare: true } as any)}
         >
           Tare
@@ -149,7 +150,7 @@ const WeighingLive: FC = () => {
         <Button
           variant="outlined"
           color="secondary"
-          disabled={!data.stable || data.seal_active}
+          disabled={(!uncalibrated && !data.stable) || data.seal_active}
           onClick={() => sendCommand({ zero: true } as any)}
         >
           Zero
