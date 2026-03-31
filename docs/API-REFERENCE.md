@@ -741,3 +741,53 @@ No built-in rate limiting. Consider network-level protection for production depl
 - [DATA-FLOWS.md](DATA-FLOWS.md) - Understand data movement
 - [SECURITY.md](SECURITY.md) - Security implementation
 - [EXTENSION-GUIDE.md](EXTENSION-GUIDE.md) - Add custom endpoints
+
+---
+
+## Growbox Integration Endpoints
+
+> These endpoints are available on the `growbox` branch.
+
+### REST
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET/POST | `/rest/growbox` | Live relay state, sensor readings, alarms |
+| GET/POST | `/rest/growboxSettings` | Hardware config (GPIO pins, calibration) |
+| GET/POST | `/rest/growboxAutomation` | Automation settings (schedules, thresholds) |
+
+### WebSocket
+
+| Path | Data |
+|------|------|
+| `/ws/growbox` | Live `GrowboxState` stream |
+| `/ws/growboxAutomation` | `GrowboxAutomationSettings` stream |
+
+### MQTT Topics
+
+All topics are namespaced under `growbox/<device_unique_id>/`.
+
+| Topic | Direction | Description |
+|-------|-----------|-------------|
+| `growbox/<id>/lights/state` | Publish | Lights state `{"state":"ON/OFF"}` |
+| `growbox/<id>/lights/set` | Subscribe | Control lights |
+| `growbox/<id>/fan_in/state` | Publish | Fan In state |
+| `growbox/<id>/fan_in/set` | Subscribe | Control Fan In |
+| `growbox/<id>/fan_out/state` | Publish | Fan Out state |
+| `growbox/<id>/fan_out/set` | Subscribe | Control Fan Out |
+| `growbox/<id>/state` | Publish | Full sensor state JSON |
+| `growbox/<id>/automation/state` | Publish | Automation settings |
+| `growbox/<id>/automation/set` | Subscribe | Update automation settings |
+| `homeassistant/.../<id>/config` | Publish (on connect) | HA auto-discovery payloads |
+
+### BLE Service
+
+Service UUID: `4b6e5d7f-bf21-4e9a-9c87-6e5d1042a3b1`
+
+| Characteristic | UUID | Properties | Description |
+|---------------|------|-----------|-------------|
+| Controls | `a3b4c5d6-...a3b2` | R/W/Notify | Relay outputs + alarm (compact JSON) |
+| Sensors | `b5c6d7e8-...a3b3` | R/Notify | Live sensor readings (compact JSON) |
+| Automation | `c7d8e9f0-...a3b4` | R/W/Notify | Automation settings (full key names) |
+
+See [GROWBOX-EXAMPLE.md](GROWBOX-EXAMPLE.md) for complete field reference and usage examples.

@@ -33,7 +33,10 @@ C:\Project\Weighsoft.Hardware.Base\
         ├── led\               # LED Example: Bidirectional control
         │   ├── LedExampleService.h
         │   └── LedExampleService.cpp
-        └── ...                # Additional integrations live on dedicated branches
+        └── growbox\           # Growbox Monitor (growbox branch)
+            ├── GrowboxSettingsService.h/cpp   # GPIO + calibration config
+            ├── GrowboxAutomationService.h/cpp # Schedules + thresholds
+            └── GrowboxService.h/cpp           # Live state, sensors, relays
 ```
 
 ## Backend Structure (C++)
@@ -196,6 +199,18 @@ On `master`, `src/examples/` is the shared baseline. Integration-specific exampl
 | `types.ts` | TypeScript types |
 
 Integration-specific frontend examples such as serial, display, and weighing are maintained on their own branches rather than on `master`.
+
+**Growbox Monitor** (`examples/growbox/`) — on `growbox` branch:
+
+| File | Purpose |
+|------|---------|
+| `Growbox.tsx` | Main router with tabs (Dashboard / Automation / BLE / Settings) |
+| `GrowboxDashboard.tsx` | Live status, relay controls, sensor display via WebSocket |
+| `GrowboxAutomationForm.tsx` | Light schedule, fan thresholds, moisture alarm settings |
+| `GrowboxBleInfo.tsx` | BLE characteristic reference and usage examples |
+| `GrowboxSettingsForm.tsx` | GPIO config, relay test mode, moisture calibration |
+| `api.ts` | REST API client functions for all three services |
+| `types.ts` | TypeScript interfaces for GrowboxState, GrowboxSettings, GrowboxAutomationSettings |
 
 ### /interface/src/api/ - API Layer
 
