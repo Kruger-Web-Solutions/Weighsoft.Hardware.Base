@@ -4,11 +4,15 @@
 #include <Arduino.h>
 
 // ADS1231 24-bit ADC driver (bit-banged GPIO)
-// PCB connections: DOUT=GPIO25, SCLK=GPIO23, PDWN=GPIO22, SPEED=GPIO19
+// PCB connections verified from ODB netlist (ESP32-WROOM-32 pin positions):
+//   DOUT  → Pin 10 (left side) = GPIO25
+//   SCLK  → Pin 11 (left side) = GPIO26
+//   PDWN  → Pin 12 (left side) = GPIO27
+//   SPEED → Pin  9 (left side) = GPIO33
 #define ADS1231_DOUT_PIN  25
-#define ADS1231_SCLK_PIN  23
-#define ADS1231_PDWN_PIN  22
-#define ADS1231_SPEED_PIN 19
+#define ADS1231_SCLK_PIN  26
+#define ADS1231_PDWN_PIN  27
+#define ADS1231_SPEED_PIN 33
 
 // Timeout waiting for DOUT LOW (data ready): 500ms
 #define ADS1231_READY_TIMEOUT_MS 500
