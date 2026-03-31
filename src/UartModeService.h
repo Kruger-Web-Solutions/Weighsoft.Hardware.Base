@@ -7,9 +7,8 @@
 #include "UartMode.h"
 
 // Forward declarations
-class SerialService;
-class DiagnosticsService;
 class SerialWriterService;
+class DiagnosticsService;
 
 #define UART_MODE_ENDPOINT_PATH "/rest/uartMode"
 #define UART_MODE_SOCKET_PATH "/ws/uartMode"
@@ -21,17 +20,15 @@ class UartModeService : public StatefulService<UartModeState> {
                   FS* fs,
                   SecurityManager* securityManager);
   void begin();
-  
+
   // Register services for coordination
-  void setSerialService(SerialService* serialService);
-  void setDiagnosticsService(DiagnosticsService* diagnosticsService);
   void setSerialWriterService(SerialWriterService* serialWriterService);
-  
+  void setDiagnosticsService(DiagnosticsService* diagnosticsService);
+
   // Apply current mode (callable from main.cpp after service linking)
   void applyMode();
-  
+
   // Check current mode
-  bool isLiveMode() const { return _state.mode == (uint8_t)UartModeType::LIVE_MONITORING; }
   bool isWriterMode() const { return _state.mode == (uint8_t)UartModeType::WRITER; }
   bool isDiagnosticsMode() const { return _state.mode == (uint8_t)UartModeType::DIAGNOSTICS; }
 
@@ -39,11 +36,10 @@ class UartModeService : public StatefulService<UartModeState> {
   HttpEndpoint<UartModeState> _httpEndpoint;
   FSPersistence<UartModeState> _fsPersistence;
   WebSocketTxRx<UartModeState> _webSocket;
-  
-  SerialService* _serialService;
-  DiagnosticsService* _diagnosticsService;
+
   SerialWriterService* _serialWriterService;
-  
+  DiagnosticsService* _diagnosticsService;
+
   void onModeChanged();
 };
 

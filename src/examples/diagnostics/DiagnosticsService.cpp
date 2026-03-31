@@ -1,5 +1,4 @@
 #include <examples/diagnostics/DiagnosticsService.h>
-#include <examples/serial/SerialService.h>
 
 #ifdef ESP32
 #include <HardwareSerial.h>
@@ -30,7 +29,6 @@ DiagnosticsService::DiagnosticsService(AsyncWebServer* server, SecurityManager* 
                securityManager,
                AuthenticationPredicates::IS_AUTHENTICATED)
 {
-  _serialService = nullptr;
   _serialStarted = false;
   _lastTestTime = 0;
   _loopbackLastSend = 0;
@@ -74,25 +72,6 @@ void DiagnosticsService::begin() {
   Serial.println(F("[Diagnostics] Ready. GPIO18 (RX) / GPIO17 (TX)"));
 }
 
-void DiagnosticsService::setSerialService(SerialService* serialService) {
-  _serialService = serialService;
-  Serial.println(F("[Diagnostics] SerialService registered for coordination"));
-}
-
-bool DiagnosticsService::requestSerialControl() {
-  if (_serialService) {
-    _serialService->suspendSerial();
-    return true;
-  }
-  return false;
-}
-
-void DiagnosticsService::releaseSerialControl() {
-  if (_serialService) {
-    _serialService->resumeSerial();
-  }
-}
-
 void DiagnosticsService::stopAllTests() {
   Serial.println(F("[Diagnostics] Stopping all tests"));
   
@@ -122,11 +101,10 @@ void DiagnosticsService::loop() {
   bool anyTestActive = _state.loopbackEnabled || _state.baudScanEnabled || _state.signalTestEnabled;
   bool anyTestWasActive = wasLoopbackActive || wasBaudScanActive || wasSignalTestActive;
   
-  // If all tests stopped, release Serial1 back to SerialService
+  // If all tests stopped, release Serial1
   if (!anyTestActive && anyTestWasActive && _serialStarted) {
     Serial.println(F("[Diagnostics] All tests stopped - releasing Serial1"));
     stopSerial();
-    releaseSerialControl();
   }
   
   // Run active tests
@@ -188,7 +166,6 @@ String DiagnosticsService::readSerialLine() {
 void DiagnosticsService::runLoopbackTest() {
   // Start serial if not started
   if (!_serialStarted) {
-    requestSerialControl();  // Stop SerialService first
     startSerial(115200);
     _loopbackLastSend = millis();
     _lastWsBroadcast = millis();
@@ -240,8 +217,7 @@ void DiagnosticsService::runBaudScan() {
     Serial.println(F("[Diagnostics]   Device TX -> ESP32 GPIO18 (RX)"));
     Serial.println(F("[Diagnostics]   Device GND -> ESP32 GND"));
     Serial.println(F("[Diagnostics]   Device must be actively transmitting data!"));
-    
-    requestSerialControl();  // Stop SerialService
+
     _baudTestStartTime = millis();
     _lastWsBroadcast = millis();
     _state.baudCurrentIndex = 0;

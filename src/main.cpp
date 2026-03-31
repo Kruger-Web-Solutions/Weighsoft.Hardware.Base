@@ -1,8 +1,6 @@
 #include <ESP8266React.h>
 #include <examples/led/LedExampleService.h>
-#include <examples/serial/SerialService.h>
 #include <examples/diagnostics/DiagnosticsService.h>
-#include <examples/weightforwarder/WeightForwarderService.h>
 #include <examples/serialwriter/SerialWriterService.h>
 #include <examples/serialwriter/SerialWriterForwarderService.h>
 #include "VersionService.h"
@@ -15,11 +13,9 @@
 AsyncWebServer* server;
 ESP8266React* esp8266React;
 LedExampleService* ledExampleService;
-SerialService* serialService;
 DiagnosticsService* diagnosticsService;
 VersionService* versionService;
 UartModeService* uartModeService;
-WeightForwarderService* weightForwarderService;
 SerialWriterService* serialWriterService;
 SerialWriterForwarderService* serialWriterForwarderService;
 
@@ -27,180 +23,114 @@ void setup() {
   // start serial and filesystem
   Serial.begin(SERIAL_BAUD_RATE);
   delay(500);
-  
-  Serial.println(F("\n\n=== Weighsoft Serial ==="));
+
+  Serial.println(F("\n\n=== Weighsoft Serial Writer ==="));
   Serial.printf("Version: %s\n", VERSION_STRING);
   Serial.printf("Build: %s %s\n", BUILD_DATE, BUILD_TIME);
   Serial.printf("API: %s\n", API_VERSION);
-  #ifdef ESP32
+#ifdef ESP32
   Serial.print(F("ESP-IDF: "));
   Serial.println(esp_get_idf_version());
-  #endif
+#endif
   Serial.print(F("Free heap: "));
   Serial.println(ESP.getFreeHeap());
   Serial.println();
-  
-  Serial.println(F("[1/10] Creating web server..."));
+
+  Serial.println(F("[1/9] Creating web server..."));
   server = new AsyncWebServer(80);
-  Serial.println(F("[1/10] Web server created OK"));
-  
-  Serial.println(F("[2/10] Initializing framework..."));
+  Serial.println(F("[1/9] Web server created OK"));
+
+  Serial.println(F("[2/9] Initializing framework..."));
   esp8266React = new ESP8266React(server);
-  Serial.println(F("[2/10] Framework created OK"));
-  
-  Serial.println(F("[3/10] Starting framework services..."));
+  Serial.println(F("[2/9] Framework created OK"));
+
+  Serial.println(F("[3/9] Starting framework services..."));
   esp8266React->begin();
-  Serial.println(F("[3/10] Framework initialized OK"));
+  Serial.println(F("[3/9] Framework initialized OK"));
 
-  Serial.println(F("[4/10] Initializing version service..."));
-  versionService = new VersionService(
-      server,
-      esp8266React->getSecurityManager()
-      );
+  Serial.println(F("[4/9] Initializing version service..."));
+  versionService = new VersionService(server, esp8266React->getSecurityManager());
   versionService->begin();
-  Serial.println(F("[4/10] Version service loaded OK"));
+  Serial.println(F("[4/9] Version service loaded OK"));
 
-  Serial.println(F("[5/10] Initializing UART Mode service..."));
-  uartModeService = new UartModeService(
-      server,
-      esp8266React->getFS(),
-      esp8266React->getSecurityManager()
-      );
+  Serial.println(F("[5/9] Initializing UART Mode service..."));
+  uartModeService = new UartModeService(server, esp8266React->getFS(), esp8266React->getSecurityManager());
   uartModeService->begin();
-  Serial.println(F("[5/10] UART Mode service loaded OK"));
+  Serial.println(F("[5/9] UART Mode service loaded OK"));
 
-  Serial.println(F("[6/10] Initializing LED example service..."));
-  ledExampleService = new LedExampleService(
-      server,
-      esp8266React->getSecurityManager(),
-      esp8266React->getMqttClient()
+  Serial.println(F("[6/9] Initializing LED example service..."));
+  ledExampleService = new LedExampleService(server,
+                                            esp8266React->getSecurityManager(),
+                                            esp8266React->getMqttClient()
 #if FT_ENABLED(FT_BLE)
-      ,nullptr  // BLE server will be configured via callback
+                                            ,
+                                            nullptr  // BLE server will be configured via callback
 #endif
-      );
-  Serial.println(F("[6/10] LED example service created OK"));
-
-  // load the initial LED settings
+  );
   ledExampleService->begin();
-  Serial.println(F("[6/10] LED example loaded OK"));
+  Serial.println(F("[6/9] LED example service loaded OK"));
 
-  Serial.println(F("[7/10] Initializing Serial monitor service..."));
-  delay(500);  // ESP32-S3: Delay before SerialService initialization
-  serialService = new SerialService(
-      server,
-      esp8266React->getFS(),
-      esp8266React->getSecurityManager(),
-      esp8266React->getMqttClient()
+  Serial.println(F("[7/9] Initializing Serial Writer service..."));
+  delay(200);  // ESP32-S3: allow hardware to settle before Serial1 init
+  serialWriterService = new SerialWriterService(server,
+                                                esp8266React->getFS(),
+                                                esp8266React->getSecurityManager(),
+                                                esp8266React->getMqttClient()
 #if FT_ENABLED(FT_BLE)
-      ,nullptr  // BLE server will be configured via callback
+                                                ,
+                                                nullptr  // BLE server will be configured via callback
 #endif
-      );
-  delay(200);  // ESP32-S3: Delay after SerialService creation
-  serialService->begin();
-  Serial.println(F("[7/10] Serial service loaded OK"));
+  );
+  serialWriterService->begin();
+  Serial.println(F("[7/9] Serial Writer service loaded OK"));
 
-  Serial.println(F("[8/10] Initializing UART Diagnostics service..."));
-  diagnosticsService = new DiagnosticsService(
-      server,
-      esp8266React->getSecurityManager()
-      );
+  Serial.println(F("[7/9] Initializing Serial Writer Forwarder service..."));
+  serialWriterForwarderService = new SerialWriterForwarderService(
+      server, esp8266React->getFS(), esp8266React->getSecurityManager(), serialWriterService);
+  serialWriterForwarderService->begin();
+  Serial.println(F("[7/9] Serial Writer Forwarder service loaded OK"));
+
+  Serial.println(F("[8/9] Initializing UART Diagnostics service..."));
+  diagnosticsService = new DiagnosticsService(server, esp8266React->getSecurityManager());
   diagnosticsService->begin();
-  Serial.println(F("[8/10] Diagnostics service loaded OK"));
+  Serial.println(F("[8/9] Diagnostics service loaded OK"));
 
   // Link services for Serial1 coordination
-  diagnosticsService->setSerialService(serialService);
-  uartModeService->setSerialService(serialService);
-  uartModeService->setDiagnosticsService(diagnosticsService);
-  Serial.println(F("[8/10] Services linked for Serial1 coordination"));
-
-  Serial.println(F("[9/10] Initializing Serial Writer service..."));
-  serialWriterService = new SerialWriterService(
-      server,
-      esp8266React->getFS(),
-      esp8266React->getSecurityManager(),
-      esp8266React->getMqttClient()
-#if FT_ENABLED(FT_BLE)
-      ,nullptr  // BLE server will be configured via callback
-#endif
-      );
-  serialWriterService->begin();
-  Serial.println(F("[9/10] Serial Writer service loaded OK"));
-
   uartModeService->setSerialWriterService(serialWriterService);
+  uartModeService->setDiagnosticsService(diagnosticsService);
 
   // Apply persisted UART mode now that all services are linked
   uartModeService->applyMode();
-  Serial.println(F("[9/10] Persisted UART mode applied"));
-
-  Serial.println(F("[9/10] Initializing Weight Forwarder service..."));
-  weightForwarderService = new WeightForwarderService(
-      server,
-      esp8266React->getFS(),
-      esp8266React->getSecurityManager(),
-      esp8266React->getMqttClient(),
-      serialService
-      );
-  weightForwarderService->begin();
-  Serial.println(F("[9/10] Weight Forwarder service loaded OK"));
-
-  Serial.println(F("[9/10] Initializing Serial Writer Forwarder service..."));
-  serialWriterForwarderService = new SerialWriterForwarderService(
-      server,
-      esp8266React->getFS(),
-      esp8266React->getSecurityManager(),
-      serialWriterService
-      );
-  serialWriterForwarderService->begin();
-  Serial.println(F("[9/10] Serial Writer Forwarder service loaded OK"));
+  Serial.println(F("[8/9] Services linked and UART mode applied"));
 
 #if FT_ENABLED(FT_BLE)
-  // Register callbacks after both services exist so callback never sees null
-  esp8266React->getBleSettingsService()->onBleServerStarted(
-    [](BLEServer* bleServer) {
-      if (ledExampleService) {
-        Serial.println(F("[LED] BLE server ready callback received"));
-        ledExampleService->setBleServer(bleServer);
-        ledExampleService->configureBle();
-      }
-      if (serialService) {
-        Serial.println(F("[Serial] BLE server ready callback received"));
-        serialService->setBleServer(bleServer);
-        serialService->configureBle();
-      }
-      if (serialWriterService) {
-        Serial.println(F("[SerialWriter] BLE server ready callback received"));
-        serialWriterService->setBleServer(bleServer);
-        serialWriterService->configureBle();
-      }
+  esp8266React->getBleSettingsService()->onBleServerStarted([](BLEServer* bleServer) {
+    if (ledExampleService) {
+      Serial.println(F("[LED] BLE server ready callback received"));
+      ledExampleService->setBleServer(bleServer);
+      ledExampleService->configureBle();
     }
-  );
-  Serial.println(F("[10/10] BLE callbacks registered OK"));
+    if (serialWriterService) {
+      Serial.println(F("[SerialWriter] BLE server ready callback received"));
+      serialWriterService->setBleServer(bleServer);
+      serialWriterService->configureBle();
+    }
+  });
+  Serial.println(F("[9/9] BLE callbacks registered OK"));
 #endif
 
-  Serial.println(F("[10/10] Starting web server..."));
-  // start the server
+  Serial.println(F("[9/9] Starting web server..."));
   server->begin();
-  Serial.println(F("[10/10] Web server started OK"));
-  
+  Serial.println(F("[9/9] Web server started OK"));
+
   Serial.println(F("=== System Ready! ==="));
   Serial.print(F("Free heap after init: "));
   Serial.println(ESP.getFreeHeap());
 }
 
 void loop() {
-  // run the framework's loop function
   esp8266React->loop();
-  
-  // read serial data
-  serialService->loop();
-  
-  // run diagnostic tests
   diagnosticsService->loop();
-  
-  // process weight forwarding
-  weightForwarderService->loop();
-
-  // write pending serial data and poll forwarder source
   serialWriterService->loop();
   serialWriterForwarderService->loop();
 }

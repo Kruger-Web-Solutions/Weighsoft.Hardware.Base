@@ -1,6 +1,5 @@
 import React from 'react';
 import { Alert, ToggleButtonGroup, ToggleButton, Box, Typography, CircularProgress } from '@mui/material';
-import MonitorIcon from '@mui/icons-material/Monitor';
 import BuildIcon from '@mui/icons-material/Build';
 import OutputIcon from '@mui/icons-material/Output';
 import { useRest } from '../utils';
@@ -8,7 +7,7 @@ import { readUartMode, updateUartMode } from '../api/uartMode';
 import { UartModeData } from '../types/uartMode';
 
 interface UartModeSwitcherProps {
-  currentMode: 'live' | 'writer' | 'diagnostics';
+  currentMode: 'writer' | 'diagnostics';
 }
 
 const UartModeSwitcher: React.FC<UartModeSwitcherProps> = ({ currentMode }) => {
@@ -25,7 +24,7 @@ const UartModeSwitcher: React.FC<UartModeSwitcherProps> = ({ currentMode }) => {
 
   const handleModeChange = async (
     event: React.MouseEvent<HTMLElement>,
-    newMode: 'live' | 'writer' | 'diagnostics' | null
+    newMode: 'writer' | 'diagnostics' | null
   ) => {
     if (newMode && newMode !== data?.mode) {
       try {
@@ -40,7 +39,6 @@ const UartModeSwitcher: React.FC<UartModeSwitcherProps> = ({ currentMode }) => {
   const activeMode = data?.mode || currentMode;
 
   const modeName = (m: string) => {
-    if (m === 'live') return 'Live Monitoring';
     if (m === 'writer') return 'Serial Writer';
     return 'Diagnostics Testing';
   };
@@ -65,15 +63,6 @@ const UartModeSwitcher: React.FC<UartModeSwitcherProps> = ({ currentMode }) => {
           disabled={saving}
           fullWidth
         >
-          <ToggleButton value="live" aria-label="live monitoring">
-            <MonitorIcon sx={{ mr: 1 }} />
-            <Box>
-              <Typography variant="button">Live Monitoring</Typography>
-              <Typography variant="caption" display="block" sx={{ textTransform: 'none' }}>
-                Scale data streaming
-              </Typography>
-            </Box>
-          </ToggleButton>
           <ToggleButton value="writer" aria-label="serial writer">
             <OutputIcon sx={{ mr: 1 }} />
             <Box>
