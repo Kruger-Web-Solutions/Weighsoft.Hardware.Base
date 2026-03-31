@@ -212,11 +212,14 @@ void WeighingService::loop() {
     return StateUpdateResult::CHANGED;
   });
 
-  // Broadcast to WS/MQTT/BLE at max ~5 Hz to prevent queue overflow
+  // Broadcast to WS/MQTT/BLE at max ~2 Hz to limit memory pressure
   unsigned long now = millis();
-  if (now - _lastBroadcast >= 200) {
+  if (now - _lastBroadcast >= 500) {
     _lastBroadcast = now;
-    callUpdateHandlers("weighing_hw");
+    _webSocket.cleanupClients(2);
+    if (ESP.getFreeHeap() > 32768) {
+      callUpdateHandlers("weighing_hw");
+    }
   }
 }
 
@@ -251,10 +254,13 @@ void WeighingService::performAzt(float grossWeight) {
 }
 
 void WeighingService::executeTare() {
+  Serial.printf("[Weighing] Tare requested. stable=%d gross=%.4f\n",
+                _state.stable, _state.grossWeight);
   if (!_state.stable) {
     Serial.println("[Weighing] Tare rejected: not stable");
     return;
   }
+  float oldTare = _state.tareValue;
   update([&](WeighingState& s) {
     s.tareValue  = s.grossWeight;
     s.weightMode = "net";
@@ -263,6 +269,7 @@ void WeighingService::executeTare() {
     s.tareCommand = false;
     return StateUpdateResult::CHANGED;
   }, "weighing_cmd");
+  Serial.printf("[Weighing] Tare OK: %.4f -> %.4f\n", oldTare, _state.tareValue);
 }
 
 void WeighingService::executePresetTare(float value) {
@@ -322,6 +329,8 @@ void WeighingService::executeZero() {
 
 void WeighingService::executeCalibration(float knownWeight) {
   bool uncalibrated = (_state.calibrationFactor == 1.0f);
+  Serial.printf("[Weighing] Calibrate requested. knownWeight=%.4f raw=%d zeroOffset=%d stable=%d uncal=%d\n",
+                knownWeight, _state.rawValue, _state.zeroOffset, _state.stable, uncalibrated);
   if (!uncalibrated && !_state.stable) {
     Serial.println("[Weighing] Calibration rejected: not stable");
     return;
@@ -332,6 +341,7 @@ void WeighingService::executeCalibration(float knownWeight) {
   }
 
   int32_t rawSpan = _state.rawValue - _state.zeroOffset;
+  Serial.printf("[Weighing] rawSpan = %d - %d = %d\n", _state.rawValue, _state.zeroOffset, rawSpan);
   if (rawSpan == 0) {
     Serial.println("[Weighing] Calibration rejected: zero span (nothing on scale?)");
     return;
@@ -339,11 +349,11 @@ void WeighingService::executeCalibration(float knownWeight) {
 
   float oldFactor = _state.calibrationFactor;
   float newFactor = knownWeight / (float)rawSpan;
+  Serial.printf("[Weighing] factor: %.8f -> %.8f\n", oldFactor, newFactor);
 
   update([&](WeighingState& s) {
     s.calibrationFactor = newFactor;
     s.eventCounter++;
-    // Update lastCalibrationTime from NTP (best-effort)
     time_t now;
     struct tm ti;
     time(&now);
@@ -360,6 +370,7 @@ void WeighingService::executeCalibration(float knownWeight) {
   logAndCount("calibrate", "calibration_factor",
               String(oldFactor, 8), String(newFactor, 8));
   saveConfig();
+  Serial.printf("[Weighing] Calibration OK. ec=%u\n", _state.eventCounter);
 }
 
 void WeighingService::executePowerOnZero() {
@@ -373,6 +384,7 @@ void WeighingService::executePowerOnZero() {
 }
 
 void WeighingService::executeSeal() {
+  Serial.printf("[Weighing] Seal requested. current=%d ec=%u\n", _state.sealActive, _state.eventCounter);
   String oldVal = _state.sealActive ? "true" : "false";
 
   update([&](WeighingState& s) {
@@ -384,10 +396,11 @@ void WeighingService::executeSeal() {
 
   logAndCount("seal", "seal_active", oldVal, "true");
   saveConfig();
-  Serial.println("[Weighing] Instrument SEALED");
+  Serial.printf("[Weighing] Instrument SEALED. ec=%u\n", _state.eventCounter);
 }
 
 void WeighingService::executeUnseal(const String& pin) {
+  Serial.printf("[Weighing] Unseal requested. sealed=%d pin_len=%d\n", _state.sealActive, pin.length());
   if (!weighingVerifyPin(pin)) {
     uint32_t lockSecs = weighingPinLockoutSeconds();
     if (lockSecs > 0) {
@@ -395,14 +408,14 @@ void WeighingService::executeUnseal(const String& pin) {
       _auditTrail.logEvent("unseal_fail", "seal_active",
                            "locked", "true", _state.eventCounter);
     } else {
-      Serial.println("[Weighing] Unseal FAILED: wrong PIN");
+      Serial.printf("[Weighing] Unseal FAILED: wrong PIN (attempt %d)\n", _failedPinAttempts);
       _auditTrail.logEvent("unseal_fail", "seal_active",
                            "wrong_pin", "true", _state.eventCounter);
     }
     update([&](WeighingState& s) {
       s.unsealCommand = false;
       s.pin = "";
-      return StateUpdateResult::CHANGED;  // propagate lockout seconds
+      return StateUpdateResult::CHANGED;
     }, "weighing_cmd");
     return;
   }
@@ -417,11 +430,14 @@ void WeighingService::executeUnseal(const String& pin) {
 
   logAndCount("unseal", "seal_active", "true", "false");
   saveConfig();
-  Serial.println("[Weighing] Instrument UNSEALED");
+  Serial.printf("[Weighing] Instrument UNSEALED. ec=%u\n", _state.eventCounter);
 }
 
 void WeighingService::onCommandReceived(const String& originId) {
-  // Process pending commands from the last update cycle
+  Serial.printf("[Weighing] cmd from %s heap=%u tare=%d zero=%d cal=%d seal=%d unseal=%d\n",
+                originId.c_str(), ESP.getFreeHeap(),
+                _state.tareCommand, _state.zeroCommand, _state.calibrateCommand,
+                _state.sealCommand, _state.unsealCommand);
   if (_state.tareCommand)         executeTare();
   if (_state.presetTareCommand)   executePresetTare(_state.presetTareValue);
   if (_state.clearTareCommand)    executeClearTare();

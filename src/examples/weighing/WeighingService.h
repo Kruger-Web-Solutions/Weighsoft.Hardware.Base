@@ -24,7 +24,7 @@
 #define WEIGHING_AUDIT_PATH     "/rest/weighingAudit"
 #define WEIGHING_CONFIG_FILE    "/config/weighing.json"
 
-// WeighingState has ~27 JSON fields; 1024 default overflows ArduinoJson
+// WeighingState has ~27 JSON fields wrapped in WS envelope
 #define WEIGHING_JSON_SIZE 2048
 
 // Stability detection: rolling buffer of N readings

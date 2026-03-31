@@ -42,13 +42,15 @@ const WeighingCalibration: FC = () => {
 
   const sealed = data.seal_active;
   const locked = data.pin_lockout_seconds > 0;
+  const uncalibrated = data.calibration_factor === 1.0;
 
   const handleCalibrate = async () => {
     const kw = parseFloat(knownWeight);
     if (isNaN(kw) || kw <= 0) return;
     setCalibrating(true);
-    setData((prev) => prev ? { ...prev, calibrate: true as any, known_weight: kw as any } : prev);
-    await saveData();
+    try {
+      await updateWeighingData({ calibrate: true, known_weight: kw } as any);
+    } catch (_) { /* logged on serial */ }
     setKnownWeight('');
     setCalibrating(false);
     loadData();
@@ -56,8 +58,9 @@ const WeighingCalibration: FC = () => {
 
   const handleSeal = async () => {
     setSealDialogOpen(false);
-    setData((prev) => prev ? { ...prev, seal: true as any } : prev);
-    await saveData();
+    try {
+      await updateWeighingData({ seal: true } as any);
+    } catch (_) { /* logged on serial */ }
     loadData();
   };
 
@@ -65,13 +68,12 @@ const WeighingCalibration: FC = () => {
     if (!pinInput) return;
     setPinError('');
     setUnsealing(true);
-    setData((prev) => prev ? { ...prev, unseal: true as any, pin: pinInput as any } : prev);
-    await saveData();
+    try {
+      await updateWeighingData({ unseal: true, pin: pinInput } as any);
+    } catch (_) { /* logged on serial */ }
     setUnsealing(false);
-    // Re-read state to check if unseal succeeded
     await loadData();
     setPinInput('');
-    // Note: if still sealed after reload, show error (checked via data.seal_active in render)
   };
 
   return (
@@ -127,15 +129,20 @@ const WeighingCalibration: FC = () => {
               <Button
                 variant="contained"
                 color="primary"
-                disabled={!knownWeight || parseFloat(knownWeight) <= 0 || calibrating || saving || !data.stable}
+                disabled={!knownWeight || parseFloat(knownWeight) <= 0 || calibrating || saving || (!uncalibrated && !data.stable)}
                 onClick={handleCalibrate}
               >
                 {calibrating ? 'Calibrating...' : 'Calibrate'}
               </Button>
             </ButtonRow>
-            {!data.stable && (
+            {!data.stable && !uncalibrated && (
               <Alert severity="warning" sx={{ mt: 1 }}>
                 Wait for a stable reading before calibrating.
+              </Alert>
+            )}
+            {uncalibrated && (
+              <Alert severity="info" sx={{ mt: 1 }}>
+                Initial calibration — stability check bypassed. Zero first, then place known weight.
               </Alert>
             )}
           </Box>

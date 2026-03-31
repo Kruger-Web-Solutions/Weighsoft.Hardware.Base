@@ -12,6 +12,11 @@
 
 template <class T>
 class WebSocketConnector {
+ public:
+  void cleanupClients(uint16_t maxClients = 2) {
+    _webSocket.cleanupClients(maxClients);
+  }
+
  protected:
   StatefulService<T>* _statefulService;
   AsyncWebServer* _server;
@@ -112,14 +117,22 @@ class WebSocketTx : virtual public WebSocketConnector<T> {
                          uint8_t* data,
                          size_t len) {
     if (type == WS_EVT_CONNECT) {
-      Serial.printf("[WS] Client connected: %u\n", client->id());
-      // when a client connects, we transmit it's id and the current payload
+      server->cleanupClients(2);
+      size_t connected = server->count();
+      Serial.printf("[WS] Client %u connected (total=%u heap=%u)\n",
+                    client->id(), connected, ESP.getFreeHeap());
+      if (connected > 2 || ESP.getFreeHeap() < 32768) {
+        Serial.printf("[WS] Too many clients or low heap — closing %u\n", client->id());
+        client->close();
+        return;
+      }
       transmitId(client);
       transmitData(client, WEB_SOCKET_ORIGIN);
     } else if (type == WS_EVT_DISCONNECT) {
-      Serial.printf("[WS] Client disconnected: %u\n", client->id());
+      Serial.printf("[WS] Client %u disconnected (heap=%u)\n",
+                    client->id(), ESP.getFreeHeap());
     } else if (type == WS_EVT_ERROR) {
-      Serial.printf("[WS] Client error: %u\n", client->id());
+      Serial.printf("[WS] Client %u error\n", client->id());
     }
   }
 
@@ -149,6 +162,10 @@ class WebSocketTx : virtual public WebSocketConnector<T> {
    * simplifies the client and the server implementation but may not be sufficent for all use-cases.
    */
   void transmitData(AsyncWebSocketClient* client, const String& originId) {
+    if (ESP.getFreeHeap() < 16384) {
+      return;
+    }
+
     DynamicJsonDocument jsonDocument = DynamicJsonDocument(WebSocketConnector<T>::_bufferSize);
     JsonObject root = jsonDocument.to<JsonObject>();
     root["type"] = "payload";
@@ -157,16 +174,14 @@ class WebSocketTx : virtual public WebSocketConnector<T> {
     WebSocketConnector<T>::_statefulService->read(payload, _stateReader);
 
     size_t len = measureJson(jsonDocument);
-    // Allocate len+1 so serializeJson can write the null terminator safely,
-    // but only send len bytes (the actual JSON, without the null)
     AsyncWebSocketMessageBuffer* buffer = WebSocketConnector<T>::_webSocket.makeBuffer(len + 1);
-    if (buffer) {
-      serializeJson(jsonDocument, (char*)buffer->get(), len + 1);
-      if (client) {
-        client->text((char*)buffer->get(), len);
-      } else {
-        WebSocketConnector<T>::_webSocket.textAll((char*)buffer->get(), len);
-      }
+    if (!buffer) return;
+    serializeJson(jsonDocument, (char*)buffer->get(), len + 1);
+
+    if (client) {
+      client->text((char*)buffer->get(), len);
+    } else {
+      WebSocketConnector<T>::_webSocket.textAll((char*)buffer->get(), len);
     }
   }
 };
