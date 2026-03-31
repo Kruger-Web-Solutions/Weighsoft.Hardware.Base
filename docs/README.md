@@ -9,16 +9,18 @@ This documentation provides comprehensive architecture, design patterns, API ref
 ### For Developers
 
 1. **New to the framework?** Start with [ARCHITECTURE.md](ARCHITECTURE.md)
-2. **Need to understand the system?** Review the C4 diagrams
-3. **Want to add features?** Follow the [EXTENSION-GUIDE.md](EXTENSION-GUIDE.md)
-4. **Need API docs?** See [API-REFERENCE.md](API-REFERENCE.md)
+2. **Need to know which branch to use?** Read [INTEGRATION-WORKFLOW.md](INTEGRATION-WORKFLOW.md)
+3. **Need to understand the system?** Review the C4 diagrams
+4. **Want to add features?** Follow the [EXTENSION-GUIDE.md](EXTENSION-GUIDE.md)
+5. **Need API docs?** See [API-REFERENCE.md](API-REFERENCE.md)
 
 ### For AI Agents
 
 1. Read [ARCHITECTURE.md](ARCHITECTURE.md) for system overview
 2. Study [DESIGN-PATTERNS.md](DESIGN-PATTERNS.md) for implementation patterns
-3. Reference [API-REFERENCE.md](API-REFERENCE.md) for endpoint contracts
-4. Check [FILE-REFERENCE.md](FILE-REFERENCE.md) for file locations
+3. Check [INTEGRATION-WORKFLOW.md](INTEGRATION-WORKFLOW.md) before assuming integration code is on `master`
+4. Reference [API-REFERENCE.md](API-REFERENCE.md) for endpoint contracts
+5. Check [FILE-REFERENCE.md](FILE-REFERENCE.md) for file locations
 
 ## Documentation Structure
 
@@ -57,12 +59,14 @@ This documentation provides comprehensive architecture, design patterns, API ref
 
 | Document | Description |
 |----------|-------------|
+| [INTEGRATION-WORKFLOW.md](INTEGRATION-WORKFLOW.md) | Branch strategy for `master` and long-lived integration branches |
 | [EXTENSION-GUIDE.md](EXTENSION-GUIDE.md) | Step-by-step guide to add custom features |
 | [DEVICE-TEMPLATE-GUIDE.md](DEVICE-TEMPLATE-GUIDE.md) | Quick start checklist for new device projects |
 | [LED-EXAMPLE.md](LED-EXAMPLE.md) | LED control example - template for controllable devices |
 | [DIAGNOSTICS-EXAMPLE.md](DIAGNOSTICS-EXAMPLE.md) | UART diagnostics example with loopback and baud detection |
-| [SERIAL-EXAMPLE.md](SERIAL-EXAMPLE.md) | Serial monitoring example - template for read-only data sources |
 | [WEIGHT-FORWARDER-LESSONS.md](WEIGHT-FORWARDER-LESSONS.md) | Multi-protocol weight forwarding patterns (WebSocket, SSE, UDP, MQTT) |
+
+Integration-specific documents such as serial, display, or weighing guides are maintained on their matching branches rather than on `master`.
 
 ## Learning Paths
 
@@ -239,10 +243,11 @@ When adding new features:
 ## Additional Resources
 
 - **Main README**: [../README.md](../README.md) - Project overview
+- **Repo workflow**: [INTEGRATION-WORKFLOW.md](INTEGRATION-WORKFLOW.md) - which branch to use before you start
 - **Framework Source**: `lib/framework/` - Implementation reference
 - **Example Projects**:
   - [LED-EXAMPLE.md](LED-EXAMPLE.md) - Simple LED control
-  - [SERIAL-EXAMPLE.md](SERIAL-EXAMPLE.md) - Serial port monitoring
+  - [DIAGNOSTICS-EXAMPLE.md](DIAGNOSTICS-EXAMPLE.md) - UART diagnostics
 
 ## Feedback
 

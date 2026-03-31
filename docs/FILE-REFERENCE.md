@@ -14,6 +14,7 @@ C:\Project\Weighsoft.Hardware.Base\
 │       └── verify_build.yml   # Build verification workflow
 ├── .gitignore                 # Git ignore patterns
 ├── docs\                      # Architecture documentation (THIS!)
+│   └── INTEGRATION-WORKFLOW.md # Branching and integration workflow
 ├── factory_settings.ini       # Factory default values
 ├── features.ini               # Feature flag configuration
 ├── interface\                 # React frontend source
@@ -32,10 +33,7 @@ C:\Project\Weighsoft.Hardware.Base\
         ├── led\               # LED Example: Bidirectional control
         │   ├── LedExampleService.h
         │   └── LedExampleService.cpp
-        └── serial\            # Serial Example: Data streaming
-            ├── SerialState.h
-            ├── SerialService.h
-            └── SerialService.cpp
+        └── ...                # Additional integrations live on dedicated branches
 ```
 
 ## Backend Structure (C++)
@@ -89,10 +87,10 @@ C:\Project\Weighsoft.Hardware.Base\
 | Directory | Files | Purpose |
 |-----------|-------|---------|
 | `examples/led/` | `LedExampleService.h/cpp` | LED control with 4 channels (REST, WS, MQTT, BLE) |
-| `examples/serial/` | `SerialState.h`, `SerialService.h/cpp` | Serial2 monitoring and streaming |
-| `examples/diagnostics/` | `DiagnosticsState.h`, `DiagnosticsService.h/cpp` | UART hardware testing (loopback, baud scan, signal quality) |
 
-**Pattern**: Create your custom services in `examples/yourdevice/`
+On `master`, `src/examples/` is the shared baseline. Integration-specific example code is maintained on branches such as `serial2`, `display`, `weighingboard`, and `display35`.
+
+**Pattern**: Create your custom services in `examples/yourdevice/` on the correct base branch.
 
 ### Configuration Files
 
@@ -197,41 +195,18 @@ C:\Project\Weighsoft.Hardware.Base\
 | `api.ts` | LED API endpoints |
 | `types.ts` | TypeScript types |
 
-**Serial Example** (`examples/serial/`):
-
-| File | Purpose |
-|------|---------|
-| `SerialMonitor.tsx` | Main router with tabs |
-| `SerialInfo.tsx` | Documentation and hardware setup |
-| `SerialConfig.tsx` | Serial port and regex configuration form |
-| `SerialRest.tsx` | REST polling view |
-| `SerialWebSocket.tsx` | Real-time streaming view |
-| `SerialBle.tsx` | BLE connection instructions |
-
-**Diagnostics Example** (`examples/diagnostics/`):
-
-| File | Purpose |
-|------|---------|
-| `Diagnostics.tsx` | Main router with tabs |
-| `DiagnosticsInfo.tsx` | Documentation and use cases |
-| `LoopbackTest.tsx` | Loopback test UI with live results |
-| `BaudDetector.tsx` | Baud rate scanner UI with progress |
-| `SignalQuality.tsx` | Signal quality test UI with metrics |
+Integration-specific frontend examples such as serial, display, and weighing are maintained on their own branches rather than on `master`.
 
 ### /interface/src/api/ - API Layer
 
 | File | Purpose |
 |------|---------|
 | `endpoints.ts` | Base URLs and WebSocket paths |
-| `serial.ts` | Serial example API functions |
-| `diagnostics.ts` | Diagnostics API functions |
 
 ### /interface/src/types/ - TypeScript Types
 
 | File | Purpose |
 |------|---------|
-| `serial.ts` | Serial data types |
-| `diagnostics.ts` | Diagnostics test state types |
 | `wifi.ts` | WiFi types |
 | `mqtt.ts` | MQTT types |
 | `security.ts` | Security types |
@@ -365,6 +340,7 @@ interface/build/        # React production build
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) - System overview
 - [EXTENSION-GUIDE.md](EXTENSION-GUIDE.md) - Add custom files
+- [INTEGRATION-WORKFLOW.md](INTEGRATION-WORKFLOW.md) - Choose the correct base branch
 - [CONFIGURATION.md](CONFIGURATION.md) - Build configuration
 - [OTA-UPLOAD.md](OTA-UPLOAD.md) - OTA firmware upload (ESP32-S3, port 8266)
 - [PIN-CONFIGURATION.md](PIN-CONFIGURATION.md) - GPIO and hardware pin reference
