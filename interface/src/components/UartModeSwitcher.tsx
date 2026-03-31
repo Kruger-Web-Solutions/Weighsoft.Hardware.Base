@@ -2,12 +2,13 @@ import React from 'react';
 import { Alert, ToggleButtonGroup, ToggleButton, Box, Typography, CircularProgress } from '@mui/material';
 import MonitorIcon from '@mui/icons-material/Monitor';
 import BuildIcon from '@mui/icons-material/Build';
+import OutputIcon from '@mui/icons-material/Output';
 import { useRest } from '../utils';
 import { readUartMode, updateUartMode } from '../api/uartMode';
 import { UartModeData } from '../types/uartMode';
 
 interface UartModeSwitcherProps {
-  currentMode: 'live' | 'diagnostics';
+  currentMode: 'live' | 'writer' | 'diagnostics';
 }
 
 const UartModeSwitcher: React.FC<UartModeSwitcherProps> = ({ currentMode }) => {
@@ -22,7 +23,10 @@ const UartModeSwitcher: React.FC<UartModeSwitcherProps> = ({ currentMode }) => {
     loadData();
   }, [loadData]);
 
-  const handleModeChange = async (event: React.MouseEvent<HTMLElement>, newMode: 'live' | 'diagnostics' | null) => {
+  const handleModeChange = async (
+    event: React.MouseEvent<HTMLElement>,
+    newMode: 'live' | 'writer' | 'diagnostics' | null
+  ) => {
     if (newMode && newMode !== data?.mode) {
       try {
         await updateUartMode({ mode: newMode });
@@ -35,14 +39,20 @@ const UartModeSwitcher: React.FC<UartModeSwitcherProps> = ({ currentMode }) => {
 
   const activeMode = data?.mode || currentMode;
 
+  const modeName = (m: string) => {
+    if (m === 'live') return 'Live Monitoring';
+    if (m === 'writer') return 'Serial Writer';
+    return 'Diagnostics Testing';
+  };
+
   return (
     <Box mb={3}>
       <Alert severity="info" sx={{ mb: 2 }}>
         <Typography variant="body2">
-          <strong>UART Mode:</strong> {activeMode === 'live' ? 'Live Monitoring' : 'Diagnostics Testing'}
+          <strong>UART Mode:</strong> {modeName(activeMode)}
         </Typography>
         <Typography variant="caption" color="text.secondary">
-          Only one mode can use the Serial2 (GPIO17/18) hardware at a time.
+          Only one mode can use the Serial1 (GPIO17/18) hardware at a time.
         </Typography>
       </Alert>
 
@@ -61,6 +71,15 @@ const UartModeSwitcher: React.FC<UartModeSwitcherProps> = ({ currentMode }) => {
               <Typography variant="button">Live Monitoring</Typography>
               <Typography variant="caption" display="block" sx={{ textTransform: 'none' }}>
                 Scale data streaming
+              </Typography>
+            </Box>
+          </ToggleButton>
+          <ToggleButton value="writer" aria-label="serial writer">
+            <OutputIcon sx={{ mr: 1 }} />
+            <Box>
+              <Typography variant="button">Serial Writer</Typography>
+              <Typography variant="caption" display="block" sx={{ textTransform: 'none' }}>
+                Send data to serial
               </Typography>
             </Box>
           </ToggleButton>
@@ -85,8 +104,8 @@ const UartModeSwitcher: React.FC<UartModeSwitcherProps> = ({ currentMode }) => {
 
       {activeMode !== currentMode && (
         <Alert severity="warning" sx={{ mt: 2 }}>
-          Mode has changed. Current screen is for <strong>{currentMode}</strong> mode,
-          but system is in <strong>{activeMode}</strong> mode.
+          Mode has changed. Current screen is for <strong>{modeName(currentMode)}</strong> mode,
+          but system is in <strong>{modeName(activeMode)}</strong> mode.
         </Alert>
       )}
     </Box>

@@ -1,6 +1,7 @@
 #include "UartModeService.h"
 #include <examples/serial/SerialService.h>
 #include <examples/diagnostics/DiagnosticsService.h>
+#include <examples/serialwriter/SerialWriterService.h>
 
 UartModeService::UartModeService(AsyncWebServer* server,
                                  FS* fs,
@@ -27,6 +28,7 @@ UartModeService::UartModeService(AsyncWebServer* server,
 {
   _serialService = nullptr;
   _diagnosticsService = nullptr;
+  _serialWriterService = nullptr;
   
   // Register update handler for mode changes
   addUpdateHandler([this](const String& originId) {
@@ -38,17 +40,17 @@ UartModeService::UartModeService(AsyncWebServer* server,
 
 void UartModeService::begin() {
   // Load persisted mode from filesystem
-  // If file doesn't exist or is invalid, mode will already be initialized to LIVE_MONITORING by constructor
   _fsPersistence.readFromFS();
   
   // Validate loaded mode is within valid range (defense against corrupted config)
   if (_state.mode > (uint8_t)UartModeType::DIAGNOSTICS) {
     Serial.println(F("[UartMode] WARNING: Invalid mode in config, defaulting to LIVE_MONITORING"));
     _state.mode = (uint8_t)UartModeType::LIVE_MONITORING;
-    _fsPersistence.writeToFS();  // Persist corrected value
+    _fsPersistence.writeToFS();
   }
   
-  const char* modeName = isLiveMode() ? "LIVE MONITORING" : "DIAGNOSTICS";
+  const char* modeName =
+      isLiveMode() ? "LIVE MONITORING" : (isWriterMode() ? "WRITER" : "DIAGNOSTICS");
   Serial.printf("[UartMode] Loaded mode: %s\n", modeName);
   
   // Mode will be applied in main.cpp after all services are initialized
@@ -60,6 +62,10 @@ void UartModeService::setSerialService(SerialService* serialService) {
 
 void UartModeService::setDiagnosticsService(DiagnosticsService* diagnosticsService) {
   _diagnosticsService = diagnosticsService;
+}
+
+void UartModeService::setSerialWriterService(SerialWriterService* serialWriterService) {
+  _serialWriterService = serialWriterService;
 }
 
 void UartModeService::onModeChanged() {
@@ -75,15 +81,20 @@ void UartModeService::applyMode() {
     Serial.println(F("[UartMode] WARNING: Services not registered yet"));
     return;
   }
-  
+
   if (isLiveMode()) {
     Serial.println(F("[UartMode] Switching to LIVE MONITORING mode"));
-    // Stop diagnostics, start serial
     _diagnosticsService->stopAllTests();
+    if (_serialWriterService) _serialWriterService->suspendSerial();
     _serialService->resumeSerial();
+  } else if (isWriterMode()) {
+    Serial.println(F("[UartMode] Switching to WRITER mode"));
+    _diagnosticsService->stopAllTests();
+    _serialService->suspendSerial();
+    if (_serialWriterService) _serialWriterService->resumeSerial();
   } else {
     Serial.println(F("[UartMode] Switching to DIAGNOSTICS mode"));
-    // Stop serial, diagnostics will start Serial1 when needed
     _serialService->suspendSerial();
+    if (_serialWriterService) _serialWriterService->suspendSerial();
   }
 }

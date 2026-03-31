@@ -197,6 +197,24 @@ On `master`, `src/examples/` is the shared baseline. Integration-specific exampl
 
 Integration-specific frontend examples such as serial, display, and weighing are maintained on their own branches rather than on `master`.
 
+**Serial Writer** (`examples/serialwriter/`) — on `serialWriter` branch:
+
+| File | Purpose |
+|------|---------|
+| `SerialWriter.tsx` | Tab router (Information / Configuration / Send / BLE) |
+| `SerialWriterInfo.tsx` | Hardware info + UART mode switcher |
+| `SerialWriterConfig.tsx` | Baud rate, data bits, stop bits, parity, line terminator |
+| `SerialWriterSend.tsx` | Text input + Send button; live `last_sent_line` / `sent_count` via WebSocket |
+| `SerialWriterBle.tsx` | BLE UUIDs and write/notify instructions |
+
+**Serial Writer Forwarder** (`examples/serialwriterforwarder/`) — on `serialWriter` branch:
+
+| File | Purpose |
+|------|---------|
+| `SerialWriterForwarder.tsx` | Tab router (Configuration / Status) |
+| `SerialWriterForwarderConfig.tsx` | Protocol (HTTP/WS), source URL, JSON field, poll interval, auth |
+| `SerialWriterForwarderStatus.tsx` | Live connection status, received line count, last error |
+
 ### /interface/src/api/ - API Layer
 
 | File | Purpose |

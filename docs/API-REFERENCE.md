@@ -1215,3 +1215,58 @@ No built-in rate limiting. Consider network-level protection for production depl
 - [DATA-FLOWS.md](DATA-FLOWS.md) - Understand data movement
 - [SECURITY.md](SECURITY.md) - Security implementation
 - [EXTENSION-GUIDE.md](EXTENSION-GUIDE.md) - Add custom endpoints
+
+---
+
+## Serial Writer Integration Endpoints
+
+> These endpoints are available on the `serialWriter` branch.
+
+### REST
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET/POST | `/rest/serialWriter` | Serial writer state (config + runtime status) |
+| GET/POST | `/rest/serialWriterForwarder` | Forwarder config and connection status |
+
+**Send a line via REST:**
+```json
+POST /rest/serialWriter
+{"pending_line": "your text here"}
+```
+
+**Update config via REST:**
+```json
+POST /rest/serialWriter
+{"baud_rate": 115200, "line_terminator": "CRLF"}
+```
+
+### WebSocket
+
+| Path | Data |
+|------|------|
+| `/ws/serialWriter` | Live `SerialWriterState` stream — notifies on every send |
+| `/ws/serialWriterForwarder` | `SerialWriterForwarderState` — connection and received line status |
+
+### MQTT Topics
+
+| Topic | Direction | Description |
+|-------|-----------|-------------|
+| `weighsoft/serialwriter/<id>/status` | Publish | Full `SerialWriterState` JSON |
+| `weighsoft/serialwriter/<id>/send` | Subscribe | `{"pending_line":"text"}` triggers serial write |
+
+### BLE Service (SerialWriterService)
+
+- **Service UUID**: `12350000-e8f2-537e-4f6c-d104768a1235`
+- **Characteristic UUID**: `12350001-e8f2-537e-4f6c-d104768a1235` (R/W/Notify)
+- Write `{"pending_line":"text"}` to send a line. Also writable: `baud_rate`, `data_bits`, `stop_bits`, `parity`, `line_terminator`.
+
+### UART Mode
+
+The Serial Writer adds a third UART mode. Switch via `POST /rest/uartMode`:
+
+| Mode value | Description |
+|-----------|-------------|
+| `"live"` | SerialService active (read from Serial1 RX) |
+| `"writer"` | SerialWriterService active (write to Serial1 TX) |
+| `"diagnostics"` | DiagnosticsService active (hardware tests) |

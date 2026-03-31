@@ -5,30 +5,19 @@ import LedExample from '../examples/led/LedExample';
 import SerialMonitor from '../examples/serial/SerialMonitor';
 import Diagnostics from '../examples/diagnostics/Diagnostics';
 import WeightForwarder from '../examples/weightforwarder/WeightForwarder';
+import SerialWriter from '../examples/serialwriter/SerialWriter';
+import SerialWriterForwarder from '../examples/serialwriterforwarder/SerialWriterForwarder';
 
 const ProjectRouting: FC = () => {
   return (
     <Routes>
-      {
-        // Default route for LED example project
-      }
       <Route path="/*" element={<Navigate to="led-example/information" />} />
-      {
-        // LED Example project routes
-      }
       <Route path="led-example/*" element={<LedExample />} />
-      {
-        // Serial Monitor project routes
-      }
       <Route path="serial/*" element={<SerialMonitor />} />
-      {
-        // UART Diagnostics project routes
-      }
       <Route path="diagnostics/*" element={<Diagnostics />} />
-      {
-        // Weight Forwarder project routes
-      }
       <Route path="weightforwarder/*" element={<WeightForwarder />} />
+      <Route path="serialwriter/*" element={<SerialWriter />} />
+      <Route path="serialwriterforwarder/*" element={<SerialWriterForwarder />} />
     </Routes>
   );
 };

@@ -3,6 +3,8 @@
 #include <examples/serial/SerialService.h>
 #include <examples/diagnostics/DiagnosticsService.h>
 #include <examples/weightforwarder/WeightForwarderService.h>
+#include <examples/serialwriter/SerialWriterService.h>
+#include <examples/serialwriter/SerialWriterForwarderService.h>
 #include "VersionService.h"
 #include "UartModeService.h"
 #include "version.h"
@@ -18,6 +20,8 @@ DiagnosticsService* diagnosticsService;
 VersionService* versionService;
 UartModeService* uartModeService;
 WeightForwarderService* weightForwarderService;
+SerialWriterService* serialWriterService;
+SerialWriterForwarderService* serialWriterForwarderService;
 
 void setup() {
   // start serial and filesystem
@@ -108,10 +112,25 @@ void setup() {
   uartModeService->setSerialService(serialService);
   uartModeService->setDiagnosticsService(diagnosticsService);
   Serial.println(F("[8/10] Services linked for Serial1 coordination"));
-  
+
+  Serial.println(F("[9/10] Initializing Serial Writer service..."));
+  serialWriterService = new SerialWriterService(
+      server,
+      esp8266React->getFS(),
+      esp8266React->getSecurityManager(),
+      esp8266React->getMqttClient()
+#if FT_ENABLED(FT_BLE)
+      ,nullptr  // BLE server will be configured via callback
+#endif
+      );
+  serialWriterService->begin();
+  Serial.println(F("[9/10] Serial Writer service loaded OK"));
+
+  uartModeService->setSerialWriterService(serialWriterService);
+
   // Apply persisted UART mode now that all services are linked
   uartModeService->applyMode();
-  Serial.println(F("[8/10] Persisted UART mode applied"));
+  Serial.println(F("[9/10] Persisted UART mode applied"));
 
   Serial.println(F("[9/10] Initializing Weight Forwarder service..."));
   weightForwarderService = new WeightForwarderService(
@@ -123,6 +142,16 @@ void setup() {
       );
   weightForwarderService->begin();
   Serial.println(F("[9/10] Weight Forwarder service loaded OK"));
+
+  Serial.println(F("[9/10] Initializing Serial Writer Forwarder service..."));
+  serialWriterForwarderService = new SerialWriterForwarderService(
+      server,
+      esp8266React->getFS(),
+      esp8266React->getSecurityManager(),
+      serialWriterService
+      );
+  serialWriterForwarderService->begin();
+  Serial.println(F("[9/10] Serial Writer Forwarder service loaded OK"));
 
 #if FT_ENABLED(FT_BLE)
   // Register callbacks after both services exist so callback never sees null
@@ -137,6 +166,11 @@ void setup() {
         Serial.println(F("[Serial] BLE server ready callback received"));
         serialService->setBleServer(bleServer);
         serialService->configureBle();
+      }
+      if (serialWriterService) {
+        Serial.println(F("[SerialWriter] BLE server ready callback received"));
+        serialWriterService->setBleServer(bleServer);
+        serialWriterService->configureBle();
       }
     }
   );
@@ -165,4 +199,8 @@ void loop() {
   
   // process weight forwarding
   weightForwarderService->loop();
+
+  // write pending serial data and poll forwarder source
+  serialWriterService->loop();
+  serialWriterForwarderService->loop();
 }

@@ -1,3 +1,3 @@
 export interface UartModeData {
-  mode: 'live' | 'diagnostics';
+  mode: 'live' | 'writer' | 'diagnostics';
 }
