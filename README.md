@@ -18,6 +18,7 @@ Designed to work with the PlatformIO IDE with [limited setup](#getting-started).
 - [Getting Started](#getting-started)
   - [Prerequisites](#prerequisites)
   - [Quick Start](#quick-start)
+  - [Repository Workflow](#repository-workflow)
   - [Building the Firmware](#building-the-firmware)
   - [Uploading the Firmware](#uploading-the-firmware)
 - [Configuration](#configuration)
@@ -100,6 +101,31 @@ pio run -t uploadfs
 
 For detailed instructions, see the sections below.
 
+### Repository Workflow
+
+`master` is the shared framework baseline. Integration implementations live on dedicated long-lived branches:
+
+- `serial2`
+- `display`
+- `weighingboard`
+- `display35`
+
+When you need to extend one of these integrations, branch from the matching integration branch and do the implementation on a separate task branch. Do not implement directly on `master` or directly on the long-lived integration branch.
+
+Examples:
+
+```bash
+# Shared repo/docs/framework work
+git switch master
+git switch -c docs/repo-workflow
+
+# Weighing integration work
+git switch weighingboard
+git switch -c feature/weighingboard-my-change
+```
+
+Use `master` for shared framework and repo-wide documentation changes. Use the matching integration branch when the code or docs are specific to one board. See [docs/INTEGRATION-WORKFLOW.md](docs/INTEGRATION-WORKFLOW.md) for the full workflow.
+
 ### Building and uploading the firmware
 
 Pull the project and open it in PlatformIO. PlatformIO should download the ESP8266 platform and the project library dependencies automatically.
@@ -114,6 +140,8 @@ Resource                         | Description
 [scripts/](scripts)              | Build scripts (React interface for PlatformIO); [kill-for-test.ps1](scripts/kill-for-test.ps1) frees COM port before upload
 [platformio.ini](platformio.ini) | PlatformIO project configuration file
 [features.ini](features.ini)     | Compile-time feature flags (MQTT, NTP, OTA, BLE, etc.)
+
+On `master`, this repository contains the shared framework baseline and starter example code. Integration-specific implementations such as serial, display, and weighing are maintained on their own branches rather than inside `master`.
 
 ### Building the firmware
 
@@ -761,11 +789,11 @@ We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.
 
 ### Development Workflow
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes following [Cursor rules](.cursor/rules/)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+1. Start from `master` for shared work, or from `serial2`, `display`, `weighingboard`, or `display35` for integration-specific work
+2. Create a separate task branch from that base branch
+3. Do not implement directly on `master` or the long-lived integration branch
+4. Commit your changes following the repo conventions
+5. Push the task branch and open a Pull Request into the correct base branch
 
 ### Code Standards
 

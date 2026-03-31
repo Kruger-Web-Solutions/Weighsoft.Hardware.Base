@@ -2,12 +2,30 @@
 
 ## Overview
 
-This guide shows you how to extend the Weighsoft Hardware framework by creating custom services. We provide two reference examples to use as templates:
+This guide shows you how to extend the Weighsoft Hardware framework by creating custom services.
 
-- **LED Example** (`src/examples/led/`) - Demonstrates bidirectional control with 4 communication channels
-- **Serial Example** (`src/examples/serial/`) - Demonstrates read-only data streaming from hardware
+On `master`, the baseline reference example is:
 
-Both follow the single-layer architecture pattern for clean, maintainable code.
+- **LED Example** (`src/examples/led/`) - Demonstrates bidirectional control with the shared framework patterns
+
+Additional integration baselines live on their own long-lived branches:
+
+- `serial2` - serial integration
+- `display` - display integration
+- `weighingboard` - weighing / load-cell integration
+- `display35` - 3.5 inch display integration
+
+Use [INTEGRATION-WORKFLOW.md](INTEGRATION-WORKFLOW.md) before starting if you need one of those integrations.
+
+## Choose Your Base Branch First
+
+Before copying templates or writing code:
+
+1. Decide whether your work is shared or integration-specific.
+2. Start from `master` for shared framework work.
+3. Start from `serial2`, `display`, `weighingboard`, or `display35` when the work belongs to an existing integration.
+4. Create a separate task branch from that base branch.
+5. Do not implement directly on the long-lived integration branch.
 
 ## Quick Start: Choose Your Template
 
@@ -29,7 +47,7 @@ The **LED Example Project** (`src/examples/led/` and `interface/src/examples/led
 
 ### Serial Example - For Data Sources
 
-The **Serial Example Project** (`src/examples/serial/` and `interface/src/examples/serial/`) demonstrates:
+The serial integration branch (`serial2`) demonstrates:
 
 - **Read-only streaming**: Data flows from hardware → channels
 - **Line-based parsing**: Handles newline-delimited text data
@@ -43,7 +61,9 @@ The **Serial Example Project** (`src/examples/serial/` and `interface/src/exampl
 - Read-only data streams
 - Log monitoring and data collection
 
-**See**: `docs/LED-EXAMPLE.md` for detailed walkthrough and `docs/DESIGN-PATTERNS.md` Pattern 11 for architecture.
+Start from the `serial2` branch if your implementation matches this pattern.
+
+**See**: `docs/LED-EXAMPLE.md` for the baseline walkthrough and `docs/DESIGN-PATTERNS.md` Pattern 11 for architecture.
 
 ## Single-Layer Architecture Pattern
 
@@ -73,7 +93,7 @@ class MyDeviceService : public StatefulService<MyDeviceState> {
 - Easy to add/remove protocols per device type
 - Origin tracking prevents feedback loops automatically
 
-**Copy the LED or Serial Example**:
+**Copy the baseline that matches your target branch**:
 
 For controllable devices (LED pattern):
 

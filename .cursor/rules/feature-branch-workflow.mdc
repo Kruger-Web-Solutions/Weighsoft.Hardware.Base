@@ -1,89 +1,39 @@
 ---
-description: Workflow for creating and managing device-specific feature branches (serial, display, led)
+description: Follow the current long-lived integration branch workflow
 alwaysApply: false
 ---
 
 # Feature Branch Workflow
 
-## Branch Purpose
+Reference: @docs/INTEGRATION-WORKFLOW.md
 
-Feature branches (serial, display, led, weightsensor, etc.) are for device-specific development. Each branch:
-- Contains device-specific implementation code (src/examples/{device}/)
-- Contains device-specific documentation ({DEVICE}-EXAMPLE.md)
-- Includes general improvements that benefit the framework
-- Maintains its own version reflecting feature completeness
+Long-lived integration branches in this repo are:
 
-## Creating a New Feature Branch
+- `serial2`
+- `display`
+- `weighingboard`
+- `display35`
 
-1. Branch from master: `git checkout master && git pull && git checkout -b {device-name}`
-2. Copy template from examples (led/ or serial/):
-   - `cp -r src/examples/led src/examples/{device}` OR
-   - `cp -r src/examples/serial src/examples/{device}`
-3. Create device docs: `docs/{DEVICE}-EXAMPLE.md` (follow DEVICE-TEMPLATE-GUIDE.md)
-4. Initial version: Keep master version, bump MINOR when feature is functional
-5. Commit: `git commit -m "feat({device}): Initial {device} implementation"`
+Use `master` for shared framework and repo-wide documentation work.
 
-## Development on Feature Branch
+## Rules
 
-- Add device-specific code under `src/examples/{device}/`
-- Document in `docs/{DEVICE}-EXAMPLE.md`
-- Update general docs (API-REFERENCE, CONFIGURATION, etc.) if device introduces new patterns
-- Create/update rules if device introduces reusable conventions
-- Bump version (PATCH for fixes, MINOR for milestones)
+1. Do not implement directly on `master`.
+2. Do not implement directly on the long-lived integration branch either.
+3. Start from the branch that matches the integration.
+4. Create a separate task branch for the actual implementation.
+5. Merge general improvements back to `master` only when they are truly shared.
 
-## Merging Back to Master
+## Branch Selection
 
-When feature branch has general improvements (docs, rules, patterns):
-1. Review what's general vs device-specific (use similar analysis as serial→master merge)
-2. Checkout master, cherry-pick or merge general files only
-3. Remove device-specific assumptions from merged docs
-4. Bump master version (MINOR for significant additions)
-5. Update feature branch from master: `git merge master` (keeps branches in sync)
-
-## Version Strategy
-
-- Feature branch version = feature completeness (may differ from master)
-- Master version = framework maturity (general capabilities)
-- After merging to master, feature branch can sync or stay ahead
-- CHANGELOG.md on each branch tracks that branch's changes
-
-## Example Workflow (Display Branch)
-
-```bash
-# Create display branch from master
-git checkout master && git pull
-git checkout -b display
-
-# Set up display implementation
-cp -r src/examples/led src/examples/display
-# ... implement display driver, UI components ...
-
-# Document
-# Create docs/DISPLAY-EXAMPLE.md
-# Update docs/API-REFERENCE.md with display endpoints
-# Update docs/DEVICE-TEMPLATE-GUIDE.md if new patterns emerge
-
-# Version bump when functional
-# interface/package.json: 0.7.0 → 0.8.0
-# src/version.h: MINOR 7 → 8
-# CHANGELOG.md: Add [0.8.0] section
-
-# Commit and push
-git add .
-git commit -m "feat(display): Complete display driver with OLED/LCD support"
-git push -u origin display
-
-# Later: Merge general improvements to master
-git checkout master
-git cherry-pick {commits-with-general-docs}
-# Or: git checkout master && git checkout display -- docs/SOME-GENERAL-DOC.md
-# Bump master: 0.7.0 → 0.8.0 or 0.9.0
-git commit -m "docs: Merge display patterns and hardware docs from display branch"
-git push
-```
+- `master` for shared framework, architecture, and repo docs
+- `serial2` for serial integration work
+- `display` for display integration work
+- `weighingboard` for weighing and load-cell work
+- `display35` for 3.5 inch display work
 
 ## Reference
 
+- **Integration Workflow**: @docs/INTEGRATION-WORKFLOW.md
 - **Version Strategy**: @.cursor/rules/version-strategy.mdc
 - **Device Template**: @docs/DEVICE-TEMPLATE-GUIDE.md
-- **Extension Guide**: @docs/EXTENSION-GUIDE.md
