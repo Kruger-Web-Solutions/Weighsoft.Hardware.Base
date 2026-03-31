@@ -1,0 +1,25 @@
+---
+description: Confirm the correct integration branch with the user before starting new work
+alwaysApply: true
+---
+
+# Integration Branch Confirmation
+
+Reference: @docs/INTEGRATION-WORKFLOW.md
+
+At the start of a new chat, plan, or newly scoped task:
+
+1. Identify the most likely target branch from the workflow doc.
+2. Tell the user which branch looks correct and why.
+3. Ask the user to confirm they are happy to work on that branch.
+4. Wait for that confirmation before implementation, branch switching, or branch creation.
+
+Use these defaults:
+
+- `master` for shared framework, repo-wide docs, and cross-integration changes
+- `serial2` for serial integration work
+- `display` for display integration work
+- `weighingboard` for weighing and load-cell work
+- `display35` for 3.5 inch display work
+
+If the request does not clearly fit an existing branch, say that explicitly and discuss whether a new integration baseline is needed before proceeding.

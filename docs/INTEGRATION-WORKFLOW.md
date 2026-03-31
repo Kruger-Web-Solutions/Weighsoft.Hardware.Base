@@ -87,10 +87,15 @@ Keep the branch name tied to the target integration when the work is not shared.
 Checklist:
 
 - Confirm which integration you are targeting
+- Confirm with the user that they are happy to work on that branch before implementation starts
 - Switch to the correct base branch
 - Create a separate working branch
 - Verify the docs you need are on that branch
 - Keep repo-wide docs in `master`
+
+## Cursor Rule Expectation
+
+Cursor should use this document at the start of a new chat or plan to propose the correct branch and ask the user to confirm that branch before implementation work begins.
 
 ## Related Documents
 
