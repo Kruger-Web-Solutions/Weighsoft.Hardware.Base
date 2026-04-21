@@ -1,0 +1,35 @@
+---
+description: When the user says "follow the rules", maintain a task roadmap + decision log under docs/task-logs/ until explicit sign-off; do not treat solutions as final or update official docs before sign-off.
+alwaysApply: false
+---
+
+# Task roadmap and decision log (trigger phrase)
+
+When the user says **follow the rules** in the context of a task, treat the workflow below as **mandatory** in addition to other project rules.
+
+## Where to write
+
+- Create or update `docs/task-logs/TASK-<short-name>.md` for the active workstream (see `docs/task-logs/README.md`).
+- If multiple parallel tasks exist, use one file per major workstream; keep each file current **during** the task, not only at the end.
+
+## Required content
+
+1. **Roadmap** — goals, phases, pending validation.
+2. **Decision log** — every meaningful attempt, including **failed** and **reverted** work. For each entry document:
+   - What was tried  
+   - Why  
+   - Outcome  
+   - Why it failed or was rejected (if applicable)  
+   - What was learned  
+3. **Current / proposed solution** — explain selection, tradeoffs, risks, and **evidence** (builds, tests, logs). Mark unknowns as **pending**.
+4. **Status** — use **DRAFT / IN PROGRESS** until the user **explicitly signs off** on testing and outcomes.
+
+## Hard constraints
+
+- **Never** present a solution as **final** before sign-off.
+- **Do not** update **official, permanent, or user-facing** documentation (e.g. `CHANGELOG.md`, `docs/API-REFERENCE.md`, customer-facing README sections) until testing is complete **and** the user explicitly signs off—unless they explicitly request those updates earlier.
+- The log must be complete enough that **another developer can reconstruct the full decision path**.
+
+## After sign-off
+
+When the user signs off, update the task file to **APPROVED** (with date). Only then promote content to official docs if they ask.

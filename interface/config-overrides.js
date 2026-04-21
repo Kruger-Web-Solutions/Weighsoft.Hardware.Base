@@ -1,9 +1,37 @@
+const fs = require('fs');
+const path = require('path');
 const { WebpackManifestPlugin } = require('webpack-manifest-plugin');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 const ProgmemGenerator = require('./progmem-generator.js');
 const TerserPlugin = require('terser-webpack-plugin');
 
+// #region agent log
+function agentDebugWebpackLog(payload) {
+  try {
+    const logPath = path.join(__dirname, '..', 'debug-52c919.log');
+    fs.appendFileSync(
+      logPath,
+      `${JSON.stringify({
+        sessionId: '52c919',
+        timestamp: Date.now(),
+        ...payload,
+      })}\n`
+    );
+  } catch (_) {
+    /* ignore debug log I/O errors */
+  }
+}
+// #endregion
+
 module.exports = function override(config, env) {
+  // #region agent log
+  agentDebugWebpackLog({
+    hypothesisId: 'H_CI_ESLINT',
+    location: 'config-overrides.js:override',
+    message: 'webpack override invoked',
+    data: { env, CI: process.env.CI === undefined ? null : String(process.env.CI) },
+  });
+  // #endregion
   if (env === "production") {
     // rename the ouput file, we need it's path to be short, for embedded FS
     config.output.filename = 'js/[id].[chunkhash:4].js';

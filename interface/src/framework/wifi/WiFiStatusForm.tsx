@@ -60,6 +60,13 @@ const dnsServers = ({ dns_ip_1, dns_ip_2 }: WiFiStatus) => {
   return dns_ip_1 + (dns_ip_2 ? ',' + dns_ip_2 : '');
 };
 
+const rssiQualityLabel = (rssi: number) => {
+  if (rssi >= -50) return "Excellent";
+  if (rssi >= -67) return "Good";
+  if (rssi >= -80) return "Fair";
+  return "Weak";
+};
+
 const POLL_INTERVAL_MS = 5000;
 
 const WiFiStatusForm: FC = () => {
@@ -154,7 +161,7 @@ const WiFiStatusForm: FC = () => {
                 </ListItemAvatar>
                 <ListItemText
                   primary="Signal Strength (RSSI)"
-                  secondary={`${data.rssi} dBm${data.rssi >= -50 ? ' — Excellent' : data.rssi >= -67 ? ' — Good' : data.rssi >= -80 ? ' — Fair' : ' — Weak'}`}
+                  secondary={`${data.rssi} dBm — ${rssiQualityLabel(data.rssi)}`}
                 />
               </ListItem>
               <Divider variant="inset" component="li" />
