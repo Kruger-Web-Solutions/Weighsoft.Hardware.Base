@@ -131,6 +131,10 @@ void setup() {
 void loop() {
   esp8266React->loop();
   diagnosticsService->loop();
-  serialWriterService->loop();
-  serialWriterForwarderService->loop();
+  // Forwarder before writer, and a few passes per frame: ingest (WS/HTTP) sets pending_line;
+  // SerialWriter must run in the same turn or the display string lags one full loop() behind.
+  for (uint8_t i = 0; i < 3; i++) {
+    serialWriterForwarderService->loop();
+    serialWriterService->loop();
+  }
 }

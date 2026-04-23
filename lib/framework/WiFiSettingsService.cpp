@@ -34,6 +34,12 @@ WiFiSettingsService::WiFiSettingsService(AsyncWebServer* server, FS* fs, Securit
 
 void WiFiSettingsService::begin() {
   _fsPersistence.readFromFS();
+  // #region agent log
+  Serial.printf(
+      "{\"sessionId\":\"069613\",\"hypothesisId\":\"H1\",\"location\":\"WiFiSettingsService.cpp:begin\",\"message\":\"after_read_fs\",\"data\":{\"ssidLen\":%u,\"passLen\":%u,\"staticIp\":%s},\"timestamp\":%lu}\n",
+      (unsigned)_state.ssid.length(), (unsigned)_state.password.length(), _state.staticIPConfig ? "true" : "false",
+      (unsigned long)millis());
+  // #endregion
   reconfigureWiFiConnection();
 }
 
@@ -62,46 +68,74 @@ void WiFiSettingsService::loop() {
 }
 
 void WiFiSettingsService::manageSTA() {
-  // Abort if already connected, or if we have no SSID
-  if (WiFi.isConnected() || _state.ssid.length() == 0) {
-    if (WiFi.isConnected()) {
-      // Connected successfully - reset backoff
-      _reconnectDelay = WIFI_RECONNECT_IMMEDIATE_DELAY;
-      _reconnectAttempts = 0;
-    }
+  if (WiFi.isConnected()) {
+    _reconnectDelay = WIFI_RECONNECT_IMMEDIATE_DELAY;
+    _reconnectAttempts = 0;
     return;
   }
-  // Connect or reconnect as required
-  if ((WiFi.getMode() & WIFI_STA) == 0) {
-    _reconnectAttempts++;
-    // Exponential backoff: 2s → 4s → 8s → 16s → 30s cap
-    if (_reconnectAttempts > 1) {
-      _reconnectDelay = min((unsigned long)(WIFI_RECONNECT_IMMEDIATE_DELAY << (_reconnectAttempts - 1)),
-                            (unsigned long)WIFI_RECONNECTION_DELAY);
-    }
-    Serial.printf("[WiFi] Connecting to WiFi (attempt %u, next retry in %lus).\n",
-                  _reconnectAttempts, _reconnectDelay / 1000);
-    if (_state.staticIPConfig) {
-      // configure for static IP
-      WiFi.config(_state.localIP, _state.gatewayIP, _state.subnetMask, _state.dnsIP1, _state.dnsIP2);
-    } else {
-      // configure for DHCP
-#ifdef ESP32
-      WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE);
-      WiFi.setHostname(_state.hostname.c_str());
-#elif defined(ESP8266)
-      WiFi.config(INADDR_ANY, INADDR_ANY, INADDR_ANY);
-      WiFi.hostname(_state.hostname);
-#endif
-    }
-    // attempt to connect to the network
-    WiFi.begin(_state.ssid.c_str(), _state.password.c_str());
+  if (_state.ssid.length() == 0) {
+    // #region agent log
+    Serial.printf(
+        "{\"sessionId\":\"069613\",\"hypothesisId\":\"H4\",\"location\":\"WiFiSettingsService.cpp:manageSTA\",\"message\":\"skip_no_ssid\",\"data\":{},\"timestamp\":%lu}\n",
+        (unsigned long)millis());
+    // #endregion
+    return;
   }
+
+  // Ensure STA is enabled. After the first WiFi.begin(), STA often stays "on" while disconnected;
+  // the old `(WiFi.getMode() & WIFI_STA) == 0` gate then skipped all retries (TASK-display §2.0).
+#if defined(ESP32)
+  if ((WiFi.getMode() & WIFI_STA) == 0) {
+    if ((WiFi.getMode() & WIFI_AP) != 0) {
+      WiFi.mode(WIFI_AP_STA);
+    } else {
+      WiFi.mode(WIFI_STA);
+    }
+  }
+#elif defined(ESP8266)
+  if ((WiFi.getMode() & WIFI_STA) == 0) {
+    WiFi.mode(((WiFi.getMode() & WIFI_AP) != 0) ? WIFI_AP_STA : WIFI_STA);
+  }
+#endif
+
+  _reconnectAttempts++;
+  if (_reconnectAttempts > 1) {
+    _reconnectDelay = min((unsigned long)(WIFI_RECONNECT_IMMEDIATE_DELAY << (_reconnectAttempts - 1)),
+                          (unsigned long)WIFI_RECONNECTION_DELAY);
+  }
+  Serial.printf("[WiFi] Connecting to WiFi (attempt %u, next retry in %lus).\n",
+                _reconnectAttempts, _reconnectDelay / 1000);
+  // #region agent log
+  Serial.printf(
+      "{\"sessionId\":\"069613\",\"hypothesisId\":\"H2\",\"location\":\"WiFiSettingsService.cpp:manageSTA\",\"message\":\"before_begin\",\"data\":{\"mode\":%u,\"wlStatus\":%d,\"attempt\":%u,\"ssidLen\":%u},\"timestamp\":%lu}\n",
+      (unsigned)WiFi.getMode(), (int)WiFi.status(), (unsigned)_reconnectAttempts, (unsigned)_state.ssid.length(),
+      (unsigned long)millis());
+  // #endregion
+  if (_state.staticIPConfig) {
+    WiFi.config(_state.localIP, _state.gatewayIP, _state.subnetMask, _state.dnsIP1, _state.dnsIP2);
+  } else {
+#ifdef ESP32
+    WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE);
+    WiFi.setHostname(_state.hostname.c_str());
+#elif defined(ESP8266)
+    WiFi.config(INADDR_ANY, INADDR_ANY, INADDR_ANY);
+    WiFi.hostname(_state.hostname);
+#endif
+  }
+  WiFi.begin(_state.ssid.c_str(), _state.password.c_str());
 }
 
 #ifdef ESP32
 void WiFiSettingsService::onStationModeDisconnected(WiFiEvent_t event, WiFiEventInfo_t info) {
-  WiFi.disconnect(true);
+  // Do not call WiFi.disconnect(true) here — it runs during normal WPA association transitions and
+  // aborts the join (TASK-display §2.0b). Schedule a retry via manageSTA() timing instead.
+  Serial.printf("[WiFi] STA disconnected (reason=%d)\n", (int)info.wifi_sta_disconnected.reason);
+  // #region agent log
+  Serial.printf(
+      "{\"sessionId\":\"069613\",\"hypothesisId\":\"H5\",\"location\":\"WiFiSettingsService.cpp:onStationModeDisconnected\",\"message\":\"sta_disc\",\"data\":{\"reason\":%d},\"timestamp\":%lu}\n",
+      (int)info.wifi_sta_disconnected.reason, (unsigned long)millis());
+  // #endregion
+  _lastConnectionAttempt = 0;
 }
 void WiFiSettingsService::onStationModeStop(WiFiEvent_t event, WiFiEventInfo_t info) {
   if (_stopping) {
@@ -116,6 +150,12 @@ void WiFiSettingsService::onStationModeStop(WiFiEvent_t event, WiFiEventInfo_t i
 }
 #elif defined(ESP8266)
 void WiFiSettingsService::onStationModeDisconnected(const WiFiEventStationModeDisconnected& event) {
-  WiFi.disconnect(true);
+  Serial.printf("[WiFi] STA disconnected (reason=%d)\n", (int)event.reason);
+  // #region agent log
+  Serial.printf(
+      "{\"sessionId\":\"069613\",\"hypothesisId\":\"H5\",\"location\":\"WiFiSettingsService.cpp:onStationModeDisconnected8266\",\"message\":\"sta_disc\",\"data\":{\"reason\":%d},\"timestamp\":%lu}\n",
+      (int)event.reason, (unsigned long)millis());
+  // #endregion
+  _lastConnectionAttempt = 0;
 }
 #endif

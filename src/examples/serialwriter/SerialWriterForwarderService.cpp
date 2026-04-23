@@ -1,9 +1,42 @@
 #include <examples/serialwriter/SerialWriterForwarderService.h>
 #include <ArduinoJson.h>
+#include <cstring>
 
 #ifdef ESP32
 #include <WiFi.h>
 #endif
+
+namespace {
+// Root field (plain REST / simple JSON), or WebSocketTxRx: {"type":"payload","payload":{...}}
+bool extractForwarderLineFromJson(JsonObject root, const String& field, String& outLine) {
+  if (field.length() == 0) {
+    return false;
+  }
+  if (root.containsKey(field.c_str())) {
+    outLine = root[field.c_str()].as<String>();
+    if (outLine.length() > 0) {
+      return true;
+    }
+  }
+  const char* msgType = root["type"];
+  if (msgType && strcmp(msgType, "payload") == 0 && root["payload"].is<JsonObject>()) {
+    JsonObject pl = root["payload"].as<JsonObject>();
+    if (pl.containsKey(field.c_str())) {
+      outLine = pl[field.c_str()].as<String>();
+      if (outLine.length() > 0) {
+        return true;
+      }
+    }
+    if (field != "last_line" && pl.containsKey("last_line")) {
+      outLine = pl["last_line"].as<String>();
+      if (outLine.length() > 0) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+}  // namespace
 
 SerialWriterForwarderService::SerialWriterForwarderService(AsyncWebServer* server,
                                                            FS* fs,
@@ -76,6 +109,7 @@ void SerialWriterForwarderService::loop() {
       _wsClient->loop();
     }
     checkWsConnection();
+    yield();
     return;
   }
 
@@ -84,6 +118,7 @@ void SerialWriterForwarderService::loop() {
     _lastPollTime = millis();
     pollHttp();
   }
+  yield();
 #endif
 }
 
@@ -113,19 +148,40 @@ void SerialWriterForwarderService::onConfigUpdated() {
 void SerialWriterForwarderService::deliverLine(const String& line) {
   if (line.isEmpty()) return;
 
-  _serialWriterService->update([&](SerialWriterState& state) {
-    state.pendingLine = line;
-    return StateUpdateResult::CHANGED;
-  }, "pull_forwarder");
+  // Strip CR/LF wrapped into last_line from some indicators (avoids stray symbol before ST/US on UART)
+  String t = line;
+  while (t.length() > 0 && (t.charAt(0) == '\r' || t.charAt(0) == '\n')) {
+    t.remove(0, 1);
+  }
+  while (t.length() > 0) {
+    char c = t.charAt(t.length() - 1);
+    if (c == '\r' || c == '\n') {
+      t.remove(t.length() - 1);
+    } else {
+      break;
+    }
+  }
+  if (t.isEmpty()) {
+    return;
+  }
 
-  update([&](SerialWriterForwarderState& state) {
+  // Do not propagate: every SerialWriter state change runs WebSocketTx + MqttPubSub handlers (full JSON broadcast).
+  // High-rate weight lines from WS/HTTP would stall the device; UART still sees the line via loop() + writePendingLine(),
+  // and clients get a normal propagated update when the line is cleared (origin serial_writer_sent).
+  _serialWriterService->updateWithoutPropagation([&](SerialWriterState& state) {
+    state.pendingLine = t;
+    return StateUpdateResult::CHANGED;
+  });
+
+  // Same pattern as SerialWriter pending: avoid WebSocketTx textAll on every weight tick (forwarder UI / heap).
+  updateWithoutPropagation([&](SerialWriterForwarderState& state) {
     state.lastReceivedLine = line;
     state.lastReceivedMs = millis();
     state.receivedCount++;
     state.connected = true;
     state.lastError = "";
     return StateUpdateResult::CHANGED;
-  }, "internal");
+  });
 }
 
 void SerialWriterForwarderService::pollHttp() {
@@ -178,9 +234,9 @@ void SerialWriterForwarderService::pollHttp() {
     DynamicJsonDocument doc(512);
     DeserializationError err = deserializeJson(doc, body);
     if (err == DeserializationError::Ok) {
-      const String& field = _state.jsonField;
-      if (doc.containsKey(field.c_str())) {
-        String line = doc[field.c_str()].as<String>();
+      JsonObject root = doc.as<JsonObject>();
+      String line;
+      if (extractForwarderLineFromJson(root, _state.jsonField, line)) {
         deliverLine(line);
       } else {
         update([](SerialWriterForwarderState& state) {
@@ -264,6 +320,10 @@ void SerialWriterForwarderService::initWsClient() {
     Serial.println(F("[SerialWriterForwarder] WS source URL not configured"));
     return;
   }
+  if (!WiFi.isConnected()) {
+    Serial.println(F("[SerialWriterForwarder] WS init skipped (WiFi not connected)"));
+    return;
+  }
 
   if (_wsClient) {
     delete _wsClient;
@@ -310,14 +370,20 @@ void SerialWriterForwarderService::initWsClient() {
         return StateUpdateResult::CHANGED;
       }, "internal");
     } else if (type == WStype_TEXT) {
-      // Parse incoming JSON and extract the configured field
-      DynamicJsonDocument doc(512);
+      // Parse incoming JSON; support root field and WebSocketTxRx {"type":"payload","payload":{...}}
+      DynamicJsonDocument doc(1024);
       DeserializationError err = deserializeJson(doc, payload, length);
       if (err == DeserializationError::Ok) {
-        const String& field = _state.jsonField;
-        if (doc.containsKey(field.c_str())) {
-          String line = doc[field.c_str()].as<String>();
+        JsonObject root = doc.as<JsonObject>();
+        String line;
+        if (extractForwarderLineFromJson(root, _state.jsonField, line)) {
           deliverLine(line);
+        } else {
+          const char* msgType = root["type"];
+          if (!msgType || strcmp(msgType, "id") != 0) {
+            Serial.printf("[SerialWriterForwarder] WS text ignored (no line for json_field='%s')\n",
+                          _state.jsonField.c_str());
+          }
         }
       }
     } else if (type == WStype_ERROR) {
@@ -331,6 +397,9 @@ void SerialWriterForwarderService::initWsClient() {
   });
 
   _wsClient->begin(host, port, path);
+  _wsClient->setReconnectInterval(5000);
+  // Reduce idle drops through NAT / AP (client ping)
+  _wsClient->enableHeartbeat(15000, 5000, 2);
   _lastWsReconnectAttempt = millis();
 #endif
 }
@@ -340,9 +409,17 @@ void SerialWriterForwarderService::checkWsConnection() {
   if (_state.protocol != SERIAL_WRITER_FORWARDER_PROTOCOL_WS || !_state.enabled) {
     return;
   }
-  if (!_wsClient || !_wsClient->isConnected()) {
+  // Avoid auth/connect storm while STA is down (HTTPClient returns -1)
+  if (!WiFi.isConnected()) {
+    return;
+  }
+  // Only create the client when it does not exist. If it exists but is disconnected,
+  // WebSocketsClient::loop() + setReconnectInterval() already reconnect — calling initWsClient()
+  // here would delete/recreate the client, fight the library, and produce random disconnect/reconnect
+  // storms (see terminal: WS disconnected / Reconnecting in quick succession).
+  if (!_wsClient) {
     if (millis() - _lastWsReconnectAttempt >= 5000) {
-      Serial.println(F("[SerialWriterForwarder] Reconnecting WS..."));
+      Serial.println(F("[SerialWriterForwarder] WS client absent; creating connection..."));
       initWsClient();
     }
   }

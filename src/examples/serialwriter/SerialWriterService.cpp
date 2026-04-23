@@ -50,12 +50,10 @@ SerialWriterService::SerialWriterService(AsyncWebServer* server,
   // Disable FSPersistence auto-handler to prevent flash thrash on every pending_line write
   _fsPersistence.disableUpdateHandler();
 
-  addUpdateHandler([this](const String& originId) {
-    // "serial_writer_sent" is the echo-back from writePendingLine — skip to avoid feedback loop
-    // "init" is from begin() — serial config applied directly there
-    if (originId != "serial_writer_sent" && originId != "init") {
-      onConfigUpdated();
-    }
+  addUpdateHandler([this](const String& /*originId*/) {
+    // Persist/reopen UART only when baud/parity/terminator etc. change — not on every pending_line
+    // (WebSocket uses per-client origin ids; forwarder uses "pull_forwarder"; see TASK-display-serial-bridge-network §2.12)
+    onConfigUpdated();
   }, false);
 }
 
@@ -74,9 +72,33 @@ void SerialWriterService::begin() {
   _state.lastSentMs = 0;
   _state.sentCount = 0;
   _serialStarted = false;
+#ifdef ESP32
+  _lastSentPropagateMs = 0;
+#endif
 
   Serial.println(F("[SerialWriter] Initializing Serial1..."));
   applySerialConfig();
+  captureAppliedPortConfigFromState();
+}
+
+void SerialWriterService::captureAppliedPortConfigFromState() {
+#ifdef ESP32
+  _appliedBaudrate = _state.baudrate;
+  _appliedDatabits = _state.databits;
+  _appliedStopbits = _state.stopbits;
+  _appliedParity = _state.parity;
+  _appliedLineTerminator = _state.lineTerminator;
+#endif
+}
+
+bool SerialWriterService::isSerialPortConfigUnchanged() const {
+#ifdef ESP32
+  return _appliedBaudrate == _state.baudrate && _appliedDatabits == _state.databits &&
+         _appliedStopbits == _state.stopbits && _appliedParity == _state.parity &&
+         _appliedLineTerminator == _state.lineTerminator;
+#else
+  return false;
+#endif
 }
 
 void SerialWriterService::loop() {
@@ -88,6 +110,9 @@ void SerialWriterService::loop() {
   if (_state.pendingLine.length() > 0) {
     writePendingLine();
   }
+#ifdef ESP32
+  yield();
+#endif
 }
 
 void SerialWriterService::writePendingLine() {
@@ -115,20 +140,36 @@ void SerialWriterService::writePendingLine() {
   SERIAL_WRITER_PORT.flush();
 
   unsigned long now = millis();
-  Serial.printf("[SerialWriter] Sent: '%s'\n", line.c_str());
+  // Each propagated update runs WebSocketTx::transmitData + MqttPubSub::publish (large JSON alloc + textAll).
+  // Throttle during bursts so the UI/string path stays responsive and USB serial does not block the loop.
+  static constexpr unsigned long kSentPropagateMinMs = 55;
+  const bool shouldPropagate =
+      (_lastSentPropagateMs == 0) || (now - _lastSentPropagateMs >= kSentPropagateMinMs);
 
-  // Clear pending_line and record the sent line; use special origin to skip feedback loop
-  update([&](SerialWriterState& state) {
+  auto applySentState = [&](SerialWriterState& state) -> StateUpdateResult {
     state.pendingLine = "";
     state.lastSentLine = line;
     state.lastSentMs = now;
     state.sentCount++;
     return StateUpdateResult::CHANGED;
-  }, "serial_writer_sent");
+  };
+
+  if (shouldPropagate) {
+    update(applySentState, "serial_writer_sent");
+    _lastSentPropagateMs = now;
+    Serial.printf("[SerialWriter] Sent: '%s'\n", line.c_str());
+  } else {
+    updateWithoutPropagation(applySentState);
+  }
 #endif
 }
 
 void SerialWriterService::onConfigUpdated() {
+#ifdef ESP32
+  if (isSerialPortConfigUnchanged()) {
+    return;
+  }
+#endif
   Serial.printf("[SerialWriter] Config updated - baud=%lu, terminator='%s'\n",
                 (unsigned long)_state.baudrate,
                 _state.lineTerminator.c_str());
@@ -137,6 +178,9 @@ void SerialWriterService::onConfigUpdated() {
   Serial.printf("[SerialWriter] Config persisted: %s\n", saved ? "OK" : "FAILED");
 
   applySerialConfig();
+#ifdef ESP32
+  captureAppliedPortConfigFromState();
+#endif
 }
 
 uint32_t SerialWriterService::getSerialConfig() {
@@ -234,5 +278,8 @@ void SerialWriterService::resumeSerial() {
     Serial.println(F("[SerialWriter] Resuming - restarting Serial1"));
     _suspended = false;
     applySerialConfig();
+#ifdef ESP32
+    captureAppliedPortConfigFromState();
+#endif
   }
 }
