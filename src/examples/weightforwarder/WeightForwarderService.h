@@ -41,6 +41,8 @@ class WeightForwarderService : public StatefulService<WeightForwarderState> {
 #ifdef ESP32
   WebSocketsClient* _wsClient;
   unsigned long _lastWsReconnectAttempt;
+  unsigned long _nextWsConnectAllowedAtMs;
+  unsigned long _wsReconnectBackoffMs;
 #endif
 
 #if FT_ENABLED(FT_BLE)
@@ -77,6 +79,7 @@ class WeightForwarderService : public StatefulService<WeightForwarderState> {
 
 #ifdef ESP32
   void checkWsConnection();
+  bool parseWsUrl(const String& wsUrl, bool& secure, String& host, uint16_t& port, String& path) const;
 #endif
 
 #if FT_ENABLED(FT_BLE)

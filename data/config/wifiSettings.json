@@ -1,0 +1,11 @@
+{
+  "ssid": "Weighsoft",
+  "password": "Monday@011",
+  "hostname": "weighsoft-esp32",
+  "static_ip_config": false,
+  "local_ip": "0.0.0.0",
+  "gateway_ip": "0.0.0.0",
+  "subnet_mask": "0.0.0.0",
+  "dns_ip_1": "0.0.0.0",
+  "dns_ip_2": "0.0.0.0"
+}

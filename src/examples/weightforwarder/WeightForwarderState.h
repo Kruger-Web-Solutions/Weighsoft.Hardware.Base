@@ -18,6 +18,7 @@ class WeightForwarderState {
   bool displayMode;  // true = {"line1","line2"}, false = {"last_line","weight","timestamp"}
   String authUsername;  // Optional: for HTTP POST to protected endpoints (e.g. /rest/display)
   String authPassword;
+  String deviceId;  // MAC-based unique id (auto); persisted; included in forwarded payloads
 
   // Runtime status (not persisted)
   bool connected;
@@ -36,6 +37,7 @@ class WeightForwarderState {
     root["display_mode"] = state.displayMode;
     root["auth_username"] = state.authUsername;
     root["auth_password"] = state.authPassword;
+    root["device_id"] = state.deviceId;
 
     // Runtime status
     root["connected"] = state.connected;
@@ -55,6 +57,7 @@ class WeightForwarderState {
     root["display_mode"] = state.displayMode;
     root["auth_username"] = state.authUsername;
     root["auth_password"] = state.authPassword;
+    root["device_id"] = state.deviceId;
   }
 
   // Config update for FSPersistence (loads from flash)
@@ -69,6 +72,7 @@ class WeightForwarderState {
     state.displayMode = root["display_mode"] | false;
     state.authUsername = root["auth_username"] | "";
     state.authPassword = root["auth_password"] | "";
+    state.deviceId = root["device_id"] | "";
 
     // Validate protocol against feature flags
 #if !FT_ENABLED(FT_MQTT)

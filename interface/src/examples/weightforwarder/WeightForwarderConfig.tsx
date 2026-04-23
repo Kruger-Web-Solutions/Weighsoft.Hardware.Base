@@ -67,6 +67,14 @@ const WeightForwarderConfig: FC = () => {
           label="Enable Weight Forwarding"
         />
 
+        <TextField
+          fullWidth
+          label="Device ID"
+          value={data.device_id ?? ''}
+          InputProps={{ readOnly: true }}
+          helperText="Auto from device MAC (sent as device_id with each forwarded message)"
+        />
+
         <FormControl fullWidth>
           <InputLabel>Protocol</InputLabel>
           <Select
