@@ -16,8 +16,6 @@ export interface WeightForwarderData {
   display_mode: boolean;
   auth_username?: string;
   auth_password?: string;
-  /** MAC-derived device unique id; read-only in UI; included in forwarded payloads */
-  device_id: string;
   connected: boolean;
   last_error: string;
   last_forward_time: number;
