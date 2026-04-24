@@ -1,6 +1,8 @@
 #ifndef SerialService_h
 #define SerialService_h
 
+#include <deque>
+
 #include <HttpEndpoint.h>
 #include <FSPersistence.h>
 #include <MqttPubSub.h>
@@ -23,6 +25,14 @@
 #define SERIAL_PORT Serial1
 #define SERIAL2_RX_PIN 18
 #define SERIAL2_TX_PIN 17
+
+// Completed UART lines queued here; `loop()` publishes at most this many per second to REST/WS/MQTT.
+#ifndef SERIAL_MAX_COMPLETE_LINES_PER_SEC
+#define SERIAL_MAX_COMPLETE_LINES_PER_SEC 4
+#endif
+#ifndef SERIAL_MAX_QUEUED_COMPLETE_LINES
+#define SERIAL_MAX_QUEUED_COMPLETE_LINES 32
+#endif
 
 class SerialService : public StatefulService<SerialState> {
  public:
@@ -68,6 +78,12 @@ class SerialService : public StatefulService<SerialState> {
   String _lineBuffer;   // Accumulates serial data until newline
   bool _serialStarted;  // True after first begin(), so we can call end() before reconfig
   bool _suspended;      // True when DiagnosticsService is using Serial1
+
+  std::deque<String> _rxCompleteLineQueue;
+  unsigned long _lastRxLinePublishMs{0};
+
+  void enqueueCompletedLine(const String& line);
+  void drainRxLineQueue();
 
   void configureMqtt();
   void readSerial();       // Called from loop()

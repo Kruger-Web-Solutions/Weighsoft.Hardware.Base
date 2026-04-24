@@ -7,7 +7,43 @@
 #include "UartModeService.h"
 #include "version.h"
 
+#ifdef ESP32
+#include <esp_system.h>
+#endif
+
 #define SERIAL_BAUD_RATE 115200
+
+#ifdef ESP32
+/** Human-readable ROM reset cause for stability diagnosis (see docs/task-logs/TASK-mandatory-roadmap-decision-log-workflow.md). */
+static const char* resetReasonLabel(esp_reset_reason_t reason) {
+  switch (reason) {
+    case ESP_RST_UNKNOWN:
+      return "UNKNOWN";
+    case ESP_RST_POWERON:
+      return "POWERON";
+    case ESP_RST_EXT:
+      return "EXT_SYS_RST";
+    case ESP_RST_SW:
+      return "SW_RESET";
+    case ESP_RST_PANIC:
+      return "PANIC/Exception";
+    case ESP_RST_INT_WDT:
+      return "INT_WDT";
+    case ESP_RST_TASK_WDT:
+      return "TASK_WDT";
+    case ESP_RST_WDT:
+      return "WDT_OTHER";
+    case ESP_RST_DEEPSLEEP:
+      return "DEEPSLEEP";
+    case ESP_RST_BROWNOUT:
+      return "BROWNOUT";
+    case ESP_RST_SDIO:
+      return "SDIO";
+    default:
+      return "OTHER";
+  }
+}
+#endif
 
 // Use pointers to avoid early construction issues on ESP32
 AsyncWebServer* server;
@@ -25,6 +61,12 @@ void setup() {
   delay(500);
   
   Serial.println(F("\n\n=== Weighsoft Serial ==="));
+#ifdef ESP32
+  {
+    esp_reset_reason_t rr = esp_reset_reason();
+    Serial.printf("[Boot] esp_reset_reason=%d (%s)\n", (int)rr, resetReasonLabel(rr));
+  }
+#endif
   Serial.printf("Version: %s\n", VERSION_STRING);
   Serial.printf("Build: %s %s\n", BUILD_DATE, BUILD_TIME);
   Serial.printf("API: %s\n", API_VERSION);
@@ -151,18 +193,40 @@ void setup() {
   Serial.println(F("=== System Ready! ==="));
   Serial.print(F("Free heap after init: "));
   Serial.println(ESP.getFreeHeap());
+#ifdef ESP32
+  Serial.printf("[Heap] at boot: free=%u max_alloc_heap=%u\n",
+                (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMaxAllocHeap());
+#endif
 }
 
 void loop() {
   // run the framework's loop function
   esp8266React->loop();
-  
+
   // read serial data
   serialService->loop();
-  
+
   // run diagnostic tests
   diagnosticsService->loop();
-  
+
   // process weight forwarding
   weightForwarderService->loop();
+
+#ifdef ESP32
+  {
+    static unsigned long heapLogMs = 0;
+    const unsigned long now = millis();
+    if (heapLogMs == 0) {
+      heapLogMs = now;
+    } else if ((unsigned long)(now - heapLogMs) >= 60000UL) {
+      heapLogMs = now;
+      Serial.printf("[Heap] free=%u min_free=%u max_alloc_heap=%u\n",
+                    (unsigned)ESP.getFreeHeap(),
+                    (unsigned)ESP.getMinFreeHeap(),
+                    (unsigned)ESP.getMaxAllocHeap());
+    }
+  }
+  // Let IDLE/Wi‑Fi stack run between heavy loop iterations (stability under load).
+  yield();
+#endif
 }

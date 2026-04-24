@@ -138,6 +138,7 @@ class WebSocketTx : virtual public WebSocketConnector<T> {
     if (buffer) {
       serializeJson(jsonDocument, (char*)buffer->get(), len + 1);
       client->text((char*)buffer->get(), len);
+      delete buffer;
     }
   }
 
@@ -167,6 +168,7 @@ class WebSocketTx : virtual public WebSocketConnector<T> {
       } else {
         WebSocketConnector<T>::_webSocket.textAll((char*)buffer->get(), len);
       }
+      delete buffer;  // char* overload copies only; makeBuffer() is not adopted
     }
   }
 };

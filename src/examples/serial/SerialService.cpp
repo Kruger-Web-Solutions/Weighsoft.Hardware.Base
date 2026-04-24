@@ -6,6 +6,22 @@
 #endif
 
 namespace {
+// Avoid flooding WebSocket/MQTT with identical lines when the scale repeats the same string faster
+// than the UI can use (reduces heap pressure and async queue load; see stability plan).
+#ifndef SERIAL_HW_MIN_BROADCAST_INTERVAL_MS
+#define SERIAL_HW_MIN_BROADCAST_INTERVAL_MS 50
+#endif
+
+bool shouldPublishSerialHwLine(const SerialState& st, const String& line) {
+  if (line.length() == 0) {
+    return false;
+  }
+  if (st.lastLine != line) {
+    return true;
+  }
+  return (unsigned long)(millis() - st.timestamp) >= (unsigned long)SERIAL_HW_MIN_BROADCAST_INTERVAL_MS;
+}
+
 // Idle flush without CR/LF otherwise publishes floating-RX noise as "lines" of control bytes
 // (UI shows middle dots). Terminated lines still publish verbatim.
 bool serialBufferHasPrintableAscii(const String& buf) {
@@ -75,6 +91,37 @@ SerialService::SerialService(AsyncWebServer* server,
   }, false);
 }
 
+void SerialService::enqueueCompletedLine(const String& line) {
+  if (line.length() == 0) {
+    return;
+  }
+  while (_rxCompleteLineQueue.size() >= SERIAL_MAX_QUEUED_COMPLETE_LINES) {
+    _rxCompleteLineQueue.pop_front();
+  }
+  _rxCompleteLineQueue.push_back(line);
+}
+
+void SerialService::drainRxLineQueue() {
+  if (_rxCompleteLineQueue.empty()) {
+    return;
+  }
+  const unsigned long now = millis();
+  const unsigned long minGap = 1000UL / (unsigned long)SERIAL_MAX_COMPLETE_LINES_PER_SEC;
+  if (_lastRxLinePublishMs != 0U && (unsigned long)(now - _lastRxLinePublishMs) < minGap) {
+    return;
+  }
+  const String line = _rxCompleteLineQueue.front();
+  _rxCompleteLineQueue.pop_front();
+  const String extracted = extractWeight(line);
+  update([&](SerialState& state) {
+    state.lastLine = line;
+    state.weight = extracted;
+    state.timestamp = now;
+    return StateUpdateResult::CHANGED;
+  }, "serial_hw");
+  _lastRxLinePublishMs = now;
+}
+
 void SerialService::begin() {
   // Load persisted config from flash (baud_rate, data_bits, stop_bits, parity, regex_pattern)
   _fsPersistence.readFromFS();
@@ -89,6 +136,8 @@ void SerialService::begin() {
   _state.timestamp = 0;
   _lineBuffer = "";
   _serialStarted = false;
+  _rxCompleteLineQueue.clear();
+  _lastRxLinePublishMs = 0;
 
   // Start Serial1 with loaded config
   Serial.println(F("[Serial] Initializing Serial1..."));
@@ -114,16 +163,6 @@ void SerialService::loop() {
 
   // Skip reading if suspended (DiagnosticsService is using Serial1)
   if (_suspended) {
-    // #region agent log
-    static unsigned long _suspLogMs;
-    if (millis() - _suspLogMs >= 10000UL) {
-      Serial.printf(
-          "{\"sessionId\":\"76d0d7\",\"hypothesisId\":\"H2\",\"location\":\"SerialService::loop\","
-          "\"message\":\"serial_suspended_skip\",\"data\":{\"suspended\":1},\"timestamp\":%lu}\n",
-          (unsigned long)millis());
-      _suspLogMs = millis();
-    }
-    // #endregion
     return;
   }
 
@@ -138,14 +177,6 @@ void SerialService::loop() {
     int avail = SERIAL_PORT.available();
     Serial.printf("[Serial] Heartbeat: loop running, suspended=%d, serialStarted=%d, available=%d\n",
                   _suspended, _serialStarted, avail);
-    // #region agent log
-    Serial.printf(
-        "{\"sessionId\":\"76d0d7\",\"hypothesisId\":\"H4\",\"location\":\"SerialService::loop\","
-        "\"message\":\"serial_uart_heartbeat\",\"data\":{\"serialStarted\":%d,\"uartAvail\":%d,"
-        "\"lineBufLen\":%u,\"lastLineLen\":%u},\"timestamp\":%lu}\n",
-        _serialStarted ? 1 : 0, avail, (unsigned)_lineBuffer.length(),
-        (unsigned)_state.lastLine.length(), (unsigned long)millis());
-    // #endregion
     lastHeartbeat = millis();
   }
   
@@ -168,13 +199,9 @@ void SerialService::loop() {
     // Line assembly (accepts both \r and \n as terminators)
     if (c == '\n' || c == '\r') {
       if (_lineBuffer.length() > 0) {
-        String extracted = extractWeight(_lineBuffer);
-        update([&](SerialState& state) {
-          state.lastLine = _lineBuffer;
-          state.weight = extracted;
-          state.timestamp = millis();
-          return StateUpdateResult::CHANGED;
-        }, "serial_hw");
+        if (shouldPublishSerialHwLine(_state, _lineBuffer)) {
+          enqueueCompletedLine(_lineBuffer);
+        }
       }
       _lineBuffer = "";
     } else {
@@ -194,28 +221,15 @@ void SerialService::loop() {
   if (_lineBuffer.length() > 0 && !SERIAL_PORT.available() && lastSerialRxMs > 0 &&
       (unsigned long)(millis() - lastSerialRxMs) >= SERIAL_LINE_IDLE_FLUSH_MS) {
     if (serialBufferHasPrintableAscii(_lineBuffer)) {
-      String extracted = extractWeight(_lineBuffer);
-      update([&](SerialState& state) {
-        state.lastLine = _lineBuffer;
-        state.weight = extracted;
-        state.timestamp = millis();
-        return StateUpdateResult::CHANGED;
-      }, "serial_hw");
-    } else {
-      // #region agent log
-      static unsigned long _idleSkipLogMs;
-      if (millis() - _idleSkipLogMs >= 5000UL) {
-        Serial.printf(
-            "{\"sessionId\":\"76d0d7\",\"hypothesisId\":\"H3\",\"location\":\"SerialService::loop\","
-            "\"message\":\"idle_flush_skipped_non_printable\",\"data\":{\"bufLen\":%u},\"timestamp\":%lu}\n",
-            (unsigned)_lineBuffer.length(), (unsigned long)millis());
-        _idleSkipLogMs = millis();
+      if (shouldPublishSerialHwLine(_state, _lineBuffer)) {
+        enqueueCompletedLine(_lineBuffer);
       }
-      // #endregion
     }
     _lineBuffer = "";
     lastSerialRxMs = 0;
   }
+
+  drainRxLineQueue();
 
   // Print debug sample every 2 seconds
   if (millis() - lastDebug >= 2000 && debugBuffer.length() > 0) {
@@ -381,6 +395,8 @@ void SerialService::suspendSerial() {
     SERIAL_PORT.end();
     _serialStarted = false;
     _suspended = true;
+    _rxCompleteLineQueue.clear();
+    _lastRxLinePublishMs = 0;
   }
 }
 

@@ -28,7 +28,9 @@
 | **H-REST** | **API returns empty** `last_line` | Browser ingest **`rest_serial_snapshot`**: **`lastLineLen`**, **`timestamp`** |
 | **H-WS** | **WS payload / apply path** | Browser ingest **`ws_serial_payload`**: **`applies`**, **`lastLineLen`**, **`origin_id`** |
 
-**Instrumentation (this push):** `interface/src/api/serial.ts` (REST poll → ingest), `interface/src/utils/useWs.ts` (each serial WS payload → ingest), `SerialService.cpp` (USB `Serial` NDJSON lines above, **sessionId `76d0d7`**). Ingest URL: `http://127.0.0.1:7717/ingest/0bfa9906-aaa9-4a5a-9ff1-54d549900d98`; log file: **`.cursor/debug-76d0d7.log`**.
+**Note (2026-04-24 stability pass):** **`H2`/`H3`/`H4`** USB NDJSON lines and browser ingest hooks are **no longer in firmware/UI**; use REST **`dbg_*`** fields and **`[Boot] esp_reset_reason` / `[Heap]`** (see **§2026-04-24 — ESP32-S3 periodic reboot**) for new evidence.
+
+**Instrumentation (session `76d0d7`, historical):** `serial.ts` / `useWs.ts` / `SerialService.cpp` once posted NDJSON to **`127.0.0.1:7717`** (see **`.cursor/debug-76d0d7.log`**). Those hooks were **removed** in the **2026-04-24 ESP32-S3 reset-stability** pass so production builds do not depend on a local ingest server.
 
 **Next:** Operator reproduces with **ingest running** + **Serial** page open; then read **`debug-76d0d7.log`** and COM11 capture. **If `H4` shows `uartAvail:0` always** → prioritize **wiring (scale TX→GPIO18)** and **baud**. **If `H2`** → switch **UART mode** to **live** / stop diagnostics. **If `H3` + non-zero `bufLen`** → scale sends **binary/control-only** without CR/LF — adjust **baud** / **protocol** or terminator, not random UI patches.
 
@@ -135,12 +137,121 @@
 ### Post-repro (session `76d0d7`) — applied code changes
 
 - **Evidence file:** `.cursor/debug-76d0d7.log` — REST snapshots showed **`lastLineLen:0`**, **`timestamp:0`** while WS showed **`connected` + `hasPayload`** with **`lastLineLen:0`** → classify as **ingress / line assembly + WS state merge**, not generic “network stability.”
-- **Shipped fixes:** `interface/src/utils/useWs.ts` (always take latest payload for matching `origin_id`); `interface/src/utils/useRest.ts` (no pre-fetch `data` clear); `src/examples/serial/SerialService.cpp` (300 ms UART idle flush for lines without CR/LF). **Debug ingest + Serial NDJSON heartbeats** left in place for one verification pass.
+- **Shipped fixes:** `interface/src/utils/useWs.ts` (always take latest payload for matching `origin_id`); `interface/src/utils/useRest.ts` (no pre-fetch `data` clear); `src/examples/serial/SerialService.cpp` (UART idle flush for lines without CR/LF). **Temporary debug:** browser ingest (`127.0.0.1:7717`) and USB NDJSON heartbeats were used for that session only; **removed for production** in the ESP32-S3 reset-stability pass (see **§2026-04-24 — ESP32-S3 periodic reboot** below).
 
 ### 2026-04-24 — Serial display parity (UI vs ingest evidence)
 
 - **Evidence:** `.cursor/debug-76d0d7.log` later lines show **`lastLineLen` > 0** while operator screenshots still showed **blank Live Stream text** or **REST “dots”** — classify as **UI sanitization gap + optional idle noise**, not “no serial bytes.”
 - **Changes:** **`SerialWebSocket.tsx`** now uses **`sanitizeLastLineForDisplay`** for the streamed line body (parity with REST). **`SerialService.cpp`** idle flush default **500 ms**; **printable-only idle publish was reverted** (see task log) after an empty **`lastLineLen`** reproduction capture.
+
+## 2026-04-24 — ESP32-S3 periodic reboot (diagnosis + stability instrumentation)
+
+**Goal:** Stop guessing whether ~40–50 s reboots are **brownout**, **task WDT**, **heap/panic**, or **software reset**; correlate with **heap trend**, then apply **only** the fix branch the evidence supports.
+
+### Boot UART — what to capture
+
+1. Connect **USB serial** to the device COM port; log to a file for **≥48 h** soak (e.g. `pio device monitor` or a terminal logger).
+2. On **each** boot, firmware prints **`[Boot] esp_reset_reason=<n> (<label>)`** immediately after the banner (`src/main.cpp`). Save the **line before** the repeated banner after an unexpected reboot.
+3. Optional trend lines (same file): **`[Heap] at boot: …`** once after “System Ready”; then every **60 s** in `loop()`: **`[Heap] free=… min_free=… max_alloc_heap=…`**.
+
+### Reset reason → classification (ROM `esp_reset_reason`)
+
+| `esp_reset_reason` / label | Typical meaning | Next branch |
+|----------------------------|-----------------|-------------|
+| **`BROWNOUT`** | Supply dipped under load (Wi‑Fi TX, flash, peripherals) | **Power path:** 3.3 V regulation, bulk/decoupling, short thick GND, RS‑232 converter headroom, separate review of scale 5 V if shared rail. |
+| **`TASK_WDT`** / **`INT_WDT`** | Main task or ISR blocked too long | **Firmware:** long synchronous work on Arduino loop (REST handlers, JSON, `SerialService`, forwarder); avoid blocking waits in hot paths; `yield()` already added at end of `loop()` for cooperative scheduling. |
+| **`PANIC/Exception`** | Crash (assert, null deref, stack overflow, heap corruption) | **Firmware:** capture full panic backtrace on UART; audit **String**/JSON bounds, WebSocket broadcast rate, `WeightForwarderService` / MQTT reconnect storms. |
+| **`SW_RESET`** | `ESP.restart()` or `esp_restart()` | Grep **`ESP.restart`** / restart services; ensure no timer-driven restart without logging. |
+| **`POWERON`** | Cold boot or full power cycle | Normal after unplug; if it appears **without** operator power-cycle, investigate **external reset** pin / supervisor. |
+
+**Deliverable for closing the loop:** one paste or file containing **last ~50 lines before reboot** + the **first boot lines** showing **`esp_reset_reason`** and the last **`[Heap]`** line before the gap.
+
+### Low-risk firmware hardening already in tree (not a substitute for classification)
+
+- **`src/main.cpp`:** `esp_reset_reason()` log; heap at boot + **60 s** heap stats on ESP32; **`yield()`** at end of `loop()`.
+- **`SerialService.cpp`:** **`serial_hw`** updates are **deduplicated** when **`last_line`** is unchanged and **`timestamp`** is within **`SERIAL_HW_MIN_BROADCAST_INTERVAL_MS`** (default **50 ms**) to cut WebSocket/MQTT/async queue load when scales repeat the same line at high rate.
+
+**Do not** stack unrelated “heap fixes” until **`esp_reset_reason`** points at heap or panic; brownout and WDT need different responses.
+
+### Soak + production image
+
+- **Soak:** **48 h+** UART log; any reset should show **`[Boot] esp_reset_reason=…`** on the following boot — map with the table above.
+- **Production:** Do **not** ship **browser ingest** to `127.0.0.1:7717` or **USB NDJSON** debug lines in hot paths; those were removed from `interface/src/api/serial.ts`, `interface/src/utils/useWs.ts`, and `SerialService.cpp` for the stability image.
+
+### 2026-04-24 — Operator UART: `abort()` on core 1 (serial WebSocket path)
+
+**Symptoms (COM11):** `abort() was called at PC 0x420b44fb on core 1`, short interval (~12–14 s) then `RTC_SW_CPU_RST`, repeat. **`esp_core_dump_flash`** lines are **noise** for this image: there is **no coredump partition** in the partition table, and IDF still tries flash coredump metadata — unrelated to the primary fault.
+
+**Decoded backtrace** (local `firmware.elf` + `xtensa-esp32s3-elf-addr2line`): `SerialService::loop` → `StatefulService::update` / `callUpdateHandlers` → `WebSocketTx<SerialState>::transmitData` (`WebSocketTxRx.h`) → `AsyncWebSocket::textAll` / `AsyncWebSocketClient::text` → `std::make_shared` / destructor chain → **`abort()`** in libstdc++ RTTI / exception-pool (`__cxxabiv1`, `eh_alloc.cc`).
+
+**Root cause:** `transmitData` / `transmitId` used `makeBuffer()`, serialized JSON into it, then called **`text((char*)buffer->get(), len)`** / **`textAll(..., len)`**. Those overloads **copy** bytes into a **new** `shared_ptr<vector>` and **do not** take ownership of the `AsyncWebSocketMessageBuffer*`. The wrapper was **never `delete`d** → **one leak per WS broadcast** → heap corruption and **`abort()`** under load (e.g. serial scale + Live Stream).
+
+**Fix:** `delete buffer;` after the `text` / `textAll` call in `lib/framework/WebSocketTxRx.h` (both `transmitId` and `transmitData`). **`pio run -e esp32s3`** succeeds after change.
+
+**Optional monitor command** (same ELF build as flash for readable names):
+
+```powershell
+python -m platformio device monitor -e esp32s3 -p COM11 -b 115200 --filter esp32_exception_decoder
+```
+
+### Branch log (fill when operator capture exists)
+
+| Date | `esp_reset_reason` (numeric + label) | Last `[Heap]` before reset | Classification | Fix taken |
+|------|--------------------------------------|----------------------------|----------------|-----------|
+| 2026-04-24 | *(see UART: `abort()`)* | *(not in paste)* | **Heap / WS:** leaked `AsyncWebSocketMessageBuffer` every `serial_hw` broadcast | **`delete buffer`** in `WebSocketTxRx.h` |
+| *(pending)* | | | | |
+
+### Operator: serial monitor (Windows) + log to file
+
+From the repo root, use **PowerShell** (not `&&` for chaining—use `;` or separate lines). Baud is **115200** (`monitor_speed` in `platformio.ini`).
+
+**1. Find the COM port**
+
+```powershell
+Set-Location "c:\Projects - Copy\Weighsoft.Hardware.Base"
+python -m platformio device list
+```
+
+**2. Live monitor (replace `COM11` with your port)**
+
+```powershell
+python -m platformio device monitor -e esp32s3 -p COM11 -b 115200
+```
+
+**3. Monitor and append to a log file (good for overnight / 48 h soak)**
+
+```powershell
+python -m platformio device monitor -e esp32s3 -p COM11 -b 115200 | Tee-Object -FilePath "esp32s3-serial-log.txt" -Append
+```
+
+Stop with **Ctrl+C**. If another app holds the port (Cursor, another monitor), close it first.
+
+**4. Optional: timestamps in the monitor** (depends on PlatformIO version; if unsupported, omit `--filter`)
+
+```powershell
+python -m platformio device monitor -e esp32s3 -p COM11 -b 115200 --filter time
+```
+
+### What to send back for a correct firmware fix
+
+Without this, guesses (heap vs brownout vs WDT) are unreliable.
+
+1. **One unexpected reboot worth of UART text:** from about **1 minute before** the boot banner repeats through the **first ~40 lines after** the new boot (must include **`[Boot] esp_reset_reason=…`**).
+2. **The last `[Heap]` line** before the gap (or state that none appeared for many minutes).
+3. **Context:** board model, **USB vs external 5 V**, whether **Wi‑Fi STA**, **soft AP**, **MQTT**, and **weight forwarder** are enabled; anything on **Serial1** (scale baud).
+4. If the log shows **`PANIC`** / Guru Meditation / backtrace: paste the **full** panic block, not only the reset line.
+5. If **`BROWNOUT`:** describe **power supply** and wiring (common ground, RS‑232 board, separate scale supply)—that is primarily hardware validation.
+
+### Agent changelog — ESP32-S3 stability / diagnosis (2026-04-24)
+
+| Area | Change | Why |
+|------|--------|-----|
+| `src/main.cpp` | Log `esp_reset_reason()` at boot; `[Heap]` at boot and every 60 s; `yield()` in `loop()` | **Classify** resets (brownout vs WDT vs panic vs SW) and see **heap trend** before changing unrelated code; **yield** reduces risk of starving the IDLE/Wi‑Fi work on a busy main loop. |
+| `SerialService.cpp` | Removed USB NDJSON debug lines; **50 ms dedupe** for identical `serial_hw` lines | Debug lines required a **local ingest** and added noise; **dedupe** cuts Async/WebSocket/MQTT pressure when the scale repeats the same line very fast. |
+| `interface/src/api/serial.ts`, `useWs.ts` | Removed `127.0.0.1:7717` ingest `fetch` | Production devices and operators should not depend on a **localhost debug server**; reduces browser noise during soak tests. |
+| This task log | Reset-reason table, branch log template, monitor commands, evidence checklist | Keeps **one place** for how to capture evidence and what the next fix branch should be. |
+
+**Learned:** Short-interval ESP32 reboots have **several common causes**; the ROM **`esp_reset_reason`** on the **first UART line after boot** is the fastest way to pick **power vs watchdog vs crash** vs **deliberate restart**. **`min_free` heap** trending down before a reset supports fragmentation/leak hypotheses; **flat heap + BROWNOUT** points away from “memory overload” as the primary story.
 
 ## 2026-04-22 update
 
