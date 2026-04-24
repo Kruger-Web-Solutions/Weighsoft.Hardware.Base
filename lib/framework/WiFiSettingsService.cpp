@@ -89,6 +89,8 @@ void WiFiSettingsService::manageSTA() {
 #ifdef ESP32
       WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE);
       WiFi.setHostname(_state.hostname.c_str());
+      // Improves STA stability on many routers (ESP32/S3 default modem sleep can delay or drop traffic).
+      WiFi.setSleep(false);
 #elif defined(ESP8266)
       WiFi.config(INADDR_ANY, INADDR_ANY, INADDR_ANY);
       WiFi.hostname(_state.hostname);
