@@ -1,6 +1,5 @@
 #include <examples/weightforwarder/WeightForwarderService.h>
 #include <examples/serial/SerialState.h>
-#include <SettingValue.h>
 #include <ArduinoJson.h>
 
 #ifdef ESP32
@@ -35,9 +34,7 @@ WeightForwarderService::WeightForwarderService(AsyncWebServer* server,
     _serialService(serialService)
 #ifdef ESP32
     ,_wsClient(nullptr),
-    _lastWsReconnectAttempt(0),
-    _nextWsConnectAllowedAtMs(0),
-    _wsReconnectBackoffMs(5000)
+    _lastWsReconnectAttempt(0)
 #endif
 #if FT_ENABLED(FT_BLE)
     ,_bleClient(nullptr),
@@ -68,15 +65,6 @@ void WeightForwarderService::begin() {
   _fsPersistence.readFromFS();
   Serial.printf("[WeightForwarder] Loaded config: protocol=%d, enabled=%d, displayMode=%d\n",
                 (int)_state.protocol, _state.enabled, _state.displayMode);
-
-  // Auto device id (MAC-based); persist once if missing from older config files
-  if (_state.deviceId.isEmpty()) {
-    update([](WeightForwarderState& state) {
-      state.deviceId = SettingValue::format("#{unique_id}");
-      return StateUpdateResult::CHANGED;
-    }, "internal");
-    _fsPersistence.writeToFS();
-  }
 
   // Clear runtime status
   _state.connected = false;
@@ -192,10 +180,6 @@ void WeightForwarderService::forwardWeight(const String& lastLine, const String&
 }
 
 void WeightForwarderService::formatJson(DynamicJsonDocument& doc, const String& lastLine, const String& weight) {
-  const String& idForPayload =
-      _state.deviceId.isEmpty() ? SettingValue::format("#{unique_id}") : _state.deviceId;
-  doc["device_id"] = idForPayload;
-
   if (_state.displayMode) {
     // Display format for LCD devices (16 chars per line)
     String line1 = weight;
@@ -301,7 +285,7 @@ void WeightForwarderService::forwardViaHttp(const String& lastLine, const String
     http.addHeader("Authorization", "Bearer " + _httpAuthToken);
   }
 
-  DynamicJsonDocument doc(384);
+  DynamicJsonDocument doc(256);
   formatJson(doc, lastLine, weight);
 
   String json;
@@ -352,29 +336,15 @@ void WeightForwarderService::forwardViaWs(const String& lastLine, const String& 
     return;
   }
 
-  DynamicJsonDocument doc(384);
+  DynamicJsonDocument doc(256);
   formatJson(doc, lastLine, weight);
 
   String json;
   serializeJson(doc, json);
 
-  if (!_wsClient->sendTXT(json)) {
-    Serial.printf("[WeightForwarder] ws_tx_FAIL json_len=%u (sendTXT false; disconnecting)\n",
-                  (unsigned)json.length());
-    _wsClient->disconnect();
-    _nextWsConnectAllowedAtMs = millis() + min(_wsReconnectBackoffMs, 60000UL);
-    _wsReconnectBackoffMs = min(_wsReconnectBackoffMs * 2UL, 60000UL);
-    update([](WeightForwarderState& state) {
-      state.connected = false;
-      state.lastError = "WS send failed";
-      return StateUpdateResult::CHANGED;
-    }, "internal");
-    return;
-  }
+  _wsClient->sendTXT(json);
 
   update([](WeightForwarderState& state) {
-    state.connected = true;
-    state.lastError = "";
     state.lastForwardTime = millis();
     return StateUpdateResult::CHANGED;
   }, "internal");
@@ -392,7 +362,7 @@ void WeightForwarderService::forwardViaMqtt(const String& lastLine, const String
     return;
   }
 
-  DynamicJsonDocument doc(384);
+  DynamicJsonDocument doc(256);
   formatJson(doc, lastLine, weight);
 
   String json;
@@ -421,7 +391,7 @@ void WeightForwarderService::forwardViaBle(const String& lastLine, const String&
   }
 
   if (_bleRemoteChar && _bleRemoteChar->canWrite()) {
-    DynamicJsonDocument doc(384);
+    DynamicJsonDocument doc(256);
     formatJson(doc, lastLine, weight);
 
     String json;
@@ -508,32 +478,26 @@ void WeightForwarderService::initWebSocketClient() {
     return;
   }
 
-  bool secure = false;
-  String host;
-  uint16_t port = 0;
-  String path;
-  if (!parseWsUrl(_state.wsUrl, secure, host, port, path)) {
-    Serial.printf("[WeightForwarder] Invalid ws_url: %s\n", _state.wsUrl.c_str());
-    update([](WeightForwarderState& state) {
-      state.connected = false;
-      state.lastError = "Invalid ws_url";
-      return StateUpdateResult::CHANGED;
-    }, "internal");
-    _nextWsConnectAllowedAtMs = millis() + 30000UL;
-    return;
-  }
-
   if (_wsClient) {
     delete _wsClient;
   }
 
   _wsClient = new WebSocketsClient();
 
+  // Parse URL: ws://192.168.1.50:8080/ws
+  String url = _state.wsUrl;
+  url.replace("ws://", "");
+  int portIdx = url.indexOf(':');
+  int pathIdx = url.indexOf('/');
+
+  String host = portIdx > 0 ? url.substring(0, portIdx) : url.substring(0, pathIdx);
+  uint16_t port = portIdx > 0 ? url.substring(portIdx + 1, pathIdx).toInt() : 80;
+  String path = pathIdx > 0 ? url.substring(pathIdx) : "/";
+
   // If auth credentials are set, sign in to get JWT and append as query parameter
   // (WebSocket endpoints use ?access_token=<JWT> for auth)
   if (!_state.authUsername.isEmpty()) {
-    String baseUrl = (secure ? String("https://") : String("http://")) + host +
-                     ((secure && port != 443) || (!secure && port != 80) ? ":" + String(port) : "");
+    String baseUrl = "http://" + host + (port != 80 ? ":" + String(port) : "");
     if (!_httpAuthTokenValid || _httpAuthToken.isEmpty()) {
       fetchHttpAuthToken(baseUrl);
     }
@@ -546,14 +510,11 @@ void WeightForwarderService::initWebSocketClient() {
     }
   }
 
-  Serial.printf("[WeightForwarder] WS connecting (%s) %s:%u%s\n", secure ? "wss" : "ws", host.c_str(),
-                (unsigned)port, path.c_str());
+  Serial.printf("[WeightForwarder] WS connecting to %s:%d%s\n", host.c_str(), port, path.c_str());
 
   _wsClient->onEvent([this](WStype_t type, uint8_t* payload, size_t length) {
     if (type == WStype_CONNECTED) {
       Serial.println(F("[WeightForwarder] WebSocket connected"));
-      _wsReconnectBackoffMs = 5000;
-      _nextWsConnectAllowedAtMs = 0;
       update([](WeightForwarderState& state) {
         state.connected = true;
         state.lastError = "";
@@ -561,7 +522,6 @@ void WeightForwarderService::initWebSocketClient() {
       }, "internal");
     } else if (type == WStype_DISCONNECTED) {
       Serial.println(F("[WeightForwarder] WebSocket disconnected"));
-      _nextWsConnectAllowedAtMs = millis() + 2000UL;
       update([](WeightForwarderState& state) {
         state.connected = false;
         state.lastError = "Disconnected";
@@ -569,7 +529,6 @@ void WeightForwarderService::initWebSocketClient() {
       }, "internal");
     } else if (type == WStype_ERROR) {
       Serial.println(F("[WeightForwarder] WebSocket error"));
-      _nextWsConnectAllowedAtMs = millis() + 2000UL;
       update([](WeightForwarderState& state) {
         state.connected = false;
         state.lastError = "Connection error";
@@ -578,50 +537,10 @@ void WeightForwarderService::initWebSocketClient() {
     }
   });
 
-  if (secure) {
-    _wsClient->beginSSL(host.c_str(), port, path.c_str(), "", "");
-  } else {
-    _wsClient->begin(host.c_str(), port, path.c_str(), "");
-  }
+  _wsClient->begin(host, port, path);
   _lastWsReconnectAttempt = millis();
-  // Avoid checkWsConnection() tearing down the client while the stack is still handshaking.
-  _nextWsConnectAllowedAtMs = millis() + 4000UL;
 #endif
 }
-
-#ifdef ESP32
-bool WeightForwarderService::parseWsUrl(const String& wsUrl, bool& secure, String& host, uint16_t& port,
-                                         String& path) const {
-  secure = false;
-  host = "";
-  port = 0;
-  path = "/";
-  if (wsUrl.isEmpty()) {
-    return false;
-  }
-  if (wsUrl.startsWith("wss://")) {
-    secure = true;
-  } else if (!wsUrl.startsWith("ws://")) {
-    return false;
-  }
-  String url = wsUrl;
-  url.replace("wss://", "");
-  url.replace("ws://", "");
-  int pathIdx = url.indexOf('/');
-  String hostPort = pathIdx >= 0 ? url.substring(0, pathIdx) : url;
-  path = pathIdx >= 0 ? url.substring(pathIdx) : "/";
-
-  int colon = hostPort.indexOf(':');
-  if (colon >= 0) {
-    host = hostPort.substring(0, colon);
-    port = (uint16_t)hostPort.substring(colon + 1).toInt();
-  } else {
-    host = hostPort;
-    port = secure ? 443 : 80;
-  }
-  return host.length() > 0 && port > 0;
-}
-#endif
 
 void WeightForwarderService::initBleClient() {
 #if FT_ENABLED(FT_BLE)
@@ -651,19 +570,13 @@ void WeightForwarderService::checkWsConnection() {
     return;
   }
 
-  if (_wsClient && _wsClient->isConnected()) {
-    return;
+  // Reconnect every 5 seconds if disconnected
+  if (!_wsClient || !_wsClient->isConnected()) {
+    if (millis() - _lastWsReconnectAttempt >= 5000) {
+      Serial.println(F("[WeightForwarder] Reconnecting WebSocket..."));
+      initWebSocketClient();
+    }
   }
-
-  if ((long)(millis() - _nextWsConnectAllowedAtMs) < 0) {
-    return;
-  }
-
-  Serial.println(F("[WeightForwarder] Reconnecting WebSocket..."));
-  initWebSocketClient();
-  _nextWsConnectAllowedAtMs = millis() + _wsReconnectBackoffMs;
-  _wsReconnectBackoffMs = min(_wsReconnectBackoffMs * 2UL, 60000UL);
-  _lastWsReconnectAttempt = millis();
 }
 #endif
 
