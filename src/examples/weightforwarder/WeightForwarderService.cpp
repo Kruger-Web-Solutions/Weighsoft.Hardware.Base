@@ -1,6 +1,7 @@
 #include <examples/weightforwarder/WeightForwarderService.h>
 #include <examples/serial/SerialState.h>
 #include <ArduinoJson.h>
+#include <SettingValue.h>
 
 #ifdef ESP32
 #include <WiFi.h>
@@ -144,7 +145,7 @@ void WeightForwarderService::onSerialWeightUpdate(const String& originId) {
 }
 
 void WeightForwarderService::forwardWeight(const String& lastLine, const String& weight) {
-  // Rate limiting: max 10 forwards/sec
+  // Rate limiting: ~4 forwards/sec max
   if (millis() - _lastForwardTime < MIN_FORWARD_INTERVAL) {
     return;
   }
@@ -205,6 +206,7 @@ void WeightForwarderService::formatJson(DynamicJsonDocument& doc, const String& 
     doc["weight"] = weight;
     doc["timestamp"] = millis();
   }
+  doc["device_id"] = SettingValue::getUniqueId();
 }
 
 String WeightForwarderService::getHttpBaseUrl(const String& targetUrl) const {

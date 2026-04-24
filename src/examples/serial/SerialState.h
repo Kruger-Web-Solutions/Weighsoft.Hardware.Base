@@ -2,6 +2,7 @@
 #define SerialState_h
 
 #include <StatefulService.h>
+#include <SettingValue.h>
 
 #define SERIAL_DEFAULT_BAUDRATE 9600
 #define SERIAL_MIN_BAUDRATE 300
@@ -31,6 +32,7 @@ class SerialState {
     root["last_line"] = state.lastLine;
     root["weight"] = state.weight;
     root["timestamp"] = state.timestamp;
+    root["device_id"] = SettingValue::getUniqueId();
     root["baud_rate"] = state.baudrate;
     root["data_bits"] = state.databits;
     root["stop_bits"] = state.stopbits;

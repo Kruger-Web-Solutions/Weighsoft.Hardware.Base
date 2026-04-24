@@ -2,6 +2,8 @@ export interface SerialData {
   last_line: string;
   weight: string;
   timestamp: number;
+  /** STA MAC as 12 hex chars; matches MQTT #{unique_id} segment. */
+  device_id: string;
   baud_rate: number;
   data_bits: number;
   stop_bits: number;

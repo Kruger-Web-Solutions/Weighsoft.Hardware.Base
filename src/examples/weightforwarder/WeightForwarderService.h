@@ -50,7 +50,7 @@ class WeightForwarderService : public StatefulService<WeightForwarderState> {
 #endif
 
   unsigned long _lastForwardTime;
-  static constexpr unsigned long MIN_FORWARD_INTERVAL = 100;  // 100ms = 10/sec max
+  static constexpr unsigned long MIN_FORWARD_INTERVAL = 250;  // ~4 forwards/sec max
 
   // HTTP auth for protected targets (e.g. /rest/display); not persisted
   String _httpAuthToken;

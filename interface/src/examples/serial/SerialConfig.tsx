@@ -35,7 +35,7 @@ const SerialConfig: FC = () => {
     setData((prev) => (prev ? { ...prev, [key]: value } : prev));
   };
 
-  // Keep "Current Data Preview" in sync with device (poll every 2s); only update last_line/weight/timestamp
+  // Keep "Current Data Preview" in sync with device (poll every 2s); only update live readout fields
   // Hook must be above the early return to satisfy Rules of Hooks
   useEffect(() => {
     if (!data) return;
@@ -49,6 +49,7 @@ const SerialConfig: FC = () => {
                   last_line: res.data.last_line,
                   weight: res.data.weight,
                   timestamp: res.data.timestamp,
+                  device_id: res.data.device_id,
                 }
               : prev
           );
