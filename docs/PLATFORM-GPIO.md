@@ -74,7 +74,7 @@ digitalWrite(2, HIGH);  // LED OFF
 | Platform | RX Pin | TX Pin | Notes |
 |----------|--------|--------|-------|
 | ESP32-S3 | **GPIO18** | **GPIO17** | Configurable, used for scale communication |
-| ESP32 | **GPIO16** | **GPIO17** | Configurable, used for scale communication |
+| ESP32 | **GPIO18** | **GPIO17** | Same pin map as ESP32-S3 in this repository |
 | ESP8266 | TX only (GPIO2) | No RX | Limited UART support |
 
 ## Platform Detection in Code
@@ -201,21 +201,11 @@ void LedExampleService::onConfigUpdated() {
 #endif
 ```
 
-### 2. UART Not Working on ESP32-S3
+### 2. UART not working after changing boards
 
-**Problem:** Code uses GPIO16/17 (ESP32), but ESP32-S3 needs GPIO17/18.
+**Problem:** Wiring followed an old **GPIO16** RX convention for classic ESP32, but this firmware uses **GPIO18 (RX)** and **GPIO17 (TX)** on **all** ESP32 targets (`SerialService.h`).
 
-**Solution:** Update SerialService to use correct pins:
-
-```cpp
-#if defined(CONFIG_IDF_TARGET_ESP32S3)
-  #define UART_RX_PIN 18
-  #define UART_TX_PIN 17
-#else
-  #define UART_RX_PIN 16
-  #define UART_TX_PIN 17
-#endif
-```
+**Solution:** Move **peripheral TX → GPIO18**, **peripheral RX → GPIO17**, **GND** common; see `docs/PIN-CONFIGURATION.md`.
 
 ### 3. Inverted LED Logic on ESP8266
 
@@ -290,7 +280,7 @@ Some GPIO pins have special boot functions and should be used carefully:
 |---------|-------------|---------|-------|----------|
 | Built-in LED | | GPIO2 | GPIO2 | **GPIO48** |
 | Serial Monitor | RX/TX | GPIO3/1 | GPIO3/1 | GPIO3/1 |
-| External UART | RX/TX | N/A | GPIO16/17 | **GPIO18/17** |
+| External UART | RX/TX | N/A | **GPIO18/17** | **GPIO18/17** |
 | I2C (SDA/SCL) | | GPIO4/5 | GPIO21/22 | GPIO8/9 |
 | SPI (MOSI/MISO/SCK/CS) | | GPIO13/12/14/15 | GPIO23/19/18/5 | GPIO11/13/12/10 |
 

@@ -19,8 +19,7 @@
 #define SERIAL_SOCKET_PATH "/ws/serial"
 #define SERIAL_CONFIG_FILE "/config/serialConfig.json"
 
-// ESP32 Serial1 pins
-// ESP32-S3: GPIO18=U1RXD (RX), GPIO17=U1TXD (TX) - must match hardware UART1 defaults
+// ESP32 Serial1 pins — product standard: GPIO18 (RX), GPIO17 (TX) on all ESP32 targets in this repo
 #define SERIAL_PORT Serial1
 #define SERIAL2_RX_PIN 18
 #define SERIAL2_TX_PIN 17

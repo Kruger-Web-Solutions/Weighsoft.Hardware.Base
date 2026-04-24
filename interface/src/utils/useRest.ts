@@ -17,7 +17,6 @@ export const useRest = <D>({ read, update }: RestRequestOptions<D>) => {
   const [errorMessage, setErrorMessage] = useState<string>();
 
   const loadData = useCallback(async () => {
-    setData(undefined);
     setErrorMessage(undefined);
     try {
       setData((await read()).data);

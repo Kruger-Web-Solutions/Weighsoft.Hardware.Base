@@ -8,7 +8,7 @@ import { formatSerialTimestamp, sanitizeLastLineForDisplay } from './formatSeria
 
 const SerialRest: FC = () => {
   const { data, loadData, errorMessage } = useRest<SerialData>({ read: readSerialData });
-  
+
   // Poll every 2 seconds
   useEffect(() => {
     const interval = setInterval(() => {
@@ -57,7 +57,21 @@ const SerialRest: FC = () => {
               )}
             </>
           ) : (
-            <Typography color="text.secondary">No data received yet</Typography>
+            <>
+              <Typography color="text.secondary">No data received yet</Typography>
+              {data.dbg_serial_started === 1 &&
+                data.dbg_suspended === 0 &&
+                data.dbg_line_buf_len === 0 &&
+                typeof data.dbg_uart_rx_avail === 'number' &&
+                data.dbg_uart_rx_avail === 0 && (
+                <Typography variant="body2" color="warning.main" sx={{ mt: 2, maxWidth: 560 }}>
+                  UART shows no RX bytes (debug: <code>dbg_uart_rx_avail=0</code>, Serial1 started, not
+                  suspended). For a direct scale link: connect <strong>scale TX → ESP GPIO18</strong> (UART
+                  RX), <strong>GND</strong> common, match baud; use an RS-232↔TTL converter if the scale is
+                  true RS-232 levels.
+                </Typography>
+              )}
+            </>
           )}
         </Box>
       )}

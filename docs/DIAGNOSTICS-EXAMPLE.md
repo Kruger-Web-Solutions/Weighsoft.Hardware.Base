@@ -2,7 +2,7 @@
 
 ## Overview
 
-The UART Diagnostics service provides comprehensive hardware testing tools for Serial2 (GPIO17/18 on ESP32-S3, GPIO16/17 on ESP32). It helps troubleshoot serial connectivity issues by testing the hardware functionality, detecting baud rates, and measuring signal quality before debugging scale wiring or software.
+The UART Diagnostics service provides comprehensive hardware testing tools for **Serial1** on **GPIO18 (RX) / GPIO17 (TX)** for **all ESP32 targets** in this repository. It helps troubleshoot serial connectivity issues by testing the hardware functionality, detecting baud rates, and measuring signal quality before debugging scale wiring or software.
 
 This service follows **SOLID principles**, specifically the **Single Responsibility Principle**, by maintaining a clear separation of concerns: SerialService handles external device communication, while DiagnosticsService handles hardware testing and validation.
 
@@ -530,7 +530,7 @@ export interface DiagnosticsData {
 
 ### Hardware Considerations
 
-1. **ESP32 Serial2 Pins:** GPIO17 (RX), GPIO18 (TX) on ESP32-S3 or GPIO16 (RX), GPIO17 (TX) on ESP32 are fixed hardware pins
+1. **ESP32 Serial1 pins:** **GPIO18 (RX)**, **GPIO17 (TX)** on **esp32s3**, **node32s**, and **esp32dev** (same harness; see `SerialService.h`).
 2. **Voltage Levels:** ESP32 operates at 3.3V - use level shifters for 5V devices
 3. **Jumper Wire Quality:** Poor quality wires can cause intermittent failures in loopback/signal tests
 4. **GPIO Pin Health:** Bent or corroded pins will cause test failures

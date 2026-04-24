@@ -7,6 +7,11 @@ export interface SerialData {
   stop_bits: number;
   parity: number;
   regex_pattern: string;
+  /** Firmware-only: UART snapshot from last SerialService::loop (not persisted). */
+  dbg_uart_rx_avail?: number;
+  dbg_suspended?: number;
+  dbg_serial_started?: number;
+  dbg_line_buf_len?: number;
 }
 
 /** Payload for POST /rest/serial: config only. Do not send last_line/weight/timestamp (read-only, can contain binary). */

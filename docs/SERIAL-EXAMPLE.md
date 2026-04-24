@@ -2,11 +2,11 @@
 
 ## Overview
 
-The Serial Monitor service provides real-time monitoring and streaming of serial data from Serial2 (GPIO17/18 on ESP32-S3, GPIO16/17 on ESP32). It demonstrates the single-layer architecture pattern by composing REST, WebSocket, MQTT, and BLE communication channels directly within the service.
+The Serial Monitor service provides real-time monitoring and streaming of serial data from **Serial1** on **GPIO18 (RX) / GPIO17 (TX)** for **all ESP32 targets** in this repository (including **esp32s3**, **node32s**, and **esp32dev**). It demonstrates the single-layer architecture pattern by composing REST, WebSocket, MQTT, and BLE communication channels directly within the service.
 
 ## Features
 
-- **Line-Based Reading**: Reads complete lines from Serial2 (up to 512 characters)
+- **Line-Based Reading**: Reads complete lines from Serial1 (up to 512 characters)
 - **Configurable Serial Port**: Baud rate, data bits (7/8), stop bits, parity (None/Even/Odd) via UI or REST
 - **Weight Extraction**: Optional regex pattern with one capture group extracts a value (e.g. weight) from each line; full line and extracted value are both transmitted
 - **Multi-Channel Broadcasting**: Automatically streams data (last_line and weight) across all enabled channels
@@ -465,9 +465,9 @@ If the pattern does not match a line, `last_line` is still sent and `weight` is 
 
 ### Change GPIO Pins
 
-Serial2 uses fixed pins on ESP32 (16/17). To use different pins:
+Serial1 uses fixed pins **GPIO18 (RX)** and **GPIO17 (TX)** on ESP32 targets. To use different pins:
 
-1. Use `Serial1` instead (GPIO43/44) - hardware UART0 on ESP32-S3
+1. Change `SERIAL2_RX_PIN` / `SERIAL2_TX_PIN` in `src/examples/serial/SerialService.h` and matching `DIAG_*` pins in `src/examples/diagnostics/DiagnosticsService.h` (see `docs/PIN-CONFIGURATION.md`).
 2. Use SoftwareSerial library (not recommended for high speeds)
 3. Remap UART pins (advanced, requires IDF configuration)
 

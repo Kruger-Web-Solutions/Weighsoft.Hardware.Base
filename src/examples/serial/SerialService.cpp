@@ -5,6 +5,20 @@
 #include <HardwareSerial.h>
 #endif
 
+namespace {
+// Idle flush without CR/LF otherwise publishes floating-RX noise as "lines" of control bytes
+// (UI shows middle dots). Terminated lines still publish verbatim.
+bool serialBufferHasPrintableAscii(const String& buf) {
+  for (unsigned i = 0; i < buf.length(); i++) {
+    char c = buf[i];
+    if (c >= 32 && c < 127) {
+      return true;
+    }
+  }
+  return false;
+}
+}  // namespace
+
 SerialService::SerialService(AsyncWebServer* server,
                              FS* fs,
                              SecurityManager* securityManager,
@@ -81,28 +95,64 @@ void SerialService::begin() {
   applySerialConfig();
 }
 
+// If the scale sends frames without CR/LF, commit the partial line after this many ms idle on UART.
+#ifndef SERIAL_LINE_IDLE_FLUSH_MS
+#define SERIAL_LINE_IDLE_FLUSH_MS 500
+#endif
+
 void SerialService::loop() {
+  // Snapshot for REST (debug): classify empty last_line without USB serial monitor
+  _state.dbgSuspended = _suspended ? 1 : 0;
+  _state.dbgSerialStarted = _serialStarted ? 1 : 0;
+  _state.dbgLineBufLen = (uint16_t)(_lineBuffer.length() > 65535 ? 65535 : _lineBuffer.length());
+  if (!_suspended && _serialStarted) {
+    int a = SERIAL_PORT.available();
+    _state.dbgUartRxAvail = a > 32000 ? 32000 : (a < 0 ? 0 : a);
+  } else {
+    _state.dbgUartRxAvail = -1;
+  }
+
   // Skip reading if suspended (DiagnosticsService is using Serial1)
   if (_suspended) {
+    // #region agent log
+    static unsigned long _suspLogMs;
+    if (millis() - _suspLogMs >= 10000UL) {
+      Serial.printf(
+          "{\"sessionId\":\"76d0d7\",\"hypothesisId\":\"H2\",\"location\":\"SerialService::loop\","
+          "\"message\":\"serial_suspended_skip\",\"data\":{\"suspended\":1},\"timestamp\":%lu}\n",
+          (unsigned long)millis());
+      _suspLogMs = millis();
+    }
+    // #endregion
     return;
   }
 
   // Debug: Show incoming data periodically
   static unsigned long lastDebug = 0;
   static String debugBuffer = "";
-  
+  static unsigned long lastSerialRxMs = 0;
+
   // Heartbeat: confirm loop is running and show Serial1 status
   static unsigned long lastHeartbeat = 0;
   if (millis() - lastHeartbeat >= 5000) {
     int avail = SERIAL_PORT.available();
     Serial.printf("[Serial] Heartbeat: loop running, suspended=%d, serialStarted=%d, available=%d\n",
                   _suspended, _serialStarted, avail);
+    // #region agent log
+    Serial.printf(
+        "{\"sessionId\":\"76d0d7\",\"hypothesisId\":\"H4\",\"location\":\"SerialService::loop\","
+        "\"message\":\"serial_uart_heartbeat\",\"data\":{\"serialStarted\":%d,\"uartAvail\":%d,"
+        "\"lineBufLen\":%u,\"lastLineLen\":%u},\"timestamp\":%lu}\n",
+        _serialStarted ? 1 : 0, avail, (unsigned)_lineBuffer.length(),
+        (unsigned)_state.lastLine.length(), (unsigned long)millis());
+    // #endregion
     lastHeartbeat = millis();
   }
   
   // Read serial data and assemble lines
   while (SERIAL_PORT.available()) {
     char c = SERIAL_PORT.read();
+    lastSerialRxMs = millis();
     
     // Collect data for debug output
     if (debugBuffer.length() < 200) {
@@ -137,7 +187,36 @@ void SerialService::loop() {
       }
     }
   }
-  
+
+  // Idle flush: frames without CR/LF still publish after UART idle (baud/noise may look like control bytes;
+  // REST/WebSocket sanitize for display). Printable-only gating was reverted after logs showed all-zero
+  // last_line when peripherals send delayed ASCII or binary prelude without newline.
+  if (_lineBuffer.length() > 0 && !SERIAL_PORT.available() && lastSerialRxMs > 0 &&
+      (unsigned long)(millis() - lastSerialRxMs) >= SERIAL_LINE_IDLE_FLUSH_MS) {
+    if (serialBufferHasPrintableAscii(_lineBuffer)) {
+      String extracted = extractWeight(_lineBuffer);
+      update([&](SerialState& state) {
+        state.lastLine = _lineBuffer;
+        state.weight = extracted;
+        state.timestamp = millis();
+        return StateUpdateResult::CHANGED;
+      }, "serial_hw");
+    } else {
+      // #region agent log
+      static unsigned long _idleSkipLogMs;
+      if (millis() - _idleSkipLogMs >= 5000UL) {
+        Serial.printf(
+            "{\"sessionId\":\"76d0d7\",\"hypothesisId\":\"H3\",\"location\":\"SerialService::loop\","
+            "\"message\":\"idle_flush_skipped_non_printable\",\"data\":{\"bufLen\":%u},\"timestamp\":%lu}\n",
+            (unsigned)_lineBuffer.length(), (unsigned long)millis());
+        _idleSkipLogMs = millis();
+      }
+      // #endregion
+    }
+    _lineBuffer = "";
+    lastSerialRxMs = 0;
+  }
+
   // Print debug sample every 2 seconds
   if (millis() - lastDebug >= 2000 && debugBuffer.length() > 0) {
     Serial.printf("[Serial] Sample (first 200 chars): %s\n", debugBuffer.c_str());

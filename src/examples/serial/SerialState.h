@@ -21,6 +21,12 @@ class SerialState {
   uint8_t parity;            // 0=None, 1=Even, 2=Odd
   String regexPattern;       // Pattern to extract weight (e.g. first capture group)
 
+  // Runtime-only diagnostics (not persisted); updated from SerialService::loop for REST/UI
+  int dbgUartRxAvail = -1;   // SERIAL_PORT.available() when UART owned by SerialService, else -1
+  uint8_t dbgSuspended = 0;
+  uint8_t dbgSerialStarted = 0;
+  uint16_t dbgLineBufLen = 0;
+
   static void read(SerialState& state, JsonObject& root) {
     root["last_line"] = state.lastLine;
     root["weight"] = state.weight;
@@ -30,6 +36,10 @@ class SerialState {
     root["stop_bits"] = state.stopbits;
     root["parity"] = state.parity;
     root["regex_pattern"] = state.regexPattern;
+    root["dbg_uart_rx_avail"] = state.dbgUartRxAvail;
+    root["dbg_suspended"] = state.dbgSuspended;
+    root["dbg_serial_started"] = state.dbgSerialStarted;
+    root["dbg_line_buf_len"] = state.dbgLineBufLen;
   }
 
   // Config-only read/update for FSPersistence (does not persist runtime data)

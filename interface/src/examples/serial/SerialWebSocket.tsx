@@ -4,7 +4,7 @@ import { SectionContent } from '../../components';
 import { WEB_SOCKET_ROOT } from '../../api/endpoints';
 import { useWs } from '../../utils';
 import { SerialData } from '../../types/serial';
-import { formatSerialTimestamp } from './formatSerialTimestamp';
+import { formatSerialTimestamp, sanitizeLastLineForDisplay } from './formatSerialTimestamp';
 
 export const SERIAL_WEBSOCKET_URL = WEB_SOCKET_ROOT + "serial";
 
@@ -69,7 +69,7 @@ const SerialWebSocket: FC = () => {
                 [{formatSerialTimestamp(line.timestamp)}]
               </Typography>
               <Typography component="span">
-                {line.text}
+                {sanitizeLastLineForDisplay(line.text)}
               </Typography>
               {line.weight !== '' && (
                 <Typography component="span" color="primary" sx={{ ml: 1 }}>

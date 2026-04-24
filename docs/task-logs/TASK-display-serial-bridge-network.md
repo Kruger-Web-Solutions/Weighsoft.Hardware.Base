@@ -106,6 +106,57 @@ Treat as **host-side** until `flash_id` succeeds on at least one board: try **an
 
 **Re-verify:** Push LittleFS when `data/config` changed: `python -m platformio run -e esp32s3 -t uploadfs` (or erase flash + full upload) so **`apSettings.json`** reaches the device. Then connect to the soft AP (**password** default **`esp-react`** unless changed), open **`http://192.168.4.1`**, confirm STA SSID/password in Wi‑Fi settings; confirm outbound paths (NTP / forwarder) once STA shows connected.
 
+## 2026-04-24 — Serial UI empty + USB log silent (debug session `76d0d7`)
+
+**Symptoms (operator):** REST **“No data received yet”**, WebSocket **“Waiting for data…”**, and **USB serial monitor shows no logs** while the web UI loads at a LAN IP (e.g. `10.45.71.248`).
+
+**UART pinout (firmware `SerialService`):** `Serial1.begin(..., rx, tx)` uses **`SERIAL2_RX_PIN = 18`**, **`SERIAL2_TX_PIN = 17`** (`src/examples/serial/SerialService.h`). Convention: **peripheral TX → ESP RX (GPIO18)**; **peripheral RX → ESP TX (GPIO17)**; **GND common**; **3.3 V logic** (many scales are 5 V TTL — level shifting may be required; 5 V on GPIO can damage the S3).
+
+**Bench checklist (wiring labels ambiguous):** If the cable lists **“TX → PIN17”** meaning *device transmit wire to ESP pin 17*, that ties **TX to ESP TX** (both outputs) — **swap** so **device TX → GPIO18 (ESP RX)**. Confirm **baud / parity** in **Serial → Configuration** matches the scale. Lines only publish to REST/WS after **`\n` or `\r`** (`SerialService.cpp`); continuous stream without line breaks will keep **`last_line`** empty.
+
+**Diagnostics vs Serial:** `DiagnosticsService` calls **`suspendSerial()`** when a diagnostic test owns `Serial1` — if a test is stuck on, scale traffic is blocked.
+
+**Instrumentation added (session `76d0d7`, do not remove until verified):**
+
+- **Browser → NDJSON ingest:** `interface/src/examples/serial/SerialRest.tsx` (hypothesis **A**: REST payload shape / empty `last_line`) and `SerialWebSocket.tsx` (hypothesis **B**: WS `connected` vs payload). Ingest URL: `http://127.0.0.1:7717/ingest/0bfa9906-aaa9-4a5a-9ff1-54d549900d98` with header `X-Debug-Session-Id: 76d0d7`. Logs accumulate under **`.cursor/debug-76d0d7.log`** when the UI is opened from a browser on the **same machine** as the ingest server.
+- **Firmware → USB Serial:** `SerialService::loop` heartbeat emits one NDJSON line per ~5 s (hypothesis **C**: suspended / `available()` / line buffer length). Capture with **115200** on the **UART USB** port of the DevKit.
+
+**Hypotheses under test**
+
+| Id | Area | Idea |
+|----|------|------|
+| A | REST / device | API returns 200 with empty `last_line` because UART never completed a line or never received bytes. |
+| B | WebSocket / UI | Socket not `connected`, or payload path not updating UI (see `useWs` `origin_id` filtering in `interface/src/utils/useWs.ts`). |
+| C | Firmware UART | `Serial1` suspended, not started, or `available()==0` continuously. |
+| D | Line protocol | Scale sends data without `\n`/`\r`, so `last_line` never commits. |
+| E | USB logging | Wrong COM port, wrong baud, or firmware hang before `Serial` output — explains **both** UI empty and **silent** monitor. |
+
+**Next:** Rebuild + flash so UI includes ingest hooks; reproduce per `<reproduction_steps>` in the agent reply; analyze **`debug-76d0d7.log`** + any USB NDJSON lines.
+
+### Post-repro analysis (session `76d0d7`, `.cursor/debug-76d0d7.log`)
+
+| Hypothesis | Verdict | Evidence |
+|------------|---------|----------|
+| **A** (empty device state) | **CONFIRMED** | Repeated lines e.g. L2, L7, L9: `hasDataObject:true`, `lastLineLen:0`, `timestamp:0` — REST reaches device but **`last_line` never set**. |
+| **B** (WS broken) | **REJECTED** | L4–L5: `connected:true`, `hasPayload:true` with `lastLineLen:0` — socket delivers payloads; payload is empty serial state, not a transport failure. |
+| **C** (UART suspended / no bytes) | **INCONCLUSIVE** from NDJSON file alone | USB heartbeat NDJSON was not in ingest file (device-side). If after fixes **`available`** stays 0, re-check **TX→GPIO18 (RX)** / baud / Diagnostics suspend. |
+
+**Fixes applied (2026-04-24, post-log):** (1) **`useWs.ts`** — apply **`message.payload`** when `origin_id` matches (removed logic that kept the **first** payload forever). (2) **`useRest.ts`** — stop clearing `data` before each poll (removed spurious `hasDataObject:false` flicker in logs). (3) **`SerialService.cpp`** — idle flush of `_lineBuffer` for frames **without `\r`/`\n`** (default **500 ms**); later tightened to **publish only if printable ASCII** exists (see §Display vs bytes). **Instrumentation retained** until verification complete.
+
+### 2026-04-24 — Display vs bytes (post-verification logs + UI screenshots)
+
+**Runtime (`.cursor/debug-76d0d7.log` ~L780+):** `hypothesisId:B` entries show **`connected:true`**, **`lastLineLen`** varying **1–42** with **`weightPresent:false`** — payload reaches the browser; empty regex matches Configuration screenshot.
+
+**Root cause (display):** **`SerialRest.tsx`** wraps raw data with **`sanitizeLastLineForDisplay`** (control / C1 → U+00B7, often looks like a **dot**). **`SerialWebSocket.tsx`** rendered **`line.text` raw** — NUL / control-only payloads appear **blank after `[Boot + …]`** in Live Stream.
+
+**Root cause (noise lines):** Idle flush could publish **`last_line`** consisting only of **control** bytes (e.g. framing noise or wrong baud), which REST shows as a run of **middots**.
+
+**Follow-up fixes:** (1) **`SerialWebSocket.tsx`** — render **`sanitizeLastLineForDisplay(line.text)`** like REST. (2) **`SerialService.cpp`** — **`SERIAL_LINE_IDLE_FLUSH_MS`** default **500 ms**; **printable-only idle publish** was **reverted** after a reproduction log showed **`lastLineLen` 0** for the whole capture (risk: delayed ASCII / binary prelude discarded before newline).
+
+**Repro log (session `76d0d7`, short capture):** REST **`lastLineLen:0`**, WS **`hasPayload:false`** after connects — treat as **no `last_line` on device** for that window (reflash build, scale off, or UART not delivering `\n`/idle flush window). Compare with earlier capture (~L780+) where **`lastLineLen` 1–42** proved ingress alive.
+
+**Follow-up repro (same session):** Log lines **L4–L5, L40** show REST **`lastLineLen` 1 and 5** with non-zero **`timestamp`**, while WS rows stay **`hasPayload:false`** — **confirmed** `useWs` was rejecting payloads: server **`origin_id`** is **`websocket`** / **`serial_hw`** (`WebSocketTxRx.h`), not **`websocket:<clientNumericId>`**. **Fix:** `interface/src/utils/useWs.ts` applies payload when **`!clientId || origin_id !== clientId`** (ignore self-echo only). Debug ingest hooks removed from Serial UI / heartbeat NDJSON removed from `SerialService.cpp`.
+
 ## Related docs
 
 - Primary evidence and attempt table: [DECISION-LOG-serial-scale-instance-1.md](../drafts/DECISION-LOG-serial-scale-instance-1.md) §9.3–9.6.

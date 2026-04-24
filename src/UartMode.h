@@ -3,7 +3,7 @@
 
 #include <StatefulService.h>
 
-// UART Mode: controls which service owns Serial1 (GPIO18/17 on ESP32-S3)
+// UART Mode: controls which service owns Serial1 (GPIO18 RX / GPIO17 TX on ESP32 targets)
 // Only one service can use Serial1 at a time
 enum class UartModeType {
   LIVE_MONITORING,  // SerialService active (scale monitoring)

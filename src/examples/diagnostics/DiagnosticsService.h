@@ -12,8 +12,7 @@ class SerialService;
 #define DIAGNOSTICS_ENDPOINT_PATH "/rest/diagnostics"
 #define DIAGNOSTICS_SOCKET_PATH "/ws/diagnostics"
 
-// Use same GPIO pins as Serial1
-// ESP32-S3: GPIO18=U1RXD (RX), GPIO17=U1TXD (TX) - must match hardware UART1 defaults
+// Use same GPIO pins as SerialService (Serial1): GPIO18 RX, GPIO17 TX
 #define DIAG_SERIAL_PORT Serial1
 #define DIAG_RX_PIN 18
 #define DIAG_TX_PIN 17

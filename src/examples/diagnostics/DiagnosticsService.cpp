@@ -71,7 +71,8 @@ void DiagnosticsService::begin() {
   _state.signalErrorCount = 0;
 
   _rxBuffer = "";
-  Serial.println(F("[Diagnostics] Ready. GPIO18 (RX) / GPIO17 (TX)"));
+  Serial.printf("[Diagnostics] Ready. GPIO%u (RX) / GPIO%u (TX)\n",
+                (unsigned)DIAG_RX_PIN, (unsigned)DIAG_TX_PIN);
 }
 
 void DiagnosticsService::setSerialService(SerialService* serialService) {
@@ -155,7 +156,8 @@ void DiagnosticsService::startSerial(uint32_t baud) {
   DIAG_SERIAL_PORT.begin(baud, SERIAL_8N1, DIAG_RX_PIN, DIAG_TX_PIN);
   delay(100);  // ESP32-S3: Allow hardware to stabilize after Serial1 init
   _serialStarted = true;
-  Serial.printf("[Diagnostics] Serial1 started: %lu baud, GPIO18 (RX), GPIO17 (TX), RX buffer=1024\n", (unsigned long)baud);
+  Serial.printf("[Diagnostics] Serial1 started: %lu baud, GPIO%u (RX), GPIO%u (TX), RX buffer=1024\n",
+                (unsigned long)baud, (unsigned)DIAG_RX_PIN, (unsigned)DIAG_TX_PIN);
 }
 
 void DiagnosticsService::stopSerial() {
@@ -237,7 +239,7 @@ void DiagnosticsService::runBaudScan() {
   if (_baudTestStartTime == 0) {
     Serial.println(F("[Diagnostics] === STARTING BAUD SCAN ==="));
     Serial.println(F("[Diagnostics] Ensure your device is connected:"));
-    Serial.println(F("[Diagnostics]   Device TX -> ESP32 GPIO18 (RX)"));
+    Serial.printf("[Diagnostics]   Device TX -> ESP32 GPIO%u (RX)\n", (unsigned)DIAG_RX_PIN);
     Serial.println(F("[Diagnostics]   Device GND -> ESP32 GND"));
     Serial.println(F("[Diagnostics]   Device must be actively transmitting data!"));
     
