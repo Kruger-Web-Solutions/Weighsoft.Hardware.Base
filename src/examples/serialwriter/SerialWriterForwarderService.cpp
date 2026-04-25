@@ -1,4 +1,5 @@
 #include <examples/serialwriter/SerialWriterForwarderService.h>
+#include <examples/serialwriter/SerialWriterForwarderJsonMapping.h>
 #include <ArduinoJson.h>
 
 #ifdef ESP32
@@ -110,13 +111,21 @@ void SerialWriterForwarderService::onConfigUpdated() {
 #endif
 }
 
-void SerialWriterForwarderService::deliverLine(const String& line) {
+void SerialWriterForwarderService::deliverLine(const String& line, const char* sourcePath) {
   if (line.isEmpty()) return;
 
-  _serialWriterService->update([&](SerialWriterState& state) {
-    state.pendingLine = line;
-    return StateUpdateResult::CHANGED;
-  }, "pull_forwarder");
+  if (sourcePath != nullptr && sourcePath[0] != '\0') {
+    Serial.printf("[SerialWriterForwarder][delivered] field=%s path=%s len=%u\n",
+                  _state.jsonField.c_str(),
+                  sourcePath,
+                  (unsigned)line.length());
+  } else {
+    Serial.printf("[SerialWriterForwarder][delivered] field=%s len=%u\n",
+                  _state.jsonField.c_str(),
+                  (unsigned)line.length());
+  }
+
+  _serialWriterService->enqueueForwardedLineUsbOnly(line);
 
   update([&](SerialWriterForwarderState& state) {
     state.lastReceivedLine = line;
@@ -128,6 +137,16 @@ void SerialWriterForwarderService::deliverLine(const String& line) {
   }, "internal");
 }
 
+void SerialWriterForwarderService::setRuntimeError(const String& errorText, bool connected) {
+  const String message = errorText;
+  const bool isConnected = connected;
+  update([message, isConnected](SerialWriterForwarderState& state) {
+    state.connected = isConnected;
+    state.lastError = message;
+    return StateUpdateResult::CHANGED;
+  }, "internal");
+}
+
 void SerialWriterForwarderService::pollHttp() {
 #ifdef ESP32
   if (_state.sourceUrl.isEmpty()) {
@@ -135,11 +154,7 @@ void SerialWriterForwarderService::pollHttp() {
   }
 
   if (!WiFi.isConnected()) {
-    update([](SerialWriterForwarderState& state) {
-      state.connected = false;
-      state.lastError = "No WiFi";
-      return StateUpdateResult::CHANGED;
-    }, "internal");
+    setRuntimeError("No WiFi", false);
     return;
   }
 
@@ -178,30 +193,34 @@ void SerialWriterForwarderService::pollHttp() {
     DynamicJsonDocument doc(512);
     DeserializationError err = deserializeJson(doc, body);
     if (err == DeserializationError::Ok) {
-      const String& field = _state.jsonField;
-      if (doc.containsKey(field.c_str())) {
-        String line = doc[field.c_str()].as<String>();
-        deliverLine(line);
+      char lineBuf[256];
+      char pathBuf[32];
+      SerialWriterForwarderJsonOutcome outcome = serialWriterForwarderExtractLineFromDocument(
+          _state.jsonField.c_str(), doc, lineBuf, sizeof(lineBuf), pathBuf, sizeof(pathBuf));
+      if (outcome == SerialWriterForwarderJsonOutcome::Ok) {
+        deliverLine(String(lineBuf), pathBuf);
+      } else if (outcome == SerialWriterForwarderJsonOutcome::FieldMissing) {
+        String error = "Field '" + _state.jsonField + "' not found (top-level/payload)";
+        Serial.printf("[SerialWriterForwarder][http-field-missing] field=%s\n", _state.jsonField.c_str());
+        setRuntimeError(error, true);
+      } else if (outcome == SerialWriterForwarderJsonOutcome::FieldEmpty) {
+        String error = "Field '" + _state.jsonField + "' is empty";
+        Serial.printf("[SerialWriterForwarder][http-field-empty] field=%s\n", _state.jsonField.c_str());
+        setRuntimeError(error, true);
       } else {
-        update([](SerialWriterForwarderState& state) {
-          state.connected = true;
-          state.lastError = "Field not found in response";
-          return StateUpdateResult::CHANGED;
-        }, "internal");
+        String error = "HTTP extract internal error";
+        Serial.println(F("[SerialWriterForwarder][http-parse-error] internal"));
+        setRuntimeError(error, true);
       }
     } else {
-      update([](SerialWriterForwarderState& state) {
-        state.connected = false;
-        state.lastError = "JSON parse error";
-        return StateUpdateResult::CHANGED;
-      }, "internal");
+      String error = "JSON parse error";
+      Serial.printf("[SerialWriterForwarder][http-parse-error] %s\n", err.c_str());
+      setRuntimeError(error, false);
     }
   } else {
-    update([code](SerialWriterForwarderState& state) {
-      state.connected = false;
-      state.lastError = "HTTP " + String(code);
-      return StateUpdateResult::CHANGED;
-    }, "internal");
+    String error = "HTTP " + String(code);
+    Serial.printf("[SerialWriterForwarder] %s\n", error.c_str());
+    setRuntimeError(error, false);
   }
   http.end();
 #endif
@@ -310,23 +329,32 @@ void SerialWriterForwarderService::initWsClient() {
         return StateUpdateResult::CHANGED;
       }, "internal");
     } else if (type == WStype_TEXT) {
-      // Parse incoming JSON and extract the configured field
-      DynamicJsonDocument doc(512);
-      DeserializationError err = deserializeJson(doc, payload, length);
-      if (err == DeserializationError::Ok) {
-        const String& field = _state.jsonField;
-        if (doc.containsKey(field.c_str())) {
-          String line = doc[field.c_str()].as<String>();
-          deliverLine(line);
-        }
+      char lineBuf[256];
+      char pathBuf[32];
+      SerialWriterForwarderJsonOutcome outcome = serialWriterForwarderExtractLineFromJsonBytes(
+          _state.jsonField.c_str(), payload, length, lineBuf, sizeof(lineBuf), pathBuf, sizeof(pathBuf));
+      if (outcome == SerialWriterForwarderJsonOutcome::Ok) {
+        deliverLine(String(lineBuf), pathBuf);
+      } else if (outcome == SerialWriterForwarderJsonOutcome::FieldMissing) {
+        String error = "WS field '" + _state.jsonField + "' not found (top-level/payload)";
+        Serial.printf("[SerialWriterForwarder][ws-field-missing] field=%s\n", _state.jsonField.c_str());
+        setRuntimeError(error, true);
+      } else if (outcome == SerialWriterForwarderJsonOutcome::FieldEmpty) {
+        String error = "WS field '" + _state.jsonField + "' is empty";
+        Serial.printf("[SerialWriterForwarder][ws-field-empty] field=%s\n", _state.jsonField.c_str());
+        setRuntimeError(error, true);
+      } else {
+        DynamicJsonDocument scratch(64);
+        DeserializationError err = deserializeJson(scratch, payload, length);
+        String error = String("WS JSON parse error: ") + err.c_str();
+        Serial.printf("[SerialWriterForwarder][ws-parse-error] field=%s err=%s\n",
+                      _state.jsonField.c_str(),
+                      err.c_str());
+        setRuntimeError(error, true);
       }
     } else if (type == WStype_ERROR) {
       Serial.println(F("[SerialWriterForwarder] WS error"));
-      update([](SerialWriterForwarderState& state) {
-        state.connected = false;
-        state.lastError = "Connection error";
-        return StateUpdateResult::CHANGED;
-      }, "internal");
+      setRuntimeError("Connection error", false);
     }
   });
 

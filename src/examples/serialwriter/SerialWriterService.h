@@ -50,6 +50,9 @@ class SerialWriterService : public StatefulService<SerialWriterState> {
   void resumeSerial();
   bool isSuspended() const { return _suspended; }
 
+  // Forwarder-only sink: write to USB CDC Serial (not Serial1 TX).
+  void enqueueForwardedLineUsbOnly(const String& line);
+
  private:
   HttpEndpoint<SerialWriterState> _httpEndpoint;
   FSPersistence<SerialWriterState> _fsPersistence;
@@ -73,6 +76,7 @@ class SerialWriterService : public StatefulService<SerialWriterState> {
   bool _suspended;
 
   void writePendingLine();
+  void writeLineWithTerminatorToUsbSerial(const String& line) const;
   void applySerialConfig();
   uint32_t getSerialConfig();
   void onConfigUpdated();

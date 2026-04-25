@@ -128,6 +128,37 @@ void SerialWriterService::writePendingLine() {
 #endif
 }
 
+void SerialWriterService::writeLineWithTerminatorToUsbSerial(const String& line) const {
+  Serial.print(line);
+  if (_state.lineTerminator == SERIAL_WRITER_TERMINATOR_LF) {
+    Serial.print('\n');
+  } else if (_state.lineTerminator == SERIAL_WRITER_TERMINATOR_CRLF) {
+    Serial.print('\r');
+    Serial.print('\n');
+  } else if (_state.lineTerminator == SERIAL_WRITER_TERMINATOR_CR) {
+    Serial.print('\r');
+  }
+  // NONE: no terminator appended
+  Serial.flush();
+}
+
+void SerialWriterService::enqueueForwardedLineUsbOnly(const String& line) {
+  if (line.isEmpty()) {
+    return;
+  }
+
+  writeLineWithTerminatorToUsbSerial(line);
+  unsigned long now = millis();
+  Serial.printf("[SerialWriter] Forwarder sent to USB_CDC: '%s'\n", line.c_str());
+
+  update([&](SerialWriterState& state) {
+    state.lastSentLine = line;
+    state.lastSentMs = now;
+    state.sentCount++;
+    return StateUpdateResult::CHANGED;
+  }, "serial_writer_sent");
+}
+
 void SerialWriterService::onConfigUpdated() {
   Serial.printf("[SerialWriter] Config updated - baud=%lu, terminator='%s'\n",
                 (unsigned long)_state.baudrate,

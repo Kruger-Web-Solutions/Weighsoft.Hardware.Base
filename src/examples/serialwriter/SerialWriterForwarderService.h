@@ -4,6 +4,7 @@
 #include <HttpEndpoint.h>
 #include <FSPersistence.h>
 #include <WebSocketTxRx.h>
+#include <ArduinoJson.h>
 #include <examples/serialwriter/SerialWriterForwarderState.h>
 #include <examples/serialwriter/SerialWriterService.h>
 
@@ -47,7 +48,8 @@ class SerialWriterForwarderService : public StatefulService<SerialWriterForwarde
 
   void onConfigUpdated();
   void pollHttp();
-  void deliverLine(const String& line);
+  void deliverLine(const String& line, const char* sourcePath = nullptr);
+  void setRuntimeError(const String& errorText, bool connected);
 
   void initWsClient();
   void checkWsConnection();

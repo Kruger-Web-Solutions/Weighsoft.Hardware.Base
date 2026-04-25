@@ -9,6 +9,12 @@ Two new services are added:
 - **SerialWriterService** — receives data via REST, WebSocket, MQTT, or BLE and writes each line to Serial1.
 - **SerialWriterForwarderService** — pulls data from a remote HTTP or WebSocket source and feeds it into SerialWriterService.
 
+Forwarder routing behavior:
+
+- Forwarder-originated lines are written to **USB CDC `Serial` only**.
+- Forwarder-originated lines are **not** written to Serial1 TX.
+- Manual sends via `/rest/serialWriter` `pending_line` still use Serial1 TX.
+
 ---
 
 ## Architecture
@@ -33,7 +39,7 @@ SerialWriterForwarderService : StatefulService<SerialWriterForwarderState>
 | | WeightForwarderService | SerialWriterForwarderService |
 |--|---|---|
 | Source | SerialService (local Serial1 RX) | Remote HTTP endpoint or WebSocket |
-| Destination | Remote HTTP / WS / MQTT / BLE | SerialWriterService → Serial1 TX |
+| Destination | Remote HTTP / WS / MQTT / BLE | SerialWriterService -> USB CDC `Serial` (forwarder-originated only) |
 | Trigger | `serial_hw` state update | Timer (HTTP) or WS message callback |
 
 ---
@@ -160,11 +166,12 @@ Full field reference is available on the BLE tab in the Serial Writer UI.
 
 ## Serial Writer Forwarder
 
-The forwarder pulls data from a remote source and feeds each line to Serial1 via SerialWriterService.
+The forwarder pulls data from a remote source and feeds each line to SerialWriterService.
+Forwarder lines are emitted to USB CDC `Serial` only (not Serial1 TX).
 
 ### HTTP Polling Mode
 
-Every `poll_interval_ms` milliseconds, the forwarder GETs `source_url`, parses the JSON response, extracts `json_field`, and writes it to serial if non-empty.
+Every `poll_interval_ms` milliseconds, the forwarder GETs `source_url`, parses the JSON response, extracts `json_field`, and writes it to USB CDC `Serial` if non-empty.
 
 Example: to mirror a remote Serial Monitor in real-time:
 ```json
@@ -179,7 +186,49 @@ Example: to mirror a remote Serial Monitor in real-time:
 
 ### WebSocket Subscribe Mode
 
-Connects to `source_url` as a WebSocket client. Each incoming JSON message is parsed and `json_field` is extracted and written to serial.
+Connects to `source_url` as a WebSocket client. Each incoming JSON message is parsed and `json_field` is extracted and written to USB CDC `Serial`.
+
+Supported message shapes for `json_field` extraction:
+
+- Top-level field: `{"last_line":"..."}`
+- Framework payload wrapper: `{"type":"payload","payload":{"last_line":"..."}}`
+
+The configured field value is trimmed of leading/trailing ASCII whitespace before delivery. Whitespace-only values are treated as empty (see `last_error` below).
+
+#### `last_error` and serial log tags (Phase 2)
+
+When a WebSocket text frame cannot be turned into a forwarded line, `last_error` on `/rest/serialWriterForwarder` is set and the serial console emits **one line per failure category** with a stable tag:
+
+| Situation | `last_error` (WS) | Serial log tag |
+|-----------|-------------------|----------------|
+| JSON parse failed | `WS JSON parse error: <ArduinoJson code>` | `[SerialWriterForwarder][ws-parse-error]` |
+| Valid JSON, field absent at top-level and under `payload` | `WS field '<json_field>' not found (top-level/payload)` | `[SerialWriterForwarder][ws-field-missing]` |
+| Field present but empty or whitespace-only after trim | `WS field '<json_field>' is empty` | `[SerialWriterForwarder][ws-field-empty]` |
+| Successful line (HTTP or WS) | cleared (`""`) | `[SerialWriterForwarder][delivered]` (includes `field=`, `path=` when applicable, `len=`) |
+
+HTTP polling uses the same mapping logic with tags `[http-parse-error]`, `[http-field-missing]`, `[http-field-empty]`.
+
+While the WebSocket transport is connected, parse and mapping failures keep `connected=true` so the UI still shows a live socket with a visible `last_error` (transport disconnects still set `connected=false`).
+
+#### Phase 2 verification matrix (manual)
+
+Inject or replay these three WS text payloads against the configured `json_field` (default `last_line`) and confirm `received_count`, `last_received_line`, and `last_error`:
+
+| # | Payload | Expected |
+|---|---------|----------|
+| 1 | `{"type":"payload","payload":{"last_line":"OK1"}}` | `received_count` increases; `last_received_line` is `OK1`; `last_error` cleared; log `[delivered]` with `path=payload` |
+| 2 | `{"last_line":"OK2"}` | Same with top-level path |
+| 3 | `{not valid json` or non-JSON text | `last_error` starts with `WS JSON parse error:` within one message; log `[ws-parse-error]`; device stays up |
+
+#### Automated tests (mapping only)
+
+Shared extraction helpers live in [SerialWriterForwarderJsonMapping.h](../src/examples/serialwriter/SerialWriterForwarderJsonMapping.h). Unit tests cover flat, wrapped, missing field, empty, whitespace-only, and invalid JSON.
+
+Build tests only (no upload / no on-device run):
+
+```text
+pio test -c platformio_test.ini -e esp32s3_test_mapping --without-uploading --without-testing
+```
 
 Example: subscribe to a remote device's serial WebSocket:
 ```json
@@ -205,8 +254,11 @@ If the source device requires login, provide `auth_username` and `auth_password`
 |------|---------|
 | `SerialWriterState.h` | State struct: config + pending/sent line + counters |
 | `SerialWriterForwarderState.h` | State struct: forwarder config + runtime status |
-| `SerialWriterService.h/.cpp` | Writer service: receives from all protocols, writes to Serial1 |
-| `SerialWriterForwarderService.h/.cpp` | Forwarder: pulls from remote HTTP/WS, feeds SerialWriterService |
+| `SerialWriterService.h/.cpp` | Writer service: regular sends to Serial1; forwarder-originated sends to USB CDC `Serial` |
+| `SerialWriterForwarderJsonMapping.h` | Shared HTTP/WS JSON extraction: top-level and `payload.<json_field>`, trim, outcomes |
+| `SerialWriterForwarderService.h/.cpp` | Forwarder: pulls from remote HTTP/WS; uses mapping helpers; structured `last_error` and logs |
+| `platformio_test.ini` | Minimal PlatformIO config to compile mapping unit tests without full firmware `lib_deps` |
+| `test/test_forwarder_json_mapping/` | Unity tests for `SerialWriterForwarderJsonMapping` |
 
 ### Modified Backend Files
 
@@ -241,13 +293,15 @@ If the source device requires login, provide `auth_username` and `auth_password`
 - [ ] UART Mode switches between `live`, `writer`, and `diagnostics` correctly
 - [ ] POST `{"pending_line":"test"}` to `/rest/serialWriter` — verify TX on GPIO17
 - [ ] `sent_count` increments on each successful write
+- [ ] Forwarder lines appear on USB CDC `Serial` and do not appear on Serial1 TX
 - [ ] Config changes persist across reboot (`baud_rate`, `line_terminator`)
 - [ ] WebSocket `/ws/serialWriter` notifies on each send (check `sent_count` / `last_sent_line`)
 - [ ] MQTT send topic delivers line to serial
 - [ ] BLE write `{"pending_line":"ble test"}` triggers serial write
 - [ ] Forwarder HTTP mode: configure source URL, enable → verify `last_received_line` in UI
-- [ ] Forwarder WS mode: connect to WS source → verify streaming
+- [ ] Forwarder WS mode: connect to WS source with both flat and wrapped payloads → verify streaming
 - [ ] Forwarder auth: configure credentials → verify 401 retry and successful auth
 - [ ] SerialService (live mode) still functions after switching back from writer mode
 - [ ] Firmware builds without errors: `platformio run -e esp32s3`
+- [ ] Forwarder JSON mapping tests build: `pio test -c platformio_test.ini -e esp32s3_test_mapping --without-uploading --without-testing`
 - [ ] Frontend builds without errors: `cd interface && npm run build`
