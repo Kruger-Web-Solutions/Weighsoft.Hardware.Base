@@ -8,11 +8,11 @@ const LedControlBle: FC = () => (
     <Alert severity="info" sx={{ mb: 2 }}>
       Control the LED via Bluetooth Low Energy using nRF Connect or any BLE-capable app.
     </Alert>
-
+    
     <Typography variant="h6" gutterBottom>
       Connection Details
     </Typography>
-
+    
     <List>
       <ListItem>
         <ListItemText
@@ -33,7 +33,7 @@ const LedControlBle: FC = () => (
     <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
       JSON Format
     </Typography>
-
+    
     <Box sx={{ bgcolor: 'background.default', p: 2, borderRadius: 1, mb: 2 }}>
       <Typography component="pre" variant="body2" sx={{ fontFamily: 'monospace' }}>
         {`{

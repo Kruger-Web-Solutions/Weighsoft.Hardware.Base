@@ -25,9 +25,9 @@ const LedControlWebSocket: FC = () => {
     if (!connected || !data) {
       return (<FormLoader message="Connecting to WebSocket…" />);
     }
-
+    
     const rgbColor = `rgb(${data.red}, ${data.green}, ${data.blue})`;
-
+    
     return (
       <>
         <MessageBox
@@ -46,13 +46,13 @@ const LedControlWebSocket: FC = () => {
           }
           label="LED On?"
         />
-
+        
         {data.has_rgb && (
           <Box sx={{ mt: 3 }}>
             <Typography variant="subtitle2" gutterBottom>
               RGB Color Control
             </Typography>
-
+            
             {/* Color Preview */}
             <Box
               sx={{
@@ -67,7 +67,7 @@ const LedControlWebSocket: FC = () => {
                 boxShadow: data.led_on ? `0 0 20px ${rgbColor}` : 'none',
               }}
             />
-
+            
             {/* RGB Sliders */}
             <Stack spacing={2}>
               {/* Red Slider */}
@@ -89,7 +89,7 @@ const LedControlWebSocket: FC = () => {
                   }}
                 />
               </Box>
-
+              
               {/* Green Slider */}
               <Box>
                 <Typography variant="caption" color="text.secondary">
@@ -109,7 +109,7 @@ const LedControlWebSocket: FC = () => {
                   }}
                 />
               </Box>
-
+              
               {/* Blue Slider */}
               <Box>
                 <Typography variant="caption" color="text.secondary">
@@ -130,7 +130,7 @@ const LedControlWebSocket: FC = () => {
                 />
               </Box>
             </Stack>
-
+            
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2 }}>
               Current Color: {rgbColor.toUpperCase()}
             </Typography>

@@ -32,7 +32,7 @@ const Layout: FC<RequiredChildrenProps> = ({ children }) => {
       <LayoutDrawer mobileOpen={mobileOpen} onClose={handleDrawerToggle} />
       <Box
         component="main"
-        sx={{
+        sx={{ 
           marginLeft: { md: `${DRAWER_WIDTH}px` },
           display: 'flex',
           flexDirection: 'column',

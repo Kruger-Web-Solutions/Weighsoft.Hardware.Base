@@ -10,11 +10,11 @@ const LedExampleInfo: FC = () => (
       This is an example project demonstrating Weighsoft's single-layer architecture pattern.
       Use it as a template for building your own industrial IoT services.
     </Alert>
-
+    
     <Typography variant="body1" paragraph>
       This LED example demonstrates how to build a complete IoT service with four communication channels:
     </Typography>
-
+    
     <List sx={{ mb: 2 }}>
       <ListItem>
         <ListItemText
@@ -41,7 +41,7 @@ const LedExampleInfo: FC = () => (
         />
       </ListItem>
     </List>
-
+    
     <Typography variant="h6" gutterBottom>
       Single-Layer Architecture
     </Typography>
@@ -64,10 +64,7 @@ const LedExampleInfo: FC = () => (
       <ListItem>
         <ListItemText
           primary="Origin Tracking"
-          secondary={
-            'StatefulService prevents feedback loops - when you change the LED via WebSocket, '
-            + 'it broadcasts to MQTT but not back to WebSocket'
-          }
+          secondary="StatefulService prevents feedback loops - when you change the LED via WebSocket, it broadcasts to MQTT but not back to WebSocket"
         />
       </ListItem>
     </List>
@@ -83,7 +80,7 @@ const LedExampleInfo: FC = () => (
         <ListItemText primary="LedExampleService.h/cpp" secondary="Service implementing LED control with inline MQTT configuration" />
       </ListItem>
     </List>
-
+    
     <Typography variant="body2" component="div" paragraph sx={{ mt: 2 }}>
       Frontend: <code>interface/src/examples/led/</code>
     </Typography>
