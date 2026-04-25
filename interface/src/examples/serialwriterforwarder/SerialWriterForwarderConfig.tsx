@@ -89,11 +89,7 @@ const SerialWriterForwarderConfig: FC = () => {
           value={data.json_field}
           onChange={(e) => setField('json_field')(e.target.value)}
           placeholder="last_line"
-          helperText={
-            data.protocol === ForwarderSourceProtocol.HTTP
-              ? 'Field name in the JSON response to use as the serial line (default: last_line)'
-              : 'Field inside the message. Same-stack /ws/serial uses type=payload; use last_line unless your key is inside payload.'
-          }
+          helperText="Field name in the JSON response to use as the serial line (default: last_line)"
         />
 
         {data.protocol === ForwarderSourceProtocol.HTTP && (

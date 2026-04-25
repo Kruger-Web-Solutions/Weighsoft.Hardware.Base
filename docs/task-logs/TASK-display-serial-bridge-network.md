@@ -5,7 +5,7 @@
 | **Status** | **DRAFT / IN PROGRESS** — not signed off |
 | **Sign-off** | Pending (testing + your explicit approval) |
 | **Hardware focus** | Node32s display (COM10 in `platformio.ini`), serial/weighing ESP as data source |
-| **Last updated** | 2026-04-21 (SerialWriterForwarder WS payload) |
+| **Last updated** | 2026-04-20 |
 
 ---
 
@@ -151,60 +151,6 @@
 
 ---
 
-### 2.9 ESP32-S3 (`esp32s3`) — USB serial monitor + reflash + HTTP check (2026-04-21)
-
-| | |
-|--|--|
-| **Context** | Same machine workflow as earlier USB CDC fix: `Serial` must map to HWCDC (`ARDUINO_USB_CDC_ON_BOOT=1`, do not force `ARDUINO_USB_MODE=0`) so PlatformIO monitor on the native USB COM shows sketch output. |
-| **Commands run** | `Get-Process python* -ErrorAction SilentlyContinue \| Stop-Process -Force` then `python -m platformio run -e esp32s3 -t upload` (used `upload_port = COM16` from `platformio.ini`). |
-| **Upload** | **SUCCESS** (~88s); chip **ESP32-S3** rev v0.2, **8MB PSRAM**, USB-Serial/JTAG, MAC `e0:72:a1:d6:26:84`, hash verified, hard reset via RTS. |
-| **Serial capture** | **COM16 @ 115200**, 22s read via `System.IO.Ports.SerialPort`: saw `WiFi Got IP. localIP=10.175.183.115`, `[SerialWriterForwarder]` reconnect / `HTTP auth failed: -1` then `-5` then **OK**, `WS connecting to 10.175.183.66:80/ws/serial` with JWT query, **`WS connected`**. Truncated start of buffer (joined mid-boot); early `=== Weighsoft Serial Writer ===` may require opening monitor immediately after reset if needed for screenshots. |
-| **HTTP** | `Invoke-WebRequest http://10.175.183.66/` → **200 OK** (source host for forwarder / UI as referenced in task). |
-| **Instrumentation** | Temporary `[AGENT_DEBUG 7b5836]` line in `main.cpp` **removed** after this run (monitor path validated by live serial text). |
-
----
-
-### 2.10 SerialWriterForwarder — WS connected but no UART / “serial reader” data (2026-04-21)
-
-| | |
-|--|--|
-| **Symptom** | WebSocket to `ws://10.175.183.66/ws/serial` **connected**, manual Serial Writer lines appear on USB log and on external terminal, but **no lines from the forwarder**; external reader shows garbled fragments when baud/UI mismatched. |
-| **Root cause** | Inbound `/ws/serial` messages use **WebSocketTxRx** shape: `{"type":"payload","payload":{...,"last_line":"..."}}`. Forwarder only checked **root** `json_field`. UI had **json_field = weight** while stream carries **`last_line` inside `payload`** → `deliverLine` never ran for WS frames. |
-| **Fix** | `extractForwarderLineFromJson()` in `SerialWriterForwarderService.cpp`: read root key, else unwrap `type==payload` and read field from **`payload`**, else if field ≠ `last_line` fall back to **`payload.last_line`**. HTTP poll uses the same helper. WS doc buffer **512→1024**. One-line Serial log when a non-`id` message yields no line. |
-| **UI** | `SerialWriterForwarderConfig.tsx`: WebSocket-specific helper text for JSON field → steer users to **`last_line`** for same-stack `/ws/serial`. |
-| **External terminal (e.g. COM4)** | Must match **Serial1 baud** (here **9600** per config) and **8N1**; CRLF can look odd in some Ascii viewers—if garbage persists, confirm COM belongs to the **TX (GPIO17)** adapter and try **115200** only if firmware baud were changed. |
-
----
-
-### 2.11 Agent-run verification (no browser) — 2026-04-21
-
-| | |
-|--|--|
-| **Who / what** | Agent ran upload + REST + serial capture on behalf of the user (non-developer). |
-| **Upload** | `Get-Process python* \| Stop-Process -Force` then `pio run -e esp32s3 -t upload` → **SUCCESS** on **COM16** (MAC `e0:72:a1:d6:26:84`). |
-| **REST (LAN)** | `POST http://10.175.183.115/rest/signIn` with `admin` / `admin` (factory defaults) → **200** + JWT. `POST /rest/serialWriterForwarder` with Bearer: **enabled**, **protocol** WS, **source_url** `ws://10.175.183.66/ws/serial`, **json_field** `last_line`, **auth_username**/**auth_password** `admin` → **200**. |
-| **Runtime evidence** | **COM16 @ 115200** capture (~28s): repeated **`[SerialWriter] Sent: 'ST,GS,+   2580kg'`** while **Serial1** at **9600** — confirms **forwarder → SerialWriter → UART** path from remote `/ws/serial` (not only manual UI sends). |
-| **Note** | Each forwarded line was followed by `[SerialWriter] Config updated` / `Serial1` restart in this capture — **fixed in §2.12** (do not treat `pull_forwarder` as config change). |
-
----
-
-### 2.12 WS random drops + leading `à` on UART (2026-04-21)
-
-| | |
-|--|--|
-| **Symptom (1)** | WebSocket to source **disconnects** intermittently; logs show **`HTTP auth failed: -1`** during reconnect bursts (especially around WiFi association / AP teardown). |
-| **Hypothesis / evidence** | **H1 CONFIRMED** from `terminals/26.txt`: every **`[SerialWriter] Sent:`** is immediately followed by **`Config updated`** and **`Stopping Serial1 for reconfiguration...`**. `deliverLine()` used `update(..., "pull_forwarder")`, but `SerialWriterService` only skipped `serial_writer_sent` and `init` — **`pull_forwarder` still called `onConfigUpdated()`** → **LittleFS persist + `Serial.end/begin` on every line** → CPU/WiFi/flash contention and UART glitch bytes (user sees **`à`** before `ST,US`). |
-| **Symptom (2)** | OpenDC terminal shows **`àST,GS,...`** at **9600**. |
-| **Fix (1)** | **`SerialWriterService.cpp`**: extend update-handler guard so **`originId == "pull_forwarder"`** does **not** call `onConfigUpdated()`. |
-| **Fix (2)** | **`SerialWriterForwarderService.cpp`**: **`deliverLine`** strips leading/trailing **`\r`/`\n`** from the extracted line before assigning `pending_line` (indicator lines sometimes embed CR/LF). |
-| **Fix (3)** | **`checkWsConnection` / `initWsClient`**: skip WS (re)connect while **`!WiFi.isConnected()`** to avoid **`HTTP auth -1`** storms when STA is not up. |
-| **Fix (3b)** | **`checkWsConnection`**: call **`initWsClient()`** only when **`_wsClient == nullptr`**. Do **not** recreate the client on every **`!isConnected()`** — **`WebSocketsClient::loop()`** + **`setReconnectInterval(5000)`** already reconnects; double ownership caused **WS disconnect / reconnect storms** (COM16 log 2026-04-21). See **`TASK-mandatory-roadmap-decision-log-workflow.md`** decision row *Forwarder WebSocket to serial reader*. |
-| **Fix (4)** | After **`begin()`**: **`setReconnectInterval(5000)`** + **`enableHeartbeat(15000, 5000, 2)`** on `WebSocketsClient` to mitigate idle disconnects. |
-| **Post-fix verification (agent, 2026-04-21)** | `pio run -e esp32s3 -t upload` **SUCCESS** (COM16); REST forwarder **200** on `10.175.183.115`; **COM16 @ 115200** capture: many consecutive **`[SerialWriter] Sent: 'ST,GS,+   2580kg'`** with **no** intervening **`Stopping Serial1` / `Config updated`** — confirms **`pull_forwarder`** no longer triggers UART/flash storm. |
-| **Follow-up (2026-04-21)** | If issues **reproduced** after that: **WebSocket UI** updates use **per-client `originId`**, not `pull_forwarder`, so the origin-only skip was insufficient for browser-sent `pending_line`. **Fix:** track last-applied UART settings (`_appliedBaudrate` … `_appliedLineTerminator`); **`onConfigUpdated()`** returns early when those match current state so **REST/WS/MQTT** “line only” updates do not persist or **`Serial1.end()`**. |
-
----
-
 ## 3. Current solution (NOT FINAL — pending sign-off)
 
 ### 3.1 Why this approach was selected
@@ -232,11 +178,6 @@
 |--------|--------|
 | `pio run -e node32s` after display changes | **SUCCESS** (multiple iterations in session) |
 | `pio run -e node32s -t upload` to COM10 | **SUCCESS**; MAC `8c:ce:4e:a7:81:24` |
-| `pio run -e esp32s3 -t upload` to COM16 + COM16 serial read + `http://10.175.183.66/` | **SUCCESS** (2026-04-21); see §2.9 |
-| Forwarder WS + WebSocketTxRx `payload` unwrap | **Code fix** (2026-04-21); see §2.10 — rebuild + flash to validate end-to-end |
-| Agent REST + serial proof on `10.175.183.115` | **SUCCESS** (2026-04-21); see §2.11 — `ST,GS,+   2580kg` lines from forwarder |
-| UART storm + WS idle + UART glyph | **Code fix** (2026-04-21); see §2.12 — `pull_forwarder` skip persist/reinit, trim CR/LF, WiFi gate, heartbeat |
-| §2.12 post-fix flash + COM16 log | **SUCCESS** (2026-04-21) — consecutive `Sent` without `Stopping Serial1` (see §2.12 table row) |
 | Field stress / disconnect soak | **Pending** (manual) |
 | User sign-off | **Pending** |
 
@@ -255,11 +196,11 @@ When satisfied, reply with sign-off and optionally edits. The agent may then:
 
 | Area | Files (non-exhaustive) |
 |------|-------------------------|
-| Firmware | `src/examples/display/DisplayService.{h,cpp}`, `platformio.ini`, `src/examples/serialwriter/SerialWriterForwarderService.cpp`, `src/examples/serialwriter/SerialWriterService.cpp` |
+| Firmware | `src/examples/display/DisplayService.{h,cpp}`, `platformio.ini` |
 | Factory / WiFi | `factory_settings.ini` |
-| UI | `interface/src/examples/display/DisplaySerialBridge.tsx`, `interface/src/types/display.ts`, `interface/src/examples/serialwriterforwarder/SerialWriterForwarderConfig.tsx` |
-| Docs | `README.md` (WiFi/AP wording); **task logs** this folder; `docs/PLATFORM-GPIO.md` (USB CDC note for S3) |
-| Reverted / removed | `[env:esp32s]` removed from `platformio.ini`; debug-only `AGENT_DEBUG` line removed from `src/main.cpp` after §2.9 |
+| UI | `interface/src/examples/display/DisplaySerialBridge.tsx`, `interface/src/types/display.ts` |
+| Docs | `README.md` (WiFi/AP wording); **task logs** this folder |
+| Reverted / removed | `[env:esp32s]` removed from `platformio.ini` |
 
 ---
 

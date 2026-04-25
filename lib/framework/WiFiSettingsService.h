@@ -81,20 +81,6 @@ class WiFiSettings {
                                     IPUtils::isNotSet(settings.subnetMask))) {
       settings.staticIPConfig = false;
     }
-
-    // ArduinoJson `a|b` does not substitute `b` when the key exists with value "" (empty string).
-    // Empty persisted SSID/password would otherwise block STA forever (TASK-display §2.0).
-    {
-      const char* facSsid = FACTORY_WIFI_SSID;
-      const char* facPass = FACTORY_WIFI_PASSWORD;
-      if (settings.ssid.length() == 0 && facSsid != nullptr && facSsid[0] != '\0') {
-        settings.ssid = facSsid;
-      }
-      if (settings.password.length() == 0 && facPass != nullptr && facPass[0] != '\0') {
-        settings.password = facPass;
-      }
-    }
-
     return StateUpdateResult::CHANGED;
   }
 };

@@ -29,11 +29,6 @@ void WiFiStatus::onStationModeDisconnected(WiFiEvent_t event, WiFiEventInfo_t in
 void WiFiStatus::onStationModeGotIP(WiFiEvent_t event, WiFiEventInfo_t info) {
   Serial.printf_P(
       PSTR("WiFi Got IP. localIP=%s, hostName=%s\r\n"), WiFi.localIP().toString().c_str(), WiFi.getHostname());
-  // #region agent log
-  Serial.printf(
-      "{\"sessionId\":\"069613\",\"hypothesisId\":\"H6\",\"location\":\"WiFiStatus.cpp:onStationModeGotIP\",\"message\":\"sta_got_ip\",\"data\":{\"rssi\":%d},\"timestamp\":%lu}\n",
-      (int)WiFi.RSSI(), (unsigned long)millis());
-  // #endregion
 }
 #elif defined(ESP8266)
 void WiFiStatus::onStationModeConnected(const WiFiEventStationModeConnected& event) {
@@ -49,11 +44,6 @@ void WiFiStatus::onStationModeDisconnected(const WiFiEventStationModeDisconnecte
 void WiFiStatus::onStationModeGotIP(const WiFiEventStationModeGotIP& event) {
   Serial.printf_P(
       PSTR("WiFi Got IP. localIP=%s, hostName=%s\r\n"), event.ip.toString().c_str(), WiFi.hostname().c_str());
-  // #region agent log
-  Serial.printf(
-      "{\"sessionId\":\"069613\",\"hypothesisId\":\"H6\",\"location\":\"WiFiStatus.cpp:onStationModeGotIP8266\",\"message\":\"sta_got_ip\",\"data\":{\"rssi\":%d},\"timestamp\":%lu}\n",
-      (int)WiFi.RSSI(), (unsigned long)millis());
-  // #endregion
 }
 #endif
 

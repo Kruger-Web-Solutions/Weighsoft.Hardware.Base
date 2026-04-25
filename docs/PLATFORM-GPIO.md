@@ -237,17 +237,21 @@ void LedExampleService::onConfigUpdated() {
 
 **Advantage:** No USB-to-UART chip needed for programming/debugging
 
-**Configuration (`env:esp32s3` in this repo):**
+**Configuration:**
 
 ```ini
+; platformio.ini
 build_flags =
-  ; USB CDC on boot: Serial → HWCDC on the native USB COM (PlatformIO monitor works).
-  -DARDUINO_USB_CDC_ON_BOOT=1
-  ; Do not set ARDUINO_USB_MODE=0 here — combined with CDC=0 that routes Serial to UART only,
-  ; so the USB COM used by esptool shows no sketch output.
+  ; Use hardware UART0 for serial, not USB CDC
+  -DARDUINO_USB_CDC_ON_BOOT=0
+  -DARDUINO_USB_MODE=0
 ```
 
-**Tradeoff:** CDC on boot can delay or gate early `Serial` output until USB enumerates; sketch UART traffic for scales remains on **Serial1** (GPIO17/18), separate from USB debug `Serial`.
+**Why disable USB CDC?**
+
+- Serial monitor over USB CDC can cause conflicts with Serial0 debugging
+- Hardware UART0 is more reliable for serial debugging
+- USB is still available for programming via esptool
 
 ## Partition Scheme Differences
 

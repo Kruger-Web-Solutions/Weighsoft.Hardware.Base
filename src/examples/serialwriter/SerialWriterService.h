@@ -72,21 +72,6 @@ class SerialWriterService : public StatefulService<SerialWriterState> {
   bool _serialStarted;
   bool _suspended;
 
-#ifdef ESP32
-  // Limits WebSocketTx + MqttPubSub work (full JSON each time) during rapid weight lines
-  unsigned long _lastSentPropagateMs{0};
-#endif
-
-  // Last UART settings applied to Serial1 — used to skip persist/reopen when only pending_line etc. changes
-  uint32_t _appliedBaudrate;
-  uint8_t _appliedDatabits;
-  uint8_t _appliedStopbits;
-  uint8_t _appliedParity;
-  String _appliedLineTerminator;
-
-  void captureAppliedPortConfigFromState();
-  bool isSerialPortConfigUnchanged() const;
-
   void writePendingLine();
   void applySerialConfig();
   uint32_t getSerialConfig();
