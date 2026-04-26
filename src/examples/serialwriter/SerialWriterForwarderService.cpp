@@ -7,7 +7,28 @@
 
 namespace {
 
-// WebSocketsClient DISCONNECTED may carry RFC 6455 close data: 2-byte code (big-endian) + optional UTF-8 reason.
+bool outboundWsDisconnectPayloadIsAsciiStackMessage(const uint8_t* payload, size_t length) {
+  if (length == 0 || payload == nullptr) {
+    return false;
+  }
+  // RFC 6455 close codes 1000–4999 are big-endian with first byte in 0x03–0x13 (never ASCII printable).
+  // links2004/WebSockets sometimes passes a plain ASCII status (e.g. "TCP connection cleanup") instead.
+  if (payload[0] < 0x20) {
+    return false;
+  }
+  for (size_t i = 0; i < length; ++i) {
+    uint8_t c = payload[i];
+    if (c == '\0') {
+      break;
+    }
+    if (c < 0x20 && c != '\n' && c != '\r' && c != '\t') {
+      return false;
+    }
+  }
+  return true;
+}
+
+// WebSocketsClient DISCONNECTED: either RFC 6455 close (2-byte BE code + optional UTF-8 reason) or ASCII stack text.
 void logSerialWriterOutboundWsClosePayload(const uint8_t* payload, size_t length) {
   if (length == 0) {
     Serial.println(F("[SerialWriterForwarder][ws-close] no_close_payload (abnormal/TCP reset common)"));
@@ -21,6 +42,33 @@ void logSerialWriterOutboundWsClosePayload(const uint8_t* payload, size_t length
     Serial.printf("[SerialWriterForwarder][ws-close] short_payload len=%u\n", static_cast<unsigned>(length));
     return;
   }
+
+  if (outboundWsDisconnectPayloadIsAsciiStackMessage(payload, length)) {
+    constexpr size_t kMaxAscii = 120;
+    size_t n = length < kMaxAscii ? length : kMaxAscii;
+    Serial.print(F("[SerialWriterForwarder][ws-close] stack_msg len="));
+    Serial.print(static_cast<unsigned>(length));
+    Serial.print(F(" text='"));
+    for (size_t i = 0; i < n; ++i) {
+      char c = static_cast<char>(payload[i]);
+      if (c == '\0') {
+        break;
+      }
+      if (c >= 0x20 && c <= 0x7e) {
+        Serial.print(c);
+      } else if (c == '\n' || c == '\r' || c == '\t') {
+        Serial.print(c);
+      } else {
+        Serial.print('.');
+      }
+    }
+    if (length > kMaxAscii) {
+      Serial.print(F("..."));
+    }
+    Serial.println('\'');
+    return;
+  }
+
   uint16_t code =
       static_cast<uint16_t>((static_cast<uint16_t>(payload[0]) << 8) | static_cast<uint16_t>(payload[1]));
   Serial.printf("[SerialWriterForwarder][ws-close] rfc6455_code=%u len=%u\n",

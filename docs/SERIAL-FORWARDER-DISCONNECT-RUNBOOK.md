@@ -53,8 +53,11 @@ Reference log patterns: [SERIAL-WRITER-EXAMPLE.md](./SERIAL-WRITER-EXAMPLE.md) s
 From **0.7.6** onward, **`[SerialWriterForwarder][ws-close]`** lines decode the WebSocket **close frame** on `WStype_DISCONNECTED`:
 
 - **`no_close_payload`** — `len == 0` on disconnect event (common with TCP reset / abnormal closure; often discussed as **1006**-class when no close frame was delivered).
-- **`rfc6455_code=<n>`** — first two payload bytes are network-byte-order [RFC 6455](https://datatracker.ietf.org/doc/html/rfc6455#section-5.5.1) close code.
+- **`stack_msg text='...'`** (from **0.7.7**) — the `WebSocketsClient` library passed a **plain ASCII** status string (e.g. **`TCP connection cleanup`** from lwIP / ESP32 TCP), **not** a binary RFC 6455 close frame. Older builds mis-read the first two letters as a bogus “code” (e.g. `21571` = `'T'<<8|'C'`).
+- **`rfc6455_code=<n>`** — first two payload bytes are network-byte-order [RFC 6455](https://datatracker.ietf.org/doc/html/rfc6455#section-5.5.1) close code (only when the payload does **not** look like printable ASCII stack text).
 - **`reason_hex=...`** — up to **32** bytes hex of optional UTF-8 reason after the code (truncated if longer).
+
+**Reading your sample trace:** mid-session **`no_close_payload`** disconnect → token kept → reconnect → **`stack_msg` … `TCP connection cleanup`** means the **TCP layer** dropped the socket (reader reset, WiFi glitch, reader reboot, or full listener sockets) **without** a normal WebSocket close frame. Immediately after, **`http_code=-1`** on sign-in means the writer could not open **new TCP** to the reader — same incident class (reader or path unreachable until it recovers). Correlate with **reader UART** and a **third-host** `Test-NetConnection 10.45.71.5 -Port 80` while the writer is stuck.
 
 Source: [`SerialWriterForwarderService.cpp`](../src/examples/serialwriter/SerialWriterForwarderService.cpp) (`WebSocketsClient` outbound client).
 

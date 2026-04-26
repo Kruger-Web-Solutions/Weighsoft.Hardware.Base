@@ -4,8 +4,8 @@
 // Software version - Semantic Versioning (MAJOR.MINOR.PATCH)
 #define VERSION_MAJOR 0
 #define VERSION_MINOR 7
-#define VERSION_PATCH 6
-#define VERSION_STRING "0.7.6"
+#define VERSION_PATCH 7
+#define VERSION_STRING "0.7.7"
 
 // Build information
 #define BUILD_DATE __DATE__
