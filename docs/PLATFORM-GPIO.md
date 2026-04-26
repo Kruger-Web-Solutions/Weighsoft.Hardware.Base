@@ -253,6 +253,8 @@ build_flags =
 - Hardware UART0 is more reliable for serial debugging
 - USB is still available for programming via esptool
 
+> Even with `CDC_ON_BOOT=0`, the native USB-OTG port is used by `SerialWriterService` via a manually-instantiated `USBCDC` (`dataUsbCdc` in [src/main.cpp](../src/main.cpp)) for clean forwarded data. `Serial` itself stays on UART0 so logs are unaffected. See [SERIAL-WRITER-EXAMPLE.md](SERIAL-WRITER-EXAMPLE.md) for the dual-port architecture.
+
 ## Partition Scheme Differences
 
 | Platform | Flash Size | Partition Scheme | OTA Support | Notes |

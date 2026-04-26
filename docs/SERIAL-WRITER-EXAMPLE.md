@@ -136,14 +136,34 @@ Config fields (`baud_rate`, `data_bits`, `stop_bits`, `parity`, `line_terminator
 
 Use this checklist so you can reproduce setup in under ~10 minutes.
 
-1. **Choose how the PC reads data**
-   - **Onboard USB CDC (`usb_only` or `both`):** Install USB drivers if needed; in Windows Device Manager, identify the **USB Serial Device** (or vendor-specific name) for the ESP. Open that COM port in PuTTY, your own tool, or **Scale Com.exe** at the baud you use for that tap (often 115200 for a monitor-style log; the **device on GPIO17** still uses **`serialWriter` baud / parity / stop** from `/rest/serialWriter`).
-   - **Physical UART tap (`serial1_only` or `both` on a second PC):** Connect a **USB–TTL adapter** RX to **GPIO17 (TX)**, **GND** to board GND. Open the adapter’s COM port on the PC. Never connect 5 V TTL to a 3.3 V-only UART without a level shifter.
-2. **Set UART mode to Writer** when using Serial1 (`serial1_only` or `both`): Information tab on Serial Writer (or Serial) → UART mode **Writer**.
-3. **Line terminators:** Forwarder lines use the same `line_terminator` as `/rest/serialWriter` (LF / CRLF / CR / NONE). Match Scale Com.exe or parser settings accordingly.
-4. **`ARDUINO_USB_CDC_ON_BOOT`:** The `esp32s3` environment in `platformio.ini` may set `ARDUINO_USB_CDC_ON_BOOT=0`. That changes whether the native USB port enumerates as a CDC COM for application use. If **no USB COM** appears for mirroring, use **`serial1_only`** plus a **USB–TTL on GPIO17**, or adjust the firmware build flags after agreeing a hardware baseline (see [INTEGRATION-WORKFLOW.md](INTEGRATION-WORKFLOW.md)).
+The ESP32-S3 DevKitC-1 has **two USB-C ports** and the firmware uses them for two completely different purposes:
 
-**2-minute verification (optional):** With a fixed-rate source, compare reader line count, forwarder `received_count`, lines seen on the ESP USB COM (when `usb_only` or `both`), and lines on a tap of GPIO17 — counts should match for non-empty delivered lines.
+| Port (silkscreen) | What enumerates on the PC | What flows through it |
+|----|----|----|
+| `UART` (left) | `Silicon Labs CP210x USB to UART Bridge (COMx)` | **Logs only** — every `Serial.print*` from the firmware (boot banner, `[SerialWriterForwarder]` tags, framework messages). Always 115200 baud. |
+| `USB` (right) | Generic `USB Serial Device (COMy)` | **Forwarder data only** — clean weight strings produced by the forwarder when `output_targets=usb_only` or `both`. Baud is whatever Scale Com.exe is set to (the native USB CDC stream is rate-agnostic; the value in the PC tool is just informational). |
+
+This split is implemented by manually instantiating `USBCDC dataUsbCdc` in [src/main.cpp](../src/main.cpp) and wiring it into `SerialWriterService` via `setDataUsbCdc()`. We deliberately keep `ARDUINO_USB_CDC_ON_BOOT=0` so `Serial` stays on UART0 and **no logs leak onto the data port**. Plug both cables in to use both streams simultaneously; the firmware does not care which is plugged first.
+
+1. **Pick output mode**
+   - **Native USB CDC (`usb_only` or `both`):** Plug a USB-C cable into the **USB** port (right). Windows enumerates a generic USB Serial Device — open it in **Scale Com.exe** (or any terminal). The stream contains only forwarder lines, no log mixing.
+   - **Physical UART tap (`serial1_only` or `both`):** Connect a **USB–TTL adapter** RX to **GPIO17 (TX)**, **GND** to board GND. Open the adapter's COM port on the PC. Never connect 5 V TTL to a 3.3 V-only UART without a level shifter.
+2. **Set UART mode to Writer** when using Serial1 (`serial1_only` or `both`): Information tab on Serial Writer (or Serial) → UART mode **Writer**.
+3. **Match line terminator:** Forwarder lines use the same `line_terminator` as `/rest/serialWriter` (LF / CRLF / CR / NONE). Configure Scale Com.exe / your parser accordingly.
+4. **Logs always need the UART port.** If you are debugging, plug a second USB-C cable into the **UART** port (left) and run `pio device monitor -p COMx -b 115200` against the CP210x COM number. The firmware does not log to the native USB port — that stream is reserved for clean data.
+
+**Verify clean data stream:** Open `pio device monitor -p <USB-port-COM> -b 9600` (baud value here is informational for native CDC) and confirm only weight strings appear, with no `[SerialWriterForwarder]` lines and no boot banner. If you see log lines on this port the USB CDC sink is misconfigured — check that `serialWriterService->setDataUsbCdc(&dataUsbCdc);` is being called in `main.cpp` before `begin()`.
+
+**Worked example (Scale Com.exe, `ST,GS,+ 9760kg`):**
+
+- Source emits `ST,GS,+ 9760kg` on `/ws/serial`.
+- Forwarder config: `output_targets=usb_only`, `line_terminator=CRLF` (Scale Com.exe convention).
+- `/rest/serialWriter` config: `baud_rate=9600`, `data_bits=8`, `parity=none`, `stop_bits=1` (only matters for the GPIO17 path; the native USB CDC stream is unaffected by these values).
+- Both USB-C cables plugged in. Scale Com.exe attached to the USB-port COM at 9600 8N1 CRLF.
+- Expected on the **UART** port (115200): `[SerialWriterForwarder][ws-event] type=TEXT ...` and `[SerialWriter] Forwarder sink=USB len=18` log lines.
+- Expected on the **USB** port: only `ST,GS,+ 9760kg\r\n` per source frame, nothing else.
+
+**2-minute count verification (optional):** With a fixed-rate source, compare reader line count, forwarder `received_count`, lines seen on the USB-port COM (when `usb_only` or `both`), and lines on a tap of GPIO17 — counts should match for non-empty delivered lines.
 
 ---
 
@@ -281,20 +301,20 @@ This section is the runbook for the two failures most commonly hit during forwar
 
 Symptom: `pio device monitor -p COMx -b 115200` connects but the device prints nothing — not even the boot banner.
 
-Root cause: the `esp32s3` environment in [platformio.ini](../platformio.ini) sets `-DARDUINO_USB_CDC_ON_BOOT=0` and `-DARDUINO_USB_MODE=0`. With CDC off, all `Serial.print*` calls go to **UART0**, not to native USB CDC. On the Espressif **ESP32-S3 DevKitC-1** there are two USB-C ports:
+Root cause: the `esp32s3` environment in [platformio.ini](../platformio.ini) sets `-DARDUINO_USB_CDC_ON_BOOT=0` and `-DARDUINO_USB_MODE=0` *by design*. With CDC off, every `Serial.print*` goes to **UART0**, exposed via the on-board CP210x bridge on the **UART** USB-C port. The native **USB** port is reserved for clean forwarder data (manually instantiated `USBCDC dataUsbCdc` in `main.cpp`) and does **not** carry logs.
 
-| Port (silkscreen) | Connected to | Behaviour with `CDC_ON_BOOT=0` |
+| Port (silkscreen) | Connected to | What it does in this firmware |
 |----|----|----|
-| `UART` (left) | On-board USB-Serial bridge → ESP32-S3 UART0 (GPIO43/44) | **Required.** Logs appear here as a normal COM port. |
-| `USB` (right) | ESP32-S3 native USB (GPIO19/20) | No COM port enumerates because CDC is disabled at boot. |
+| `UART` (left) | On-board USB-Serial bridge → ESP32-S3 UART0 (GPIO43/44) | **Logs.** All `Serial.print*` output. Always 115200 baud. Required for `pio device monitor`. |
+| `USB` (right) | ESP32-S3 native USB (GPIO19/20) | Enumerates as a generic USB Serial Device. The forwarder writes clean weight lines here when `output_targets=usb_only` or `both`. **Do not expect logs on this port** — it is intentionally log-free so PC-side parsers see only data. |
 
-Fix:
+Fix for missing logs:
 
 1. Plug the USB-C cable into the **UART** port (the one labelled UART, on the left of the board).
 2. In Windows Device Manager, expand **Ports (COM & LPT)** and confirm the new entry — typically `Silicon Labs CP210x USB to UART Bridge (COMx)`.
 3. Run `pio device monitor -p COMx -b 115200` against that COM number. You should see the boot banner ending with `=== System Ready! ===` followed by `[SerialWriterForwarder] Loaded config: ...`.
 
-If you specifically need logs on the native USB port, change `ARDUINO_USB_CDC_ON_BOOT=1` and `ARDUINO_USB_MODE=1` in `platformio.ini` (note: this is a hardware baseline change — discuss before switching).
+If you ever do want logs on the native USB port (and to give up the clean-data split), flip `ARDUINO_USB_CDC_ON_BOOT=1` and `ARDUINO_USB_MODE=1` in `platformio.ini` and remove the manual `USBCDC` setup in `main.cpp`. This is a hardware baseline change — discuss before switching.
 
 ### Source Connection stays Disconnected
 
@@ -464,7 +484,9 @@ The stable tag pattern is `[SerialWriterForwarder][<category>]`. Grep for it on 
 - [ ] UART Mode switches between `live`, `writer`, and `diagnostics` correctly
 - [ ] POST `{"pending_line":"test"}` to `/rest/serialWriter` — verify TX on GPIO17
 - [ ] `sent_count` increments on each successful write
-- [ ] Forwarder `output_targets`: `usb_only` / `serial1_only` / `both` behave as documented (mirror counts match over 2 minutes when using `both`)
+- [ ] `usb_only` writes clean lines to the **USB** port (no log mixing); UART port shows only `[SerialWriter]` log lines
+- [ ] Forwarder `output_targets`: `serial1_only` / `both` behave as documented (mirror counts match over 2 minutes when using `both`)
+- [ ] Pulling the **USB** cable mid-stream logs `USB CDC sink not configured; line dropped` once on UART, no crash; re-plugging resumes data without firmware restart
 - [ ] Config changes persist across reboot (`baud_rate`, `line_terminator`)
 - [ ] WebSocket `/ws/serialWriter` notifies on each send (check `sent_count` / `last_sent_line`)
 - [ ] MQTT send topic delivers line to serial

@@ -8,6 +8,10 @@
 #include <SettingValue.h>
 #include <examples/serialwriter/SerialWriterState.h>
 
+#ifdef ESP32
+#include <USBCDC.h>
+#endif
+
 #if FT_ENABLED(FT_BLE)
 #include <BlePubSub.h>
 #include <BLEServer.h>
@@ -57,6 +61,15 @@ class SerialWriterService : public StatefulService<SerialWriterState> {
   /** Forwarder line delivery. @param sinkMask SERIAL_WRITER_FORWARDER_SINK_* bits. */
   void enqueueForwardedLine(const String& line, uint8_t sinkMask);
 
+#ifdef ESP32
+  /**
+   * Wire a dedicated native USB CDC stream as the forwarder USB sink. Without this
+   * the USB sink is unconfigured and lines are dropped (with a one-shot warning to
+   * `Serial`) rather than being silently mixed into the UART0 log stream.
+   */
+  void setDataUsbCdc(USBCDC* port) { _dataUsbCdc = port; }
+#endif
+
  private:
   HttpEndpoint<SerialWriterState> _httpEndpoint;
   FSPersistence<SerialWriterState> _fsPersistence;
@@ -79,11 +92,9 @@ class SerialWriterService : public StatefulService<SerialWriterState> {
   bool _serialStarted;
   bool _suspended;
 
-  /** Coalesce forwarder-driven UI updates to avoid WiFi/WebSocket overload at high line rates. */
-  uint32_t _pendingForwarderSentUiDelta = 0;
-  String _pendingForwarderLastSentLine;
-  unsigned long _lastForwarderSentUiFlushMs = 0;
-  void flushPendingForwarderSentUi(bool force);
+#ifdef ESP32
+  USBCDC* _dataUsbCdc = nullptr;
+#endif
 
   void writePendingLine();
   void writeLineWithTerminatorToUsbSerial(const String& line) const;

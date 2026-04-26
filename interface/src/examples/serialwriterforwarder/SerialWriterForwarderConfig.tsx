@@ -46,9 +46,11 @@ const SerialWriterForwarderConfig: FC = () => {
   return (
     <SectionContent title="Serial Writer Forwarder Configuration" titleGutter>
       <Alert severity="info" sx={{ mb: 2 }}>
-        The forwarder pulls lines from a remote HTTP or WebSocket source. Choose where each line is written: USB CDC
-        (PC COM), Serial1 TX (GPIO17, for scale hardware), or both (mirror). UART mode must be Writer when using
-        Serial1.
+        The forwarder pulls lines from a remote HTTP or WebSocket source. Choose where each line is written:
+        <strong> Native USB CDC</strong> (clean data on the ESP32-S3 <em>USB</em> port, no log mixing),
+        <strong> Serial1 TX (GPIO17)</strong> for external scale hardware via a USB-TTL adapter, or
+        <strong> Both</strong> (mirror). Developer logs always stay on the on-board <em>UART</em> port at 115200 baud.
+        UART mode must be set to Writer when using Serial1.
       </Alert>
 
       <Box display="flex" flexDirection="column" gap={3}>
@@ -69,9 +71,11 @@ const SerialWriterForwarderConfig: FC = () => {
             onChange={(e) => setField('output_targets')(e.target.value as ForwarderOutputTargets)}
             label="Forwarder output"
           >
-            <MenuItem value={ForwarderOutputTargets.UsbOnly}>USB CDC only (PC opens ESP USB COM)</MenuItem>
-            <MenuItem value={ForwarderOutputTargets.Serial1Only}>Serial1 TX only (GPIO17)</MenuItem>
-            <MenuItem value={ForwarderOutputTargets.Both}>USB CDC + Serial1 TX (mirror)</MenuItem>
+            <MenuItem value={ForwarderOutputTargets.UsbOnly}>
+              Native USB CDC only (PC opens ESP32-S3 USB-OTG COM, clean data, no log mixing)
+            </MenuItem>
+            <MenuItem value={ForwarderOutputTargets.Serial1Only}>Serial1 TX only (GPIO17, requires USB-TTL adapter)</MenuItem>
+            <MenuItem value={ForwarderOutputTargets.Both}>Native USB CDC + Serial1 TX (mirror)</MenuItem>
           </Select>
         </FormControl>
 

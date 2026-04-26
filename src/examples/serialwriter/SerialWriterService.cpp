@@ -60,9 +60,6 @@ SerialWriterService::SerialWriterService(AsyncWebServer* server,
 }
 
 void SerialWriterService::begin() {
-  _pendingForwarderSentUiDelta = 0;
-  _lastForwarderSentUiFlushMs = 0;
-
   _fsPersistence.readFromFS();
   Serial.printf("[SerialWriter] Loaded config: %lu baud, %u%c%u, terminator='%s'\n",
                 (unsigned long)_state.baudrate,
@@ -83,8 +80,6 @@ void SerialWriterService::begin() {
 }
 
 void SerialWriterService::loop() {
-  flushPendingForwarderSentUi(false);
-
   if (_suspended) {
     return;
   }
@@ -134,17 +129,32 @@ void SerialWriterService::writePendingLine() {
 }
 
 void SerialWriterService::writeLineWithTerminatorToUsbSerial(const String& line) const {
-  Serial.print(line);
+#ifdef ESP32
+  // USB sink is the dedicated native USB CDC stream wired in main.cpp via
+  // setDataUsbCdc(). We deliberately do NOT fall back to `Serial` here: that would
+  // mix scale data into the UART0 log stream and corrupt PC-side parsers.
+  if (_dataUsbCdc == nullptr) {
+    static bool warned = false;
+    if (!warned) {
+      Serial.println(F("[SerialWriter] USB CDC sink not configured; line dropped (call setDataUsbCdc in main.cpp)"));
+      warned = true;
+    }
+    return;
+  }
+  _dataUsbCdc->print(line);
   if (_state.lineTerminator == SERIAL_WRITER_TERMINATOR_LF) {
-    Serial.print('\n');
+    _dataUsbCdc->print('\n');
   } else if (_state.lineTerminator == SERIAL_WRITER_TERMINATOR_CRLF) {
-    Serial.print('\r');
-    Serial.print('\n');
+    _dataUsbCdc->print('\r');
+    _dataUsbCdc->print('\n');
   } else if (_state.lineTerminator == SERIAL_WRITER_TERMINATOR_CR) {
-    Serial.print('\r');
+    _dataUsbCdc->print('\r');
   }
   // NONE: no terminator appended
-  Serial.flush();
+  _dataUsbCdc->flush();
+#else
+  (void)line;
+#endif
 }
 
 void SerialWriterService::writeLineWithTerminatorToSerial1(const String& line) const {
@@ -160,28 +170,6 @@ void SerialWriterService::writeLineWithTerminatorToSerial1(const String& line) c
   }
   SERIAL_WRITER_PORT.flush();
 #endif
-}
-
-void SerialWriterService::flushPendingForwarderSentUi(bool force) {
-  if (_pendingForwarderSentUiDelta == 0) {
-    return;
-  }
-  const unsigned long now = millis();
-  if (!force && _lastForwarderSentUiFlushMs != 0 && (now - _lastForwarderSentUiFlushMs) < 150) {
-    return;
-  }
-
-  const uint32_t delta = _pendingForwarderSentUiDelta;
-  const String line = _pendingForwarderLastSentLine;
-  _pendingForwarderSentUiDelta = 0;
-  _lastForwarderSentUiFlushMs = now;
-
-  update([&](SerialWriterState& state) {
-    state.lastSentLine = line;
-    state.lastSentMs = now;
-    state.sentCount += delta;
-    return StateUpdateResult::CHANGED;
-  }, "serial_writer_sent");
 }
 
 void SerialWriterService::enqueueForwardedLine(const String& line, uint8_t sinkMask) {
@@ -206,9 +194,13 @@ void SerialWriterService::enqueueForwardedLine(const String& line, uint8_t sinkM
 #endif
   }
 
-  _pendingForwarderSentUiDelta++;
-  _pendingForwarderLastSentLine = line;
-  flushPendingForwarderSentUi(false);
+  unsigned long now = millis();
+  update([&](SerialWriterState& state) {
+    state.lastSentLine = line;
+    state.lastSentMs = now;
+    state.sentCount++;
+    return StateUpdateResult::CHANGED;
+  }, "serial_writer_sent");
 }
 
 void SerialWriterService::onConfigUpdated() {
@@ -304,7 +296,6 @@ void SerialWriterService::configureBle() {
 #endif
 
 void SerialWriterService::suspendSerial() {
-  flushPendingForwarderSentUi(true);
   if (_serialStarted && !_suspended) {
     Serial.println(F("[SerialWriter] Suspending - releasing Serial1"));
     SERIAL_WRITER_PORT.end();

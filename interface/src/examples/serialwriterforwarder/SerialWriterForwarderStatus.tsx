@@ -31,10 +31,10 @@ const SerialWriterForwarderStatus: FC = () => {
   const outputTargets = data.output_targets ?? ForwarderOutputTargets.UsbOnly;
   const outputLabel =
     outputTargets === ForwarderOutputTargets.Serial1Only
-      ? 'Serial1 TX only'
+      ? 'Serial1 TX only (GPIO17)'
       : outputTargets === ForwarderOutputTargets.Both
-        ? 'USB CDC + Serial1 TX'
-        : 'USB CDC only';
+        ? 'Native USB CDC + Serial1 TX (mirror)'
+        : 'Native USB CDC (USB-OTG port)';
 
   return (
     <SectionContent title="Serial Writer Forwarder Status" titleGutter>

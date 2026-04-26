@@ -7,6 +7,11 @@
 #include "UartModeService.h"
 #include "version.h"
 
+#ifdef ESP32
+#include <USB.h>
+#include <USBCDC.h>
+#endif
+
 #define SERIAL_BAUD_RATE 115200
 
 // Use pointers to avoid early construction issues on ESP32
@@ -19,10 +24,25 @@ UartModeService* uartModeService;
 SerialWriterService* serialWriterService;
 SerialWriterForwarderService* serialWriterForwarderService;
 
+#ifdef ESP32
+// Dedicated native USB CDC stream used as the forwarder data sink. Kept fully
+// separate from `Serial` (UART0/logs) so that PC-side scale tools see a clean
+// weight-only stream on the native USB-OTG port. See docs/SERIAL-WRITER-EXAMPLE.md.
+USBCDC dataUsbCdc(0);
+#endif
+
 void setup() {
   // start serial and filesystem
   Serial.begin(SERIAL_BAUD_RATE);
   delay(500);
+
+#ifdef ESP32
+  // Bring up the native USB CDC port as a dedicated forwarder data sink. This is
+  // independent of `Serial` (UART0); PC-side scale tools see clean weight strings
+  // here while developer logs continue to flow to the on-board UART bridge port.
+  USB.begin();
+  dataUsbCdc.begin();
+#endif
 
   Serial.println(F("\n\n=== Weighsoft Serial Writer ==="));
   Serial.printf("Version: %s\n", VERSION_STRING);
@@ -81,6 +101,9 @@ void setup() {
                                                 nullptr  // BLE server will be configured via callback
 #endif
   );
+#ifdef ESP32
+  serialWriterService->setDataUsbCdc(&dataUsbCdc);
+#endif
   serialWriterService->begin();
   Serial.println(F("[7/9] Serial Writer service loaded OK"));
 
