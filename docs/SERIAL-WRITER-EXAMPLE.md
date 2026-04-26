@@ -450,7 +450,7 @@ The stable tag pattern is `[SerialWriterForwarder][<category>]`. Grep for it on 
 
 ### Reading a real disconnect + TCP failure
 
-When the WebSocket drops (`[ws-event] type=DISCONNECTED`), the forwarder **clears the HTTP auth token** so the next connection uses a fresh `access_token`. That means the next reconnect path always tries **`POST /rest/signIn`** on the reader host before opening `WebSocketsClient` again.
+When the WebSocket drops (`[ws-event] type=DISCONNECTED`), behaviour depends on whether a **data frame was already received** on that session (firmware **0.7.5+**): **mid-session** drops keep the JWT (`[ws-token] kept...`) so the next attempt can open the outbound WebSocket **without** `POST /rest/signIn` first. **Handshake-only** failures still clear the token so sign-in runs again.
 
 If sign-in fails with **`http_code=-1`** and the log hint **`(TCP/connect failed; source unreachable?)`**, the ESP32 never established TCP to the reader on port 80. That is a **Layer 2/3 problem** (reader down, wrong IP, different subnet, AP isolation, transient WiFi/routing loss), not “reconnect is disabled.” The UI / REST field `last_error` is set to **`Source unreachable: TCP to http://<host>...`** in that case (see `SerialWriterForwarderService::fetchHttpAuthToken` / `initWsClient`).
 
@@ -490,6 +490,30 @@ If you can reproduce **reader reachable from a PC** while the **writer stays on 
 2. **WiFi recovery:** Firmware **0.7.5+** triggers `WiFi.reconnect()` after six consecutive TCP sign-in failures (see `[wifi-recover]`). If problems persist on dual AP+STA builds, capture whether the soft-AP is active and open an issue with WiFi mode and reason codes.
 3. **Reconnect policy:** Implemented in **0.7.5+** — JWT kept after mid-session disconnect so WS is retried before re-auth (see `[ws-token]`). If your reader invalidates tokens on every socket close, you may need server-side policy or a follow-up code change.
 4. **Heartbeat:** Restored in **0.7.5+** for the outbound client; compare idle stability vs older builds if needed.
+
+### Periodic disconnects (~8 s) and `Client connected` in the same log
+
+**What the samples show**
+
+- **Reconnect without `http-auth`:** Lines like `[ws-attempt] auth=token-ok` after `[ws-token] kept...` mean the writer is **not** hammering `POST /rest/signIn` on every drop. That rules out “writer overloads reader auth” **during** steady streaming; sign-in only returns when the token was cleared (e.g. handshake failure) or on cold start.
+- **`DISCONNECTED` with `len=15` or `len=22`:** The WebSockets library passes a **close payload** (often a 2-byte [RFC 6455](https://datatracker.ietf.org/doc/html/rfc6455#section-5.5.1) close code in network byte order, plus optional UTF-8 reason, or a short status string). Today’s log line only prints `len=`; decode requires a **temporary** `Serial.printf` of the first bytes in the `WStype_DISCONNECTED` branch (or a logic analyzer on TLS-off lab traffic). Typical codes: `1000` normal closure, `1001` going away, `1006` abnormal (no close frame), `1008` policy violation, `1011` server error.
+- **Roughly 8 s between drops** while only **PONG** / occasional small **TEXT** (`len=33`, `ws-field-missing`) appear is consistent with an **idle or single-client policy on the reader** (or a proxy): many stacks close outbound streams if **no application JSON** is sent for N seconds when the scale line is unchanged. That is **not** a UART buffer length issue on the writer — your `TEXT len=339` frames are delivered and parsed when present.
+- **`[WS] Client connected: 1`** comes from [`WebSocketTxRx.h`](../lib/framework/WebSocketTxRx.h) on the **writer** device: a **browser or tool opened a WebSocket to the writer** (e.g. `/ws/serialWriterForwarder` or another secured UI socket). It is **not** the reader accepting a second forwarder. It can still matter: **two tabs** or **diagnostics** on the writer add load and JSON broadcasts; as an experiment, **close every UI tab** on the writer and see whether reader-side disconnect cadence changes.
+
+**When it degrades into `http_code=-1` again**
+
+That is the same **writer TCP to reader** failure class as before: after a bad handshake the token is cleared, sign-in runs, and transport fails. It is **orthogonal** to the periodic close code unless the reader crashes or the AP kicks the writer.
+
+**Debugging checklist (recommended order)**
+
+1. Capture **close payload bytes** for every `DISCONNECTED` (add a short hex dump in `SerialWriterForwarderService` if needed) and map RFC 6455 codes to reader policy or network resets.
+2. **Reader UART** (or remote logging) at the same timestamps: does the reader log closing `/ws/serial` (reason, heap, `LIVE_LOCK`, `AsyncWebSocket` client limit)?
+3. **A/B:** No browser open on the **writer** vs one tab on forwarder status — compare disconnect interval.
+4. **Reader firmware:** Inspect max concurrent WS clients, idle timeout, and whether `/ws/serial` only pushes on **line change** (explains long gaps with only PONG from the writer’s heartbeat).
+5. **Network:** Same-LAN PC with `wscat` or browser `WebSocket` to `ws://<reader>/ws/serial?...` left idle — if the PC sees the same ~8 s close, the cause is on the **reader or AP**, not the ESP32 forwarder alone.
+6. If `http_code=-1` returns, use the **reader vs writer reboot** and **third-host ping** steps above; confirm whether **`[wifi-recover]`** fired (six TCP sign-in failures).
+
+**Do we need more testing to conclude?** Yes, for the **exact root** of the periodic close: the close code plus reader logs (or reader source for idle timeout / max clients) are required. The writer logs alone strongly suggest **server-side or path idle policy**, not JWT spam or undersized line buffers.
 
 ---
 
