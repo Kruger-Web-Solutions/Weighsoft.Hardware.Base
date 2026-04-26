@@ -458,6 +458,37 @@ You will then see **`[ws-reconnect] reason=no-client`** on later ticks. That is 
 
 **Bench check:** While the writer logs repeated `http_code=-1`, verify from another machine on the same LAN that the reader answers HTTP (e.g. `POST /rest/signIn` or a simple TCP connect to port 80). If the reader is reachable elsewhere but the writer never recovers until reboot, capture that scenario (WiFi events, reader IP stability) for a possible firmware or network-stack follow-up.
 
+### Reader reboot vs writer reboot
+
+`http_code=-1` is evaluated on the **serialWriter** device: its `HTTPClient` cannot complete TCP to the configured reader IP (e.g. `http://10.45.71.5/rest/signIn`).
+
+- **Rebooting the serialReader** only resets the reader’s firmware and listeners. It does **not** reset the writer’s WiFi association, lwIP socket tables, or ARP cache. If the writer’s UART log **unchanged** after a reader power-cycle (still alternating `http-auth` failed `-1` with `ws-reconnect` / backoff), treat the incident as **writer reachability or writer network stack state**, not “the reader process was hung.”
+- **Rebooting the serialWriter** reinitializes WiFi and the whole TCP stack, which is why `http-auth ok` and `ws-event CONNECTED` often return only after a writer reset even when the reader was healthy all along.
+
+Use that split when triaging: confirm the reader from a **third** host on the same subnet while the writer is stuck; if the third host succeeds, focus on the writer (captive portal / `WiFi Got IP` / reason codes, STA vs AP, cable AP firmware).
+
+### Recent firmware reconnect path (maintainers)
+
+Reconnect behaviour on ESP32 **changed in meaning** around commits **`02ec858`** / **`cf01bb1`** on `SerialWriterForwarderService.cpp` (auth-first refactor and transport-specific backoff), compared to earlier builds such as **`4113231`**:
+
+| Area | Older pattern (pre–auth-first) | Current pattern |
+|------|-------------------------------|-----------------|
+| Order of operations | Allocate `WebSocketsClient`, then fetch token; on token failure the code could still call `begin(host, port, path)` without `access_token` (TCP + WS attempt anyway). | Parse URL, **`POST /rest/signIn` first**; if sign-in fails, **return before** `new WebSocketsClient()` — no `begin()` until a token exists. |
+| `reason=no-client` | Same label, but backoff for the no-client path was a fixed 5s interval in the older `checkWsConnection` logic. | Backoff grows with failures (transport `-1` capped shorter than HTTP errors like `401`); see `ws-reconnect-backoff` and `last_signin_http` in logs. |
+| Heartbeat | **`enableHeartbeat(15000, 3000, 2)`** on the outbound client (e.g. `4113231`). | Removed in **`02ec858`** (trade-off for lwIP churn vs idle keepalive). |
+| Teardown | Client replaced with `delete` (ordering varied). | **`disconnect()` then `delete`** when replacing the outbound WS client. |
+
+So “it used to reconnect after a few retries” on older flashes may reflect **different TCP traffic** (HTTP-only retries vs mixed HTTP + unconditional WS `begin`) and different timers — not proof that the reader was at fault. The **underlying** failure in your logs is still **writer TCP `-1`** until something resets the writer’s network path.
+
+### Optional recovery experiments (bisect and mitigations)
+
+If you can reproduce **reader reachable from a PC** while the **writer stays on `http_code=-1`**, capture WiFi reason codes and consider:
+
+1. **Bisect on hardware:** Flash the parent of `02ec858`, then `02ec858`, then `cf01bb1` with the same topology to see which change correlates with “stuck until writer reboot.”
+2. **WiFi recovery (firmware PR):** After **N** consecutive `_lastSignInHttpCode < 0` while `WiFi.isConnected()` is true, a gated `WiFi.reconnect()` or controlled disconnect/reconnect (with clear logging) may flush a wedged STA path — validate side effects on captive portal / dual-mode builds first.
+3. **Reconnect policy:** On `DISCONNECTED` after a successful session (`hadConnected`), optionally try **one** WS reconnect using the **previous** token before clearing it, to avoid hammering `signIn` — trade-offs: stale tokens, server rejection, policy must match your auth model.
+4. **Restore outbound `enableHeartbeat`** as an A/B test against long idle drops (less relevant to immediate post-disconnect `-1`, easy to compare builds).
+
 ---
 
 ## File Structure
