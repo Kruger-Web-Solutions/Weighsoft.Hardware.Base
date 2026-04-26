@@ -4,12 +4,15 @@ import {
   Box,
   Button,
   Checkbox,
+  Chip,
   FormControl,
   FormControlLabel,
   InputLabel,
   MenuItem,
   Select,
+  Stack,
   TextField,
+  Typography,
 } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
 import { SectionContent, FormLoader, ButtonRow } from '../../components';
@@ -135,6 +138,16 @@ const SerialWriterForwarderConfig: FC = () => {
             helperText="Used for JWT Bearer token authentication against the source device"
             sx={{ mb: 1 }}
           />
+          <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 0.5 }}>
+            <Typography variant="caption" color="text.secondary">
+              Source login (password)
+            </Typography>
+            {data.auth_password_set ? (
+              <Chip label="stored" color="success" size="small" variant="outlined" />
+            ) : (
+              <Chip label="not set" color="default" size="small" variant="outlined" />
+            )}
+          </Stack>
           <TextField
             fullWidth
             size="small"
@@ -143,8 +156,30 @@ const SerialWriterForwarderConfig: FC = () => {
             autoComplete="current-password"
             value={data.auth_password ?? ''}
             onChange={(e) => setField('auth_password')(e.target.value)}
-            placeholder="Password for source device"
+            placeholder={
+              data.auth_password_set
+                ? 'Leave blank to keep stored password'
+                : 'Password for source device'
+            }
+            helperText={
+              data.auth_password_set
+                ? 'A password is stored on the device. Leave this field blank on Save to keep it; type a new value to replace it.'
+                : 'Type the source device password. The value is stored on flash and never returned by GET.'
+            }
           />
+          {data.auth_password_set && (
+            <Button
+              size="small"
+              color="warning"
+              sx={{ mt: 1 }}
+              onClick={() => {
+                setField('auth_password')('');
+                setField('auth_password_clear')(true);
+              }}
+            >
+              Clear stored password
+            </Button>
+          )}
         </Box>
 
         <ButtonRow>

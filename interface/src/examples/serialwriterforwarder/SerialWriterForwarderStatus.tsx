@@ -1,5 +1,5 @@
 import { FC } from 'react';
-import { Alert, Chip, Paper, Table, TableBody, TableCell, TableRow, Typography } from '@mui/material';
+import { Alert, Box, Chip, Paper, Table, TableBody, TableCell, TableRow, Typography } from '@mui/material';
 import { SectionContent } from '../../components';
 import { WEB_SOCKET_ROOT } from '../../api/endpoints';
 import { useWs } from '../../utils/useWs';
@@ -106,6 +106,25 @@ const SerialWriterForwarderStatus: FC = () => {
               </TableCell>
               <TableCell sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
                 {data.source_url || '—'}
+              </TableCell>
+            </TableRow>
+
+            <TableRow>
+              <TableCell>
+                <strong>Auth</strong>
+              </TableCell>
+              <TableCell>
+                <Box display="flex" alignItems="center" gap={1} flexWrap="wrap">
+                  <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
+                    {data.auth_username ? `user: ${data.auth_username}` : 'no user'}
+                  </Typography>
+                  <Chip
+                    label={data.auth_password_set ? 'password stored' : 'no password'}
+                    color={data.auth_password_set ? 'success' : 'default'}
+                    size="small"
+                    variant="outlined"
+                  />
+                </Box>
               </TableCell>
             </TableRow>
 

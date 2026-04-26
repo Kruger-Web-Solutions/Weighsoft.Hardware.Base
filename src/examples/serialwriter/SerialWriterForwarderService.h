@@ -36,6 +36,8 @@ class SerialWriterForwarderService : public StatefulService<SerialWriterForwarde
 #ifdef ESP32
   WebSocketsClient* _wsClient;
   unsigned long _lastWsReconnectAttempt;
+  uint32_t _wsAttemptCount;
+  bool _wsHadConnected;
 #endif
 
   unsigned long _lastPollTime;
@@ -53,6 +55,10 @@ class SerialWriterForwarderService : public StatefulService<SerialWriterForwarde
 
   void initWsClient();
   void checkWsConnection();
+
+#ifdef ESP32
+  static const char* wsTypeName(WStype_t type);
+#endif
 };
 
 #endif

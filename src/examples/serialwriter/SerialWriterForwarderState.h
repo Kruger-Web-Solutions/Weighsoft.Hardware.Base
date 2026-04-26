@@ -56,7 +56,8 @@ class SerialWriterForwarderState {
       root["output_targets"] = "usb_only";
     }
     root["auth_username"] = state.authUsername;
-    // auth_password intentionally omitted from read for security
+    // auth_password intentionally omitted from read for security; expose only a boolean indicator
+    root["auth_password_set"] = !state.authPassword.isEmpty();
     root["connected"] = state.connected;
     root["last_received_line"] = state.lastReceivedLine;
     root["last_received_ms"] = state.lastReceivedMs;
@@ -155,8 +156,18 @@ class SerialWriterForwarderState {
     }
     if (root.containsKey("auth_password")) {
       String v = root["auth_password"].as<String>();
-      if (v != state.authPassword) {
+      // Treat empty as "keep existing" so that re-saving the form (where the field is blank because GET
+      // omits the password for security) does not wipe the stored credential. To clear, send a non-empty
+      // sentinel via the dedicated field below.
+      if (v.length() > 0 && v != state.authPassword) {
         state.authPassword = v;
+        result = StateUpdateResult::CHANGED;
+      }
+    }
+    // Explicit clear: { "auth_password_clear": true } removes the stored password
+    if (root.containsKey("auth_password_clear") && root["auth_password_clear"].as<bool>()) {
+      if (!state.authPassword.isEmpty()) {
+        state.authPassword = "";
         result = StateUpdateResult::CHANGED;
       }
     }

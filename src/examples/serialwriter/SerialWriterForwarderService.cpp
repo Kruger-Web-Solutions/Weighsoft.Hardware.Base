@@ -33,7 +33,9 @@ SerialWriterForwarderService::SerialWriterForwarderService(AsyncWebServer* serve
 #ifdef ESP32
       ,
       _wsClient(nullptr),
-      _lastWsReconnectAttempt(0)
+      _lastWsReconnectAttempt(0),
+      _wsAttemptCount(0),
+      _wsHadConnected(false)
 #endif
       ,
       _lastPollTime(0),
@@ -67,6 +69,10 @@ void SerialWriterForwarderService::begin() {
   _state.receivedCount = 0;
   _httpAuthTokenValid = false;
   _httpAuthToken = "";
+#ifdef ESP32
+  _wsAttemptCount = 0;
+  _wsHadConnected = false;
+#endif
 
   if (_state.enabled && _state.protocol == SERIAL_WRITER_FORWARDER_PROTOCOL_WS) {
     initWsClient();
@@ -111,6 +117,8 @@ void SerialWriterForwarderService::onConfigUpdated() {
     delete _wsClient;
     _wsClient = nullptr;
   }
+  _wsAttemptCount = 0;
+  _wsHadConnected = false;
 
   if (_state.enabled && _state.protocol == SERIAL_WRITER_FORWARDER_PROTOCOL_WS) {
     initWsClient();
@@ -278,14 +286,19 @@ bool SerialWriterForwarderService::fetchHttpAuthToken(const String& baseUrl) {
         _httpAuthToken = token;
         _httpAuthTokenValid = true;
         ok = true;
-        Serial.println(F("[SerialWriterForwarder] HTTP auth OK"));
       }
     }
   }
   if (!ok) {
     _httpAuthToken = "";
     _httpAuthTokenValid = false;
-    Serial.printf("[SerialWriterForwarder] HTTP auth failed: %d\n", code);
+    Serial.printf("[SerialWriterForwarder][http-auth] failed url=%s http_code=%d\n",
+                  signInUrl.c_str(),
+                  code);
+  } else {
+    Serial.printf("[SerialWriterForwarder][http-auth] ok url=%s token_len=%u\n",
+                  signInUrl.c_str(),
+                  (unsigned)_httpAuthToken.length());
   }
   http.end();
   return ok;
@@ -294,18 +307,61 @@ bool SerialWriterForwarderService::fetchHttpAuthToken(const String& baseUrl) {
 #endif
 }
 
+#ifdef ESP32
+const char* SerialWriterForwarderService::wsTypeName(WStype_t type) {
+  switch (type) {
+    case WStype_ERROR:
+      return "ERROR";
+    case WStype_DISCONNECTED:
+      return "DISCONNECTED";
+    case WStype_CONNECTED:
+      return "CONNECTED";
+    case WStype_TEXT:
+      return "TEXT";
+    case WStype_BIN:
+      return "BIN";
+    case WStype_FRAGMENT_TEXT_START:
+      return "FRAGMENT_TEXT_START";
+    case WStype_FRAGMENT_BIN_START:
+      return "FRAGMENT_BIN_START";
+    case WStype_FRAGMENT:
+      return "FRAGMENT";
+    case WStype_FRAGMENT_FIN:
+      return "FRAGMENT_FIN";
+    case WStype_PING:
+      return "PING";
+    case WStype_PONG:
+      return "PONG";
+    default:
+      return "UNKNOWN";
+  }
+}
+#endif
+
 void SerialWriterForwarderService::initWsClient() {
 #ifdef ESP32
   if (_state.sourceUrl.isEmpty()) {
-    Serial.println(F("[SerialWriterForwarder] WS source URL not configured"));
+    Serial.println(F("[SerialWriterForwarder][ws-attempt] skipped reason=no-source-url"));
+    setRuntimeError("Source URL not configured", false);
+    return;
+  }
+
+  // Gate on WiFi: skip allocation when WiFi is down so we don't churn TCP attempts on a dead radio
+  if (!WiFi.isConnected()) {
+    Serial.println(F("[SerialWriterForwarder][ws-attempt] skipped reason=wifi-down"));
+    setRuntimeError("No WiFi", false);
+    _lastWsReconnectAttempt = millis();
     return;
   }
 
   if (_wsClient) {
     delete _wsClient;
+    _wsClient = nullptr;
   }
 
   _wsClient = new WebSocketsClient();
+  _wsAttemptCount++;
+  _wsHadConnected = false;
 
   // Parse ws://host:port/path
   String url = _state.sourceUrl;
@@ -317,7 +373,18 @@ void SerialWriterForwarderService::initWsClient() {
   uint16_t port = portIdx > 0 ? url.substring(portIdx + 1, pathIdx > 0 ? pathIdx : url.length()).toInt() : 80;
   String path = pathIdx > 0 ? url.substring(pathIdx) : "/";
 
-  if (!_state.authUsername.isEmpty()) {
+  Serial.printf("[SerialWriterForwarder][ws-attempt] n=%u url='%s' host=%s port=%u path=%s wifi_ip=%s\n",
+                (unsigned)_wsAttemptCount,
+                _state.sourceUrl.c_str(),
+                host.c_str(),
+                (unsigned)port,
+                path.c_str(),
+                WiFi.localIP().toString().c_str());
+
+  // Auth path: explicit log of which branch we took so the source-side rejection cause is obvious from the log
+  if (_state.authUsername.isEmpty()) {
+    Serial.println(F("[SerialWriterForwarder][ws-attempt] auth=none"));
+  } else {
     String baseUrl = "http://" + host + (port != 80 ? ":" + String(port) : "");
     if (!_httpAuthTokenValid || _httpAuthToken.isEmpty()) {
       fetchHttpAuthToken(baseUrl);
@@ -325,26 +392,58 @@ void SerialWriterForwarderService::initWsClient() {
     if (_httpAuthTokenValid && !_httpAuthToken.isEmpty()) {
       path += (path.indexOf('?') >= 0 ? "&" : "?");
       path += "access_token=" + _httpAuthToken;
+      Serial.printf("[SerialWriterForwarder][ws-attempt] auth=token-ok user=%s token_len=%u\n",
+                    _state.authUsername.c_str(),
+                    (unsigned)_httpAuthToken.length());
+    } else {
+      Serial.printf("[SerialWriterForwarder][ws-attempt] auth=token-failed user=%s (sign-in did not return access_token)\n",
+                    _state.authUsername.c_str());
+      // Surface this clearly so the UI doesn't just say "Disconnected"
+      String error = "Auth failed: sign-in to " + baseUrl + " did not return token";
+      setRuntimeError(error, false);
     }
   }
 
-  Serial.printf("[SerialWriterForwarder] WS connecting to %s:%d%s\n", host.c_str(), port, path.c_str());
+  // Show progress in the UI immediately so a user clicking Save sees the next state instead of stale "Disconnected"
+  {
+    String progress = "Connecting to " + host + ":" + String((unsigned)port) + path;
+    update([progress](SerialWriterForwarderState& state) {
+      state.connected = false;
+      // Don't clobber a more specific auth error set just above
+      if (state.lastError.isEmpty() || state.lastError == "Disconnected" ||
+          state.lastError == "Source closed (auth or path?)" ||
+          state.lastError == "Source disconnected" ||
+          state.lastError == "No WiFi") {
+        state.lastError = progress;
+      }
+      return StateUpdateResult::CHANGED;
+    }, "internal");
+  }
 
   _wsClient->onEvent([this](WStype_t type, uint8_t* payload, size_t length) {
+    Serial.printf("[SerialWriterForwarder][ws-event] type=%s t=%lu len=%u\n",
+                  wsTypeName(type),
+                  (unsigned long)millis(),
+                  (unsigned)length);
+
     if (type == WStype_CONNECTED) {
-      Serial.println(F("[SerialWriterForwarder] WS connected"));
+      _wsHadConnected = true;
       update([](SerialWriterForwarderState& state) {
         state.connected = true;
         state.lastError = "";
         return StateUpdateResult::CHANGED;
       }, "internal");
     } else if (type == WStype_DISCONNECTED) {
-      Serial.println(F("[SerialWriterForwarder] WS disconnected"));
-      update([](SerialWriterForwarderState& state) {
+      // Distinguish "rejected on handshake" from "lost connection after a frame"
+      const bool hadConnected = _wsHadConnected;
+      update([hadConnected](SerialWriterForwarderState& state) {
         state.connected = false;
-        state.lastError = "Disconnected";
+        state.lastError = hadConnected ? "Source disconnected" : "Source closed (auth or path?)";
         return StateUpdateResult::CHANGED;
       }, "internal");
+      // Force re-auth on next attempt; stale/expired tokens are a common reason for handshake closes
+      _httpAuthTokenValid = false;
+      _httpAuthToken = "";
     } else if (type == WStype_TEXT) {
       char lineBuf[256];
       char pathBuf[32];
@@ -370,9 +469,20 @@ void SerialWriterForwarderService::initWsClient() {
         setRuntimeError(error, true);
       }
     } else if (type == WStype_ERROR) {
-      Serial.println(F("[SerialWriterForwarder] WS error"));
-      setRuntimeError("Connection error", false);
+      String detail;
+      if (payload != nullptr && length > 0) {
+        detail.reserve(length);
+        for (size_t i = 0; i < length; ++i) {
+          char c = (char)payload[i];
+          if (c == '\0') break;
+          detail += c;
+        }
+      }
+      Serial.printf("[SerialWriterForwarder][ws-error] detail='%s'\n", detail.c_str());
+      String error = detail.isEmpty() ? String("WS error") : (String("WS error: ") + detail);
+      setRuntimeError(error, false);
     }
+    // Other event types (PING/PONG/BIN/FRAGMENT*) are logged at the top of the lambda
   });
 
   _wsClient->begin(host, port, path);
@@ -385,9 +495,28 @@ void SerialWriterForwarderService::checkWsConnection() {
   if (_state.protocol != SERIAL_WRITER_FORWARDER_PROTOCOL_WS || !_state.enabled) {
     return;
   }
-  if (!_wsClient || !_wsClient->isConnected()) {
+
+  // Always gate reconnects on WiFi so we don't spam TCP attempts on a dead radio
+  if (!WiFi.isConnected()) {
     if (millis() - _lastWsReconnectAttempt >= 5000) {
-      Serial.println(F("[SerialWriterForwarder] Reconnecting WS..."));
+      Serial.println(F("[SerialWriterForwarder][ws-reconnect] reason=wifi-down"));
+      _lastWsReconnectAttempt = millis();
+      setRuntimeError("No WiFi", false);
+    }
+    return;
+  }
+
+  if (!_wsClient) {
+    if (millis() - _lastWsReconnectAttempt >= 5000) {
+      Serial.println(F("[SerialWriterForwarder][ws-reconnect] reason=no-client"));
+      initWsClient();
+    }
+    return;
+  }
+
+  if (!_wsClient->isConnected()) {
+    if (millis() - _lastWsReconnectAttempt >= 5000) {
+      Serial.println(F("[SerialWriterForwarder][ws-reconnect] reason=not-connected"));
       initWsClient();
     }
   }

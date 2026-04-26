@@ -21,6 +21,10 @@ export interface SerialWriterForwarderData {
   output_targets?: ForwarderOutputTargets;
   auth_username?: string;
   auth_password?: string;
+  /** True when a non-empty password is stored on the device. The actual value is never returned by GET. */
+  auth_password_set?: boolean;
+  /** Send `true` to explicitly clear the stored password (rare; the empty `auth_password` is treated as "keep"). */
+  auth_password_clear?: boolean;
 
   // Runtime status (read-only from backend)
   connected: boolean;

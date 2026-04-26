@@ -267,6 +267,154 @@ Example: subscribe to a remote device's serial WebSocket:
 
 If the source device requires login, provide `auth_username` and `auth_password`. The forwarder signs in to `/rest/signIn` on the source device and appends the token as a Bearer header (HTTP) or `?access_token=` query parameter (WebSocket). Re-authentication is triggered automatically on 401 responses.
 
+The default factory credentials baked into both the source and writer firmwares come from `factory_settings.ini` (`FACTORY_ADMIN_USERNAME=admin`, `FACTORY_ADMIN_PASSWORD=admin`). On a deployed device these may have been changed via Security settings — use whatever the source device currently accepts on `/rest/signIn`.
+
+For security, `GET /rest/serialWriterForwarder` deliberately omits `auth_password`. The response includes `auth_password_set: true|false` so the UI can show whether a password is stored without leaking it. On `POST`, an empty `auth_password` is treated as **"keep existing"** so re-saving the form does not wipe the stored credential. To explicitly remove the stored password, send `{"auth_password_clear": true}` (the UI exposes a "Clear stored password" button when one is stored).
+
+---
+
+## Troubleshooting
+
+This section is the runbook for the two failures most commonly hit during forwarder bring-up on the `serialWriter` branch.
+
+### "I see no logs on COM3 / Nothing further"
+
+Symptom: `pio device monitor -p COMx -b 115200` connects but the device prints nothing — not even the boot banner.
+
+Root cause: the `esp32s3` environment in [platformio.ini](../platformio.ini) sets `-DARDUINO_USB_CDC_ON_BOOT=0` and `-DARDUINO_USB_MODE=0`. With CDC off, all `Serial.print*` calls go to **UART0**, not to native USB CDC. On the Espressif **ESP32-S3 DevKitC-1** there are two USB-C ports:
+
+| Port (silkscreen) | Connected to | Behaviour with `CDC_ON_BOOT=0` |
+|----|----|----|
+| `UART` (left) | On-board USB-Serial bridge → ESP32-S3 UART0 (GPIO43/44) | **Required.** Logs appear here as a normal COM port. |
+| `USB` (right) | ESP32-S3 native USB (GPIO19/20) | No COM port enumerates because CDC is disabled at boot. |
+
+Fix:
+
+1. Plug the USB-C cable into the **UART** port (the one labelled UART, on the left of the board).
+2. In Windows Device Manager, expand **Ports (COM & LPT)** and confirm the new entry — typically `Silicon Labs CP210x USB to UART Bridge (COMx)`.
+3. Run `pio device monitor -p COMx -b 115200` against that COM number. You should see the boot banner ending with `=== System Ready! ===` followed by `[SerialWriterForwarder] Loaded config: ...`.
+
+If you specifically need logs on the native USB port, change `ARDUINO_USB_CDC_ON_BOOT=1` and `ARDUINO_USB_MODE=1` in `platformio.ini` (note: this is a hardware baseline change — discuss before switching).
+
+### Source Connection stays Disconnected
+
+Once logs are visible, every WS attempt produces structured tags. Filter the monitor output for `SerialWriterForwarder` and look for these lines:
+
+```text
+[SerialWriterForwarder][ws-attempt] n=1 url='ws://10.45.71.5/ws/serial' host=10.45.71.5 port=80 path=/ws/serial wifi_ip=192.168.3.55
+[SerialWriterForwarder][ws-attempt] auth=token-ok user=admin token_len=183
+[SerialWriterForwarder][ws-event] type=CONNECTED t=12345 len=0
+[SerialWriterForwarder][ws-event] type=TEXT t=12678 len=82
+[SerialWriterForwarder][delivered] field=last_line path=payload len=18
+```
+
+If you do not see the sequence above, match the actual `last_error` shown in the UI Status page against this matrix:
+
+| `last_error` (UI) | Likely cause | What to check |
+|----|----|----|
+| `No WiFi` | WiFi STA on the writer is not connected | Confirm WiFi Connection page shows an IP. Reconnect to the AP. Logs will show `[ws-attempt] skipped reason=wifi-down` and `[ws-reconnect] reason=wifi-down`. |
+| `Source URL not configured` | `source_url` is empty | Set the URL on the Configuration tab. |
+| `Auth failed: sign-in to <baseUrl> did not return token` | Source device rejected `/rest/signIn` | Logs show `[http-auth] failed url=... http_code=401`. Verify `auth_username` and that the **stored** password matches the source. Note that the form shows a blank password field by design — see the next section. |
+| `Connecting to <host>:<port><path>` (persists for >5s) | TCP connect failing | Source unreachable. From a PC on the same network: `Test-NetConnection <host> -Port 80`. Verify IP address and that the source firmware is running. |
+| `Source closed (auth or path?)` (disconnect happens before any frame is received) | Source rejected the WS handshake | Most often a stale or invalid `access_token`. The forwarder forces re-auth on the next attempt. If it persists, the **path** may be wrong — confirm the source serves `/ws/serial` (it does on the `serialReader` branch). |
+| `Source disconnected` | Was connected, then dropped | Network blip, source rebooted, or source-side WS handler closed. The forwarder will reconnect within 5 s. |
+| `WS error: <text>` | Underlying socket error | The text after the colon comes verbatim from the WebSockets library. Treat as a transport-level failure (e.g. TLS handshake on a `wss://` URL — only `ws://` is supported by the parser). |
+| `WS field '<json_field>' not found (top-level/payload)` | Connected and receiving frames, but the configured field does not exist | Check the source's WS payload shape. The forwarder accepts both top-level (`{"last_line":"..."}`) and wrapped (`{"type":"payload","payload":{"last_line":"..."}}`). |
+| `WS field '<json_field>' is empty` | Field exists but is empty/whitespace | Source produces empty values; pick a different `json_field`. |
+| `WS JSON parse error: <code>` | Frame is not valid JSON | Source is sending plain text or a different framing. |
+
+The forwarder **forces re-authentication on every disconnect**, so a wrong-password loop will produce one `[http-auth] failed http_code=401` per reconnect attempt (every ~5 s). That is the fastest way to see the credential rejection from logs alone.
+
+### Password field appears blank after reload
+
+This is intentional. `GET /rest/serialWriterForwarder` omits `auth_password` so the secret never leaves the device. The Configuration page surfaces this with a chip:
+
+- `password stored` (green outline) — a non-empty password is on flash.
+- `not set` (grey outline) — no password is stored.
+
+Behaviour on Save:
+
+- Type a new password to **replace** the stored one.
+- Leave the field **blank** to **keep** the stored password (this is the bug-prevention introduced in this branch — a blank field on Save no longer wipes the stored credential).
+- Click **Clear stored password** to send `{"auth_password_clear": true}` and remove it.
+
+This means re-saving the form to change e.g. the `source_url` no longer accidentally breaks authentication.
+
+### Manual WS sanity check (without the forwarder)
+
+When the forwarder UI says Disconnected and the cause is unclear, take the source out of the picture by connecting to its `/ws/serial` directly from a PC.
+
+1. Fetch a JWT from PowerShell:
+
+   ```powershell
+   $r = Invoke-RestMethod -Method Post `
+     -Uri http://10.45.71.5/rest/signIn `
+     -Body '{"username":"admin","password":"admin"}' `
+     -ContentType application/json
+   $token = $r.access_token
+   $token
+   ```
+
+   A successful response returns `access_token` (a long JWT). HTTP `401` here means the source credentials you are configuring on the writer are wrong — fix them on the source first.
+
+2. Open the WebSocket directly. Either:
+
+   - Browser DevTools console:
+
+     ```js
+     const ws = new WebSocket('ws://10.45.71.5/ws/serial?access_token=PASTE_TOKEN_HERE');
+     ws.onmessage = (e) => console.log(e.data);
+     ws.onclose = (e) => console.log('closed', e.code, e.reason);
+     ws.onerror = (e) => console.log('error', e);
+     ```
+
+   - Or [`wscat`](https://github.com/websockets/wscat):
+
+     ```bash
+     npx wscat -c "ws://10.45.71.5/ws/serial?access_token=PASTE_TOKEN_HERE"
+     ```
+
+3. Expected behaviour: connection stays open and frames stream as the source emits them. If this works but the forwarder still fails, the issue is on the **writer** (credentials, WiFi, URL parsing) — re-read the matrix above. If this fails too, the issue is on the **source**.
+
+### Expected log lines per state
+
+The stable tag pattern is `[SerialWriterForwarder][<category>]`. Grep for it on the writer's UART log to map runtime state to a single category in one pass.
+
+```text
+# WiFi down on writer
+[SerialWriterForwarder][ws-attempt] skipped reason=wifi-down
+[SerialWriterForwarder][ws-reconnect] reason=wifi-down
+
+# Source URL not configured
+[SerialWriterForwarder][ws-attempt] skipped reason=no-source-url
+
+# Auth attempt + ok
+[SerialWriterForwarder][http-auth] ok url=http://10.45.71.5/rest/signIn token_len=183
+[SerialWriterForwarder][ws-attempt] auth=token-ok user=admin token_len=183
+
+# Auth attempt + failure (wrong password / source returned non-200)
+[SerialWriterForwarder][http-auth] failed url=http://10.45.71.5/rest/signIn http_code=401
+[SerialWriterForwarder][ws-attempt] auth=token-failed user=admin (sign-in did not return access_token)
+
+# Successful WS lifecycle with one delivered frame
+[SerialWriterForwarder][ws-event] type=CONNECTED t=12345 len=0
+[SerialWriterForwarder][ws-event] type=TEXT t=12678 len=82
+[SerialWriterForwarder][delivered] field=last_line path=payload len=18
+
+# Disconnect before any frame (typical for handshake rejection)
+[SerialWriterForwarder][ws-event] type=DISCONNECTED t=12390 len=0
+# -> last_error="Source closed (auth or path?)"
+
+# Disconnect after a frame had been received
+[SerialWriterForwarder][ws-event] type=CONNECTED t=12345 len=0
+[SerialWriterForwarder][ws-event] type=TEXT t=12678 len=82
+[SerialWriterForwarder][ws-event] type=DISCONNECTED t=92500 len=0
+# -> last_error="Source disconnected"
+
+# Reconnect tick
+[SerialWriterForwarder][ws-reconnect] reason=not-connected
+```
+
 ---
 
 ## File Structure
@@ -324,6 +472,8 @@ If the source device requires login, provide `auth_username` and `auth_password`
 - [ ] Forwarder HTTP mode: configure source URL, enable → verify `last_received_line` in UI
 - [ ] Forwarder WS mode: connect to WS source with both flat and wrapped payloads → verify streaming
 - [ ] Forwarder auth: configure credentials → verify 401 retry and successful auth
+- [ ] Source WS Disconnected reproduces correct `last_error` categories (`No WiFi`, `Auth failed: ...`, `Source closed (auth or path?)`, `Source disconnected`) per the Troubleshooting matrix
+- [ ] Save with blank password preserves stored credential (UI chip stays `password stored`; subsequent reconnect logs `auth=token-ok`)
 - [ ] SerialService (live mode) still functions after switching back from writer mode
 - [ ] Firmware builds without errors: `platformio run -e esp32s3`
 - [ ] Forwarder JSON mapping tests build: `pio test -c platformio_test.ini -e esp32s3_test_mapping --without-uploading --without-testing`
