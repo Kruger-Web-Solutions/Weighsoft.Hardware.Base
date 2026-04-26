@@ -74,6 +74,11 @@ void SerialWriterForwarderService::begin() {
   _wsHadConnected = false;
 #endif
 
+  _rxUiPendingDelta = 0;
+  _rxUiPendingLastLine = "";
+  _rxUiPendingSourcePath = "";
+  _lastRxUiFlushMs = 0;
+
   if (_state.enabled && _state.protocol == SERIAL_WRITER_FORWARDER_PROTOCOL_WS) {
     initWsClient();
   }
@@ -89,11 +94,13 @@ void SerialWriterForwarderService::loop() {
     if (_wsClient) {
       _wsClient->loop();
     }
+    flushRxUiCoalesce(false);
     checkWsConnection();
     return;
   }
 
   // HTTP polling mode
+  flushRxUiCoalesce(false);
   if (millis() - _lastPollTime >= _state.pollIntervalMs) {
     _lastPollTime = millis();
     pollHttp();
@@ -129,17 +136,6 @@ void SerialWriterForwarderService::onConfigUpdated() {
 void SerialWriterForwarderService::deliverLine(const String& line, const char* sourcePath) {
   if (line.isEmpty()) return;
 
-  if (sourcePath != nullptr && sourcePath[0] != '\0') {
-    Serial.printf("[SerialWriterForwarder][delivered] field=%s path=%s len=%u\n",
-                  _state.jsonField.c_str(),
-                  sourcePath,
-                  (unsigned)line.length());
-  } else {
-    Serial.printf("[SerialWriterForwarder][delivered] field=%s len=%u\n",
-                  _state.jsonField.c_str(),
-                  (unsigned)line.length());
-  }
-
   uint8_t sinkMask = 0;
   if (_state.outputTargets == SERIAL_WRITER_FORWARDER_OUTPUT_USB_ONLY) {
     sinkMask = SERIAL_WRITER_FORWARDER_SINK_USB;
@@ -152,10 +148,48 @@ void SerialWriterForwarderService::deliverLine(const String& line, const char* s
   }
   _serialWriterService->enqueueForwardedLine(line, sinkMask);
 
+  _rxUiPendingDelta++;
+  _rxUiPendingLastLine = line;
+  if (sourcePath != nullptr && sourcePath[0] != '\0') {
+    _rxUiPendingSourcePath = sourcePath;
+  } else {
+    _rxUiPendingSourcePath = "";
+  }
+  flushRxUiCoalesce(false);
+}
+
+void SerialWriterForwarderService::flushRxUiCoalesce(bool force) {
+  if (_rxUiPendingDelta == 0) {
+    return;
+  }
+  const unsigned long now = millis();
+  if (!force && _lastRxUiFlushMs != 0 && (now - _lastRxUiFlushMs) < 150) {
+    return;
+  }
+
+  const uint32_t mergedCount = _rxUiPendingDelta;
+  const String lastLine = _rxUiPendingLastLine;
+  const String srcPath = _rxUiPendingSourcePath;
+  _rxUiPendingDelta = 0;
+  _lastRxUiFlushMs = now;
+
+  if (!srcPath.isEmpty()) {
+    Serial.printf("[SerialWriterForwarder][delivered] field=%s path=%s len=%u batch=%u\n",
+                  _state.jsonField.c_str(),
+                  srcPath.c_str(),
+                  (unsigned)lastLine.length(),
+                  (unsigned)mergedCount);
+  } else {
+    Serial.printf("[SerialWriterForwarder][delivered] field=%s len=%u batch=%u\n",
+                  _state.jsonField.c_str(),
+                  (unsigned)lastLine.length(),
+                  (unsigned)mergedCount);
+  }
+
   update([&](SerialWriterForwarderState& state) {
-    state.lastReceivedLine = line;
-    state.lastReceivedMs = millis();
-    state.receivedCount++;
+    state.lastReceivedLine = lastLine;
+    state.lastReceivedMs = now;
+    state.receivedCount += mergedCount;
     state.connected = true;
     state.lastError = "";
     return StateUpdateResult::CHANGED;
@@ -163,6 +197,7 @@ void SerialWriterForwarderService::deliverLine(const String& line, const char* s
 }
 
 void SerialWriterForwarderService::setRuntimeError(const String& errorText, bool connected) {
+  flushRxUiCoalesce(true);
   const String message = errorText;
   const bool isConnected = connected;
   update([message, isConnected](SerialWriterForwarderState& state) {
@@ -354,6 +389,8 @@ void SerialWriterForwarderService::initWsClient() {
     return;
   }
 
+  flushRxUiCoalesce(true);
+
   if (_wsClient) {
     delete _wsClient;
     _wsClient = nullptr;
@@ -434,6 +471,7 @@ void SerialWriterForwarderService::initWsClient() {
         return StateUpdateResult::CHANGED;
       }, "internal");
     } else if (type == WStype_DISCONNECTED) {
+      flushRxUiCoalesce(true);
       // Distinguish "rejected on handshake" from "lost connection after a frame"
       const bool hadConnected = _wsHadConnected;
       update([hadConnected](SerialWriterForwarderState& state) {
@@ -486,6 +524,8 @@ void SerialWriterForwarderService::initWsClient() {
   });
 
   _wsClient->begin(host, port, path);
+  // Ping/pong keeps intermediaries from treating the stream as idle; helps long-lived client sessions.
+  _wsClient->enableHeartbeat(15000, 3000, 2);
   _lastWsReconnectAttempt = millis();
 #endif
 }

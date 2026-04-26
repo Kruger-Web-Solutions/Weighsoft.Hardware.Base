@@ -40,6 +40,13 @@ class SerialWriterForwarderService : public StatefulService<SerialWriterForwarde
   bool _wsHadConnected;
 #endif
 
+  /** Coalesce forwarder status broadcasts (each triggers local /ws JSON). */
+  uint32_t _rxUiPendingDelta = 0;
+  String _rxUiPendingLastLine;
+  String _rxUiPendingSourcePath;
+  unsigned long _lastRxUiFlushMs = 0;
+  void flushRxUiCoalesce(bool force);
+
   unsigned long _lastPollTime;
 
   String _httpAuthToken;

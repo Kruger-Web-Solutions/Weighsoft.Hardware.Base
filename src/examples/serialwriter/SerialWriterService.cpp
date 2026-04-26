@@ -60,6 +60,9 @@ SerialWriterService::SerialWriterService(AsyncWebServer* server,
 }
 
 void SerialWriterService::begin() {
+  _pendingForwarderSentUiDelta = 0;
+  _lastForwarderSentUiFlushMs = 0;
+
   _fsPersistence.readFromFS();
   Serial.printf("[SerialWriter] Loaded config: %lu baud, %u%c%u, terminator='%s'\n",
                 (unsigned long)_state.baudrate,
@@ -80,6 +83,8 @@ void SerialWriterService::begin() {
 }
 
 void SerialWriterService::loop() {
+  flushPendingForwarderSentUi(false);
+
   if (_suspended) {
     return;
   }
@@ -157,6 +162,28 @@ void SerialWriterService::writeLineWithTerminatorToSerial1(const String& line) c
 #endif
 }
 
+void SerialWriterService::flushPendingForwarderSentUi(bool force) {
+  if (_pendingForwarderSentUiDelta == 0) {
+    return;
+  }
+  const unsigned long now = millis();
+  if (!force && _lastForwarderSentUiFlushMs != 0 && (now - _lastForwarderSentUiFlushMs) < 150) {
+    return;
+  }
+
+  const uint32_t delta = _pendingForwarderSentUiDelta;
+  const String line = _pendingForwarderLastSentLine;
+  _pendingForwarderSentUiDelta = 0;
+  _lastForwarderSentUiFlushMs = now;
+
+  update([&](SerialWriterState& state) {
+    state.lastSentLine = line;
+    state.lastSentMs = now;
+    state.sentCount += delta;
+    return StateUpdateResult::CHANGED;
+  }, "serial_writer_sent");
+}
+
 void SerialWriterService::enqueueForwardedLine(const String& line, uint8_t sinkMask) {
   if (line.isEmpty() || sinkMask == 0) {
     return;
@@ -179,13 +206,9 @@ void SerialWriterService::enqueueForwardedLine(const String& line, uint8_t sinkM
 #endif
   }
 
-  unsigned long now = millis();
-  update([&](SerialWriterState& state) {
-    state.lastSentLine = line;
-    state.lastSentMs = now;
-    state.sentCount++;
-    return StateUpdateResult::CHANGED;
-  }, "serial_writer_sent");
+  _pendingForwarderSentUiDelta++;
+  _pendingForwarderLastSentLine = line;
+  flushPendingForwarderSentUi(false);
 }
 
 void SerialWriterService::onConfigUpdated() {
@@ -281,6 +304,7 @@ void SerialWriterService::configureBle() {
 #endif
 
 void SerialWriterService::suspendSerial() {
+  flushPendingForwarderSentUi(true);
   if (_serialStarted && !_suspended) {
     Serial.println(F("[SerialWriter] Suspending - releasing Serial1"));
     SERIAL_WRITER_PORT.end();

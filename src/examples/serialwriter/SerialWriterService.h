@@ -79,6 +79,12 @@ class SerialWriterService : public StatefulService<SerialWriterState> {
   bool _serialStarted;
   bool _suspended;
 
+  /** Coalesce forwarder-driven UI updates to avoid WiFi/WebSocket overload at high line rates. */
+  uint32_t _pendingForwarderSentUiDelta = 0;
+  String _pendingForwarderLastSentLine;
+  unsigned long _lastForwarderSentUiFlushMs = 0;
+  void flushPendingForwarderSentUi(bool force);
+
   void writePendingLine();
   void writeLineWithTerminatorToUsbSerial(const String& line) const;
   void writeLineWithTerminatorToSerial1(const String& line) const;
