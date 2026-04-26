@@ -40,6 +40,7 @@ class SerialWriterForwarderService : public StatefulService<SerialWriterForwarde
   bool _wsHadConnected;
   uint32_t _wsReconnectDelayMs;
   int _lastSignInHttpCode;
+  uint8_t _consecutiveSignInTransportFailures;
 #endif
 
   unsigned long _lastPollTime;

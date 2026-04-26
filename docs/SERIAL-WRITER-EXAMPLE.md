@@ -475,8 +475,10 @@ Reconnect behaviour on ESP32 **changed in meaning** around commits **`02ec858`**
 |------|-------------------------------|-----------------|
 | Order of operations | Allocate `WebSocketsClient`, then fetch token; on token failure the code could still call `begin(host, port, path)` without `access_token` (TCP + WS attempt anyway). | Parse URL, **`POST /rest/signIn` first**; if sign-in fails, **return before** `new WebSocketsClient()` — no `begin()` until a token exists. |
 | `reason=no-client` | Same label, but backoff for the no-client path was a fixed 5s interval in the older `checkWsConnection` logic. | Backoff grows with failures (transport `-1` capped shorter than HTTP errors like `401`); see `ws-reconnect-backoff` and `last_signin_http` in logs. |
-| Heartbeat | **`enableHeartbeat(15000, 3000, 2)`** on the outbound client (e.g. `4113231`). | Removed in **`02ec858`** (trade-off for lwIP churn vs idle keepalive). |
+| Heartbeat | **`enableHeartbeat(15000, 3000, 2)`** on the outbound client (e.g. `4113231`). | Removed in **`02ec858`**; **restored from firmware 0.7.5** on the outbound client. |
 | Teardown | Client replaced with `delete` (ordering varied). | **`disconnect()` then `delete`** when replacing the outbound WS client. |
+
+**From firmware 0.7.5** (`SerialWriterForwarderService.cpp`): after a **mid-session** WebSocket drop (`DISCONNECTED` with data already received), the JWT is **kept** so the next reconnect opens the WebSocket **without** `POST /rest/signIn` first (log: `[ws-token] kept after mid-session disconnect`). Handshake-only failures still clear the token. After **six** consecutive transport-level sign-in failures (`http_code=-1`), the writer calls **`WiFi.reconnect()`** once (log: `[wifi-recover]`) to try to clear a wedged STA path.
 
 So “it used to reconnect after a few retries” on older flashes may reflect **different TCP traffic** (HTTP-only retries vs mixed HTTP + unconditional WS `begin`) and different timers — not proof that the reader was at fault. The **underlying** failure in your logs is still **writer TCP `-1`** until something resets the writer’s network path.
 
@@ -485,9 +487,9 @@ So “it used to reconnect after a few retries” on older flashes may reflect *
 If you can reproduce **reader reachable from a PC** while the **writer stays on `http_code=-1`**, capture WiFi reason codes and consider:
 
 1. **Bisect on hardware:** Flash the parent of `02ec858`, then `02ec858`, then `cf01bb1` with the same topology to see which change correlates with “stuck until writer reboot.”
-2. **WiFi recovery (firmware PR):** After **N** consecutive `_lastSignInHttpCode < 0` while `WiFi.isConnected()` is true, a gated `WiFi.reconnect()` or controlled disconnect/reconnect (with clear logging) may flush a wedged STA path — validate side effects on captive portal / dual-mode builds first.
-3. **Reconnect policy:** On `DISCONNECTED` after a successful session (`hadConnected`), optionally try **one** WS reconnect using the **previous** token before clearing it, to avoid hammering `signIn` — trade-offs: stale tokens, server rejection, policy must match your auth model.
-4. **Restore outbound `enableHeartbeat`** as an A/B test against long idle drops (less relevant to immediate post-disconnect `-1`, easy to compare builds).
+2. **WiFi recovery:** Firmware **0.7.5+** triggers `WiFi.reconnect()` after six consecutive TCP sign-in failures (see `[wifi-recover]`). If problems persist on dual AP+STA builds, capture whether the soft-AP is active and open an issue with WiFi mode and reason codes.
+3. **Reconnect policy:** Implemented in **0.7.5+** — JWT kept after mid-session disconnect so WS is retried before re-auth (see `[ws-token]`). If your reader invalidates tokens on every socket close, you may need server-side policy or a follow-up code change.
+4. **Heartbeat:** Restored in **0.7.5+** for the outbound client; compare idle stability vs older builds if needed.
 
 ---
 

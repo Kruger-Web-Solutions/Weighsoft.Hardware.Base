@@ -37,7 +37,8 @@ SerialWriterForwarderService::SerialWriterForwarderService(AsyncWebServer* serve
       _wsAttemptCount(0),
       _wsHadConnected(false),
       _wsReconnectDelayMs(5000),
-      _lastSignInHttpCode(0)
+      _lastSignInHttpCode(0),
+      _consecutiveSignInTransportFailures(0)
 #endif
       ,
       _lastPollTime(0),
@@ -76,6 +77,7 @@ void SerialWriterForwarderService::begin() {
   _wsHadConnected = false;
   _wsReconnectDelayMs = 5000;
   _lastSignInHttpCode = 0;
+  _consecutiveSignInTransportFailures = 0;
 #endif
 
   if (_state.enabled && _state.protocol == SERIAL_WRITER_FORWARDER_PROTOCOL_WS) {
@@ -125,6 +127,7 @@ void SerialWriterForwarderService::onConfigUpdated() {
   _wsHadConnected = false;
   _wsReconnectDelayMs = 5000;
   _lastSignInHttpCode = 0;
+  _consecutiveSignInTransportFailures = 0;
 
   if (_state.enabled && _state.protocol == SERIAL_WRITER_FORWARDER_PROTOCOL_WS) {
     initWsClient();
@@ -309,6 +312,7 @@ bool SerialWriterForwarderService::fetchHttpAuthToken(const String& baseUrl) {
       Serial.printf("[SerialWriterForwarder][http-auth] failed url=%s http_code=%d\n", signInUrl.c_str(), code);
     }
   } else {
+    _consecutiveSignInTransportFailures = 0;
     Serial.printf("[SerialWriterForwarder][http-auth] ok url=%s token_len=%u\n",
                   signInUrl.c_str(),
                   (unsigned)_httpAuthToken.length());
@@ -419,6 +423,21 @@ void SerialWriterForwarderService::initWsClient() {
       Serial.printf("[SerialWriterForwarder][ws-reconnect-backoff] delay_ms=%u last_signin_http=%d\n",
                     (unsigned)_wsReconnectDelayMs,
                     _lastSignInHttpCode);
+      if (_lastSignInHttpCode < 0) {
+        if (_consecutiveSignInTransportFailures < 255) {
+          _consecutiveSignInTransportFailures++;
+        }
+        constexpr uint8_t kWifiRecoverAfterTcpFailures = 6;
+        if (_consecutiveSignInTransportFailures >= kWifiRecoverAfterTcpFailures && WiFi.isConnected()) {
+          Serial.printf(
+              "[SerialWriterForwarder][wifi-recover] WiFi.reconnect() after %u consecutive TCP sign-in failures\n",
+              (unsigned)_consecutiveSignInTransportFailures);
+          WiFi.reconnect();
+          _consecutiveSignInTransportFailures = 0;
+        }
+      } else {
+        _consecutiveSignInTransportFailures = 0;
+      }
       _lastWsReconnectAttempt = millis();
       return;
     }
@@ -468,6 +487,7 @@ void SerialWriterForwarderService::initWsClient() {
     if (type == WStype_CONNECTED) {
       _wsHadConnected = true;
       _wsReconnectDelayMs = 5000;
+      _consecutiveSignInTransportFailures = 0;
       update([](SerialWriterForwarderState& state) {
         state.connected = true;
         state.lastError = "";
@@ -481,9 +501,15 @@ void SerialWriterForwarderService::initWsClient() {
         state.lastError = hadConnected ? "Source disconnected" : "Source closed (auth or path?)";
         return StateUpdateResult::CHANGED;
       }, "internal");
-      // Force re-auth on next attempt; stale/expired tokens are a common reason for handshake closes
-      _httpAuthTokenValid = false;
-      _httpAuthToken = "";
+      // Mid-session drops: keep JWT so the next attempt opens WebSocket first (same recovery pattern as pre-auth-first
+      // builds). Handshake-only failures still clear the token so signIn runs again.
+      if (hadConnected) {
+        Serial.println(
+            F("[SerialWriterForwarder][ws-token] kept after mid-session disconnect (retry WS before re-auth)"));
+      } else {
+        _httpAuthTokenValid = false;
+        _httpAuthToken = "";
+      }
     } else if (type == WStype_TEXT) {
       char lineBuf[256];
       char pathBuf[32];
@@ -526,6 +552,7 @@ void SerialWriterForwarderService::initWsClient() {
   });
 
   _wsClient->begin(host, port, path);
+  _wsClient->enableHeartbeat(15000, 3000, 2);
   _lastWsReconnectAttempt = millis();
 #endif
 }
