@@ -9,6 +9,7 @@
 #include <examples/serialwriter/SerialWriterService.h>
 
 #ifdef ESP32
+#include <atomic>
 #include <HTTPClient.h>
 #include <WebSocketsClient.h>
 #endif
@@ -41,6 +42,8 @@ class SerialWriterForwarderService : public StatefulService<SerialWriterForwarde
   uint32_t _wsReconnectDelayMs;
   int _lastSignInHttpCode;
   uint8_t _consecutiveSignInTransportFailures;
+  std::atomic<int> _wsOnEventDepth;
+  uint32_t _wsClientRecreateEarliestMs;
 #endif
 
   unsigned long _lastPollTime;
@@ -60,6 +63,8 @@ class SerialWriterForwarderService : public StatefulService<SerialWriterForwarde
   void checkWsConnection();
 
 #ifdef ESP32
+  void waitWsEventHandlerIdle();
+  bool wsClientRecreateTimingOk() const;
   static const char* wsTypeName(WStype_t type);
 #endif
 };

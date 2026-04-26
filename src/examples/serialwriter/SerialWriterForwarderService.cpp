@@ -4,8 +4,22 @@
 
 #ifdef ESP32
 #include <WiFi.h>
+#include <atomic>
 
 namespace {
+
+struct WsOnEventDepthGuard {
+  std::atomic<int>* depth;
+  explicit WsOnEventDepthGuard(std::atomic<int>* d) : depth(d) {
+    depth->fetch_add(1, std::memory_order_acq_rel);
+  }
+  ~WsOnEventDepthGuard() {
+    depth->fetch_sub(1, std::memory_order_acq_rel);
+  }
+  WsOnEventDepthGuard(const WsOnEventDepthGuard&) = delete;
+  WsOnEventDepthGuard& operator=(const WsOnEventDepthGuard&) = delete;
+};
+
 
 bool outboundWsDisconnectPayloadIsAsciiStackMessage(const uint8_t* payload, size_t length) {
   if (length == 0 || payload == nullptr) {
@@ -126,7 +140,9 @@ SerialWriterForwarderService::SerialWriterForwarderService(AsyncWebServer* serve
       _wsHadConnected(false),
       _wsReconnectDelayMs(5000),
       _lastSignInHttpCode(0),
-      _consecutiveSignInTransportFailures(0)
+      _consecutiveSignInTransportFailures(0),
+      _wsOnEventDepth(0),
+      _wsClientRecreateEarliestMs(0)
 #endif
       ,
       _lastPollTime(0),
@@ -166,6 +182,7 @@ void SerialWriterForwarderService::begin() {
   _wsReconnectDelayMs = 5000;
   _lastSignInHttpCode = 0;
   _consecutiveSignInTransportFailures = 0;
+  _wsClientRecreateEarliestMs = 0;
 #endif
 
   if (_state.enabled && _state.protocol == SERIAL_WRITER_FORWARDER_PROTOCOL_WS) {
@@ -206,6 +223,7 @@ void SerialWriterForwarderService::onConfigUpdated() {
 
 #ifdef ESP32
   // Tear down WS client if protocol changed or disabled
+  waitWsEventHandlerIdle();
   if (_wsClient) {
     _wsClient->disconnect();
     delete _wsClient;
@@ -216,6 +234,7 @@ void SerialWriterForwarderService::onConfigUpdated() {
   _wsReconnectDelayMs = 5000;
   _lastSignInHttpCode = 0;
   _consecutiveSignInTransportFailures = 0;
+  _wsClientRecreateEarliestMs = 0;
 
   if (_state.enabled && _state.protocol == SERIAL_WRITER_FORWARDER_PROTOCOL_WS) {
     initWsClient();
@@ -413,6 +432,25 @@ bool SerialWriterForwarderService::fetchHttpAuthToken(const String& baseUrl) {
 }
 
 #ifdef ESP32
+void SerialWriterForwarderService::waitWsEventHandlerIdle() {
+  constexpr uint32_t kTimeoutMs = 500;
+  const uint32_t start = millis();
+  while (_wsOnEventDepth.load(std::memory_order_acquire) != 0) {
+    yield();
+    if ((uint32_t)(millis() - start) >= kTimeoutMs) {
+      Serial.println(F("[SerialWriterForwarder][ws-guard] timeout waiting for onEvent idle (proceeding)"));
+      break;
+    }
+  }
+}
+
+bool SerialWriterForwarderService::wsClientRecreateTimingOk() const {
+  if (_wsClientRecreateEarliestMs == 0) {
+    return true;
+  }
+  return (int32_t)(millis() - _wsClientRecreateEarliestMs) >= 0;
+}
+
 const char* SerialWriterForwarderService::wsTypeName(WStype_t type) {
   switch (type) {
     case WStype_ERROR:
@@ -458,6 +496,9 @@ void SerialWriterForwarderService::initWsClient() {
     _lastWsReconnectAttempt = millis();
     return;
   }
+
+  waitWsEventHandlerIdle();
+  _wsClientRecreateEarliestMs = 0;
 
   if (_wsClient) {
     _wsClient->disconnect();
@@ -567,6 +608,7 @@ void SerialWriterForwarderService::initWsClient() {
   }
 
   _wsClient->onEvent([this](WStype_t type, uint8_t* payload, size_t length) {
+    WsOnEventDepthGuard wsEventGuard(&_wsOnEventDepth);
     Serial.printf("[SerialWriterForwarder][ws-event] type=%s t=%lu len=%u\n",
                   wsTypeName(type),
                   (unsigned long)millis(),
@@ -599,6 +641,9 @@ void SerialWriterForwarderService::initWsClient() {
         _httpAuthTokenValid = false;
         _httpAuthToken = "";
       }
+      // Defer tearing down / replacing WebSocketsClient so AsyncTCP is not racing delete (avoids abort in unwind).
+      constexpr uint32_t kPostDisconnectDeferMs = 75;
+      _wsClientRecreateEarliestMs = millis() + kPostDisconnectDeferMs;
     } else if (type == WStype_TEXT) {
       char lineBuf[256];
       char pathBuf[32];
@@ -624,6 +669,8 @@ void SerialWriterForwarderService::initWsClient() {
         setRuntimeError(error, true);
       }
     } else if (type == WStype_ERROR) {
+      constexpr uint32_t kPostDisconnectDeferMs = 75;
+      _wsClientRecreateEarliestMs = millis() + kPostDisconnectDeferMs;
       String detail;
       if (payload != nullptr && length > 0) {
         detail.reserve(length);
@@ -663,6 +710,9 @@ void SerialWriterForwarderService::checkWsConnection() {
   }
 
   if (!_wsClient) {
+    if (!wsClientRecreateTimingOk()) {
+      return;
+    }
     if (millis() - _lastWsReconnectAttempt >= _wsReconnectDelayMs) {
       Serial.println(F("[SerialWriterForwarder][ws-reconnect] reason=no-client"));
       initWsClient();
@@ -671,6 +721,9 @@ void SerialWriterForwarderService::checkWsConnection() {
   }
 
   if (!_wsClient->isConnected()) {
+    if (!wsClientRecreateTimingOk()) {
+      return;
+    }
     if (millis() - _lastWsReconnectAttempt >= _wsReconnectDelayMs) {
       Serial.println(F("[SerialWriterForwarder][ws-reconnect] reason=not-connected"));
       initWsClient();

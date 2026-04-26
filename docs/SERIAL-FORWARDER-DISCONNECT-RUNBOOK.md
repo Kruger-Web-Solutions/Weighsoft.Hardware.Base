@@ -2,6 +2,22 @@
 
 Use this document in order when the **serialWriter** device keeps losing its outbound WebSocket to the reader’s **`/ws/serial`**. It complements [SERIAL-WRITER-EXAMPLE.md](./SERIAL-WRITER-EXAMPLE.md) and [NODE-RED-SERIAL-READER-DEBUG.md](./NODE-RED-SERIAL-READER-DEBUG.md).
 
+## `abort()` / reboot right after `DISCONNECTED` (not the reader “idle code”)
+
+If UART shows **`abort() was called at PC 0x...`** then **`Rebooting...`**, that is **software abort** (failed assertion, heap corruption, or **C++ exception / `std::function` teardown**), **not** a brownout and not explained by a bogus **`rfc6455_code=21571`** line alone.
+
+- **`esp_core_dump_flash: ... corrupted` / `No core dump partition found`** — partition-table noise; unrelated to `abort()` unless you use ESP-IDF core dumps.
+
+**Symbolize the crash PC** against the **ELF that matches the flashed firmware** (same `pio run` tree):
+
+```text
+%USERPROFILE%\.platformio\packages\toolchain-xtensa-esp32s3\bin\xtensa-esp32s3-elf-addr2line.exe -pfiaC -e .pio\build\esp32s3\firmware.elf <PC_from_log>
+```
+
+Example PCs from field logs have resolved into **libstdc++** (`std::type_info`, `__cxa_end_catch`, `__cow_string` / exception helpers) — consistent with **destroying `WebSocketsClient` while the library callback / AsyncTCP path is still unwinding** (use-after-free in `std::function` / exception path).
+
+**Firmware mitigation (0.7.8+):** [`SerialWriterForwarderService.cpp`](../src/examples/serialwriter/SerialWriterForwarderService.cpp) adds an **`onEvent` re-entrancy depth counter** with a **bounded wait** before `disconnect()`/`delete`, plus a **75 ms defer** after `DISCONNECTED` / `ERROR` before `checkWsConnection()` may call `initWsClient()` again. After flashing, stress-test by bouncing reader power or blocking port 80; confirm no `abort()` over many cycles.
+
 ## Phase 1 — Environment and baseline (no firmware change)
 
 ### 1.1 Writer UI isolation
@@ -50,7 +66,7 @@ Reference log patterns: [SERIAL-WRITER-EXAMPLE.md](./SERIAL-WRITER-EXAMPLE.md) s
 
 ## Phase 3 — Firmware (writer, `serialWriter` branch)
 
-From **0.7.6** onward, **`[SerialWriterForwarder][ws-close]`** lines decode the WebSocket **close frame** on `WStype_DISCONNECTED`:
+From **0.7.6** onward, **`[SerialWriterForwarder][ws-close]`** lines decode the WebSocket **close frame** on `WStype_DISCONNECTED` (**0.7.8+** adds **teardown guards** — see [`abort()` section](#abort--reboot-right-after-disconnected-not-the-reader-idle-code) above):
 
 - **`no_close_payload`** — `len == 0` on disconnect event (common with TCP reset / abnormal closure; often discussed as **1006**-class when no close frame was delivered).
 - **`stack_msg text='...'`** (from **0.7.7**) — the `WebSocketsClient` library passed a **plain ASCII** status string (e.g. **`TCP connection cleanup`** from lwIP / ESP32 TCP), **not** a binary RFC 6455 close frame. Older builds mis-read the first two letters as a bogus “code” (e.g. `21571` = `'T'<<8|'C'`).
