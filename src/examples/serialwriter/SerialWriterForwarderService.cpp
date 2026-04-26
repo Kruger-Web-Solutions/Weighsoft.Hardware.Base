@@ -395,11 +395,26 @@ void SerialWriterForwarderService::initWsClient() {
     if (!_httpAuthTokenValid || _httpAuthToken.isEmpty()) {
       Serial.printf("[SerialWriterForwarder][ws-attempt] auth=token-failed user=%s (sign-in did not return access_token)\n",
                     _state.authUsername.c_str());
-      String error = "Auth failed: sign-in to " + baseUrl + " did not return token";
-      setRuntimeError(error, false);
-      if (_wsReconnectDelayMs < 60000u) {
-        uint32_t next = _wsReconnectDelayMs * 2u;
-        _wsReconnectDelayMs = (next > 60000u || next < _wsReconnectDelayMs) ? 60000u : next;
+      if (_lastSignInHttpCode < 0) {
+        setRuntimeError("Source unreachable: TCP to " + baseUrl + " failed (reader HTTP not accepting connections)",
+                        false);
+      } else {
+        setRuntimeError("Auth failed: sign-in to " + baseUrl + " did not return token", false);
+      }
+      // Transport (-1): lower cap for quick recovery after brief reader outages. HTTP errors (401): higher cap.
+      constexpr uint32_t kBackoffCapTransportMs = 15000;
+      constexpr uint32_t kBackoffCapHttpMs = 60000;
+      if (_lastSignInHttpCode < 0) {
+        if (_wsReconnectDelayMs < kBackoffCapTransportMs) {
+          uint32_t next = _wsReconnectDelayMs * 2u;
+          _wsReconnectDelayMs =
+              (next > kBackoffCapTransportMs || next < _wsReconnectDelayMs) ? kBackoffCapTransportMs : next;
+        }
+      } else {
+        if (_wsReconnectDelayMs < kBackoffCapHttpMs) {
+          uint32_t next = _wsReconnectDelayMs * 2u;
+          _wsReconnectDelayMs = (next > kBackoffCapHttpMs || next < _wsReconnectDelayMs) ? kBackoffCapHttpMs : next;
+        }
       }
       Serial.printf("[SerialWriterForwarder][ws-reconnect-backoff] delay_ms=%u last_signin_http=%d\n",
                     (unsigned)_wsReconnectDelayMs,

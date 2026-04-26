@@ -334,7 +334,8 @@ If you do not see the sequence above, match the actual `last_error` shown in the
 |----|----|----|
 | `No WiFi` | WiFi STA on the writer is not connected | Confirm WiFi Connection page shows an IP. Reconnect to the AP. Logs will show `[ws-attempt] skipped reason=wifi-down` and `[ws-reconnect] reason=wifi-down`. |
 | `Source URL not configured` | `source_url` is empty | Set the URL on the Configuration tab. |
-| `Auth failed: sign-in to <baseUrl> did not return token` | `/rest/signIn` did not yield a usable `access_token` | **Wrong credentials or HTTP error:** logs show `[http-auth] failed ... http_code=401` (or other non-200). Verify `auth_username` and that the **stored** password matches the source. Note that the form shows a blank password field by design — see the next section. **Transport failure:** `http_code=-1` means Arduino `HTTPClient` never got an HTTP response (TCP refused, timeout, or lwIP stressed). Treat like reachability — same checks as the row below. |
+| `Auth failed: sign-in to <baseUrl> did not return token` | `/rest/signIn` returned but no usable `access_token` (e.g. wrong password) | Logs show `[http-auth] failed ... http_code=401` (or other non-200). Verify `auth_username` and that the **stored** password matches the source. Note that the form shows a blank password field by design — see the next section. |
+| `Source unreachable: TCP to <baseUrl> failed (...)` | Writer could not open a TCP connection to the reader for `POST /rest/signIn` | **`http_code=-1`** — the request never reached HTTP handling on the reader. This is **not** a SerialReader “sign-in logic” bug unless the reader firmware is not running or not listening on port 80. Typical causes: reader rebooting, reader WiFi drop, wrong IP, AP isolation, or reader out of sockets under load. Check reader UART logs, power, and `Test-NetConnection <reader-ip> -Port 80` from a PC on the same LAN. Fix is usually **environment or reader stability**; the writer only retries. |
 | `Connecting to <host>:<port><path>` (persists for >5s) | TCP connect failing | Source unreachable or port closed. From a PC on the same network: `Test-NetConnection <host> -Port 80`. Verify IP address and that the source firmware is running. If logs show `http_code=-1` on sign-in, it is **not** a JSON/body rejection — the TCP path to the source failed before HTTP. |
 | `Source closed (auth or path?)` (disconnect happens before any frame is received) | Source rejected the WS handshake | Most often a stale or invalid `access_token`. The forwarder forces re-auth on the next attempt. If it persists, the **path** may be wrong — confirm the source serves `/ws/serial` (it does on the `serialReader` branch). |
 | `Source disconnected` | Was connected, then dropped | Network blip, source rebooted, or source-side WS handler closed. The forwarder reconnects after a short delay (5 s when healthy; see backoff below). |
@@ -345,7 +346,7 @@ If you do not see the sequence above, match the actual `last_error` shown in the
 
 The forwarder **forces re-authentication on every disconnect**, so a wrong-password loop will produce one `[http-auth] failed http_code=401` per reconnect attempt (at the current reconnect interval). That is the fastest way to see the credential rejection from logs alone.
 
-**Reconnect backoff (sign-in failure):** When `auth_username` is set but sign-in does not return a token, the firmware **does not** open a WebSocket to the source (avoids useless `begin()` traffic that could exhaust lwIP sockets). It applies **capped exponential backoff** (delay doubles up to 60 s). After a successful sign-in and `CONNECTED`, the delay resets to 5 s. UART logs include `[ws-reconnect-backoff] delay_ms=... last_signin_http=...` when backing off.
+**Reconnect backoff (sign-in failure):** When `auth_username` is set but sign-in does not return a token, the firmware **does not** open a WebSocket to the source (avoids useless `begin()` traffic that could exhaust lwIP sockets). It applies **capped exponential backoff** (delay doubles from 5 s): **`last_signin_http < 0`** (TCP/connect failure, usually `-1`) caps at **15 s** so brief reader outages recover quickly; **HTTP-level failures** (e.g. `401`) cap at **60 s** to avoid hammering wrong credentials. After a successful sign-in path and `CONNECTED`, the delay resets to 5 s. UART logs include `[ws-reconnect-backoff] delay_ms=... last_signin_http=...` when backing off.
 
 **Older builds (pitfall):** If you still see `auth=token-failed` immediately followed by `ws-attempt` / `ws-event` spam without backoff, the device may be running firmware that called WebSocket `begin()` even after failed sign-in — upgrade to a build that includes the forwarder reconnect fix.
 
@@ -425,6 +426,8 @@ The stable tag pattern is `[SerialWriterForwarder][<category>]`. Grep for it on 
 [SerialWriterForwarder][http-auth] failed url=http://10.45.71.5/rest/signIn http_code=-1 (TCP/connect failed; source unreachable?)
 [SerialWriterForwarder][ws-attempt] auth=token-failed user=admin (sign-in did not return access_token)
 [SerialWriterForwarder][ws-reconnect-backoff] delay_ms=10000 last_signin_http=-1
+# next TCP failures cap at 15 s (transport backoff)
+[SerialWriterForwarder][ws-reconnect-backoff] delay_ms=15000 last_signin_http=-1
 
 # Successful WS lifecycle with one delivered frame
 [SerialWriterForwarder][ws-event] type=CONNECTED t=12345 len=0
