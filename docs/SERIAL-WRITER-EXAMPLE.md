@@ -448,6 +448,16 @@ The stable tag pattern is `[SerialWriterForwarder][<category>]`. Grep for it on 
 [SerialWriterForwarder][ws-reconnect] reason=not-connected
 ```
 
+### Reading a real disconnect + TCP failure
+
+When the WebSocket drops (`[ws-event] type=DISCONNECTED`), the forwarder **clears the HTTP auth token** so the next connection uses a fresh `access_token`. That means the next reconnect path always tries **`POST /rest/signIn`** on the reader host before opening `WebSocketsClient` again.
+
+If sign-in fails with **`http_code=-1`** and the log hint **`(TCP/connect failed; source unreachable?)`**, the ESP32 never established TCP to the reader on port 80. That is a **Layer 2/3 problem** (reader down, wrong IP, different subnet, AP isolation, transient WiFi/routing loss), not “reconnect is disabled.” The UI / REST field `last_error` is set to **`Source unreachable: TCP to http://<host>...`** in that case (see `SerialWriterForwarderService::fetchHttpAuthToken` / `initWsClient`).
+
+You will then see **`[ws-reconnect] reason=no-client`** on later ticks. That is **expected** when username/password auth is configured but sign-in did not return a token: `initWsClient()` **returns before** allocating `WebSocketsClient`, so there is no client until TCP to the reader succeeds again. It does **not** mean the reconnect loop stopped.
+
+**Bench check:** While the writer logs repeated `http_code=-1`, verify from another machine on the same LAN that the reader answers HTTP (e.g. `POST /rest/signIn` or a simple TCP connect to port 80). If the reader is reachable elsewhere but the writer never recovers until reboot, capture that scenario (WiFi events, reader IP stability) for a possible firmware or network-stack follow-up.
+
 ---
 
 ## File Structure
