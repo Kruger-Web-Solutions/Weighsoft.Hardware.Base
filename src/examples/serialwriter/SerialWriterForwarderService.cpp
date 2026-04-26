@@ -35,7 +35,9 @@ SerialWriterForwarderService::SerialWriterForwarderService(AsyncWebServer* serve
       _wsClient(nullptr),
       _lastWsReconnectAttempt(0),
       _wsAttemptCount(0),
-      _wsHadConnected(false)
+      _wsHadConnected(false),
+      _wsReconnectDelayMs(5000),
+      _lastSignInHttpCode(0)
 #endif
       ,
       _lastPollTime(0),
@@ -72,12 +74,9 @@ void SerialWriterForwarderService::begin() {
 #ifdef ESP32
   _wsAttemptCount = 0;
   _wsHadConnected = false;
+  _wsReconnectDelayMs = 5000;
+  _lastSignInHttpCode = 0;
 #endif
-
-  _rxUiPendingDelta = 0;
-  _rxUiPendingLastLine = "";
-  _rxUiPendingSourcePath = "";
-  _lastRxUiFlushMs = 0;
 
   if (_state.enabled && _state.protocol == SERIAL_WRITER_FORWARDER_PROTOCOL_WS) {
     initWsClient();
@@ -94,13 +93,11 @@ void SerialWriterForwarderService::loop() {
     if (_wsClient) {
       _wsClient->loop();
     }
-    flushRxUiCoalesce(false);
     checkWsConnection();
     return;
   }
 
   // HTTP polling mode
-  flushRxUiCoalesce(false);
   if (millis() - _lastPollTime >= _state.pollIntervalMs) {
     _lastPollTime = millis();
     pollHttp();
@@ -126,6 +123,8 @@ void SerialWriterForwarderService::onConfigUpdated() {
   }
   _wsAttemptCount = 0;
   _wsHadConnected = false;
+  _wsReconnectDelayMs = 5000;
+  _lastSignInHttpCode = 0;
 
   if (_state.enabled && _state.protocol == SERIAL_WRITER_FORWARDER_PROTOCOL_WS) {
     initWsClient();
@@ -135,6 +134,17 @@ void SerialWriterForwarderService::onConfigUpdated() {
 
 void SerialWriterForwarderService::deliverLine(const String& line, const char* sourcePath) {
   if (line.isEmpty()) return;
+
+  if (sourcePath != nullptr && sourcePath[0] != '\0') {
+    Serial.printf("[SerialWriterForwarder][delivered] field=%s path=%s len=%u\n",
+                  _state.jsonField.c_str(),
+                  sourcePath,
+                  (unsigned)line.length());
+  } else {
+    Serial.printf("[SerialWriterForwarder][delivered] field=%s len=%u\n",
+                  _state.jsonField.c_str(),
+                  (unsigned)line.length());
+  }
 
   uint8_t sinkMask = 0;
   if (_state.outputTargets == SERIAL_WRITER_FORWARDER_OUTPUT_USB_ONLY) {
@@ -148,48 +158,10 @@ void SerialWriterForwarderService::deliverLine(const String& line, const char* s
   }
   _serialWriterService->enqueueForwardedLine(line, sinkMask);
 
-  _rxUiPendingDelta++;
-  _rxUiPendingLastLine = line;
-  if (sourcePath != nullptr && sourcePath[0] != '\0') {
-    _rxUiPendingSourcePath = sourcePath;
-  } else {
-    _rxUiPendingSourcePath = "";
-  }
-  flushRxUiCoalesce(false);
-}
-
-void SerialWriterForwarderService::flushRxUiCoalesce(bool force) {
-  if (_rxUiPendingDelta == 0) {
-    return;
-  }
-  const unsigned long now = millis();
-  if (!force && _lastRxUiFlushMs != 0 && (now - _lastRxUiFlushMs) < 150) {
-    return;
-  }
-
-  const uint32_t mergedCount = _rxUiPendingDelta;
-  const String lastLine = _rxUiPendingLastLine;
-  const String srcPath = _rxUiPendingSourcePath;
-  _rxUiPendingDelta = 0;
-  _lastRxUiFlushMs = now;
-
-  if (!srcPath.isEmpty()) {
-    Serial.printf("[SerialWriterForwarder][delivered] field=%s path=%s len=%u batch=%u\n",
-                  _state.jsonField.c_str(),
-                  srcPath.c_str(),
-                  (unsigned)lastLine.length(),
-                  (unsigned)mergedCount);
-  } else {
-    Serial.printf("[SerialWriterForwarder][delivered] field=%s len=%u batch=%u\n",
-                  _state.jsonField.c_str(),
-                  (unsigned)lastLine.length(),
-                  (unsigned)mergedCount);
-  }
-
   update([&](SerialWriterForwarderState& state) {
-    state.lastReceivedLine = lastLine;
-    state.lastReceivedMs = now;
-    state.receivedCount += mergedCount;
+    state.lastReceivedLine = line;
+    state.lastReceivedMs = millis();
+    state.receivedCount++;
     state.connected = true;
     state.lastError = "";
     return StateUpdateResult::CHANGED;
@@ -197,7 +169,6 @@ void SerialWriterForwarderService::flushRxUiCoalesce(bool force) {
 }
 
 void SerialWriterForwarderService::setRuntimeError(const String& errorText, bool connected) {
-  flushRxUiCoalesce(true);
   const String message = errorText;
   const bool isConnected = connected;
   update([message, isConnected](SerialWriterForwarderState& state) {
@@ -302,6 +273,7 @@ bool SerialWriterForwarderService::fetchHttpAuthToken(const String& baseUrl) {
   String signInUrl = baseUrl + "/rest/signIn";
   HTTPClient http;
   http.begin(signInUrl);
+  http.setTimeout(2000);
   http.addHeader("Content-Type", "application/json");
 
   DynamicJsonDocument reqDoc(256);
@@ -311,6 +283,7 @@ bool SerialWriterForwarderService::fetchHttpAuthToken(const String& baseUrl) {
   serializeJson(reqDoc, reqBody);
 
   int code = http.POST(reqBody);
+  _lastSignInHttpCode = code;
   bool ok = false;
   if (code == 200) {
     String resp = http.getString();
@@ -327,9 +300,14 @@ bool SerialWriterForwarderService::fetchHttpAuthToken(const String& baseUrl) {
   if (!ok) {
     _httpAuthToken = "";
     _httpAuthTokenValid = false;
-    Serial.printf("[SerialWriterForwarder][http-auth] failed url=%s http_code=%d\n",
-                  signInUrl.c_str(),
-                  code);
+    if (code == -1) {
+      Serial.printf(
+          "[SerialWriterForwarder][http-auth] failed url=%s http_code=%d (TCP/connect failed; source unreachable?)\n",
+          signInUrl.c_str(),
+          code);
+    } else {
+      Serial.printf("[SerialWriterForwarder][http-auth] failed url=%s http_code=%d\n", signInUrl.c_str(), code);
+    }
   } else {
     Serial.printf("[SerialWriterForwarder][http-auth] ok url=%s token_len=%u\n",
                   signInUrl.c_str(),
@@ -389,18 +367,13 @@ void SerialWriterForwarderService::initWsClient() {
     return;
   }
 
-  flushRxUiCoalesce(true);
-
   if (_wsClient) {
+    _wsClient->disconnect();
     delete _wsClient;
     _wsClient = nullptr;
   }
 
-  _wsClient = new WebSocketsClient();
-  _wsAttemptCount++;
-  _wsHadConnected = false;
-
-  // Parse ws://host:port/path
+  // Parse ws://host:port/path before any WebSocketsClient allocation
   String url = _state.sourceUrl;
   url.replace("ws://", "");
   int portIdx = url.indexOf(':');
@@ -410,6 +383,43 @@ void SerialWriterForwarderService::initWsClient() {
   uint16_t port = portIdx > 0 ? url.substring(portIdx + 1, pathIdx > 0 ? pathIdx : url.length()).toInt() : 80;
   String path = pathIdx > 0 ? url.substring(pathIdx) : "/";
 
+  String baseUrl = "http://" + host + (port != 80 ? ":" + String(port) : "");
+
+  // Auth before WebSocketsClient: failed sign-in must not call begin() (avoids socket churn / lwIP exhaustion)
+  if (_state.authUsername.isEmpty()) {
+    Serial.println(F("[SerialWriterForwarder][ws-attempt] auth=none"));
+  } else {
+    if (!_httpAuthTokenValid || _httpAuthToken.isEmpty()) {
+      fetchHttpAuthToken(baseUrl);
+    }
+    if (!_httpAuthTokenValid || _httpAuthToken.isEmpty()) {
+      Serial.printf("[SerialWriterForwarder][ws-attempt] auth=token-failed user=%s (sign-in did not return access_token)\n",
+                    _state.authUsername.c_str());
+      String error = "Auth failed: sign-in to " + baseUrl + " did not return token";
+      setRuntimeError(error, false);
+      if (_wsReconnectDelayMs < 60000u) {
+        uint32_t next = _wsReconnectDelayMs * 2u;
+        _wsReconnectDelayMs = (next > 60000u || next < _wsReconnectDelayMs) ? 60000u : next;
+      }
+      Serial.printf("[SerialWriterForwarder][ws-reconnect-backoff] delay_ms=%u last_signin_http=%d\n",
+                    (unsigned)_wsReconnectDelayMs,
+                    _lastSignInHttpCode);
+      _lastWsReconnectAttempt = millis();
+      return;
+    }
+    path += (path.indexOf('?') >= 0 ? "&" : "?");
+    path += "access_token=" + _httpAuthToken;
+    Serial.printf("[SerialWriterForwarder][ws-attempt] auth=token-ok user=%s token_len=%u\n",
+                  _state.authUsername.c_str(),
+                  (unsigned)_httpAuthToken.length());
+  }
+
+  _wsReconnectDelayMs = 5000;
+
+  _wsClient = new WebSocketsClient();
+  _wsAttemptCount++;
+  _wsHadConnected = false;
+
   Serial.printf("[SerialWriterForwarder][ws-attempt] n=%u url='%s' host=%s port=%u path=%s wifi_ip=%s\n",
                 (unsigned)_wsAttemptCount,
                 _state.sourceUrl.c_str(),
@@ -417,29 +427,6 @@ void SerialWriterForwarderService::initWsClient() {
                 (unsigned)port,
                 path.c_str(),
                 WiFi.localIP().toString().c_str());
-
-  // Auth path: explicit log of which branch we took so the source-side rejection cause is obvious from the log
-  if (_state.authUsername.isEmpty()) {
-    Serial.println(F("[SerialWriterForwarder][ws-attempt] auth=none"));
-  } else {
-    String baseUrl = "http://" + host + (port != 80 ? ":" + String(port) : "");
-    if (!_httpAuthTokenValid || _httpAuthToken.isEmpty()) {
-      fetchHttpAuthToken(baseUrl);
-    }
-    if (_httpAuthTokenValid && !_httpAuthToken.isEmpty()) {
-      path += (path.indexOf('?') >= 0 ? "&" : "?");
-      path += "access_token=" + _httpAuthToken;
-      Serial.printf("[SerialWriterForwarder][ws-attempt] auth=token-ok user=%s token_len=%u\n",
-                    _state.authUsername.c_str(),
-                    (unsigned)_httpAuthToken.length());
-    } else {
-      Serial.printf("[SerialWriterForwarder][ws-attempt] auth=token-failed user=%s (sign-in did not return access_token)\n",
-                    _state.authUsername.c_str());
-      // Surface this clearly so the UI doesn't just say "Disconnected"
-      String error = "Auth failed: sign-in to " + baseUrl + " did not return token";
-      setRuntimeError(error, false);
-    }
-  }
 
   // Show progress in the UI immediately so a user clicking Save sees the next state instead of stale "Disconnected"
   {
@@ -465,13 +452,13 @@ void SerialWriterForwarderService::initWsClient() {
 
     if (type == WStype_CONNECTED) {
       _wsHadConnected = true;
+      _wsReconnectDelayMs = 5000;
       update([](SerialWriterForwarderState& state) {
         state.connected = true;
         state.lastError = "";
         return StateUpdateResult::CHANGED;
       }, "internal");
     } else if (type == WStype_DISCONNECTED) {
-      flushRxUiCoalesce(true);
       // Distinguish "rejected on handshake" from "lost connection after a frame"
       const bool hadConnected = _wsHadConnected;
       update([hadConnected](SerialWriterForwarderState& state) {
@@ -524,8 +511,6 @@ void SerialWriterForwarderService::initWsClient() {
   });
 
   _wsClient->begin(host, port, path);
-  // Ping/pong keeps intermediaries from treating the stream as idle; helps long-lived client sessions.
-  _wsClient->enableHeartbeat(15000, 3000, 2);
   _lastWsReconnectAttempt = millis();
 #endif
 }
@@ -547,7 +532,7 @@ void SerialWriterForwarderService::checkWsConnection() {
   }
 
   if (!_wsClient) {
-    if (millis() - _lastWsReconnectAttempt >= 5000) {
+    if (millis() - _lastWsReconnectAttempt >= _wsReconnectDelayMs) {
       Serial.println(F("[SerialWriterForwarder][ws-reconnect] reason=no-client"));
       initWsClient();
     }
@@ -555,7 +540,7 @@ void SerialWriterForwarderService::checkWsConnection() {
   }
 
   if (!_wsClient->isConnected()) {
-    if (millis() - _lastWsReconnectAttempt >= 5000) {
+    if (millis() - _lastWsReconnectAttempt >= _wsReconnectDelayMs) {
       Serial.println(F("[SerialWriterForwarder][ws-reconnect] reason=not-connected"));
       initWsClient();
     }
