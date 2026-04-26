@@ -522,7 +522,9 @@ That is the same **writer TCP to reader** failure class as before: after a bad h
 
 **Debugging checklist (recommended order)**
 
-1. Capture **close payload bytes** for every `DISCONNECTED` (add a short hex dump in `SerialWriterForwarderService` if needed) and map RFC 6455 codes to reader policy or network resets.
+Full ordered steps, log table, and **serialReader** branch handoff: **[SERIAL-FORWARDER-DISCONNECT-RUNBOOK.md](./SERIAL-FORWARDER-DISCONNECT-RUNBOOK.md)**.
+
+1. Capture **close payload bytes** for every `DISCONNECTED` — from firmware **0.7.6+** the writer logs **`[ws-close]`** (`rfc6455_code` / `no_close_payload` / capped `reason_hex`); map RFC 6455 codes to reader policy or network resets.
 2. **Reader UART** (or remote logging) at the same timestamps: does the reader log closing `/ws/serial` (reason, heap, `LIVE_LOCK`, `AsyncWebSocket` client limit)?
 3. **A/B:** No browser open on the **writer** vs one tab on forwarder status — compare disconnect interval.
 4. **Reader firmware:** Inspect max concurrent WS clients, idle timeout, and whether `/ws/serial` only pushes on **line change** (explains long gaps with only PONG from the writer’s heartbeat).

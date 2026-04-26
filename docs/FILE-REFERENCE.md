@@ -14,7 +14,9 @@ C:\Project\Weighsoft.Hardware.Base\
 │       └── verify_build.yml   # Build verification workflow
 ├── .gitignore                 # Git ignore patterns
 ├── docs\                      # Architecture documentation (THIS!)
-│   └── INTEGRATION-WORKFLOW.md # Branching and integration workflow
+│   ├── INTEGRATION-WORKFLOW.md # Branching and integration workflow
+│   ├── SERIAL-FORWARDER-DISCONNECT-RUNBOOK.md # Ordered WS disconnect debug (writer + serialReader handoff)
+│   └── (additional guides: SERIAL-WRITER-EXAMPLE.md, NODE-RED-SERIAL-READER-DEBUG.md, …)
 ├── factory_settings.ini       # Factory default values
 ├── features.ini               # Feature flag configuration
 ├── interface\                 # React frontend source

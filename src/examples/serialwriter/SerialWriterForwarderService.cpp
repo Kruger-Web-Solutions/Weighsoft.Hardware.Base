@@ -4,6 +4,46 @@
 
 #ifdef ESP32
 #include <WiFi.h>
+
+namespace {
+
+// WebSocketsClient DISCONNECTED may carry RFC 6455 close data: 2-byte code (big-endian) + optional UTF-8 reason.
+void logSerialWriterOutboundWsClosePayload(const uint8_t* payload, size_t length) {
+  if (length == 0) {
+    Serial.println(F("[SerialWriterForwarder][ws-close] no_close_payload (abnormal/TCP reset common)"));
+    return;
+  }
+  if (payload == nullptr) {
+    Serial.printf("[SerialWriterForwarder][ws-close] null_payload len=%u\n", static_cast<unsigned>(length));
+    return;
+  }
+  if (length < 2) {
+    Serial.printf("[SerialWriterForwarder][ws-close] short_payload len=%u\n", static_cast<unsigned>(length));
+    return;
+  }
+  uint16_t code =
+      static_cast<uint16_t>((static_cast<uint16_t>(payload[0]) << 8) | static_cast<uint16_t>(payload[1]));
+  Serial.printf("[SerialWriterForwarder][ws-close] rfc6455_code=%u len=%u\n",
+                static_cast<unsigned>(code),
+                static_cast<unsigned>(length));
+  if (length > 2) {
+    constexpr size_t kMaxReasonHexBytes = 32;
+    size_t reasonLen = length - 2;
+    if (reasonLen > kMaxReasonHexBytes) {
+      reasonLen = kMaxReasonHexBytes;
+    }
+    Serial.print(F("[SerialWriterForwarder][ws-close] reason_hex="));
+    for (size_t i = 0; i < reasonLen; ++i) {
+      Serial.printf("%02x", static_cast<unsigned>(payload[2 + i]));
+    }
+    if (length - 2 > kMaxReasonHexBytes) {
+      Serial.print(F("..."));
+    }
+    Serial.println();
+  }
+}
+
+}  // namespace
 #endif
 
 SerialWriterForwarderService::SerialWriterForwarderService(AsyncWebServer* server,
@@ -494,6 +534,7 @@ void SerialWriterForwarderService::initWsClient() {
         return StateUpdateResult::CHANGED;
       }, "internal");
     } else if (type == WStype_DISCONNECTED) {
+      logSerialWriterOutboundWsClosePayload(payload, length);
       // Distinguish "rejected on handshake" from "lost connection after a frame"
       const bool hadConnected = _wsHadConnected;
       update([hadConnected](SerialWriterForwarderState& state) {

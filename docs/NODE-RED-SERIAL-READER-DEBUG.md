@@ -52,6 +52,8 @@ The script also runs an optional **smoke test** `POST http://10.45.71.5/rest/sig
 
 ## Next steps (debugging plan)
 
+For a full **ordered** checklist (writer UI, NR, PC `wscat`, log table, close-code interpretation, **serialReader** handoff), use **[SERIAL-FORWARDER-DISCONNECT-RUNBOOK.md](./SERIAL-FORWARDER-DISCONNECT-RUNBOOK.md)**.
+
 1. **Baseline:** With Node-RED connected to `/ws/serial`, leave the tab running and log **timestamps** of any gap in **debug frame summary**; correlate with ESP writer UART `[ws-event] DISCONNECTED` times.
 2. **Reader UART:** Enable logging on the **serialReader** device for `/ws/serial` accept/close reasons (close code, heap, client count).
 3. **Close payload:** Add short **hex dump** on `DISCONNECTED` in `SerialWriterForwarderService` (optional firmware follow-up) to map RFC 6455 codes.
