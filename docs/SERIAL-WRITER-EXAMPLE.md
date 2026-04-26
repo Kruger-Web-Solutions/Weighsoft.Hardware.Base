@@ -401,6 +401,20 @@ When the forwarder UI says Disconnected and the cause is unclear, take the sourc
 
 3. Expected behaviour: connection stays open and frames stream as the source emits them. If this works but the forwarder still fails, the issue is on the **writer** (credentials, WiFi, URL parsing) — re-read the matrix above. If this fails too, the issue is on the **source**.
 
+### Node-RED `signIn` monitoring (troubleshooting)
+
+If the **http request** node shows **`JSON parse error`** and your **function** sees **`No access_token in response: ""`**, Node-RED tried to parse the **HTTP response** as JSON but the body was **empty or not JSON**. That is almost always a **bad or missing POST body** to `/rest/signIn` (reader responds **400** with an empty or non-JSON body), not a bug on the ESP writer (the writer can still receive WebSocket `TEXT` frames while your laptop flow fails independently).
+
+**Fix the flow (checklist):**
+
+1. **Send JSON credentials on the wire:** Use an **inject** node whose payload is a JSON object, e.g. `{"username":"admin","password":"yourActualPassword"}`, and wire it into **http request**.
+2. **http request node:** `POST` → `http://<reader-ip>/rest/signIn`. Under the request body options, send **`msg.payload`** as **JSON** (not "ignore" and not an empty editor). Set header **`Content-Type: application/json`** (the node often adds this when sending JSON — verify).
+3. **Temporarily** set **Return** to **a UTF-8 string** (or "a string") instead of "a parsed JSON object". Deploy and inject: the **debug** output should show raw body and status. Expect a long JSON string containing `access_token` on **200**. If you see **empty** body, open the node’s status / catch node and log **status code** (400 = malformed request; 401 = wrong password / security off mismatch).
+4. Once **200** and body look like JSON, switch **Return** back to **JSON** and pass `msg.payload.access_token` into your WebSocket URL builder.
+5. **Cross-check from the same laptop** with PowerShell (same as manual WS section above): `Invoke-RestMethod` to `http://<reader>/rest/signIn` with `-ContentType application/json` and a JSON body. If PowerShell works but Node-RED does not, the bug is strictly in the NR flow wiring.
+
+**Optional:** Add a **catch** node wired to **debug** to log failed `http request` details (status code, response text).
+
 ### Expected log lines per state
 
 The stable tag pattern is `[SerialWriterForwarder][<category>]`. Grep for it on the writer's UART log to map runtime state to a single category in one pass.
