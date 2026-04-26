@@ -405,6 +405,8 @@ When the forwarder UI says Disconnected and the cause is unclear, take the sourc
 
 If the **http request** node shows **`JSON parse error`** and your **function** sees **`No access_token in response: ""`**, Node-RED tried to parse the **HTTP response** as JSON but the body was **empty or not JSON**. That is almost always a **bad or missing POST body** to `/rest/signIn` (reader responds **400** with an empty or non-JSON body), not a bug on the ESP writer (the writer can still receive WebSocket `TEXT` frames while your laptop flow fails independently).
 
+For a **full checklist**, **Admin API v2 deploy** notes (flows + `rev` + ETag), and a **next-steps debugging plan** (correlating NR with writer UART), see **[NODE-RED-SERIAL-READER-DEBUG.md](./NODE-RED-SERIAL-READER-DEBUG.md)**. To re-apply the patched **serialReader WS monitor** tab from this repo: `python scripts/patch_nodered_serialreader_flows.py`.
+
 **Fix the flow (checklist):**
 
 1. **Send JSON credentials on the wire:** Use an **inject** node whose payload is a JSON object, e.g. `{"username":"admin","password":"yourActualPassword"}`, and wire it into **http request**.

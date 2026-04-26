@@ -25,8 +25,9 @@ C:\Project\Weighsoft.Hardware.Base\
 ├── media\                     # Documentation images
 ├── platformio.ini             # PlatformIO configuration
 ├── README.md                  # Main project README
-├── scripts\                   # Build scripts
-│   └── build_interface.py     # Interface build automation
+├── scripts\                   # Build and tooling scripts
+│   ├── build_interface.py     # Interface build automation
+│   └── patch_nodered_serialreader_flows.py  # Patch + deploy serialReader tab to local Node-RED (see docs/NODE-RED-SERIAL-READER-DEBUG.md)
 └── src\                       # Main application code
     ├── main.cpp               # Entry point, service initialization
     └── examples\              # Example projects
