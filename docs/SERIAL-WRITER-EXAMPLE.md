@@ -7,13 +7,19 @@ The Serial Writer integration sends data **to** the Serial1 TX pin (GPIO17). It 
 Two new services are added:
 
 - **SerialWriterService** — receives data via REST, WebSocket, MQTT, or BLE and writes each line to Serial1.
-- **SerialWriterForwarderService** — pulls data from a remote HTTP or WebSocket source and feeds it into SerialWriterService.
+- **SerialWriterForwarderService** — pulls data from a remote HTTP or WebSocket source and delivers each extracted line according to **`output_targets`** (see below).
 
-Forwarder routing behavior:
+Forwarder routing (`output_targets` on `GET/POST /rest/serialWriterForwarder`, persisted in `/config/serialWriterForwarderConfig.json`):
 
-- Forwarder-originated lines are written to **USB CDC `Serial` only**.
-- Forwarder-originated lines are **not** written to Serial1 TX.
-- Manual sends via `/rest/serialWriter` `pending_line` still use Serial1 TX.
+| Value | Meaning |
+|-------|---------|
+| `usb_only` (default) | Each line is written to **USB CDC `Serial` only** (PC opens the ESP USB virtual COM port, when CDC is available). |
+| `serial1_only` | Each line is written to **Serial1 TX (GPIO17)** only — same physical path as manual `pending_line` sends. |
+| `both` | **Mirror**: same bytes and line terminator are written to **USB CDC and Serial1 TX**. |
+
+Manual sends via `/rest/serialWriter` `pending_line` always use **Serial1 TX** (they do not follow `output_targets`).
+
+**UART mode:** Serial1 is only driven when UART mode is **`writer`**. In `live` or `diagnostics`, SerialWriter suspends Serial1; if `output_targets` includes Serial1, the firmware **skips** the UART leg and logs a short reason on the firmware serial console (no spam on `last_error`).
 
 ---
 
@@ -39,7 +45,7 @@ SerialWriterForwarderService : StatefulService<SerialWriterForwarderState>
 | | WeightForwarderService | SerialWriterForwarderService |
 |--|---|---|
 | Source | SerialService (local Serial1 RX) | Remote HTTP endpoint or WebSocket |
-| Destination | Remote HTTP / WS / MQTT / BLE | SerialWriterService -> USB CDC `Serial` (forwarder-originated only) |
+| Destination | Remote HTTP / WS / MQTT / BLE | SerialWriterService: USB CDC and/or Serial1 per `output_targets` |
 | Trigger | `serial_hw` state update | Timer (HTTP) or WS message callback |
 
 ---
@@ -111,6 +117,7 @@ Config fields (`baud_rate`, `data_bits`, `stop_bits`, `parity`, `line_terminator
   "source_url": "http://192.168.1.100/rest/serial",
   "json_field": "last_line",
   "poll_interval_ms": 1000,
+  "output_targets": "both",
   "auth_username": "",
   "auth_password": "",
   "connected": true,
@@ -122,6 +129,21 @@ Config fields (`baud_rate`, `data_bits`, `stop_bits`, `parity`, `line_terminator
 ```
 
 `protocol`: `0` = HTTP poll, `1` = WebSocket subscribe.
+
+`output_targets`: `usb_only` | `serial1_only` | `both` (strings; integers `0`/`1`/`2` are also accepted on POST for compatibility).
+
+### PC COM, Scale Com.exe, and GPIO17 (Phase 3)
+
+Use this checklist so you can reproduce setup in under ~10 minutes.
+
+1. **Choose how the PC reads data**
+   - **Onboard USB CDC (`usb_only` or `both`):** Install USB drivers if needed; in Windows Device Manager, identify the **USB Serial Device** (or vendor-specific name) for the ESP. Open that COM port in PuTTY, your own tool, or **Scale Com.exe** at the baud you use for that tap (often 115200 for a monitor-style log; the **device on GPIO17** still uses **`serialWriter` baud / parity / stop** from `/rest/serialWriter`).
+   - **Physical UART tap (`serial1_only` or `both` on a second PC):** Connect a **USB–TTL adapter** RX to **GPIO17 (TX)**, **GND** to board GND. Open the adapter’s COM port on the PC. Never connect 5 V TTL to a 3.3 V-only UART without a level shifter.
+2. **Set UART mode to Writer** when using Serial1 (`serial1_only` or `both`): Information tab on Serial Writer (or Serial) → UART mode **Writer**.
+3. **Line terminators:** Forwarder lines use the same `line_terminator` as `/rest/serialWriter` (LF / CRLF / CR / NONE). Match Scale Com.exe or parser settings accordingly.
+4. **`ARDUINO_USB_CDC_ON_BOOT`:** The `esp32s3` environment in `platformio.ini` may set `ARDUINO_USB_CDC_ON_BOOT=0`. That changes whether the native USB port enumerates as a CDC COM for application use. If **no USB COM** appears for mirroring, use **`serial1_only`** plus a **USB–TTL on GPIO17**, or adjust the firmware build flags after agreeing a hardware baseline (see [INTEGRATION-WORKFLOW.md](INTEGRATION-WORKFLOW.md)).
+
+**2-minute verification (optional):** With a fixed-rate source, compare reader line count, forwarder `received_count`, lines seen on the ESP USB COM (when `usb_only` or `both`), and lines on a tap of GPIO17 — counts should match for non-empty delivered lines.
 
 ---
 
@@ -166,12 +188,11 @@ Full field reference is available on the BLE tab in the Serial Writer UI.
 
 ## Serial Writer Forwarder
 
-The forwarder pulls data from a remote source and feeds each line to SerialWriterService.
-Forwarder lines are emitted to USB CDC `Serial` only (not Serial1 TX).
+The forwarder pulls data from a remote source and feeds each line to SerialWriterService according to **`output_targets`** (USB CDC, Serial1 TX, or both).
 
 ### HTTP Polling Mode
 
-Every `poll_interval_ms` milliseconds, the forwarder GETs `source_url`, parses the JSON response, extracts `json_field`, and writes it to USB CDC `Serial` if non-empty.
+Every `poll_interval_ms` milliseconds, the forwarder GETs `source_url`, parses the JSON response, extracts `json_field`, and writes the line to the configured sink(s) if non-empty.
 
 Example: to mirror a remote Serial Monitor in real-time:
 ```json
@@ -180,13 +201,14 @@ Example: to mirror a remote Serial Monitor in real-time:
   "protocol": 0,
   "source_url": "http://192.168.1.100/rest/serial",
   "json_field": "last_line",
-  "poll_interval_ms": 500
+  "poll_interval_ms": 500,
+  "output_targets": "usb_only"
 }
 ```
 
 ### WebSocket Subscribe Mode
 
-Connects to `source_url` as a WebSocket client. Each incoming JSON message is parsed and `json_field` is extracted and written to USB CDC `Serial`.
+Connects to `source_url` as a WebSocket client. Each incoming JSON message is parsed and `json_field` is extracted and written to the configured sink(s).
 
 Supported message shapes for `json_field` extraction:
 
@@ -236,7 +258,8 @@ Example: subscribe to a remote device's serial WebSocket:
   "enabled": true,
   "protocol": 1,
   "source_url": "ws://192.168.1.100/ws/serial",
-  "json_field": "last_line"
+  "json_field": "last_line",
+  "output_targets": "both"
 }
 ```
 
@@ -254,7 +277,7 @@ If the source device requires login, provide `auth_username` and `auth_password`
 |------|---------|
 | `SerialWriterState.h` | State struct: config + pending/sent line + counters |
 | `SerialWriterForwarderState.h` | State struct: forwarder config + runtime status |
-| `SerialWriterService.h/.cpp` | Writer service: regular sends to Serial1; forwarder-originated sends to USB CDC `Serial` |
+| `SerialWriterService.h/.cpp` | Writer service: manual sends to Serial1; forwarder sends per sink bitmask (USB / Serial1) |
 | `SerialWriterForwarderJsonMapping.h` | Shared HTTP/WS JSON extraction: top-level and `payload.<json_field>`, trim, outcomes |
 | `SerialWriterForwarderService.h/.cpp` | Forwarder: pulls from remote HTTP/WS; uses mapping helpers; structured `last_error` and logs |
 | `platformio_test.ini` | Minimal PlatformIO config to compile mapping unit tests without full firmware `lib_deps` |
@@ -293,7 +316,7 @@ If the source device requires login, provide `auth_username` and `auth_password`
 - [ ] UART Mode switches between `live`, `writer`, and `diagnostics` correctly
 - [ ] POST `{"pending_line":"test"}` to `/rest/serialWriter` — verify TX on GPIO17
 - [ ] `sent_count` increments on each successful write
-- [ ] Forwarder lines appear on USB CDC `Serial` and do not appear on Serial1 TX
+- [ ] Forwarder `output_targets`: `usb_only` / `serial1_only` / `both` behave as documented (mirror counts match over 2 minutes when using `both`)
 - [ ] Config changes persist across reboot (`baud_rate`, `line_terminator`)
 - [ ] WebSocket `/ws/serialWriter` notifies on each send (check `sent_count` / `last_sent_line`)
 - [ ] MQTT send topic delivers line to serial

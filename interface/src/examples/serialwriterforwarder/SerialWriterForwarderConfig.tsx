@@ -15,7 +15,11 @@ import SaveIcon from '@mui/icons-material/Save';
 import { SectionContent, FormLoader, ButtonRow } from '../../components';
 import { useRest } from '../../utils';
 import { readSerialWriterForwarder, updateSerialWriterForwarder } from '../../api/serialWriterForwarder';
-import { ForwarderSourceProtocol, type SerialWriterForwarderData } from '../../types/serialWriterForwarder';
+import {
+  ForwarderOutputTargets,
+  ForwarderSourceProtocol,
+  type SerialWriterForwarderData,
+} from '../../types/serialWriterForwarder';
 
 const SerialWriterForwarderConfig: FC = () => {
   const { data, loadData, saveData, saving, setData, errorMessage } =
@@ -39,8 +43,9 @@ const SerialWriterForwarderConfig: FC = () => {
   return (
     <SectionContent title="Serial Writer Forwarder Configuration" titleGutter>
       <Alert severity="info" sx={{ mb: 2 }}>
-        The forwarder pulls data from a remote HTTP or WebSocket source and sends each received line to Serial1.
-        This is the reverse of the Weight Forwarder.
+        The forwarder pulls lines from a remote HTTP or WebSocket source. Choose where each line is written: USB CDC
+        (PC COM), Serial1 TX (GPIO17, for scale hardware), or both (mirror). UART mode must be Writer when using
+        Serial1.
       </Alert>
 
       <Box display="flex" flexDirection="column" gap={3}>
@@ -53,6 +58,19 @@ const SerialWriterForwarderConfig: FC = () => {
           }
           label="Enable Serial Writer Forwarder"
         />
+
+        <FormControl fullWidth>
+          <InputLabel>Forwarder output</InputLabel>
+          <Select
+            value={data.output_targets ?? ForwarderOutputTargets.UsbOnly}
+            onChange={(e) => setField('output_targets')(e.target.value as ForwarderOutputTargets)}
+            label="Forwarder output"
+          >
+            <MenuItem value={ForwarderOutputTargets.UsbOnly}>USB CDC only (PC opens ESP USB COM)</MenuItem>
+            <MenuItem value={ForwarderOutputTargets.Serial1Only}>Serial1 TX only (GPIO17)</MenuItem>
+            <MenuItem value={ForwarderOutputTargets.Both}>USB CDC + Serial1 TX (mirror)</MenuItem>
+          </Select>
+        </FormControl>
 
         <FormControl fullWidth>
           <InputLabel>Source Protocol</InputLabel>

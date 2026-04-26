@@ -7,6 +7,11 @@
 #define SERIAL_WRITER_FORWARDER_PROTOCOL_HTTP 0
 #define SERIAL_WRITER_FORWARDER_PROTOCOL_WS 1
 
+// Where forwarder-delivered lines are emitted (persisted as JSON string: usb_only / serial1_only / both)
+#define SERIAL_WRITER_FORWARDER_OUTPUT_USB_ONLY 0
+#define SERIAL_WRITER_FORWARDER_OUTPUT_SERIAL1_ONLY 1
+#define SERIAL_WRITER_FORWARDER_OUTPUT_BOTH 2
+
 class SerialWriterForwarderState {
  public:
   // Config fields (persisted)
@@ -15,6 +20,7 @@ class SerialWriterForwarderState {
   String sourceUrl;          // "http://..." or "ws://..."
   String jsonField;          // JSON field to extract as the line (default: "last_line")
   uint32_t pollIntervalMs;   // HTTP polling interval in ms (default 1000)
+  uint8_t outputTargets;     // SERIAL_WRITER_FORWARDER_OUTPUT_*
   String authUsername;
   String authPassword;
 
@@ -30,6 +36,7 @@ class SerialWriterForwarderState {
         protocol(SERIAL_WRITER_FORWARDER_PROTOCOL_HTTP),
         jsonField("last_line"),
         pollIntervalMs(1000),
+        outputTargets(SERIAL_WRITER_FORWARDER_OUTPUT_USB_ONLY),
         connected(false),
         lastReceivedMs(0),
         receivedCount(0) {}
@@ -41,6 +48,13 @@ class SerialWriterForwarderState {
     root["source_url"] = state.sourceUrl;
     root["json_field"] = state.jsonField;
     root["poll_interval_ms"] = state.pollIntervalMs;
+    if (state.outputTargets == SERIAL_WRITER_FORWARDER_OUTPUT_SERIAL1_ONLY) {
+      root["output_targets"] = "serial1_only";
+    } else if (state.outputTargets == SERIAL_WRITER_FORWARDER_OUTPUT_BOTH) {
+      root["output_targets"] = "both";
+    } else {
+      root["output_targets"] = "usb_only";
+    }
     root["auth_username"] = state.authUsername;
     // auth_password intentionally omitted from read for security
     root["connected"] = state.connected;
@@ -57,6 +71,13 @@ class SerialWriterForwarderState {
     root["source_url"] = state.sourceUrl;
     root["json_field"] = state.jsonField;
     root["poll_interval_ms"] = state.pollIntervalMs;
+    if (state.outputTargets == SERIAL_WRITER_FORWARDER_OUTPUT_SERIAL1_ONLY) {
+      root["output_targets"] = "serial1_only";
+    } else if (state.outputTargets == SERIAL_WRITER_FORWARDER_OUTPUT_BOTH) {
+      root["output_targets"] = "both";
+    } else {
+      root["output_targets"] = "usb_only";
+    }
     root["auth_username"] = state.authUsername;
     root["auth_password"] = state.authPassword;
   }
@@ -76,6 +97,12 @@ class SerialWriterForwarderState {
     }
     if (state.pollIntervalMs < 100) state.pollIntervalMs = 100;
     if (state.jsonField.length() == 0) state.jsonField = "last_line";
+
+    if (root.containsKey("output_targets")) {
+      state.outputTargets = parseOutputTargets(root["output_targets"]);
+    } else {
+      state.outputTargets = SERIAL_WRITER_FORWARDER_OUTPUT_USB_ONLY;
+    }
 
     return StateUpdateResult::CHANGED;
   }
@@ -133,7 +160,34 @@ class SerialWriterForwarderState {
         result = StateUpdateResult::CHANGED;
       }
     }
+    if (root.containsKey("output_targets")) {
+      uint8_t next = parseOutputTargets(root["output_targets"]);
+      if (next != state.outputTargets) {
+        state.outputTargets = next;
+        result = StateUpdateResult::CHANGED;
+      }
+    }
     return result;
+  }
+
+ private:
+  static uint8_t parseOutputTargets(JsonVariant v) {
+    if (v.is<int>() || v.is<unsigned int>()) {
+      int i = v.as<int>();
+      if (i == SERIAL_WRITER_FORWARDER_OUTPUT_SERIAL1_ONLY) return SERIAL_WRITER_FORWARDER_OUTPUT_SERIAL1_ONLY;
+      if (i == SERIAL_WRITER_FORWARDER_OUTPUT_BOTH) return SERIAL_WRITER_FORWARDER_OUTPUT_BOTH;
+      return SERIAL_WRITER_FORWARDER_OUTPUT_USB_ONLY;
+    }
+    String s = v.as<String>();
+    s.trim();
+    s.toLowerCase();
+    if (s == "serial1_only" || s == "uart" || s == "serial1") {
+      return SERIAL_WRITER_FORWARDER_OUTPUT_SERIAL1_ONLY;
+    }
+    if (s == "both" || s == "usb_and_serial1" || s == "mirror") {
+      return SERIAL_WRITER_FORWARDER_OUTPUT_BOTH;
+    }
+    return SERIAL_WRITER_FORWARDER_OUTPUT_USB_ONLY;
   }
 };
 

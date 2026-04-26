@@ -19,6 +19,10 @@
 #define SERIAL_WRITER_SOCKET_PATH "/ws/serialWriter"
 #define SERIAL_WRITER_CONFIG_FILE "/config/serialWriterConfig.json"
 
+// Bitmask for forwarder line delivery (see SerialWriterForwarderState output_targets)
+#define SERIAL_WRITER_FORWARDER_SINK_USB (1u << 0)
+#define SERIAL_WRITER_FORWARDER_SINK_SERIAL1 (1u << 1)
+
 // Shares Serial1 with SerialService (same UART, opposite direction)
 // ESP32-S3: GPIO18=U1RXD (RX), GPIO17=U1TXD (TX)
 #define SERIAL_WRITER_PORT Serial1
@@ -50,8 +54,8 @@ class SerialWriterService : public StatefulService<SerialWriterState> {
   void resumeSerial();
   bool isSuspended() const { return _suspended; }
 
-  // Forwarder-only sink: write to USB CDC Serial (not Serial1 TX).
-  void enqueueForwardedLineUsbOnly(const String& line);
+  /** Forwarder line delivery. @param sinkMask SERIAL_WRITER_FORWARDER_SINK_* bits. */
+  void enqueueForwardedLine(const String& line, uint8_t sinkMask);
 
  private:
   HttpEndpoint<SerialWriterState> _httpEndpoint;
@@ -77,6 +81,7 @@ class SerialWriterService : public StatefulService<SerialWriterState> {
 
   void writePendingLine();
   void writeLineWithTerminatorToUsbSerial(const String& line) const;
+  void writeLineWithTerminatorToSerial1(const String& line) const;
   void applySerialConfig();
   uint32_t getSerialConfig();
   void onConfigUpdated();

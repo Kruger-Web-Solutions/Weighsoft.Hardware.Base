@@ -49,9 +49,16 @@ SerialWriterForwarderService::SerialWriterForwarderService(AsyncWebServer* serve
 
 void SerialWriterForwarderService::begin() {
   _fsPersistence.readFromFS();
-  Serial.printf("[SerialWriterForwarder] Loaded config: protocol=%d, enabled=%d, url='%s'\n",
+  const char* outLabel = "usb_only";
+  if (_state.outputTargets == SERIAL_WRITER_FORWARDER_OUTPUT_SERIAL1_ONLY) {
+    outLabel = "serial1_only";
+  } else if (_state.outputTargets == SERIAL_WRITER_FORWARDER_OUTPUT_BOTH) {
+    outLabel = "both";
+  }
+  Serial.printf("[SerialWriterForwarder] Loaded config: protocol=%d, enabled=%d, output=%s, url='%s'\n",
                 (int)_state.protocol,
                 _state.enabled,
+                outLabel,
                 _state.sourceUrl.c_str());
 
   _state.connected = false;
@@ -125,7 +132,17 @@ void SerialWriterForwarderService::deliverLine(const String& line, const char* s
                   (unsigned)line.length());
   }
 
-  _serialWriterService->enqueueForwardedLineUsbOnly(line);
+  uint8_t sinkMask = 0;
+  if (_state.outputTargets == SERIAL_WRITER_FORWARDER_OUTPUT_USB_ONLY) {
+    sinkMask = SERIAL_WRITER_FORWARDER_SINK_USB;
+  } else if (_state.outputTargets == SERIAL_WRITER_FORWARDER_OUTPUT_SERIAL1_ONLY) {
+    sinkMask = SERIAL_WRITER_FORWARDER_SINK_SERIAL1;
+  } else if (_state.outputTargets == SERIAL_WRITER_FORWARDER_OUTPUT_BOTH) {
+    sinkMask = SERIAL_WRITER_FORWARDER_SINK_USB | SERIAL_WRITER_FORWARDER_SINK_SERIAL1;
+  } else {
+    sinkMask = SERIAL_WRITER_FORWARDER_SINK_USB;
+  }
+  _serialWriterService->enqueueForwardedLine(line, sinkMask);
 
   update([&](SerialWriterForwarderState& state) {
     state.lastReceivedLine = line;

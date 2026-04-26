@@ -142,15 +142,44 @@ void SerialWriterService::writeLineWithTerminatorToUsbSerial(const String& line)
   Serial.flush();
 }
 
-void SerialWriterService::enqueueForwardedLineUsbOnly(const String& line) {
-  if (line.isEmpty()) {
+void SerialWriterService::writeLineWithTerminatorToSerial1(const String& line) const {
+#ifdef ESP32
+  SERIAL_WRITER_PORT.print(line);
+  if (_state.lineTerminator == SERIAL_WRITER_TERMINATOR_LF) {
+    SERIAL_WRITER_PORT.print('\n');
+  } else if (_state.lineTerminator == SERIAL_WRITER_TERMINATOR_CRLF) {
+    SERIAL_WRITER_PORT.print('\r');
+    SERIAL_WRITER_PORT.print('\n');
+  } else if (_state.lineTerminator == SERIAL_WRITER_TERMINATOR_CR) {
+    SERIAL_WRITER_PORT.print('\r');
+  }
+  SERIAL_WRITER_PORT.flush();
+#endif
+}
+
+void SerialWriterService::enqueueForwardedLine(const String& line, uint8_t sinkMask) {
+  if (line.isEmpty() || sinkMask == 0) {
     return;
   }
 
-  writeLineWithTerminatorToUsbSerial(line);
-  unsigned long now = millis();
-  Serial.printf("[SerialWriter] Forwarder sent to USB_CDC: '%s'\n", line.c_str());
+  if (sinkMask & SERIAL_WRITER_FORWARDER_SINK_USB) {
+    writeLineWithTerminatorToUsbSerial(line);
+    Serial.printf("[SerialWriter] Forwarder sink=USB len=%u\n", (unsigned)line.length());
+  }
 
+  if (sinkMask & SERIAL_WRITER_FORWARDER_SINK_SERIAL1) {
+#ifdef ESP32
+    if (_suspended || !_serialStarted) {
+      Serial.println(F("[SerialWriter] Forwarder sink=Serial1 skipped (UART suspended or not started; use UART "
+                       "Writer mode)"));
+    } else {
+      writeLineWithTerminatorToSerial1(line);
+      Serial.printf("[SerialWriter] Forwarder sink=Serial1 len=%u\n", (unsigned)line.length());
+    }
+#endif
+  }
+
+  unsigned long now = millis();
   update([&](SerialWriterState& state) {
     state.lastSentLine = line;
     state.lastSentMs = now;

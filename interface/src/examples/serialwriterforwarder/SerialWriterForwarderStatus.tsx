@@ -1,9 +1,13 @@
 import { FC } from 'react';
-import { Chip, Paper, Table, TableBody, TableCell, TableRow, Typography } from '@mui/material';
+import { Alert, Chip, Paper, Table, TableBody, TableCell, TableRow, Typography } from '@mui/material';
 import { SectionContent } from '../../components';
 import { WEB_SOCKET_ROOT } from '../../api/endpoints';
 import { useWs } from '../../utils/useWs';
-import { ForwarderSourceProtocol, type SerialWriterForwarderData } from '../../types/serialWriterForwarder';
+import {
+  ForwarderOutputTargets,
+  ForwarderSourceProtocol,
+  type SerialWriterForwarderData,
+} from '../../types/serialWriterForwarder';
 
 const SERIAL_WRITER_FORWARDER_WS_URL = WEB_SOCKET_ROOT + 'serialWriterForwarder';
 
@@ -24,8 +28,22 @@ const SerialWriterForwarderStatus: FC = () => {
     );
   }
 
+  const outputTargets = data.output_targets ?? ForwarderOutputTargets.UsbOnly;
+  const outputLabel =
+    outputTargets === ForwarderOutputTargets.Serial1Only
+      ? 'Serial1 TX only'
+      : outputTargets === ForwarderOutputTargets.Both
+        ? 'USB CDC + Serial1 TX'
+        : 'USB CDC only';
+
   return (
     <SectionContent title="Serial Writer Forwarder Status" titleGutter>
+      {(outputTargets === ForwarderOutputTargets.Serial1Only || outputTargets === ForwarderOutputTargets.Both) && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          Forwarder writes to Serial1 TX only when UART mode is <strong>Writer</strong>. If lines are missing on
+          GPIO17, switch UART mode on the Serial / Serial Writer Information tab.
+        </Alert>
+      )}
       <Paper>
         <Table>
           <TableBody>
@@ -66,6 +84,13 @@ const SerialWriterForwarderStatus: FC = () => {
                   size="small"
                 />
               </TableCell>
+            </TableRow>
+
+            <TableRow>
+              <TableCell>
+                <strong>Forwarder output</strong>
+              </TableCell>
+              <TableCell>{outputLabel}</TableCell>
             </TableRow>
 
             <TableRow>
