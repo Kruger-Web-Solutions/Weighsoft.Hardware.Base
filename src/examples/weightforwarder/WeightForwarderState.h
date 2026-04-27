@@ -8,6 +8,13 @@ enum OutputFormat { FMT_STANDARD = 0, FMT_LCD = 1, FMT_TFT = 2, FMT_SERIAL = 3 }
 
 static constexpr int MAX_TARGET_URLS = 5;
 
+// Heartbeat: 0 = disabled (only send on change), otherwise clamped to [HEARTBEAT_MIN_MS, HEARTBEAT_MAX_MS].
+// Hard floor of MIN_FORWARD_INTERVAL still applies in the service loop, so a tiny heartbeat
+// value can never flood the receiver.
+static constexpr uint32_t HEARTBEAT_DEFAULT_MS = 10000;   // 10 seconds
+static constexpr uint32_t HEARTBEAT_MIN_MS     = 1000;    // 1 second
+static constexpr uint32_t HEARTBEAT_MAX_MS     = 600000;  // 10 minutes
+
 class WeightForwarderState {
  public:
   // Configuration fields (persisted to flash)
@@ -22,6 +29,8 @@ class WeightForwarderState {
   bool enabled;
   String authUsername;
   String authPassword;
+  uint32_t heartbeatIntervalMs = HEARTBEAT_DEFAULT_MS;  // 0 = disabled, otherwise clamped to [HEARTBEAT_MIN_MS, HEARTBEAT_MAX_MS]
+  bool usbEchoEnabled = false;  // when true, every captured scale line is echoed to Serial (USB CDC COM port)
 
   // Runtime status (not persisted)
   bool connected;
@@ -44,6 +53,8 @@ class WeightForwarderState {
     root["enabled"] = state.enabled;
     root["auth_username"] = state.authUsername;
     root["auth_password"] = state.authPassword;
+    root["heartbeat_interval_sec"] = state.heartbeatIntervalMs / 1000;
+    root["usb_echo_enabled"] = state.usbEchoEnabled;
     root["connected"] = state.connected;
     root["last_error"] = state.lastError;
     root["last_forward_time"] = state.lastForwardTime;
@@ -64,6 +75,16 @@ class WeightForwarderState {
     root["enabled"] = state.enabled;
     root["auth_username"] = state.authUsername;
     root["auth_password"] = state.authPassword;
+    root["heartbeat_interval_sec"] = state.heartbeatIntervalMs / 1000;
+    root["usb_echo_enabled"] = state.usbEchoEnabled;
+  }
+
+  // Clamp helper: 0 stays 0 (disabled), otherwise enforce [HEARTBEAT_MIN_MS, HEARTBEAT_MAX_MS].
+  static uint32_t clampHeartbeatMs(uint32_t requestedMs) {
+    if (requestedMs == 0) return 0;
+    if (requestedMs < HEARTBEAT_MIN_MS) return HEARTBEAT_MIN_MS;
+    if (requestedMs > HEARTBEAT_MAX_MS) return HEARTBEAT_MAX_MS;
+    return requestedMs;
   }
 
   static StateUpdateResult updateConfig(JsonObject& root, WeightForwarderState& state) {
@@ -99,6 +120,11 @@ class WeightForwarderState {
     state.enabled = root["enabled"] | false;
     state.authUsername = root["auth_username"] | "";
     state.authPassword = root["auth_password"] | "";
+    {
+      uint32_t requestedMs = (uint32_t)((root["heartbeat_interval_sec"] | (long)(HEARTBEAT_DEFAULT_MS / 1000)) * 1000UL);
+      state.heartbeatIntervalMs = clampHeartbeatMs(requestedMs);
+    }
+    state.usbEchoEnabled = root["usb_echo_enabled"] | false;
 
     // Validate protocol against feature flags
 #if !FT_ENABLED(FT_MQTT)
@@ -219,6 +245,23 @@ class WeightForwarderState {
       String v = root["auth_password"].as<String>();
       if (v != state.authPassword) {
         state.authPassword = v;
+        changed = true;
+      }
+    }
+
+    if (root.containsKey("heartbeat_interval_sec")) {
+      uint32_t requestedMs = (uint32_t)((long)root["heartbeat_interval_sec"] * 1000UL);
+      uint32_t clamped = clampHeartbeatMs(requestedMs);
+      if (clamped != state.heartbeatIntervalMs) {
+        state.heartbeatIntervalMs = clamped;
+        changed = true;
+      }
+    }
+
+    if (root.containsKey("usb_echo_enabled")) {
+      bool v = root["usb_echo_enabled"];
+      if (v != state.usbEchoEnabled) {
+        state.usbEchoEnabled = v;
         changed = true;
       }
     }

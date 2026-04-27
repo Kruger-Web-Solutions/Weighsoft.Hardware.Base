@@ -19,7 +19,14 @@ import { SectionContent, FormLoader, ButtonRow } from '../../components';
 import { FeaturesContext } from '../../contexts/features';
 import { useRest } from '../../utils';
 import { updateWeightForwarder, readWeightForwarder } from '../../api/weightForwarder';
-import { ForwardProtocol, OutputFormat, type WeightForwarderData } from '../../types/weightForwarder';
+import {
+  ForwardProtocol,
+  OutputFormat,
+  type WeightForwarderData,
+  HEARTBEAT_DEFAULT_SEC,
+  HEARTBEAT_MIN_SEC,
+  HEARTBEAT_MAX_SEC,
+} from '../../types/weightForwarder';
 
 const OUTPUT_FORMAT_OPTIONS = [
   { value: OutputFormat.STANDARD, label: 'Standard JSON' },
@@ -41,6 +48,22 @@ const WeightForwarderConfig: FC = () => {
 
   const setField = (key: keyof WeightForwarderData) => (value: any) => {
     setData((prev) => (prev ? { ...prev, [key]: value } : prev));
+  };
+
+  const setHeartbeatSec = (raw: string) => {
+    if (raw === '') {
+      setField('heartbeat_interval_sec')(0);
+      return;
+    }
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed)) return;
+    const intVal = Math.floor(parsed);
+    if (intVal <= 0) {
+      setField('heartbeat_interval_sec')(0);
+      return;
+    }
+    const clamped = Math.min(HEARTBEAT_MAX_SEC, Math.max(HEARTBEAT_MIN_SEC, intVal));
+    setField('heartbeat_interval_sec')(clamped);
   };
 
   const getUrls = (): string[] =>
@@ -112,6 +135,34 @@ const WeightForwarderConfig: FC = () => {
             />
           }
           label="Enable Weight Forwarding"
+        />
+
+        <FormControlLabel
+          control={
+            <Checkbox
+              checked={data.usb_echo_enabled ?? false}
+              onChange={(e) => setField('usb_echo_enabled')(e.target.checked)}
+            />
+          }
+          label="Echo scale line to USB serial port"
+          title="When this ESP is connected to a PC via USB, every captured scale line is written to the COM port. Independent of network forwarding."
+        />
+
+        <TextField
+          fullWidth
+          size="small"
+          type="number"
+          label="Heartbeat interval (seconds)"
+          value={data.heartbeat_interval_sec ?? HEARTBEAT_DEFAULT_SEC}
+          onChange={(e) => setHeartbeatSec(e.target.value)}
+          inputProps={{ min: 0, max: HEARTBEAT_MAX_SEC, step: 1 }}
+          helperText={
+            `Resends the latest weight every N seconds even if it hasn't changed. ` +
+            `Default ${HEARTBEAT_DEFAULT_SEC}s. ` +
+            `0 = disabled (only forward on weight change). ` +
+            `Range when enabled: ${HEARTBEAT_MIN_SEC}\u2013${HEARTBEAT_MAX_SEC}s. ` +
+            `Weight changes are always forwarded immediately (subject to a 0.5s safety floor).`
+          }
         />
 
         <FormControl fullWidth>

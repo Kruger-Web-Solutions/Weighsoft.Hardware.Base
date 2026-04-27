@@ -17,6 +17,7 @@ interface RemoteWeightData {
   timestamp: number;
   enabled: boolean;
   display_enabled: boolean;
+  usb_echo_enabled: boolean;
 }
 
 const RemoteWeightMonitor: FC = () => {
@@ -28,6 +29,7 @@ const RemoteWeightMonitor: FC = () => {
 
   const [enabled, setEnabled] = useState(true);
   const [displayEnabled, setDisplayEnabled] = useState(true);
+  const [usbEchoEnabled, setUsbEchoEnabled] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
@@ -35,6 +37,7 @@ const RemoteWeightMonitor: FC = () => {
     if (data && !loaded) {
       setEnabled(data.enabled ?? true);
       setDisplayEnabled(data.display_enabled ?? true);
+      setUsbEchoEnabled(data.usb_echo_enabled ?? false);
       setLoaded(true);
     }
   }, [data, loaded]);
@@ -56,11 +59,15 @@ const RemoteWeightMonitor: FC = () => {
   const saveConfig = useCallback(async () => {
     setSaving(true);
     try {
-      await AXIOS.post(REMOTE_WEIGHT_ENDPOINT, { enabled, display_enabled: displayEnabled });
+      await AXIOS.post(REMOTE_WEIGHT_ENDPOINT, {
+        enabled,
+        display_enabled: displayEnabled,
+        usb_echo_enabled: usbEchoEnabled
+      });
     } finally {
       setSaving(false);
     }
-  }, [enabled, displayEnabled]);
+  }, [enabled, displayEnabled, usbEchoEnabled]);
 
   const formatTime = (d: Date) =>
     d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -75,6 +82,11 @@ const RemoteWeightMonitor: FC = () => {
         <FormControlLabel
           control={<Checkbox checked={displayEnabled} onChange={(e) => setDisplayEnabled(e.target.checked)} />}
           label="Enable TFT Display"
+        />
+        <FormControlLabel
+          control={<Checkbox checked={usbEchoEnabled} onChange={(e) => setUsbEchoEnabled(e.target.checked)} />}
+          label="Echo scale line to USB serial port"
+          title="When this ESP is connected to a PC via USB, every received scale line is written to the COM port."
         />
         <ButtonRow>
           <Button

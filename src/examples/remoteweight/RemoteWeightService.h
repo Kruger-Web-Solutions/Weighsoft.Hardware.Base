@@ -23,6 +23,11 @@ class RemoteWeightService : public StatefulService<RemoteWeightState> {
   HttpEndpoint<RemoteWeightState> _httpEndpoint;
   FSPersistence<RemoteWeightState> _fsPersistence;
   WebSocketTxRx<RemoteWeightState> _webSocket;
+
+  // Tracks the previous `timestamp` so the update handler can distinguish
+  // weight payloads (timestamp bumped on every weight POST, even when the
+  // value is identical) from config-only saves (timestamp untouched).
+  unsigned long _lastSeenTimestamp = 0;
 };
 
 #endif

@@ -24,7 +24,13 @@ export interface WeightForwarderData {
   enabled: boolean;
   auth_username?: string;
   auth_password?: string;
+  heartbeat_interval_sec: number;
+  usb_echo_enabled: boolean;
   connected: boolean;
   last_error: string;
   last_forward_time: number;
 }
+
+export const HEARTBEAT_DEFAULT_SEC = 10;
+export const HEARTBEAT_MIN_SEC = 1;
+export const HEARTBEAT_MAX_SEC = 600;

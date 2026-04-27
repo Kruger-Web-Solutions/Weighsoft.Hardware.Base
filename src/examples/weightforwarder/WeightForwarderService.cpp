@@ -95,13 +95,27 @@ void WeightForwarderService::loop() {
   }
 #endif
 
-  if (!_pendingWeight.isEmpty()
+  // Only consider forwarding when:
+  //  - the forwarder is enabled,
+  //  - we actually have a weight reading,
+  //  - the reading has been stable for WEIGHT_DEBOUNCE_MS,
+  //  - and the hard MIN_FORWARD_INTERVAL floor has elapsed since the last forward.
+  // The MIN_FORWARD_INTERVAL floor protects the receiver no matter what the user configures.
+  const bool canConsiderForward = _state.enabled
+      && !_pendingWeight.isEmpty()
       && (millis() - _weightLastChangedAt) >= WEIGHT_DEBOUNCE_MS
-      && (millis() - _lastForwardTime) >= MIN_FORWARD_INTERVAL
-      && _pendingWeight != _lastForwardedWeight) {
-    forwardWeight(_pendingLine, _pendingWeight);
-    if (_state.lastError.isEmpty()) {
-      _lastForwardedWeight = _pendingWeight;
+      && (millis() - _lastForwardTime) >= MIN_FORWARD_INTERVAL;
+
+  if (canConsiderForward) {
+    const bool weightChanged = (_pendingWeight != _lastForwardedWeight);
+    const bool heartbeatDue = _state.heartbeatIntervalMs > 0
+        && (millis() - _lastForwardTime) >= _state.heartbeatIntervalMs;
+
+    if (weightChanged || heartbeatDue) {
+      forwardWeight(_pendingLine, _pendingWeight);
+      if (_state.lastError.isEmpty()) {
+        _lastForwardedWeight = _pendingWeight;
+      }
     }
   }
 }
@@ -148,18 +162,40 @@ void WeightForwarderService::onConfigUpdated() {
 }
 
 void WeightForwarderService::onSerialWeightUpdate(const String& originId) {
-  if (originId != "serial_hw" || !_state.enabled) {
+  if (originId != "serial_hw") {
     return;
   }
-  _serialService->read([this](SerialState& serialState) {
-    if (!serialState.weight.isEmpty()) {
-      if (serialState.weight != _pendingWeight) {
-        _weightLastChangedAt = millis();
-      }
-      _pendingWeight = serialState.weight;
-      _pendingLine = serialState.lastLine;
-    }
+
+  // Snapshot once: capture current line/weight from the serial service
+  String capturedLine;
+  String capturedWeight;
+  _serialService->read([&capturedLine, &capturedWeight](SerialState& serialState) {
+    capturedLine = serialState.lastLine;
+    capturedWeight = serialState.weight;
   });
+
+  // USB echo runs independently of the forwarder enable flag, so the user can
+  // disable network forwarding and still pipe the raw scale stream to a PC.
+  // Mirror to both the USB-CDC interface (Serial, when ESP is plugged directly
+  // into a PC) and UART0 (Serial0, when a USB-TTL adapter is wired to GPIO43/44).
+  if (_state.usbEchoEnabled && !capturedLine.isEmpty()) {
+    Serial.println(capturedLine);
+#if ARDUINO_USB_CDC_ON_BOOT
+    Serial0.println(capturedLine);
+#endif
+  }
+
+  if (!_state.enabled) {
+    return;
+  }
+
+  if (!capturedWeight.isEmpty()) {
+    if (capturedWeight != _pendingWeight) {
+      _weightLastChangedAt = millis();
+    }
+    _pendingWeight = capturedWeight;
+    _pendingLine = capturedLine;
+  }
 }
 
 void WeightForwarderService::forwardWeight(const String& lastLine, const String& weight) {

@@ -30,6 +30,12 @@ DisplayService* displayService;
 void setup() {
   // start serial and filesystem
   Serial.begin(SERIAL_BAUD_RATE);
+#if ARDUINO_USB_CDC_ON_BOOT
+  // With USB CDC bound to Serial, UART0 (GPIO43/44 on ESP32-S3) is no longer
+  // auto-initialised by the framework. Bring it up explicitly so the optional
+  // weight-echo can mirror to a USB-TTL adapter (e.g. CH343) wired to UART0.
+  Serial0.begin(SERIAL_BAUD_RATE);
+#endif
   delay(500);
   
   Serial.println(F("\n\n=== Weighsoft Serial ==="));
