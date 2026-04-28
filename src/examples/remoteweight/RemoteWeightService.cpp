@@ -53,18 +53,27 @@ RemoteWeightService::RemoteWeightService(AsyncWebServer* server, FS* fs, Securit
   _fsPersistence.disableUpdateHandler();
 
   addUpdateHandler([this](const String& originId) {
-    // Persist config-only updates (won't write if serialized payload didn't
-    // change, so cheap on weight POSTs that don't touch the persisted flags).
-    _fsPersistence.writeToFS();
-
-    // Real-time USB echo on every weight payload received from the Forwarder.
-    // Tied to the "weight payload arrived" path via state.timestamp bump in
-    // RemoteWeightState::update(). Safe even on the AsyncTCP task because
-    // Serial (HWCDC) has setTxTimeoutMs(0) and Serial0 (UART0) is non-
-    // blocking by default.
+    // Detect "config update" vs "weight payload":
+    //   - weight payloads bump _state.timestamp (set in RemoteWeightState::update)
+    //   - config saves leave timestamp untouched
     bool isWeightUpdate = (_state.timestamp != _lastSeenTimestamp);
     _lastSeenTimestamp = _state.timestamp;
-    if (isWeightUpdate && _state.usbEchoEnabled && !_state.lastLine.isEmpty()) {
+
+    if (!isWeightUpdate) {
+      // CONFIG SAVE — persist to flash. FSPersistence::writeToFS() has no
+      // skip-if-unchanged guard, so writing on every weight payload would
+      // allocate a 1 KB JSON doc and open a flash file thousands of times
+      // an hour, draining the heap until the OOM guard triggers and POSTs
+      // get dropped. Persisting only on config changes (rare) keeps heap
+      // stable for weeks of continuous operation.
+      _fsPersistence.writeToFS();
+      return;
+    }
+
+    // Real-time USB echo on every weight payload from the Forwarder. Safe
+    // on the AsyncTCP task: Serial (HWCDC) has setTxTimeoutMs(0) and
+    // Serial0 (UART0) is non-blocking by default.
+    if (_state.usbEchoEnabled && !_state.lastLine.isEmpty()) {
       Serial.println(_state.lastLine);
 #if ARDUINO_USB_CDC_ON_BOOT
       Serial0.println(_state.lastLine);
@@ -141,8 +150,18 @@ void RemoteWeightService::registerPostDropped() {
   if (h < _minHeapSeen) _minHeapSeen = h;
   recordAudit(RemoteWeightAuditReason::POST_DROPPED_HEAP);
 
-  Serial.printf("[RemoteWeight] DROPPED POST — free_heap=%lu min=%lu (threshold=%u)\n",
-                (unsigned long)h, (unsigned long)_minHeapSeen, REMOTE_WEIGHT_MIN_FREE_HEAP);
+  // Rate-limit the console log so a sustained heap-pressure event doesn't
+  // flood the USB-CDC port (one line per dropped POST at 5 Hz fills the
+  // terminal in seconds and obscures everything else). Drops are still
+  // counted in _postsDropped and logged in the periodic 30 s summary.
+  static unsigned long lastDropLog = 0;
+  unsigned long now = millis();
+  if (now - lastDropLog >= 5000UL) {
+    lastDropLog = now;
+    Serial.printf("[RemoteWeight] DROPPING POSTs — free_heap=%lu min=%lu threshold=%u dropped_total=%u\n",
+                  (unsigned long)h, (unsigned long)_minHeapSeen,
+                  REMOTE_WEIGHT_MIN_FREE_HEAP, _postsDropped);
+  }
 }
 
 void RemoteWeightService::recordAudit(RemoteWeightAuditReason reason) {

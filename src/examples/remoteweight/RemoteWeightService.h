@@ -14,21 +14,25 @@
 #define REMOTE_WEIGHT_AUDIT_PATH "/rest/remoteWeightAudit"
 #define REMOTE_WEIGHT_CONFIG_FILE "/config/remoteWeightConfig.json"
 
-// Heap pressure guard. If free heap drops below this, we drop incoming weight
-// POSTs (return 503-equivalent UNCHANGED) and log the event. Empirically the
-// device started failing around 12 KB; 25 KB gives us margin for the WiFi /
-// AsyncWebServer call paths that allocate ~5-10 KB per request.
-#define REMOTE_WEIGHT_MIN_FREE_HEAP 25000
+// Heap pressure guard — only kicks in at the true OOM danger zone, not
+// during the normal ~5 KB allocation swing of an AsyncWebServer POST cycle.
+// Empirically the device starts failing around 8-10 KB free; 6 KB gives the
+// guard headroom to reject before OOM without rejecting normal traffic.
+// Set to 0 to disable the guard entirely (every POST processes; device may
+// crash + auto-reboot under sustained memory pressure).
+#define REMOTE_WEIGHT_MIN_FREE_HEAP 6000
 
 // How often the loop reaps disconnected WebSocket clients. Each browser
 // refresh / closed tab leaves a stale client behind; without periodic
 // cleanup their pending TX buffers accumulate and fragment the heap.
 #define REMOTE_WEIGHT_WS_CLEANUP_INTERVAL_MS 5000UL
 
-// Audit log — fixed-size ring buffer of recent significant events. Sized to
-// fit one TCP MTU when serialized so /audit responses don't allocate large
-// JSON documents themselves.
-#define REMOTE_WEIGHT_AUDIT_CAPACITY 32
+// Audit log — fixed-size ring buffer of recent significant events. Each
+// entry tracks heap / post-counters / reason at a moment in time (it is NOT
+// a weight history; the actual scale value is held in _state.lastLine and
+// overwritten on every POST). 20 entries is enough to spot a leak / drop
+// burst without burning static RAM.
+#define REMOTE_WEIGHT_AUDIT_CAPACITY 20
 
 enum class RemoteWeightAuditReason : uint8_t {
   PERIODIC = 0,           // periodic heap snapshot
