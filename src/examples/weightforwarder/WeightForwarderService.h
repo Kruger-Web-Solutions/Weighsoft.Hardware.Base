@@ -19,7 +19,41 @@
 
 #define WEIGHT_FORWARDER_ENDPOINT_PATH "/rest/weightForwarder"
 #define WEIGHT_FORWARDER_SOCKET_PATH "/ws/weightForwarder"
+// Audit endpoint deliberately uses a sibling path (NOT a sub-path) so it
+// won't collide with HttpEndpoint's prefix matching for /rest/weightForwarder.
+#define WEIGHT_FORWARDER_AUDIT_PATH "/rest/weightForwarderAudit"
 #define WEIGHT_FORWARDER_CONFIG_FILE "/config/weightForwarderConfig.json"
+
+// Heap-pressure guard. If free heap drops below this, drop the forward
+// attempt rather than allocating an HTTPClient + JSON doc + WS broadcast
+// buffer. Empirically the device starts failing ~8-10 KB free; 6 KB gives
+// the guard headroom to reject before OOM without rejecting normal traffic.
+#define WEIGHT_FORWARDER_MIN_FREE_HEAP 6000
+
+// Audit ring-buffer capacity. 20 entries is enough to spot a leak / drop
+// burst without burning static RAM.
+#define WEIGHT_FORWARDER_AUDIT_CAPACITY 20
+
+enum class WeightForwarderAuditReason : uint8_t {
+  PERIODIC = 0,           // periodic 30 s heap snapshot
+  FORWARD_OK = 1,         // at least one target accepted the forward
+  FORWARD_DROPPED = 2,    // forward skipped due to heap pressure
+  TARGET_FAILED = 3,      // a single target POST failed
+  WS_RECONNECT = 4,       // outbound WS client reconnected
+  BOOT = 5,               // service initialised
+};
+
+struct WeightForwarderAuditEntry {
+  uint32_t millis_at;
+  uint32_t free_heap;
+  uint32_t min_heap;
+  uint32_t max_alloc;
+  uint16_t fwd_total;
+  uint16_t fwd_dropped;
+  uint16_t fwd_failed;
+  uint8_t  reason;
+  uint8_t  ws_clients;
+};
 
 class WeightForwarderService : public StatefulService<WeightForwarderState> {
  public:
@@ -32,11 +66,30 @@ class WeightForwarderService : public StatefulService<WeightForwarderState> {
   void loop();
 
  private:
+  AsyncWebServer* _server;
+  SecurityManager* _securityManager;
   HttpEndpoint<WeightForwarderState> _httpEndpoint;
   FSPersistence<WeightForwarderState> _fsPersistence;
   WebSocketTxRx<WeightForwarderState> _webSocket;
   AsyncMqttClient* _mqttClient;
   SerialService* _serialService;
+
+  // Audit ring buffer + counters (mirrors RemoteWeightService).
+  WeightForwarderAuditEntry _audit[WEIGHT_FORWARDER_AUDIT_CAPACITY];
+  uint8_t _auditHead = 0;
+  uint8_t _auditCount = 0;
+  uint16_t _fwdTotal = 0;
+  uint16_t _fwdDropped = 0;
+  uint16_t _fwdFailed = 0;
+  uint32_t _minHeapSeen = UINT32_MAX;
+  unsigned long _lastPeriodicMillis = 0;
+
+  void recordAudit(WeightForwarderAuditReason reason);
+  void registerForwardOk();
+  void registerForwardDropped();
+  void registerTargetFailed();
+  void registerAuditEndpoint();
+  static void readAuditAndStats(WeightForwarderService* self, JsonObject& root);
 
 #ifdef ESP32
   WebSocketsClient* _wsClient;

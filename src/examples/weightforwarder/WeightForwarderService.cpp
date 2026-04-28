@@ -1,16 +1,26 @@
 #include <examples/weightforwarder/WeightForwarderService.h>
 #include <examples/serial/SerialState.h>
 #include <ArduinoJson.h>
+#include <AsyncJson.h>
+#include <Esp.h>
 
 #ifdef ESP32
 #include <WiFi.h>
 #endif
+
+namespace {
+inline bool wfHeapBelowThreshold() {
+  return ESP.getFreeHeap() < WEIGHT_FORWARDER_MIN_FREE_HEAP;
+}
+}  // namespace
 
 WeightForwarderService::WeightForwarderService(AsyncWebServer* server,
                                                FS* fs,
                                                SecurityManager* securityManager,
                                                AsyncMqttClient* mqttClient,
                                                SerialService* serialService) :
+    _server(server),
+    _securityManager(securityManager),
     _httpEndpoint(WeightForwarderState::read,
                   WeightForwarderState::update,
                   this,
@@ -75,13 +85,39 @@ void WeightForwarderService::begin() {
   _lastForwardedWeight = "";
   clearAuthTokens();
 
+  // Push USB-echo flag down to SerialService so per-line echo runs
+  // continuously regardless of whether the scale value changed.
+  if (_serialService) {
+    _serialService->setUsbEchoEnabled(_state.usbEchoEnabled);
+  }
+
   // Initialize protocol if enabled
   if (_state.enabled) {
     switchProtocol(_state.protocol);
   }
+
+  _minHeapSeen = ESP.getFreeHeap();
+  _lastPeriodicMillis = millis();
+  registerAuditEndpoint();
+  recordAudit(WeightForwarderAuditReason::BOOT);
+  Serial.printf("[WeightForwarder] Service ready — enabled=%d freeHeap=%lu\n",
+                _state.enabled, (unsigned long)ESP.getFreeHeap());
 }
 
 void WeightForwarderService::loop() {
+  // Periodic 30 s heap snapshot. Mirrors the RemoteWeight pattern so a leak
+  // shows up in /rest/weightForwarderAudit instead of only after a crash.
+  unsigned long now = millis();
+  if (now - _lastPeriodicMillis >= 30000UL) {
+    _lastPeriodicMillis = now;
+    uint32_t h = ESP.getFreeHeap();
+    if (h < _minHeapSeen) _minHeapSeen = h;
+    recordAudit(WeightForwarderAuditReason::PERIODIC);
+    Serial.printf("[WeightForwarder] heap=%lu min=%lu fwd=%u dropped=%u failed=%u\n",
+                  (unsigned long)h, (unsigned long)_minHeapSeen,
+                  _fwdTotal, _fwdDropped, _fwdFailed);
+  }
+
 #ifdef ESP32
   if (_wsClient) {
     _wsClient->loop();
@@ -132,6 +168,12 @@ void WeightForwarderService::clearAuthTokens() {
 void WeightForwarderService::onConfigUpdated() {
   Serial.println(F("[WeightForwarder] Config updated"));
 
+  // Propagate USB-echo flag to SerialService so the toggle in the web UI
+  // takes effect on the very next scale line, not just after reboot.
+  if (_serialService) {
+    _serialService->setUsbEchoEnabled(_state.usbEchoEnabled);
+  }
+
   // Invalidate all cached HTTP auth tokens (credentials or URLs may have changed)
   clearAuthTokens();
 
@@ -174,22 +216,11 @@ void WeightForwarderService::onSerialWeightUpdate(const String& originId) {
     capturedWeight = serialState.weight;
   });
 
-  // USB echo runs independently of the forwarder enable flag, so the user can
-  // disable network forwarding and still pipe the raw scale stream to a PC.
-  // Mirror to both the USB-CDC interface (Serial, when ESP is plugged directly
-  // into a PC) and UART0 (Serial0, when a USB-TTL adapter is wired to GPIO43/44).
-  //
-  // SAFETY: HWCDC tx timeout is set to 0 in main.cpp so Serial.println()
-  // returns immediately when no host is reading — never blocks the
-  // SerialService loop. We do NOT gate on `if (Serial)` because some host
-  // monitors (e.g. ScaleCOM) do not assert DTR, which would otherwise make
-  // HWCDC's operator bool report "no host" and silently swallow the echo.
-  if (_state.usbEchoEnabled && !capturedLine.isEmpty()) {
-    Serial.println(capturedLine);
-#if ARDUINO_USB_CDC_ON_BOOT
-    Serial0.println(capturedLine);
-#endif
-  }
+  // NOTE: USB-CDC / UART0 echo is now performed inside SerialService::loop()
+  // on every UART1 line read, regardless of whether the StatefulService
+  // update fired CHANGED. That decoupling is what lets us throttle
+  // /ws/serial broadcasts without starving ScaleCOM on COM3. The flag is
+  // pushed down to SerialService in begin() and onConfigUpdated().
 
   if (!_state.enabled) {
     return;
@@ -209,6 +240,17 @@ void WeightForwarderService::forwardWeight(const String& lastLine, const String&
   if (millis() - _lastForwardTime < MIN_FORWARD_INTERVAL) {
     return;
   }
+
+  // Heap-pressure guard. We are about to allocate an HTTPClient + 256 B
+  // JSON doc + serialised string + per-target retry buffers. If the heap
+  // is already below the danger zone, dropping the forward is far better
+  // than triggering an OOM panic mid-request. Counted in audit as
+  // FORWARD_DROPPED so the leak is visible from /rest/weightForwarderAudit.
+  if (wfHeapBelowThreshold()) {
+    registerForwardDropped();
+    return;
+  }
+
   _lastForwardTime = millis();
 
 #ifdef ESP32
@@ -410,11 +452,15 @@ void WeightForwarderService::forwardViaHttp(const String& lastLine, const String
     if (forwardViaHttpSingle(_state.targetUrls[i], i, lastLine, weight)) {
       successCount++;
     } else {
+      registerTargetFailed();
       lastErr = "Target " + String(i + 1) + " failed";
     }
   }
 
   int total = _state.targetUrlCount;
+  if (successCount > 0) {
+    registerForwardOk();
+  }
   update([successCount, total, lastErr](WeightForwarderState& state) {
     state.connected = (successCount > 0);
     state.lastError = (successCount == total) ? "" : lastErr;
@@ -732,3 +778,97 @@ void WeightForwarderService::checkBleConnection() {
   }
 }
 #endif
+
+// ---------------------------------------------------------------------------
+// Audit ring-buffer + REST endpoint
+// ---------------------------------------------------------------------------
+
+void WeightForwarderService::recordAudit(WeightForwarderAuditReason reason) {
+  WeightForwarderAuditEntry& e = _audit[_auditHead];
+  e.millis_at = millis();
+  e.free_heap = ESP.getFreeHeap();
+  e.min_heap = _minHeapSeen;
+  e.max_alloc = ESP.getMaxAllocHeap();
+  e.fwd_total = _fwdTotal;
+  e.fwd_dropped = _fwdDropped;
+  e.fwd_failed = _fwdFailed;
+  e.reason = static_cast<uint8_t>(reason);
+  e.ws_clients = static_cast<uint8_t>(_webSocket.getWebSocket().count());
+
+  _auditHead = (_auditHead + 1) % WEIGHT_FORWARDER_AUDIT_CAPACITY;
+  if (_auditCount < WEIGHT_FORWARDER_AUDIT_CAPACITY) _auditCount++;
+}
+
+void WeightForwarderService::registerForwardOk() {
+  _fwdTotal++;
+  uint32_t h = ESP.getFreeHeap();
+  if (h < _minHeapSeen) _minHeapSeen = h;
+  recordAudit(WeightForwarderAuditReason::FORWARD_OK);
+}
+
+void WeightForwarderService::registerForwardDropped() {
+  _fwdDropped++;
+  uint32_t h = ESP.getFreeHeap();
+  if (h < _minHeapSeen) _minHeapSeen = h;
+  recordAudit(WeightForwarderAuditReason::FORWARD_DROPPED);
+
+  // Rate-limit log so a sustained heap-pressure event doesn't flood COM3.
+  static unsigned long lastDropLog = 0;
+  unsigned long now = millis();
+  if (now - lastDropLog >= 5000UL) {
+    lastDropLog = now;
+    Serial.printf("[WeightForwarder] DROPPING forward — free_heap=%lu min=%lu threshold=%u dropped_total=%u\n",
+                  (unsigned long)h, (unsigned long)_minHeapSeen,
+                  WEIGHT_FORWARDER_MIN_FREE_HEAP, _fwdDropped);
+  }
+}
+
+void WeightForwarderService::registerTargetFailed() {
+  _fwdFailed++;
+  recordAudit(WeightForwarderAuditReason::TARGET_FAILED);
+}
+
+void WeightForwarderService::registerAuditEndpoint() {
+  _server->on(WEIGHT_FORWARDER_AUDIT_PATH, HTTP_GET,
+              _securityManager->wrapRequest(
+                  [this](AsyncWebServerRequest* request) {
+                    AsyncJsonResponse* response = new AsyncJsonResponse(false, 4096);
+                    JsonObject root = response->getRoot().to<JsonObject>();
+                    readAuditAndStats(this, root);
+                    response->setLength();
+                    request->send(response);
+                  },
+                  AuthenticationPredicates::IS_AUTHENTICATED));
+}
+
+void WeightForwarderService::readAuditAndStats(WeightForwarderService* self, JsonObject& root) {
+  root["now_ms"] = millis();
+  root["free_heap"] = ESP.getFreeHeap();
+  root["min_heap_seen"] = self->_minHeapSeen;
+  root["max_alloc_heap"] = ESP.getMaxAllocHeap();
+  root["fwd_total"] = self->_fwdTotal;
+  root["fwd_dropped"] = self->_fwdDropped;
+  root["fwd_failed"] = self->_fwdFailed;
+  root["heap_threshold"] = WEIGHT_FORWARDER_MIN_FREE_HEAP;
+  root["ws_clients"] = self->_webSocket.getWebSocket().count();
+  root["enabled"] = self->_state.enabled;
+  root["protocol"] = (int)self->_state.protocol;
+  root["target_url_count"] = self->_state.targetUrlCount;
+
+  JsonArray entries = root.createNestedArray("entries");
+  uint8_t cap = WEIGHT_FORWARDER_AUDIT_CAPACITY;
+  uint8_t start = (cap + self->_auditHead - self->_auditCount) % cap;
+  for (uint8_t i = 0; i < self->_auditCount; i++) {
+    const WeightForwarderAuditEntry& e = self->_audit[(start + i) % cap];
+    JsonObject obj = entries.createNestedObject();
+    obj["t"] = e.millis_at;
+    obj["heap"] = e.free_heap;
+    obj["min"] = e.min_heap;
+    obj["alloc"] = e.max_alloc;
+    obj["fwd"] = e.fwd_total;
+    obj["dropped"] = e.fwd_dropped;
+    obj["failed"] = e.fwd_failed;
+    obj["ws"] = e.ws_clients;
+    obj["reason"] = e.reason;
+  }
+}

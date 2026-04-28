@@ -76,6 +76,10 @@ class SerialService : public StatefulService<SerialState> {
   String _lineBuffer;   // Accumulates serial data until newline
   bool _serialStarted;  // True after first begin(), so we can call end() before reconfig
   bool _suspended;      // True when DiagnosticsService is using Serial1
+  bool _usbEchoEnabled; // Mirror every UART1 line to Serial (USB-CDC) + Serial0 (UART0)
+                        // independently of state-change broadcasts. Set by
+                        // WeightForwarderService at config-load + on every
+                        // /rest/weightForwarder POST.
 
   // Cached compiled regex to avoid recompiling on every serial line
   regex_t _compiledRegex;
@@ -96,6 +100,12 @@ class SerialService : public StatefulService<SerialState> {
   void suspendSerial();    // Stop Serial1, allow DiagnosticsService to use it
   void resumeSerial();     // Restart Serial1 after DiagnosticsService releases it
   bool isSuspended() const { return _suspended; }
+
+  // USB-CDC / UART0 echo — driven from WeightForwarderService config.
+  // Echo fires inside SerialService::loop() on every line read so ScaleCOM
+  // sees a continuous stream even when the weight value is unchanged.
+  void setUsbEchoEnabled(bool enabled) { _usbEchoEnabled = enabled; }
+  bool isUsbEchoEnabled() const { return _usbEchoEnabled; }
 };
 
 #endif

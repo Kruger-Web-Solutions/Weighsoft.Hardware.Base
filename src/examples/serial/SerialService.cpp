@@ -47,6 +47,7 @@ SerialService::SerialService(AsyncWebServer* server,
   _mqttClient->onConnect(std::bind(&SerialService::configureMqtt, this));
   _serialStarted = false;
   _suspended = false;
+  _usbEchoEnabled = false;
   _regexCompiled = false;
   _compiledPattern = "";
 
@@ -103,11 +104,35 @@ void SerialService::loop() {
     if (c == '\n' || c == '\r') {
       if (_lineBuffer.length() > 0) {
         String extracted = extractWeight(_lineBuffer);
+
+        // Continuous USB-CDC / UART0 echo runs ONCE per line read, regardless
+        // of whether the state changed. ScaleCOM (the host PC tool) treats the
+        // stream as a heartbeat — every scale tick must reach COM3 even when
+        // the weight value hasn't moved. Decoupling echo from the state-update
+        // path means the StatefulService update() can be throttled (next
+        // block) without starving COM3.
+        if (_usbEchoEnabled) {
+          Serial.println(_lineBuffer);
+#if ARDUINO_USB_CDC_ON_BOOT
+          Serial0.println(_lineBuffer);
+#endif
+        }
+
+        // Only fire CHANGED when the line OR the extracted weight is actually
+        // different. A stable scale outputs the same line ~2x/sec; the old
+        // code returned CHANGED every time, which made WebSocketTxRx broadcast
+        // on /ws/serial twice per second to every connected client (incl.
+        // ghost browser tabs that hadn't been reaped yet). Each broadcast
+        // allocated ~256 B + a per-client TX buffer entry, dripping ~4 KB/s
+        // out of the heap on the Forwarder. Throttling here is the root-cause
+        // fix.
+        String capturedLine = _lineBuffer;
         update([&](SerialState& state) {
-          state.lastLine = _lineBuffer;
+          bool changed = (state.lastLine != capturedLine) || (state.weight != extracted);
+          state.lastLine = capturedLine;
           state.weight = extracted;
           state.timestamp = millis();
-          return StateUpdateResult::CHANGED;
+          return changed ? StateUpdateResult::CHANGED : StateUpdateResult::UNCHANGED;
         }, "serial_hw");
       }
       _lineBuffer = "";
