@@ -72,7 +72,12 @@ void DisplayService::begin() {
   // unaffected — it keeps its existing rotation(1) / no-inversion behaviour.
 #if defined(TFT_INVERT_DISPLAY) && TFT_INVERT_DISPLAY
   _tft.invertDisplay(false);
-  _tft.setRotation(1);  // CYD landscape, USB connector on LEFT
+  // setRotation(0) — portrait orientation. With this rotation, holding the
+  // board with the USB connector on the LEFT puts the status bar at the
+  // TOP and the weight digits read left-to-right naturally. The TPM408-2.8
+  // panel variant (this batch) behaves differently from the standard CYD
+  // wiring, so 0 here gives the user-facing orientation that 1 / 3 don't.
+  _tft.setRotation(0);
 #else
   _tft.setRotation(1);  // standard landscape (3.5" ILI9488)
 #endif
