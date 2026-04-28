@@ -10,6 +10,15 @@
 #define WEB_SOCKET_ORIGIN "websocket"
 #define WEB_SOCKET_ORIGIN_CLIENT_ID_PREFIX "websocket:"
 
+// How often a busy WebSocketTx broadcaster opportunistically reaps
+// disconnected clients and re-asserts close-on-queue-full on live ones. The
+// check is piggy-backed on transmitData() so we don't need a separate loop
+// tick per service. Cheap (just a millis() compare) and bounded — at most
+// one cleanup per interval no matter how many broadcasts occur.
+#ifndef WEB_SOCKET_AUTO_CLEANUP_INTERVAL_MS
+#define WEB_SOCKET_AUTO_CLEANUP_INTERVAL_MS 5000UL
+#endif
+
 template <class T>
 class WebSocketConnector {
  public:
@@ -25,6 +34,25 @@ class WebSocketConnector {
   AsyncWebServer* _server;
   AsyncWebSocket _webSocket;
   size_t _bufferSize;
+  unsigned long _lastAutoCleanupMs = 0;
+
+  // Reap disconnected clients and ensure each live client closes itself when
+  // its TX queue fills, so a slow / hung browser tab can't leak buffers
+  // indefinitely. Driven from transmitData() so it runs only on services
+  // that are actively broadcasting (no useless work on idle services).
+  void maybeCleanupWebSocketClients() {
+    unsigned long now = millis();
+    if (now - _lastAutoCleanupMs < WEB_SOCKET_AUTO_CLEANUP_INTERVAL_MS) {
+      return;
+    }
+    _lastAutoCleanupMs = now;
+    for (AsyncWebSocketClient& c : _webSocket.getClients()) {
+      if (!c.willCloseClientOnQueueFull()) {
+        c.setCloseClientOnQueueFull(true);
+      }
+    }
+    _webSocket.cleanupClients();
+  }
 
   WebSocketConnector(StatefulService<T>* statefulService,
                      AsyncWebServer* server,
@@ -176,6 +204,12 @@ class WebSocketTx : virtual public WebSocketConnector<T> {
         WebSocketConnector<T>::_webSocket.textAll((char*)buffer->get(), len);
       }
     }
+
+    // Opportunistically reap stale clients on every broadcast. Throttled to
+    // WEB_SOCKET_AUTO_CLEANUP_INTERVAL_MS internally so this is cheap. This
+    // is what prevents the heap-fragmentation OOM crash that takes the
+    // device down when browser tabs are closed without a clean WS shutdown.
+    WebSocketConnector<T>::maybeCleanupWebSocketClients();
   }
 };
 
