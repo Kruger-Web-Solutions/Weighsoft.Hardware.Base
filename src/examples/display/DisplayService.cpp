@@ -56,17 +56,23 @@ void DisplayService::begin() {
   _tft.init();
   delay(200);
 
-  // CYD-style ILI9341 panels (Sunton ESP32-2432S028) need three tweaks vs the
-  // 480x320 ILI9488 we were originally targeting:
-  //   1. Hardware colour inversion (otherwise dark-navy renders as cream).
-  //   2. setRotation(3) — rotation 1 produces mirrored text on this panel
-  //      because the CYD's column-address bit is wired the opposite way.
+  // CYD-style ILI9341 panels (Sunton ESP32-2432S028) need tweaks vs the
+  // 480x320 ILI9488 we were originally targeting. After bench testing on
+  // the actual hardware (see handover Phase 9 + the colour-inversion photo
+  // session), the correct settings on this CYD batch are:
+  //   1. invertDisplay(false) — this batch ships WITHOUT the controller-
+  //      level inversion bit set; calling invertDisplay(true) produced a
+  //      cream/white background with purple text. (false) gives the
+  //      intended black background with cyan/orange accents.
+  //   2. setRotation(1) — landscape with the USB connector on the LEFT,
+  //      matching how the panel is held on the user's bench. setRotation(3)
+  //      put the USB at the top, which read sideways in normal use.
   //   3. RGB order swap is not needed for this batch (verified empirically).
-  // All three are gated on TFT_INVERT_DISPLAY so the existing 3.5" ILI9488
-  // env keeps its original behaviour.
+  // All gated on TFT_INVERT_DISPLAY so the 3.5" ILI9488 env (esp32dev) is
+  // unaffected — it keeps its existing rotation(1) / no-inversion behaviour.
 #if defined(TFT_INVERT_DISPLAY) && TFT_INVERT_DISPLAY
-  _tft.invertDisplay(true);
-  _tft.setRotation(3);  // CYD landscape with USB-C at the top edge
+  _tft.invertDisplay(false);
+  _tft.setRotation(1);  // CYD landscape, USB connector on LEFT
 #else
   _tft.setRotation(1);  // standard landscape (3.5" ILI9488)
 #endif
