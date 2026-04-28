@@ -33,6 +33,19 @@ class DisplayService {
 
   unsigned long _lastStatusDraw;
 
+  // Layout dimensions — populated in begin() from _tft.width() / _tft.height()
+  // so the same code drives both 480x320 (3.5" ILI9488) and 320x240 (2.8" CYD
+  // ILI9341) panels without hardcoded constants going off-screen.
+  int16_t _w = 480;
+  int16_t _h = 320;
+  int16_t _statusBarH = 36;
+  int16_t _weightCenterY = 160;
+  int16_t _rawLineY = 270;
+  uint8_t _titleTextSize = 3;   // splash WEIGHSOFT label
+  uint8_t _statusTextSize = 2;  // status bar text
+  uint8_t _weightTextSize = 6;  // big weight digits
+  uint8_t _unitTextSize = 3;    // "kg" suffix
+
   void setBacklight(bool on);
   void drawSplash();
   void drawWeightScreen(const String& weight, const String& line, bool connected);

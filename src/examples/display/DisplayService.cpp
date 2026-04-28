@@ -3,16 +3,6 @@
 #include <ESPFS.h>
 #include <examples/display/DisplayService.h>
 
-// ─── Layout constants ──────────────────────────────────────────────────────
-// Display is 480 wide × 320 tall (landscape, ILI9488 rotated 1)
-static constexpr int DISP_W = 480;
-static constexpr int DISP_H = 320;
-
-static constexpr int STATUS_BAR_H = 36;    // top status bar
-static constexpr int WEIGHT_Y     = 80;    // baseline of big weight text
-static constexpr int UNIT_Y       = 82;    // baseline of unit suffix
-static constexpr int RAW_LINE_Y   = 270;   // raw serial line near bottom
-
 // ─── Colour palette ────────────────────────────────────────────────────────
 static constexpr uint16_t COL_BG          = TFT_BLACK;
 static constexpr uint16_t COL_STATUS_BG   = 0x1082;   // dark navy
@@ -52,16 +42,53 @@ void DisplayService::begin() {
   pinMode(TFT_BL, OUTPUT);
   digitalWrite(TFT_BL, HIGH);
 
-  // Manual RESET pulse — give display plenty of time (many cheap panels need this)
+  // Manual RESET pulse — give display plenty of time (many cheap panels need this).
+  // Some boards (e.g. CYD / ESP32-2432S028) tie the panel reset to the ESP32's
+  // EN line and have no separate reset GPIO, so TFT_RST is set to -1 — skip the
+  // pulse in that case and rely on TFT_eSPI's software reset.
+#if defined(TFT_RST) && (TFT_RST >= 0)
   pinMode(TFT_RST, OUTPUT);
   digitalWrite(TFT_RST, HIGH); delay(50);
   digitalWrite(TFT_RST, LOW);  delay(200);
   digitalWrite(TFT_RST, HIGH); delay(200);
+#endif
 
   _tft.init();
   delay(200);
 
-  _tft.setRotation(1);  // landscape
+  // CYD-style ILI9341 panels (Sunton ESP32-2432S028) need three tweaks vs the
+  // 480x320 ILI9488 we were originally targeting:
+  //   1. Hardware colour inversion (otherwise dark-navy renders as cream).
+  //   2. setRotation(3) — rotation 1 produces mirrored text on this panel
+  //      because the CYD's column-address bit is wired the opposite way.
+  //   3. RGB order swap is not needed for this batch (verified empirically).
+  // All three are gated on TFT_INVERT_DISPLAY so the existing 3.5" ILI9488
+  // env keeps its original behaviour.
+#if defined(TFT_INVERT_DISPLAY) && TFT_INVERT_DISPLAY
+  _tft.invertDisplay(true);
+  _tft.setRotation(3);  // CYD landscape with USB-C at the top edge
+#else
+  _tft.setRotation(1);  // standard landscape (3.5" ILI9488)
+#endif
+
+  // Pull actual panel dimensions and derive the layout. Proportional values
+  // were chosen so the same numbers that look right on a 480x320 ILI9488
+  // also fit a 320x240 ILI9341 (CYD) without anything going off-screen.
+  _w = _tft.width();
+  _h = _tft.height();
+  _statusBarH = _h / 9;                 // ~36 on 320H, ~27 on 240H
+  if (_statusBarH < 24) _statusBarH = 24;
+  _weightCenterY = (_h + _statusBarH) / 2;
+  _rawLineY = _h - 18;                  // raw scale-line strip near the bottom
+  // Text sizes — shrink the splash + weight digits for narrower panels so
+  // the strings stay inside _w. GLCD font is 6px wide per char per size unit.
+  if (_w >= 400) {
+    _titleTextSize = 3; _statusTextSize = 2; _weightTextSize = 6; _unitTextSize = 3;
+  } else {
+    _titleTextSize = 2; _statusTextSize = 1; _weightTextSize = 5; _unitTextSize = 2;
+  }
+  Serial.printf("[Display] Panel %dx%d statusH=%d weightCenterY=%d rawLineY=%d\n",
+                _w, _h, _statusBarH, _weightCenterY, _rawLineY);
 
   // Colour flash test — watch the screen for 1 sec each
   Serial.println(F("[Display] Colour test: RED"));
@@ -130,23 +157,27 @@ void DisplayService::loop() {
 void DisplayService::drawSplash() {
   _tft.fillScreen(COL_BG);
 
-  // Accent line
-  _tft.drawFastHLine(0, DISP_H / 2 - 60, DISP_W, COL_ACCENT);
+  int16_t cx = _w / 2;
+  int16_t cy = _h / 2;
+
+  // Top accent line
+  _tft.drawFastHLine(0, cy - 50, _w, COL_ACCENT);
 
   _tft.setTextColor(COL_ACCENT, COL_BG);
   _tft.setTextDatum(MC_DATUM);
   _tft.setFreeFont(NULL);
-  _tft.setTextSize(3);
-  _tft.drawString("WEIGHSOFT", DISP_W / 2, DISP_H / 2 - 20);
+  _tft.setTextSize(_titleTextSize);
+  _tft.drawString("WEIGHSOFT", cx, cy - 18);
 
   _tft.setTextSize(1);
   _tft.setTextColor(COL_STATUS_TEXT, COL_BG);
-  _tft.drawString("Scale Display Module", DISP_W / 2, DISP_H / 2 + 20);
+  _tft.drawString("Scale Display Module", cx, cy + 12);
 
   _tft.setTextColor(COL_RAW, COL_BG);
-  _tft.drawString("Waiting for WiFi and weight data...", DISP_W / 2, DISP_H / 2 + 50);
+  _tft.drawString("Waiting for WiFi and weight data...", cx, cy + 32);
 
-  _tft.drawFastHLine(0, DISP_H / 2 + 70, DISP_W, COL_ACCENT);
+  // Bottom accent line
+  _tft.drawFastHLine(0, cy + 50, _w, COL_ACCENT);
 }
 
 // ─── Full weight screen layout ─────────────────────────────────────────────
@@ -157,7 +188,7 @@ void DisplayService::drawWeightScreen(const String& weight, const String& line, 
   drawStatusBar(connected, connected ? 0 : (millis() - _lastWeightTime));
 
   // Thin accent divider under status bar
-  _tft.drawFastHLine(0, STATUS_BAR_H, DISP_W, COL_ACCENT);
+  _tft.drawFastHLine(0, _statusBarH, _w, COL_ACCENT);
 
   // Big weight number
   drawWeightValue(weight, connected);
@@ -166,27 +197,27 @@ void DisplayService::drawWeightScreen(const String& weight, const String& line, 
   drawRawLine(line);
 
   // Bottom accent line
-  _tft.drawFastHLine(0, DISP_H - 20, DISP_W, COL_STATUS_BG);
+  _tft.drawFastHLine(0, _h - 20, _w, COL_STATUS_BG);
 }
 
 // ─── Status bar ────────────────────────────────────────────────────────────
 void DisplayService::drawStatusBar(bool connected, unsigned long ageMs) {
-  _tft.fillRect(0, 0, DISP_W, STATUS_BAR_H, COL_STATUS_BG);
+  _tft.fillRect(0, 0, _w, _statusBarH, COL_STATUS_BG);
 
   _tft.setTextDatum(ML_DATUM);
   _tft.setTextColor(COL_ACCENT, COL_STATUS_BG);
   _tft.setFreeFont(NULL);
-  _tft.setTextSize(2);
-  _tft.drawString("WEIGHSOFT", 8, STATUS_BAR_H / 2);
+  _tft.setTextSize(_statusTextSize);
+  _tft.drawString("WEIGHSOFT", 8, _statusBarH / 2);
 
   // Connection status on the right
   _tft.setTextDatum(MR_DATUM);
   if (connected) {
     _tft.setTextColor(COL_WEIGHT_OK, COL_STATUS_BG);
-    _tft.drawString("LIVE", DISP_W - 8, STATUS_BAR_H / 2);
+    _tft.drawString("LIVE", _w - 8, _statusBarH / 2);
   } else if (_lastWeightTime == 0) {
     _tft.setTextColor(COL_WEIGHT_STALE, COL_STATUS_BG);
-    _tft.drawString("WAITING", DISP_W - 8, STATUS_BAR_H / 2);
+    _tft.drawString("WAITING", _w - 8, _statusBarH / 2);
   } else {
     // Show how many seconds since last update
     char buf[24];
@@ -197,74 +228,56 @@ void DisplayService::drawStatusBar(bool connected, unsigned long ageMs) {
       snprintf(buf, sizeof(buf), "NO SIGNAL %lum", secs / 60);
     }
     _tft.setTextColor(COL_WEIGHT_ERR, COL_STATUS_BG);
-    _tft.drawString(buf, DISP_W - 8, STATUS_BAR_H / 2);
+    _tft.drawString(buf, _w - 8, _statusBarH / 2);
   }
 }
 
 // ─── Large weight number ────────────────────────────────────────────────────
 void DisplayService::drawWeightValue(const String& weight, bool connected) {
-  // Clear weight area
-  _tft.fillRect(0, STATUS_BAR_H + 1, DISP_W, DISP_H - STATUS_BAR_H - 40, COL_BG);
+  // Clear weight area (everything between status bar and the raw-line strip)
+  int16_t areaTop = _statusBarH + 1;
+  int16_t areaH = _rawLineY - areaTop - 4;
+  _tft.fillRect(0, areaTop, _w, areaH, COL_BG);
 
   uint16_t colour = connected ? COL_WEIGHT_OK : COL_WEIGHT_STALE;
+  int16_t cx = _w / 2;
 
   if (!connected && _lastWeightTime == 0) {
-    // Never received data
+    // Never received data — draw "-- kg" placeholder
     _tft.setTextDatum(MC_DATUM);
     _tft.setTextColor(COL_WEIGHT_STALE, COL_BG);
     _tft.setFreeFont(NULL);
-    _tft.setTextSize(3);
-    _tft.drawString("-- kg", DISP_W / 2, DISP_H / 2);
+    _tft.setTextSize(_unitTextSize);
+    _tft.drawString("-- kg", cx, _weightCenterY);
     return;
   }
 
-  if (!connected) {
-    colour = COL_WEIGHT_STALE;
-  }
-
-  // Draw value - use Font 7 (7-segment style, large digits) for weight number
+  // Big weight number, then "kg" suffix below in smaller font
   String displayWeight = weight.length() > 0 ? weight : "--";
-  _tft.setTextDatum(MC_DATUM);
-  _tft.setTextColor(colour, COL_BG);
-
-  // Try to split number and unit for visual separation
-  // Weight format is typically "2328" (unit appended separately)
   _tft.setFreeFont(NULL);
-
-  // Draw large number using font size 8 (tallest available without FreeFont)
-  _tft.setTextSize(1);
-  // Use built-in Font 7 (large 7-seg style digits)
-  _tft.loadFont(NULL);
-
-  // Font 6 gives ~48px tall digits - draw number
-  _tft.setTextSize(1);
-  _tft.drawString(displayWeight + " kg", DISP_W / 2, (DISP_H + STATUS_BAR_H) / 2 - 10);
-
-  // Attempt with a bigger size
-  _tft.fillRect(0, STATUS_BAR_H + 1, DISP_W, DISP_H - STATUS_BAR_H - 40, COL_BG);
-  _tft.setTextSize(6);
+  _tft.setTextDatum(MC_DATUM);
   _tft.setTextColor(colour, COL_BG);
-  _tft.setTextDatum(MC_DATUM);
-  _tft.drawString(displayWeight, DISP_W / 2, (DISP_H + STATUS_BAR_H) / 2 - 20);
+  _tft.setTextSize(_weightTextSize);
+  _tft.drawString(displayWeight, cx, _weightCenterY - 12);
 
-  // Unit "kg" beside / below in smaller size
-  _tft.setTextSize(3);
+  _tft.setTextSize(_unitTextSize);
   _tft.setTextColor(COL_UNIT, COL_BG);
-  _tft.setTextDatum(MC_DATUM);
-  _tft.drawString("kg", DISP_W / 2, (DISP_H + STATUS_BAR_H) / 2 + 50);
+  // Offset proportional to weightTextSize so kg never touches the digits
+  _tft.drawString("kg", cx, _weightCenterY + (_weightTextSize * 6));
 }
 
 // ─── Raw serial line strip at bottom ───────────────────────────────────────
 void DisplayService::drawRawLine(const String& line) {
-  _tft.fillRect(0, DISP_H - 38, DISP_W, 18, COL_BG);
+  _tft.fillRect(0, _rawLineY - 9, _w, 18, COL_BG);
   _tft.setTextDatum(MC_DATUM);
   _tft.setTextColor(COL_RAW, COL_BG);
   _tft.setFreeFont(NULL);
   _tft.setTextSize(1);
 
-  // Truncate if too long for display
-  String display = line.length() > 60 ? line.substring(0, 57) + "..." : line;
-  _tft.drawString(display, DISP_W / 2, DISP_H - 29);
+  // Truncate if too long for the panel width (chars are 6 px wide at size 1)
+  size_t maxChars = (size_t)((_w - 8) / 6);
+  String display = (line.length() > maxChars) ? (line.substring(0, maxChars - 3) + "...") : line;
+  _tft.drawString(display, _w / 2, _rawLineY);
 }
 
 #endif  // HAS_TFT_DISPLAY
