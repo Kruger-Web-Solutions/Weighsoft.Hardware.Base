@@ -106,7 +106,12 @@ class WeightForwarderService : public StatefulService<WeightForwarderState> {
   static constexpr unsigned long MIN_FORWARD_INTERVAL = 500;
   static constexpr unsigned long WEIGHT_DEBOUNCE_MS = 300;
   static constexpr int HTTP_CONNECT_TIMEOUT_MS = 800;
-  static constexpr int HTTP_RESPONSE_TIMEOUT_MS = 1500;
+  // Bumped from 1500 -> 3000 ms so we stop reporting false-negative failures.
+  // Empirically the Remote receives the POST and processes it fine, but a
+  // congested WiFi can take >1.5s to return the 200 OK. The previous timeout
+  // counted those as "failed" even though the data was already on the Remote
+  // (Forwarder fwd_total=103 vs Remote posts_total=150 over the same window).
+  static constexpr int HTTP_RESPONSE_TIMEOUT_MS = 3000;
   static constexpr int TARGET_FAIL_BACKOFF_MS = 30000;
   static constexpr int TARGET_FAIL_THRESHOLD = 3;
 
