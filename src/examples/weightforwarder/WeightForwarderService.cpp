@@ -257,9 +257,10 @@ void WeightForwarderService::forwardWeight(const String& lastLine, const String&
   // Check WiFi connection
   if (!WiFi.isConnected()) {
     update([](WeightForwarderState& state) {
+      bool flipped = state.connected || (state.lastError != "No WiFi");
       state.connected = false;
       state.lastError = "No WiFi";
-      return StateUpdateResult::CHANGED;
+      return flipped ? StateUpdateResult::CHANGED : StateUpdateResult::UNCHANGED;
     }, "internal");
     return;
   }
@@ -461,11 +462,21 @@ void WeightForwarderService::forwardViaHttp(const String& lastLine, const String
   if (successCount > 0) {
     registerForwardOk();
   }
-  update([successCount, total, lastErr](WeightForwarderState& state) {
-    state.connected = (successCount > 0);
-    state.lastError = (successCount == total) ? "" : lastErr;
+  // Throttle the post-attempt state broadcast: return CHANGED ONLY when
+  // `connected` or `lastError` actually flips. lastForwardTime updates on
+  // every attempt (and the audit log captures fwd_total / fwd_failed for
+  // observability), but firing CHANGED on every cycle was broadcasting on
+  // /ws/weightForwarder whether anyone was listening or not — and dead
+  // browser tabs left buffers on the heap, draining ~500 B per attempt
+  // under sustained failures. Same family of bug as the SerialState fix.
+  bool nowConnected = (successCount > 0);
+  String nowError = (successCount == total) ? "" : lastErr;
+  update([successCount, total, lastErr, nowConnected, nowError](WeightForwarderState& state) {
+    bool stateFlipped = (state.connected != nowConnected) || (state.lastError != nowError);
+    state.connected = nowConnected;
+    state.lastError = nowError;
     state.lastForwardTime = millis();
-    return StateUpdateResult::CHANGED;
+    return stateFlipped ? StateUpdateResult::CHANGED : StateUpdateResult::UNCHANGED;
   }, "internal");
 #endif
 }
@@ -478,9 +489,10 @@ void WeightForwarderService::forwardViaWs(const String& lastLine, const String& 
 #ifdef ESP32
   if (!_wsClient || !_wsClient->isConnected()) {
     update([](WeightForwarderState& state) {
+      bool flipped = state.connected || (state.lastError != "WS not connected");
       state.connected = false;
       state.lastError = "WS not connected";
-      return StateUpdateResult::CHANGED;
+      return flipped ? StateUpdateResult::CHANGED : StateUpdateResult::UNCHANGED;
     }, "internal");
     return;
   }
@@ -493,9 +505,14 @@ void WeightForwarderService::forwardViaWs(const String& lastLine, const String& 
 
   _wsClient->sendTXT(json);
 
+  // Per-forward update: only mark CHANGED if connection state flipped on.
+  // lastForwardTime still bumps but no broadcast on every weight tick.
   update([](WeightForwarderState& state) {
+    bool flipped = !state.connected || !state.lastError.isEmpty();
+    state.connected = true;
+    state.lastError = "";
     state.lastForwardTime = millis();
-    return StateUpdateResult::CHANGED;
+    return flipped ? StateUpdateResult::CHANGED : StateUpdateResult::UNCHANGED;
   }, "internal");
 #endif
 }
@@ -504,9 +521,10 @@ void WeightForwarderService::forwardViaMqtt(const String& lastLine, const String
 #if FT_ENABLED(FT_MQTT)
   if (!_mqttClient->connected() || _state.mqttTopic.isEmpty()) {
     update([](WeightForwarderState& state) {
+      bool flipped = state.connected || (state.lastError != "MQTT not connected");
       state.connected = false;
       state.lastError = "MQTT not connected";
-      return StateUpdateResult::CHANGED;
+      return flipped ? StateUpdateResult::CHANGED : StateUpdateResult::UNCHANGED;
     }, "internal");
     return;
   }
@@ -520,10 +538,11 @@ void WeightForwarderService::forwardViaMqtt(const String& lastLine, const String
   _mqttClient->publish(_state.mqttTopic.c_str(), 0, false, json.c_str());
 
   update([](WeightForwarderState& state) {
+    bool flipped = !state.connected || !state.lastError.isEmpty();
     state.connected = true;
     state.lastError = "";
     state.lastForwardTime = millis();
-    return StateUpdateResult::CHANGED;
+    return flipped ? StateUpdateResult::CHANGED : StateUpdateResult::UNCHANGED;
   }, "internal");
 #endif
 }
@@ -532,9 +551,10 @@ void WeightForwarderService::forwardViaBle(const String& lastLine, const String&
 #if FT_ENABLED(FT_BLE)
   if (!_bleClient || !_bleClient->isConnected()) {
     update([](WeightForwarderState& state) {
+      bool flipped = state.connected || (state.lastError != "BLE not connected");
       state.connected = false;
       state.lastError = "BLE not connected";
-      return StateUpdateResult::CHANGED;
+      return flipped ? StateUpdateResult::CHANGED : StateUpdateResult::UNCHANGED;
     }, "internal");
     return;
   }
@@ -549,8 +569,11 @@ void WeightForwarderService::forwardViaBle(const String& lastLine, const String&
     _bleRemoteChar->writeValue(json.c_str(), json.length());
 
     update([](WeightForwarderState& state) {
+      bool flipped = !state.connected || !state.lastError.isEmpty();
+      state.connected = true;
+      state.lastError = "";
       state.lastForwardTime = millis();
-      return StateUpdateResult::CHANGED;
+      return flipped ? StateUpdateResult::CHANGED : StateUpdateResult::UNCHANGED;
     }, "internal");
   }
 #endif
