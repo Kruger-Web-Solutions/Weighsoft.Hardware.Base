@@ -19,6 +19,40 @@
 #define WEB_SOCKET_AUTO_CLEANUP_INTERVAL_MS 5000UL
 #endif
 
+// Minimum free heap required to attempt a WS broadcast. Below this, skip
+// the broadcast entirely.
+//
+// CRITICAL: AsyncWebSocket::textAll() calls makeSharedBuffer() which uses
+// std::make_shared. On OOM, std::make_shared CALLS abort() (it does not
+// return null or throw on ESP-IDF's nothrow-bad_alloc-disabled config).
+// abort() crashes the AsyncTCP task. After that crash, the device's CPU
+// keeps running but TCP is dead — no more web server, no more REST, no
+// more WS — and there's no panic + reboot, so the only recovery is a
+// hardware reset.
+//
+// 16 KB gives several KB of margin above the largest allocation chain
+// (DynamicJsonDocument + makeBuffer + textAll's shared_ptr). Ported from
+// the weighingboard branch (commit d61bbff) which solved the exact same
+// "drops off network, must hard-restart" symptom.
+#ifndef WEB_SOCKET_TX_MIN_FREE_HEAP
+#define WEB_SOCKET_TX_MIN_FREE_HEAP 16384U
+#endif
+
+// Reject new WS connections when free heap is below this. A connecting
+// browser tab triggers a transmitId() + transmitData() pair plus per-
+// client TX-queue allocations — it's a heavy moment we shouldn't try to
+// service when heap is already tight.
+#ifndef WEB_SOCKET_CONNECT_MIN_FREE_HEAP
+#define WEB_SOCKET_CONNECT_MIN_FREE_HEAP 32768U
+#endif
+
+// Hard cap on simultaneous WS clients per service. ESP32 has finite
+// AsyncTCP worker slots; a single browser left open across reloads can
+// accumulate stale connections that haven't been GC'd yet.
+#ifndef WEB_SOCKET_MAX_CLIENTS
+#define WEB_SOCKET_MAX_CLIENTS 2U
+#endif
+
 template <class T>
 class WebSocketConnector {
  public:
@@ -148,14 +182,37 @@ class WebSocketTx : virtual public WebSocketConnector<T> {
                          uint8_t* data,
                          size_t len) {
     if (type == WS_EVT_CONNECT) {
-      Serial.printf("[WS] Client connected: %u\n", client->id());
+      // Reap any stale entries before counting — a browser refresh can
+      // leave the previous tab's client dangling for a few seconds.
+      server->cleanupClients();
+      size_t connected = server->count();
+      uint32_t freeHeap = ESP.getFreeHeap();
+      Serial.printf("[WS] Client %u connected (total=%u heap=%lu)\n",
+                    client->id(), (unsigned)connected, (unsigned long)freeHeap);
+
+      // Refuse new connections when heap is tight or we're already over
+      // the per-service client cap. Closing here means no transmitId/
+      // transmitData allocation chain runs for this client — the cheapest
+      // possible reject path.
+      if (connected > WEB_SOCKET_MAX_CLIENTS || freeHeap < WEB_SOCKET_CONNECT_MIN_FREE_HEAP) {
+        Serial.printf("[WS] Rejecting client %u (clients=%u heap=%lu)\n",
+                      client->id(), (unsigned)connected, (unsigned long)freeHeap);
+        client->close();
+        return;
+      }
+
+      // Set close-on-queue-full for this client so a slow tab can't grow
+      // its TX queue without bound.
+      client->setCloseClientOnQueueFull(true);
+
       // when a client connects, we transmit it's id and the current payload
       transmitId(client);
       transmitData(client, WEB_SOCKET_ORIGIN);
     } else if (type == WS_EVT_DISCONNECT) {
-      Serial.printf("[WS] Client disconnected: %u\n", client->id());
+      Serial.printf("[WS] Client %u disconnected (heap=%lu)\n",
+                    client->id(), (unsigned long)ESP.getFreeHeap());
     } else if (type == WS_EVT_ERROR) {
-      Serial.printf("[WS] Client error: %u\n", client->id());
+      Serial.printf("[WS] Client %u error\n", client->id());
     }
   }
 
@@ -163,6 +220,11 @@ class WebSocketTx : virtual public WebSocketConnector<T> {
   JsonStateReader<T> _stateReader;
 
   void transmitId(AsyncWebSocketClient* client) {
+    // Same heap gate as transmitData — client->text() goes through the
+    // same makeSharedBuffer / textAll path that aborts on OOM.
+    if (ESP.getFreeHeap() < WEB_SOCKET_TX_MIN_FREE_HEAP) {
+      return;
+    }
     DynamicJsonDocument jsonDocument = DynamicJsonDocument(WEB_SOCKET_CLIENT_ID_MSG_SIZE);
     JsonObject root = jsonDocument.to<JsonObject>();
     root["type"] = "id";
@@ -171,10 +233,9 @@ class WebSocketTx : virtual public WebSocketConnector<T> {
     // Allocate len+1 so serializeJson can write the null terminator safely,
     // but only send len bytes (the actual JSON, without the null)
     AsyncWebSocketMessageBuffer* buffer = WebSocketConnector<T>::_webSocket.makeBuffer(len + 1);
-    if (buffer) {
-      serializeJson(jsonDocument, (char*)buffer->get(), len + 1);
-      client->text((char*)buffer->get(), len);
-    }
+    if (!buffer) return;
+    serializeJson(jsonDocument, (char*)buffer->get(), len + 1);
+    client->text((char*)buffer->get(), len);
   }
 
   /**
@@ -185,6 +246,24 @@ class WebSocketTx : virtual public WebSocketConnector<T> {
    * simplifies the client and the server implementation but may not be sufficent for all use-cases.
    */
   void transmitData(AsyncWebSocketClient* client, const String& originId) {
+    // CRITICAL heap gate — see WEB_SOCKET_TX_MIN_FREE_HEAP comment at top.
+    // textAll() ultimately calls std::make_shared which calls abort() on
+    // OOM. abort() takes down the AsyncTCP task and the device drops off
+    // the network until a hardware reset. Skip the broadcast entirely
+    // when heap is below the safety margin.
+    if (ESP.getFreeHeap() < WEB_SOCKET_TX_MIN_FREE_HEAP) {
+      static unsigned long lastSkipLog = 0;
+      unsigned long now = millis();
+      if (now - lastSkipLog >= 5000UL) {
+        lastSkipLog = now;
+        Serial.printf("[WS] Skipping broadcast — free_heap=%lu < %u\n",
+                      (unsigned long)ESP.getFreeHeap(), WEB_SOCKET_TX_MIN_FREE_HEAP);
+      }
+      // Still run cleanup so dead clients don't pile up while we're starved.
+      WebSocketConnector<T>::maybeCleanupWebSocketClients();
+      return;
+    }
+
     DynamicJsonDocument jsonDocument = DynamicJsonDocument(WebSocketConnector<T>::_bufferSize);
     JsonObject root = jsonDocument.to<JsonObject>();
     root["type"] = "payload";
@@ -196,13 +275,17 @@ class WebSocketTx : virtual public WebSocketConnector<T> {
     // Allocate len+1 so serializeJson can write the null terminator safely,
     // but only send len bytes (the actual JSON, without the null)
     AsyncWebSocketMessageBuffer* buffer = WebSocketConnector<T>::_webSocket.makeBuffer(len + 1);
-    if (buffer) {
-      serializeJson(jsonDocument, (char*)buffer->get(), len + 1);
-      if (client) {
-        client->text((char*)buffer->get(), len);
-      } else {
-        WebSocketConnector<T>::_webSocket.textAll((char*)buffer->get(), len);
-      }
+    if (!buffer) {
+      // makeBuffer returned null — heap pressure between our gate check
+      // and the allocation. Skip rather than touch a null pointer.
+      WebSocketConnector<T>::maybeCleanupWebSocketClients();
+      return;
+    }
+    serializeJson(jsonDocument, (char*)buffer->get(), len + 1);
+    if (client) {
+      client->text((char*)buffer->get(), len);
+    } else {
+      WebSocketConnector<T>::_webSocket.textAll((char*)buffer->get(), len);
     }
 
     // Opportunistically reap stale clients on every broadcast. Throttled to
