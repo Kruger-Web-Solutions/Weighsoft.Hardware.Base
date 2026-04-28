@@ -31,9 +31,18 @@ void setup() {
   // start serial and filesystem
   Serial.begin(SERIAL_BAUD_RATE);
 #if ARDUINO_USB_CDC_ON_BOOT
+  // CRITICAL: make USB-CDC (HWCDC) writes non-blocking. The default tx timeout is
+  // 250 ms — if no PC has the COM port open, the internal TX buffer fills and any
+  // Serial.print() blocks for that long. When those calls happen on the AsyncTCP
+  // request-handler task (e.g. the RemoteWeight echo on every weight POST, or any
+  // Serial.println from a web callback), the web server starves and the device
+  // eventually hangs. With timeout 0, writes drop bytes immediately if no host is
+  // reading.
+  Serial.setTxTimeoutMs(0);
   // With USB CDC bound to Serial, UART0 (GPIO43/44 on ESP32-S3) is no longer
   // auto-initialised by the framework. Bring it up explicitly so the optional
-  // weight-echo can mirror to a USB-TTL adapter (e.g. CH343) wired to UART0.
+  // weight-echo can mirror to a USB-TTL adapter (e.g. on-board CH343) wired
+  // to UART0.
   Serial0.begin(SERIAL_BAUD_RATE);
 #endif
   delay(500);

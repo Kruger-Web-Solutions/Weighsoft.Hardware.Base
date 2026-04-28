@@ -34,9 +34,17 @@ RemoteWeightService::RemoteWeightService(AsyncWebServer* server, FS* fs, Securit
     _lastSeenTimestamp = _state.timestamp;
 
     // Echo received scale line to a host PC if enabled. Mirrors to both the
-    // USB-CDC interface (Serial, when ESP is plugged directly into a PC) and
-    // UART0 (Serial0, available via the dev board's built-in CH343 chip on
-    // GPIO43/44).
+    // USB-CDC interface (Serial, when ESP is plugged directly into a PC via
+    // its native USB) and UART0 (Serial0, available via the dev board's
+    // built-in CH343 chip on GPIO43/44).
+    //
+    // SAFETY: this handler runs on the AsyncTCP request-handler task (called
+    // on every weight POST from the Forwarder). HWCDC's tx timeout is set to
+    // 0 in main.cpp, so Serial.println() returns immediately when no host is
+    // reading — never blocks the AsyncTCP loop. We deliberately do NOT gate
+    // on `if (Serial)` because some host serial monitors (e.g. ScaleCOM) do
+    // not assert DTR, which would cause HWCDC's operator bool to report
+    // "no host" and silently swallow the echo even though a reader is open.
     if (isWeightUpdate && _state.usbEchoEnabled && !_state.lastLine.isEmpty()) {
       Serial.println(_state.lastLine);
 #if ARDUINO_USB_CDC_ON_BOOT

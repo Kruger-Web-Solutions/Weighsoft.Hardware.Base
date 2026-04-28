@@ -178,6 +178,12 @@ void WeightForwarderService::onSerialWeightUpdate(const String& originId) {
   // disable network forwarding and still pipe the raw scale stream to a PC.
   // Mirror to both the USB-CDC interface (Serial, when ESP is plugged directly
   // into a PC) and UART0 (Serial0, when a USB-TTL adapter is wired to GPIO43/44).
+  //
+  // SAFETY: HWCDC tx timeout is set to 0 in main.cpp so Serial.println()
+  // returns immediately when no host is reading — never blocks the
+  // SerialService loop. We do NOT gate on `if (Serial)` because some host
+  // monitors (e.g. ScaleCOM) do not assert DTR, which would otherwise make
+  // HWCDC's operator bool report "no host" and silently swallow the echo.
   if (_state.usbEchoEnabled && !capturedLine.isEmpty()) {
     Serial.println(capturedLine);
 #if ARDUINO_USB_CDC_ON_BOOT
