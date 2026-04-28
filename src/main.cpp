@@ -208,6 +208,48 @@ void loop() {
   // run remote weight receiver housekeeping (audit log + periodic USB echo)
   remoteWeightService->loop();
 
+  // USB-CDC TX liveness watchdog (ESP32-S3 native USB only).
+  // HWCDC can get stuck with its internal `connected` flag at false after a
+  // brief host-side hiccup (Windows USB Selective Suspend, ScaleCOM read
+  // backpressure, etc.). Once stuck, every Serial.write() takes the
+  // "not connected" branch (HWCDC.cpp ~419) and only buffers into the ring
+  // buffer — no bytes ever reach USB. The recovery loop in HWCDC::write()
+  // doesn't run because we set tx_timeout_ms=0 (required to keep AsyncTCP
+  // unblocked). Result: COM3 appears dead until the user physically
+  // disconnects/reconnects the USB cable.
+  //
+  // This watchdog detects the stuck state and resets HWCDC (which forces
+  // USB re-enumeration via the BUS_RESET handling in HWCDC::begin()), so
+  // the host-side COM port handle remains valid and output resumes
+  // automatically without manual intervention.
+#if ARDUINO_USB_CDC_ON_BOOT
+  {
+    static unsigned long lastCdcCheck = 0;
+    static unsigned long cdcStuckSince = 0;
+    unsigned long now = millis();
+    if (now - lastCdcCheck >= 5000UL) {
+      lastCdcCheck = now;
+      // <64 bytes free out of 256 means the ring buffer is essentially full
+      // and not draining. Healthy idle state has the full buffer free.
+      if (Serial.availableForWrite() < 64) {
+        if (cdcStuckSince == 0) {
+          cdcStuckSince = now;
+        } else if (now - cdcStuckSince >= 30000UL) {
+          // Stuck for >=30 s — reset HWCDC to force host re-enumeration.
+          Serial.end();
+          delay(50);
+          Serial.begin(SERIAL_BAUD_RATE);
+          Serial.setTxTimeoutMs(0);
+          Serial.println(F("[main] USB-CDC reset (was stuck for >=30s)"));
+          cdcStuckSince = 0;
+        }
+      } else {
+        cdcStuckSince = 0;  // healthy — reset the stuck timer
+      }
+    }
+  }
+#endif
+
 #ifdef HAS_TFT_DISPLAY
   // update TFT display
   displayService->loop();
