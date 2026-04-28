@@ -12,6 +12,14 @@
 
 template <class T>
 class WebSocketConnector {
+ public:
+  // Public accessor so application code can manage the underlying socket —
+  // call cleanupClients() periodically, set per-instance options like
+  // setCloseClientOnQueueFull(), inspect getClients(), etc. without having
+  // to subclass or break encapsulation. Read-only by intent: callers should
+  // not destroy or replace the socket, only configure / inspect it.
+  AsyncWebSocket& getWebSocket() { return _webSocket; }
+
  protected:
   StatefulService<T>* _statefulService;
   AsyncWebServer* _server;

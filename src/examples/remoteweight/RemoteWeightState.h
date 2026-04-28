@@ -63,8 +63,18 @@ class RemoteWeightState {
     // A weight payload from the Forwarder always carries `weight` and/or
     // `last_line`. Treat it as a real reading even when the value is identical
     // to the previous reading (e.g. a stable scale heartbeat) so update
-    // handlers actually fire — otherwise StatefulService skips them and the
-    // USB echo never triggers for steady weight.
+    // handlers actually fire — this drives both:
+    //   - the live WebSocket push to any connected browser tab (so the UI
+    //     doesn't appear frozen on a steady scale), and
+    //   - the USB-CDC echo on every received line (so ScaleCOM gets a
+    //     continuous stream).
+    //
+    // Heap-leak protection lives in RemoteWeightService:
+    //   - dead WS clients are reaped via cleanupClients() each loop tick, and
+    //     each client is configured to close itself if its TX queue fills up
+    //     (setCloseClientOnQueueFull) — that combination prevents the
+    //     accumulating-buffers OOM path that took the device down before;
+    //   - incoming POSTs are dropped early when free heap is below threshold.
     bool isWeightPayload = root.containsKey("weight") || root.containsKey("last_line");
     if (isWeightPayload) {
       state.timestamp = millis();

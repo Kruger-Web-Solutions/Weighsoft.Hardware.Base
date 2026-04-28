@@ -205,6 +205,9 @@ void loop() {
   // process weight forwarding
   weightForwarderService->loop();
 
+  // run remote weight receiver housekeeping (audit log + periodic USB echo)
+  remoteWeightService->loop();
+
 #ifdef HAS_TFT_DISPLAY
   // update TFT display
   displayService->loop();

@@ -1,8 +1,38 @@
 #include <examples/remoteweight/RemoteWeightService.h>
 
+#include <AsyncJson.h>
+#include <Esp.h>
+
+namespace {
+inline bool heapBelowThreshold() {
+  return ESP.getFreeHeap() < REMOTE_WEIGHT_MIN_FREE_HEAP;
+}
+}  // namespace
+
 RemoteWeightService::RemoteWeightService(AsyncWebServer* server, FS* fs, SecurityManager* securityManager) :
+    _server(server),
+    _securityManager(securityManager),
     _httpEndpoint(RemoteWeightState::read,
-                  RemoteWeightState::update,
+                  // Wrap the canonical update function with a heap-pressure
+                  // guard. When the device is starving for heap we drop the
+                  // POST entirely instead of propagating into AsyncWebSocket
+                  // broadcasts, FS writes, etc. — those are exactly the
+                  // operations that fragment the heap further.
+                  [this](JsonObject& root, RemoteWeightState& state) {
+                    if (heapBelowThreshold()) {
+                      registerPostDropped();
+                      return StateUpdateResult::UNCHANGED;
+                    }
+                    StateUpdateResult result = RemoteWeightState::update(root, state);
+                    bool isWeightPayload = root.containsKey("weight") || root.containsKey("last_line");
+                    if (isWeightPayload) {
+                      registerPostReceived();
+                      if (result == StateUpdateResult::CHANGED) {
+                        recordAudit(RemoteWeightAuditReason::WEIGHT_CHANGED);
+                      }
+                    }
+                    return result;
+                  },
                   this,
                   server,
                   REMOTE_WEIGHT_ENDPOINT_PATH,
@@ -23,37 +53,23 @@ RemoteWeightService::RemoteWeightService(AsyncWebServer* server, FS* fs, Securit
   _fsPersistence.disableUpdateHandler();
 
   addUpdateHandler([this](const String& originId) {
-    // Detect "new scale line received" by tracking the timestamp. Every weight
-    // POST from the Forwarder bumps `_state.timestamp` (even when the value is
-    // identical), so a delta here means real fresh data. Config-only saves
-    // (UI toggles enabled/displayEnabled/usbEchoEnabled) leave it untouched.
-    // This lets us (a) echo on every genuine reading — including a steady
-    // scale heartbeat — and (b) persist only on config changes to avoid
-    // flash thrash.
+    // Persist config-only updates (won't write if serialized payload didn't
+    // change, so cheap on weight POSTs that don't touch the persisted flags).
+    _fsPersistence.writeToFS();
+
+    // Real-time USB echo on every weight payload received from the Forwarder.
+    // Tied to the "weight payload arrived" path via state.timestamp bump in
+    // RemoteWeightState::update(). Safe even on the AsyncTCP task because
+    // Serial (HWCDC) has setTxTimeoutMs(0) and Serial0 (UART0) is non-
+    // blocking by default.
     bool isWeightUpdate = (_state.timestamp != _lastSeenTimestamp);
     _lastSeenTimestamp = _state.timestamp;
-
-    // Echo received scale line to a host PC if enabled. Mirrors to both the
-    // USB-CDC interface (Serial, when ESP is plugged directly into a PC via
-    // its native USB) and UART0 (Serial0, available via the dev board's
-    // built-in CH343 chip on GPIO43/44).
-    //
-    // SAFETY: this handler runs on the AsyncTCP request-handler task (called
-    // on every weight POST from the Forwarder). HWCDC's tx timeout is set to
-    // 0 in main.cpp, so Serial.println() returns immediately when no host is
-    // reading — never blocks the AsyncTCP loop. We deliberately do NOT gate
-    // on `if (Serial)` because some host serial monitors (e.g. ScaleCOM) do
-    // not assert DTR, which would cause HWCDC's operator bool to report
-    // "no host" and silently swallow the echo even though a reader is open.
     if (isWeightUpdate && _state.usbEchoEnabled && !_state.lastLine.isEmpty()) {
       Serial.println(_state.lastLine);
 #if ARDUINO_USB_CDC_ON_BOOT
       Serial0.println(_state.lastLine);
 #endif
-    }
-
-    if (!isWeightUpdate) {
-      _fsPersistence.writeToFS();
+      recordAudit(RemoteWeightAuditReason::ECHO_FIRED);
     }
   }, false);
 }
@@ -63,6 +79,124 @@ void RemoteWeightService::begin() {
   _state.weight = "";
   _state.lastLine = "";
   _state.timestamp = 0;
-  Serial.printf("[RemoteWeight] Service ready — enabled=%d, displayEnabled=%d\n",
-                _state.enabled, _state.displayEnabled);
+  _lastCleanupMillis = millis();
+  _lastPeriodicMillis = millis();
+  _minHeapSeen = ESP.getFreeHeap();
+
+  registerAuditEndpoint();
+  recordAudit(RemoteWeightAuditReason::BOOT);
+
+  Serial.printf("[RemoteWeight] Service ready — enabled=%d displayEnabled=%d usbEcho=%d freeHeap=%lu\n",
+                _state.enabled, _state.displayEnabled, _state.usbEchoEnabled,
+                (unsigned long)ESP.getFreeHeap());
+}
+
+void RemoteWeightService::loop() {
+  unsigned long now = millis();
+
+  // Reap disconnected WebSocket clients. The framework leaves stale entries
+  // in the client list when a browser tab closes / refreshes / network drops.
+  // Each entry holds a TX-queue buffer; left unreaped, they accumulate and
+  // fragment the heap.
+  //
+  // We also flip each live client into "close-on-queue-full" mode here so a
+  // slow / hung browser tab can't grow its TX queue without bound — when its
+  // queue fills, AsyncWebSocket closes the socket and the next cleanupClients
+  // tick reaps it. This is the second half of the heap-leak protection.
+  if (now - _lastCleanupMillis >= REMOTE_WEIGHT_WS_CLEANUP_INTERVAL_MS) {
+    _lastCleanupMillis = now;
+    AsyncWebSocket& ws = _webSocket.getWebSocket();
+    for (AsyncWebSocketClient& c : ws.getClients()) {
+      if (!c.willCloseClientOnQueueFull()) {
+        c.setCloseClientOnQueueFull(true);
+      }
+    }
+    ws.cleanupClients();
+  }
+
+  // Periodic heap snapshot every 30 s. Helps catch slow leaks early.
+  if (now - _lastPeriodicMillis >= 30000UL) {
+    _lastPeriodicMillis = now;
+    uint32_t h = ESP.getFreeHeap();
+    if (h < _minHeapSeen) _minHeapSeen = h;
+    recordAudit(RemoteWeightAuditReason::PERIODIC);
+
+    Serial.printf("[RemoteWeight] heap=%lu min=%lu posts=%u dropped=%u ws_clients=%u\n",
+                  (unsigned long)h, (unsigned long)_minHeapSeen,
+                  _postsTotal, _postsDropped,
+                  (unsigned)_webSocket.getWebSocket().count());
+  }
+}
+
+void RemoteWeightService::registerPostReceived() {
+  _postsTotal++;
+  uint32_t h = ESP.getFreeHeap();
+  if (h < _minHeapSeen) _minHeapSeen = h;
+  recordAudit(RemoteWeightAuditReason::POST_RECEIVED);
+}
+
+void RemoteWeightService::registerPostDropped() {
+  _postsDropped++;
+  uint32_t h = ESP.getFreeHeap();
+  if (h < _minHeapSeen) _minHeapSeen = h;
+  recordAudit(RemoteWeightAuditReason::POST_DROPPED_HEAP);
+
+  Serial.printf("[RemoteWeight] DROPPED POST — free_heap=%lu min=%lu (threshold=%u)\n",
+                (unsigned long)h, (unsigned long)_minHeapSeen, REMOTE_WEIGHT_MIN_FREE_HEAP);
+}
+
+void RemoteWeightService::recordAudit(RemoteWeightAuditReason reason) {
+  RemoteWeightAuditEntry& e = _audit[_auditHead];
+  e.millis_at = millis();
+  e.free_heap = ESP.getFreeHeap();
+  e.min_heap = _minHeapSeen;
+  e.max_alloc = ESP.getMaxAllocHeap();
+  e.posts_total = _postsTotal;
+  e.posts_dropped = _postsDropped;
+  e.reason = static_cast<uint8_t>(reason);
+  e.ws_clients = static_cast<uint8_t>(_webSocket.getWebSocket().count());
+
+  _auditHead = (_auditHead + 1) % REMOTE_WEIGHT_AUDIT_CAPACITY;
+  if (_auditCount < REMOTE_WEIGHT_AUDIT_CAPACITY) _auditCount++;
+}
+
+void RemoteWeightService::registerAuditEndpoint() {
+  _server->on(REMOTE_WEIGHT_AUDIT_PATH, HTTP_GET,
+              _securityManager->wrapRequest(
+                  [this](AsyncWebServerRequest* request) {
+                    AsyncJsonResponse* response = new AsyncJsonResponse(false, 4096);
+                    JsonObject root = response->getRoot().to<JsonObject>();
+                    readAuditAndStats(this, root);
+                    response->setLength();
+                    request->send(response);
+                  },
+                  AuthenticationPredicates::IS_AUTHENTICATED));
+}
+
+void RemoteWeightService::readAuditAndStats(RemoteWeightService* self, JsonObject& root) {
+  root["now_ms"] = millis();
+  root["free_heap"] = ESP.getFreeHeap();
+  root["min_heap_seen"] = self->_minHeapSeen;
+  root["max_alloc_heap"] = ESP.getMaxAllocHeap();
+  root["posts_total"] = self->_postsTotal;
+  root["posts_dropped"] = self->_postsDropped;
+  root["heap_threshold"] = REMOTE_WEIGHT_MIN_FREE_HEAP;
+  root["ws_clients"] = self->_webSocket.getWebSocket().count();
+  root["last_seen_timestamp"] = self->_lastSeenTimestamp;
+
+  JsonArray entries = root.createNestedArray("entries");
+  uint8_t cap = REMOTE_WEIGHT_AUDIT_CAPACITY;
+  uint8_t start = (cap + self->_auditHead - self->_auditCount) % cap;
+  for (uint8_t i = 0; i < self->_auditCount; i++) {
+    const RemoteWeightAuditEntry& e = self->_audit[(start + i) % cap];
+    JsonObject obj = entries.createNestedObject();
+    obj["t"] = e.millis_at;
+    obj["heap"] = e.free_heap;
+    obj["min"] = e.min_heap;
+    obj["alloc"] = e.max_alloc;
+    obj["posts"] = e.posts_total;
+    obj["dropped"] = e.posts_dropped;
+    obj["ws"] = e.ws_clients;
+    obj["reason"] = e.reason;
+  }
 }
