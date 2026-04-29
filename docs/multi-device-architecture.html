@@ -679,7 +679,50 @@ body[data-reduced-motion] .flow-path { stroke-dashoffset: 0; transition: none; }
     <p class="caption"><strong>How it works:</strong> Each Reader runs its own <code>WeightForwarderService</code> with the Node-RED HTTP endpoint as its target. Readers don't talk to each other. Node-RED receives one POST per parsed line per reader.</p>
     <p class="example">Real-world example: three weighbridges across a yard, all forwarding to a central Node-RED dashboard.</p>
   </section>
-  <section id="use-case-b"><span class="designation">Sheet B · 02</span><h2>1 Reader + Display + <span class="em">Writer</span></h2></section>
+  <section id="use-case-b">
+    <span class="designation">Sheet B · 02</span>
+    <h2>1 Reader + Display + <span class="em">Writer</span></h2>
+    <p class="purpose">One Reader at the center. A Display and a Writer both pull data from its server side.</p>
+
+    <div class="diagram" role="img" aria-labelledby="diag-b-title">
+      <svg viewBox="0 0 900 360" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+        <title id="diag-b-title">One Serial Reader serving a Display via WebSocket and a Writer via HTTP poll.</title>
+
+        <rect class="dev-box physical" x="20" y="150" width="90" height="40"/>
+        <text class="dev-name" x="65" y="176">Scale</text>
+        <line x1="110" y1="170" x2="180" y2="170" stroke="#8b5cf6" stroke-width="2"/>
+
+        <text class="dev-role" x="250" y="132">Reader · Server</text>
+        <rect class="dev-box reader" x="180" y="140" width="140" height="60"/>
+        <text class="dev-name" x="250" y="176">Reader</text>
+
+        <text class="dev-role" x="710" y="32">Display · Client</text>
+        <rect class="dev-box display" x="620" y="40" width="180" height="60"/>
+        <text class="dev-name" x="710" y="76">Display</text>
+
+        <text class="dev-role" x="710" y="232">Writer · Client</text>
+        <rect class="dev-box writer" x="620" y="240" width="180" height="60"/>
+        <text class="dev-name" x="710" y="276">Writer</text>
+
+        <path id="b-flow-display" class="flow-path display" d="M 320 150 Q 470 70 620 70"/>
+        <path id="b-flow-writer"  class="flow-path writer"  d="M 320 190 Q 470 270 620 270"/>
+
+        <g class="proto-pill"><rect x="430" y="80"  width="40" height="16"/><text x="450" y="88">WS</text></g>
+        <g class="proto-pill"><rect x="430" y="248" width="70" height="16"/><text x="465" y="256">HTTP poll</text></g>
+
+        <circle class="flow-dot display"><animateMotion dur="2.2s" begin="0s"      repeatCount="indefinite"><mpath href="#b-flow-display"/></animateMotion></circle>
+        <circle class="flow-dot display"><animateMotion dur="2.2s" begin="0.733s"  repeatCount="indefinite"><mpath href="#b-flow-display"/></animateMotion></circle>
+        <circle class="flow-dot display"><animateMotion dur="2.2s" begin="1.467s"  repeatCount="indefinite"><mpath href="#b-flow-display"/></animateMotion></circle>
+
+        <circle class="flow-dot writer"><animateMotion dur="2.4s" begin="0s"   repeatCount="indefinite"><mpath href="#b-flow-writer"/></animateMotion></circle>
+        <circle class="flow-dot writer"><animateMotion dur="2.4s" begin="0.8s" repeatCount="indefinite"><mpath href="#b-flow-writer"/></animateMotion></circle>
+        <circle class="flow-dot writer"><animateMotion dur="2.4s" begin="1.6s" repeatCount="indefinite"><mpath href="#b-flow-writer"/></animateMotion></circle>
+      </svg>
+    </div>
+
+    <p class="caption"><strong>How it works:</strong> The Display's Serial Bridge connects out to the Reader's <code>/ws/serial</code>. The Writer's <code>SerialWriterForwarderService</code> HTTP-polls the Reader (the firmware default; WebSocket subscribe is also supported via the same service config).</p>
+    <p class="example">Real-world example: one scale read by an ESP, mirrored to a floor LCD and echoed onto a printer's serial port.</p>
+  </section>
   <section id="use-case-c"><span class="designation">Sheet C · 03</span><h2>Reader as local monitor + <span class="em">cloud forwarder</span></h2></section>
   <section id="use-case-d"><span class="designation">Sheet D · 04</span><h2>Multiple Displays from <span class="em">one Reader</span></h2></section>
   <section id="use-case-e"><span class="designation">Sheet E · 05</span><h2>Node-RED commanding a <span class="em">Writer</span></h2></section>
