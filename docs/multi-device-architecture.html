@@ -291,12 +291,9 @@
   border-bottom: 1px solid var(--ink);
   border-right: 1px solid var(--ink);
 }
-.device-card.reader  { --ink: var(--c-reader); }
-.device-card.reader  { border-color: rgba(127, 219, 255, 0.55); }
-.device-card.display { --ink: var(--c-display); }
-.device-card.display { border-color: rgba(106, 232, 179, 0.55); }
-.device-card.writer  { --ink: var(--c-writer); }
-.device-card.writer  { border-color: rgba(240, 184, 106, 0.55); }
+.device-card.reader  { --ink: var(--c-reader);  border-color: rgba(127, 219, 255, 0.55); }
+.device-card.display { --ink: var(--c-display); border-color: rgba(106, 232, 179, 0.55); }
+.device-card.writer  { --ink: var(--c-writer);  border-color: rgba(240, 184, 106, 0.55); }
 
 .device-card .designation-code {
   position: absolute;
@@ -372,6 +369,17 @@
   letter-spacing: 0.04em;
   color: var(--muted);
 }
+.device-card .source .branch {
+  display: inline-block;
+  margin-bottom: 4px;
+  padding: 1px 6px;
+  border: 1px solid var(--ink);
+  font-weight: 700;
+  font-size: 0.66rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
 
 @media (max-width: 900px) {
   .device-grid { grid-template-columns: 1fr; }
@@ -412,6 +420,7 @@
     <span class="designation">Sheet 00 · Device Reference</span>
     <h2>Device <span class="em">Reference</span></h2>
     <p class="purpose">Each ESP32 firmware variant runs a server side and a client side. The cards below summarize what each device serves and what it connects out to.</p>
+    <p class="purpose">Each device is a separate firmware build maintained on its own git branch — branches are not merged. The cards below identify the source location and branch for each variant.</p>
 
     <div class="device-grid">
       <article class="device-card reader">
@@ -432,7 +441,7 @@
           <li><code>WeightForwarderService</code> HTTP POSTs lines to a remote URL (e.g. Node-RED).</li>
         </ul>
 
-        <p class="source">src/examples/serial/SerialService.{h,cpp}<br>src/examples/weightforwarder/WeightForwarderService.{h,cpp}</p>
+        <p class="source"><span class="branch">branch · serialReader</span><br>src/examples/serial/SerialService.{h,cpp}<br>src/examples/weightforwarder/WeightForwarderService.{h,cpp}</p>
       </article>
 
       <article class="device-card display">
@@ -452,7 +461,7 @@
           <li><code>DisplayService</code> Serial Bridge connects out to a remote reader's <code>/ws/serial</code>, MQTT topic, or BLE peripheral and mirrors data on the LCD.</li>
         </ul>
 
-        <p class="source">src/examples/display/DisplayService.{h,cpp}</p>
+        <p class="source"><span class="branch">branch · display</span><br>src/examples/display/DisplayService.{h,cpp}</p>
       </article>
 
       <article class="device-card writer">
@@ -473,7 +482,7 @@
           <li><code>SerialWriterForwarderService</code> HTTP-polls or WebSocket-subscribes to a remote reader and writes received lines to the UART (and optionally USB CDC).</li>
         </ul>
 
-        <p class="source">src/examples/serialwriter/SerialWriterService.{h,cpp}<br>src/examples/serialwriter/SerialWriterForwarderService.{h,cpp}</p>
+        <p class="source"><span class="branch">branch · serialWriter</span><br>src/examples/serialwriter/SerialWriterService.{h,cpp}<br>src/examples/serialwriter/SerialWriterForwarderService.{h,cpp}</p>
       </article>
     </div>
   </section>
