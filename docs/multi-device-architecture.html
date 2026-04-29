@@ -1027,5 +1027,105 @@ body[data-reduced-motion] .flow-path { stroke-dashoffset: 0; transition: none; }
   <div class="row"><span class="k">Project</span><span class="v">Weighsoft</span></div>
 </aside>
 
+<script>
+/* ---- Packet-train cloning: turn every flow-dot into a 3-circle phosphor train ---- */
+(function () {
+  document.querySelectorAll('svg').forEach(svg => {
+    const dots = Array.from(svg.querySelectorAll('circle.flow-dot'));
+    dots.forEach(dot => {
+      // Mark the original as the lead dot.
+      dot.classList.add('lead');
+      const motion = dot.querySelector('animateMotion');
+      if (!motion) return;
+
+      const beginAttr = motion.getAttribute('begin') || '0s';
+      const beginSec = parseFloat(beginAttr);
+      if (Number.isNaN(beginSec)) return;
+
+      const dur = motion.getAttribute('dur') || '2s';
+      const mpath = motion.querySelector('mpath');
+      const pathHref = mpath ? mpath.getAttribute('href') : null;
+      if (!pathHref) return;
+
+      // Clone two trailing dots offset slightly behind the lead.
+      [['mid', 0.08], ['trail', 0.16]].forEach(([cls, delta]) => {
+        const clone = dot.cloneNode(false);
+        clone.classList.remove('lead');
+        clone.classList.add(cls);
+        const am = document.createElementNS('http://www.w3.org/2000/svg', 'animateMotion');
+        am.setAttribute('dur', dur);
+        am.setAttribute('begin', (beginSec - delta).toFixed(3) + 's');
+        am.setAttribute('repeatCount', 'indefinite');
+        const mp = document.createElementNS('http://www.w3.org/2000/svg', 'mpath');
+        mp.setAttribute('href', pathHref);
+        am.appendChild(mp);
+        clone.appendChild(am);
+        dot.parentNode.insertBefore(clone, dot);
+      });
+    });
+  });
+})();
+
+/* ---- Path-draw reveal preparation: set stroke-dasharray = path length, hide ---- */
+(function () {
+  document.querySelectorAll('.flow-path:not(.dashed)').forEach(p => {
+    try {
+      const len = p.getTotalLength();
+      if (!len) return;
+      p.style.strokeDasharray = len + ' ' + len;
+      p.style.setProperty('--draw-offset', len + 'px');
+      p.dataset.drawLength = String(len);
+    } catch (_) { /* getTotalLength fails on detached SVGs in some browsers — ignore */ }
+  });
+})();
+
+/* ---- IntersectionObserver: active nav + first-time path-draw reveal ---- */
+(function () {
+  const navLinks = document.querySelectorAll('nav#topnav a[href^="#"]');
+  const linkById = new Map();
+  navLinks.forEach(a => linkById.set(a.getAttribute('href').slice(1), a));
+
+  const sections = Array.from(linkById.keys())
+    .map(id => document.getElementById(id))
+    .filter(Boolean);
+
+  if (!('IntersectionObserver' in window) || sections.length === 0) return;
+
+  const drawn = new WeakSet();
+
+  const setActive = (id) => {
+    navLinks.forEach(a => a.classList.remove('active'));
+    const a = linkById.get(id);
+    if (a) a.classList.add('active');
+  };
+
+  const drawPaths = (section) => {
+    if (drawn.has(section)) return;
+    drawn.add(section);
+    section.querySelectorAll('.flow-path:not(.dashed)').forEach(p => {
+      // Trigger transition by zeroing the stroke-dashoffset.
+      requestAnimationFrame(() => p.style.setProperty('--draw-offset', '0px'));
+    });
+  };
+
+  const observer = new IntersectionObserver((entries) => {
+    // Active-nav: pick the topmost intersecting section.
+    const visible = entries
+      .filter(e => e.isIntersecting)
+      .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+    if (visible.length > 0) setActive(visible[0].target.id);
+
+    // Path-draw: any entry that just became intersecting gets its paths drawn.
+    entries.forEach(e => {
+      if (e.isIntersecting) drawPaths(e.target);
+    });
+  }, {
+    rootMargin: '-80px 0px -50% 0px',
+    threshold: 0,
+  });
+
+  sections.forEach(s => observer.observe(s));
+})();
+</script>
 </body>
 </html>
