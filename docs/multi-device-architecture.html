@@ -955,7 +955,68 @@ body[data-reduced-motion] .flow-path { stroke-dashoffset: 0; transition: none; }
     <p class="caption"><strong>How it works:</strong> The Writer's <code>SerialWriterForwarderService</code> is configured with the Reader as its source URL. The Writer pulls every line and re-emits it on its own UART. The dashed segment is the WiFi hop; dots traverse it continuously so the visual reads as one stream from device A to device B.</p>
     <p class="example">Real-world example: two pieces of legacy serial equipment that need to share data but are physically too far apart for an RS-232 cable.</p>
   </section>
-  <section id="use-case-h"><span class="designation">Sheet H · 08</span><h2>Mixed protocol <span class="em">fan-out</span></h2></section>
+  <section id="use-case-h"><span class="designation">Sheet H · 08</span><h2>Mixed protocol <span class="em">fan-out</span></h2>
+    <p class="purpose">One Reader, four consumers, four protocols — all running concurrently from the same source line.</p>
+
+    <div class="diagram" role="img" aria-labelledby="diag-h-title">
+      <svg viewBox="0 0 900 360" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+        <title id="diag-h-title">One Serial Reader serving a Display via WebSocket, a Writer via HTTP poll, Node-RED via HTTP POST, and a mobile device via BLE.</title>
+
+        <rect class="dev-box physical" x="20" y="160" width="90" height="40"/>
+        <text class="dev-name" x="65" y="186">Scale</text>
+        <line x1="110" y1="180" x2="180" y2="180" stroke="#8b5cf6" stroke-width="2"/>
+
+        <text class="dev-role" x="250" y="142">Reader · Server</text>
+        <rect class="dev-box reader" x="180" y="150" width="140" height="60"/>
+        <text class="dev-name" x="250" y="186">Reader</text>
+
+        <text class="dev-role" x="710" y="22">Display · Client</text>
+        <rect class="dev-box display" x="620" y="30"  width="180" height="50"/>
+        <text class="dev-name" x="710" y="60">Display</text>
+
+        <text class="dev-role" x="710" y="112">Writer · Client</text>
+        <rect class="dev-box writer" x="620" y="120" width="180" height="50"/>
+        <text class="dev-name" x="710" y="150">Writer</text>
+
+        <text class="dev-role" x="710" y="202">Node-RED</text>
+        <rect class="dev-box nodered" x="620" y="210" width="180" height="50"/>
+        <text class="dev-name" x="710" y="240">Node-RED</text>
+
+        <text class="dev-role" x="710" y="292">Mobile · BLE</text>
+        <rect class="dev-box mobile" x="620" y="300" width="180" height="50"/>
+        <text class="dev-name" x="710" y="330">Mobile</text>
+
+        <path id="h-display" class="flow-path display" d="M 320 160 Q 470 60  620 55"/>
+        <path id="h-writer"  class="flow-path writer"  d="M 320 170 Q 470 145 620 145"/>
+        <path id="h-nodered" class="flow-path nodered" d="M 320 195 Q 470 235 620 235"/>
+        <path id="h-mobile"  class="flow-path mobile"  d="M 320 205 Q 470 325 620 325"/>
+
+        <g class="proto-pill"><rect x="445" y="55"  width="40" height="16"/><text x="465" y="63">WS</text></g>
+        <g class="proto-pill"><rect x="430" y="120" width="70" height="16"/><text x="465" y="128">HTTP poll</text></g>
+        <g class="proto-pill"><rect x="430" y="218" width="70" height="16"/><text x="465" y="226">HTTP POST</text></g>
+        <g class="proto-pill"><rect x="445" y="300" width="40" height="16"/><text x="465" y="308">BLE</text></g>
+
+        <circle class="flow-dot display"><animateMotion dur="2.4s" begin="0s"   repeatCount="indefinite"><mpath href="#h-display"/></animateMotion></circle>
+        <circle class="flow-dot display"><animateMotion dur="2.4s" begin="0.8s" repeatCount="indefinite"><mpath href="#h-display"/></animateMotion></circle>
+        <circle class="flow-dot display"><animateMotion dur="2.4s" begin="1.6s" repeatCount="indefinite"><mpath href="#h-display"/></animateMotion></circle>
+
+        <circle class="flow-dot writer"><animateMotion dur="2.0s" begin="0s"     repeatCount="indefinite"><mpath href="#h-writer"/></animateMotion></circle>
+        <circle class="flow-dot writer"><animateMotion dur="2.0s" begin="0.667s" repeatCount="indefinite"><mpath href="#h-writer"/></animateMotion></circle>
+        <circle class="flow-dot writer"><animateMotion dur="2.0s" begin="1.333s" repeatCount="indefinite"><mpath href="#h-writer"/></animateMotion></circle>
+
+        <circle class="flow-dot nodered"><animateMotion dur="2.0s" begin="0s"     repeatCount="indefinite"><mpath href="#h-nodered"/></animateMotion></circle>
+        <circle class="flow-dot nodered"><animateMotion dur="2.0s" begin="0.667s" repeatCount="indefinite"><mpath href="#h-nodered"/></animateMotion></circle>
+        <circle class="flow-dot nodered"><animateMotion dur="2.0s" begin="1.333s" repeatCount="indefinite"><mpath href="#h-nodered"/></animateMotion></circle>
+
+        <circle class="flow-dot mobile"><animateMotion dur="2.4s" begin="0s"   repeatCount="indefinite"><mpath href="#h-mobile"/></animateMotion></circle>
+        <circle class="flow-dot mobile"><animateMotion dur="2.4s" begin="0.8s" repeatCount="indefinite"><mpath href="#h-mobile"/></animateMotion></circle>
+        <circle class="flow-dot mobile"><animateMotion dur="2.4s" begin="1.6s" repeatCount="indefinite"><mpath href="#h-mobile"/></animateMotion></circle>
+      </svg>
+    </div>
+
+    <p class="caption"><strong>How it works:</strong> Each consumer uses the protocol best suited to it. Display subscribes via <code>/ws/serial</code>. Writer's Forwarder HTTP-polls the Reader. Node-RED gets HTTP POSTs from the Reader's <code>WeightForwarderService</code>. A mobile app reads the Reader's BLE notify characteristic. The pink Mobile/BLE consumer appears only here.</p>
+    <p class="example">Real-world example: one reader, four consumers — a single source of truth feeding every part of the operation in the protocol that suits each consumer.</p>
+  </section>
 </main>
 
 <aside id="titleblock" aria-hidden="true">
