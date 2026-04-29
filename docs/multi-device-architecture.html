@@ -723,7 +723,50 @@ body[data-reduced-motion] .flow-path { stroke-dashoffset: 0; transition: none; }
     <p class="caption"><strong>How it works:</strong> The Display's Serial Bridge connects out to the Reader's <code>/ws/serial</code>. The Writer's <code>SerialWriterForwarderService</code> HTTP-polls the Reader (the firmware default; WebSocket subscribe is also supported via the same service config).</p>
     <p class="example">Real-world example: one scale read by an ESP, mirrored to a floor LCD and echoed onto a printer's serial port.</p>
   </section>
-  <section id="use-case-c"><span class="designation">Sheet C · 03</span><h2>Reader as local monitor + <span class="em">cloud forwarder</span></h2></section>
+  <section id="use-case-c">
+    <span class="designation">Sheet C · 03</span>
+    <h2>Reader as local monitor + <span class="em">cloud forwarder</span></h2>
+    <p class="purpose">A single Reader's server serves a Display while its own client side (Forwarder) pushes the same stream to Node-RED. Both flows run simultaneously.</p>
+
+    <div class="diagram" role="img" aria-labelledby="diag-c-title">
+      <svg viewBox="0 0 900 360" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+        <title id="diag-c-title">One Reader simultaneously serving a Display via WebSocket and forwarding to Node-RED via HTTP POST.</title>
+
+        <rect class="dev-box physical" x="20" y="150" width="90" height="40"/>
+        <text class="dev-name" x="65" y="176">Scale</text>
+        <line x1="110" y1="170" x2="180" y2="170" stroke="#8b5cf6" stroke-width="2"/>
+
+        <text class="dev-role" x="250" y="132">Reader · Server + Client</text>
+        <rect class="dev-box reader" x="180" y="140" width="140" height="60"/>
+        <text class="dev-name" x="250" y="176">Reader</text>
+
+        <text class="dev-role" x="710" y="32">Display · Client</text>
+        <rect class="dev-box display" x="620" y="40" width="180" height="60"/>
+        <text class="dev-name" x="710" y="76">Display</text>
+
+        <text class="dev-role" x="710" y="232">Node-RED</text>
+        <rect class="dev-box nodered" x="620" y="240" width="180" height="60"/>
+        <text class="dev-name" x="710" y="276">Node-RED</text>
+
+        <path id="c-flow-display" class="flow-path display" d="M 320 150 Q 470 70  620 70"/>
+        <path id="c-flow-nodered" class="flow-path nodered" d="M 320 190 Q 470 270 620 270"/>
+
+        <g class="proto-pill"><rect x="430" y="80"  width="40" height="16"/><text x="450" y="88">WS</text></g>
+        <g class="proto-pill"><rect x="430" y="248" width="60" height="16"/><text x="460" y="256">HTTP POST</text></g>
+
+        <circle class="flow-dot display"><animateMotion dur="2.2s" begin="0s"     repeatCount="indefinite"><mpath href="#c-flow-display"/></animateMotion></circle>
+        <circle class="flow-dot display"><animateMotion dur="2.2s" begin="0.733s" repeatCount="indefinite"><mpath href="#c-flow-display"/></animateMotion></circle>
+        <circle class="flow-dot display"><animateMotion dur="2.2s" begin="1.467s" repeatCount="indefinite"><mpath href="#c-flow-display"/></animateMotion></circle>
+
+        <circle class="flow-dot nodered"><animateMotion dur="2.4s" begin="0s"   repeatCount="indefinite"><mpath href="#c-flow-nodered"/></animateMotion></circle>
+        <circle class="flow-dot nodered"><animateMotion dur="2.4s" begin="0.8s" repeatCount="indefinite"><mpath href="#c-flow-nodered"/></animateMotion></circle>
+        <circle class="flow-dot nodered"><animateMotion dur="2.4s" begin="1.6s" repeatCount="indefinite"><mpath href="#c-flow-nodered"/></animateMotion></circle>
+      </svg>
+    </div>
+
+    <p class="caption"><strong>How it works:</strong> The Reader's <code>SerialService</code> serves the Display over <code>/ws/serial</code>. In the same firmware, <code>WeightForwarderService</code> independently HTTP-POSTs every parsed line to Node-RED. Server side and client side run in parallel inside the same ESP.</p>
+    <p class="example">Real-world example: local LCD on the production line for the operator, cloud logging in parallel for the office.</p>
+  </section>
   <section id="use-case-d"><span class="designation">Sheet D · 04</span><h2>Multiple Displays from <span class="em">one Reader</span></h2></section>
   <section id="use-case-e"><span class="designation">Sheet E · 05</span><h2>Node-RED commanding a <span class="em">Writer</span></h2></section>
   <section id="use-case-f"><span class="designation">Sheet F · 06</span><h2>MQTT broker <span class="em">as hub</span></h2></section>
