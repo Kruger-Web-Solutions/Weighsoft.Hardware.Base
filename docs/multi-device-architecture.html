@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WHB-ARCH-001 — Weighsoft Multi-Device Architecture</title>
+  <style>
+    /* ---------- Self-hosted fonts ---------- */
+    @font-face {
+      font-family: 'JetBrains Mono';
+      font-style: normal;
+      font-weight: 700;
+      font-display: swap;
+      src: url('assets/fonts/JetBrainsMono-Bold.woff2') format('woff2');
+    }
+    @font-face {
+      font-family: 'IBM Plex Sans Condensed';
+      font-style: normal;
+      font-weight: 400;
+      font-display: swap;
+      src: url('assets/fonts/IBMPlexSansCondensed-Regular.woff2') format('woff2');
+    }
+
+    /* ---------- Tokens ---------- */
+    :root {
+      --bg: #08111d;
+      --grid: #1c3a5e;
+      --paper: rgba(127, 219, 255, 0.025);
+      --ink-rule: #2a4a6e;
+      --ink-1: #7fdbff;
+      --text: #cbe7ff;
+      --muted: #6b89a8;
+
+      --c-reader:   #7fdbff;
+      --c-display:  #6ae8b3;
+      --c-writer:   #f0b86a;
+      --c-nodered:  #f08383;
+      --c-mqtt:     #b78dff;
+      --c-mobile:   #ff9ec7;
+      --c-physical: #8ca0c0;
+
+      --diagram-h: 380px;
+
+      --font-mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+      --font-sans: 'IBM Plex Sans Condensed', 'IBM Plex Sans', sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      background-color: var(--bg);
+      background-image:
+        repeating-linear-gradient(0deg,  var(--grid) 0 1px, transparent 1px 24px),
+        repeating-linear-gradient(90deg, var(--grid) 0 1px, transparent 1px 24px);
+      background-size: 24px 24px;
+      background-attachment: fixed;
+      color: var(--text);
+      font-family: var(--font-sans);
+      font-size: 15px;
+      line-height: 1.55;
+      letter-spacing: 0.005em;
+    }
+
+    /* Faint film-grain overlay so the page reads as printed paper */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 1;
+      opacity: 0.035;
+      mix-blend-mode: screen;
+      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.6 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+    }
+
+    /* ---------- Sticky nav ---------- */
+    nav#topnav {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 28px;
+      background: rgba(8, 17, 29, 0.82);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      border-bottom: 1px solid var(--ink-rule);
+    }
+    nav#topnav .brand {
+      font-family: var(--font-mono);
+      font-weight: 700;
+      font-size: 0.78rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--ink-1);
+    }
+    nav#topnav .brand .dim { color: var(--muted); margin-right: 10px; }
+    nav#topnav ul {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      gap: 0;
+      border: 1px solid var(--ink-rule);
+    }
+    nav#topnav li + li { border-left: 1px solid var(--ink-rule); }
+    nav#topnav a {
+      display: inline-block;
+      padding: 6px 12px;
+      font-family: var(--font-mono);
+      font-weight: 700;
+      font-size: 0.78rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      text-decoration: none;
+      transition: color 0.15s, background 0.15s;
+    }
+    nav#topnav a:hover  { color: var(--ink-1); background: rgba(127, 219, 255, 0.06); }
+    nav#topnav a.active { color: var(--bg); background: var(--ink-1); }
+
+    /* ---------- Page shell ---------- */
+    main {
+      position: relative;
+      z-index: 2;
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 48px 28px 96px;
+    }
+
+    /* ---------- Header ---------- */
+    header#page-header {
+      position: relative;
+      padding: 24px 0 36px;
+      margin-bottom: 8px;
+      border-bottom: 1px solid var(--ink-rule);
+    }
+    header#page-header .stamp {
+      display: inline-block;
+      padding: 4px 10px;
+      margin-bottom: 18px;
+      border: 1px solid var(--ink-1);
+      font-family: var(--font-mono);
+      font-weight: 700;
+      font-size: 0.7rem;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--ink-1);
+    }
+    header#page-header h1 {
+      margin: 0 0 12px;
+      font-family: var(--font-mono);
+      font-weight: 700;
+      font-size: 2.4rem;
+      letter-spacing: -0.01em;
+      line-height: 1.1;
+      color: var(--text);
+    }
+    header#page-header h1 .ink { color: var(--ink-1); }
+    header#page-header p {
+      margin: 0;
+      max-width: 64ch;
+      color: var(--muted);
+      font-size: 1.05rem;
+    }
+
+    /* ---------- Sections ---------- */
+    section {
+      position: relative;
+      padding: 40px 0 36px;
+      border-top: 1px solid var(--ink-rule);
+    }
+    section .designation {
+      display: inline-block;
+      margin-bottom: 8px;
+      padding: 2px 8px;
+      border: 1px solid var(--ink-rule);
+      font-family: var(--font-mono);
+      font-weight: 700;
+      font-size: 0.7rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    section h2 {
+      margin: 0 0 6px;
+      font-family: var(--font-mono);
+      font-weight: 700;
+      font-size: 1.35rem;
+      letter-spacing: 0.01em;
+      color: var(--text);
+    }
+    section h2 .em { color: var(--ink-1); }
+    section .purpose {
+      margin: 0 0 22px;
+      max-width: 72ch;
+      color: var(--muted);
+    }
+    section .caption {
+      margin: 18px 0 6px;
+      max-width: 72ch;
+      color: var(--text);
+      font-size: 0.95rem;
+    }
+    section .caption strong {
+      font-family: var(--font-mono);
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      font-size: 0.78rem;
+      color: var(--ink-1);
+      margin-right: 8px;
+    }
+    section .example {
+      margin: 0;
+      max-width: 72ch;
+      color: var(--muted);
+      font-size: 0.88rem;
+      font-style: italic;
+    }
+    section code {
+      font-family: var(--font-mono);
+      font-size: 0.85em;
+      padding: 1px 4px;
+      background: var(--paper);
+      border: 1px solid var(--ink-rule);
+      color: var(--ink-1);
+    }
+
+    /* ---------- Title block (bottom-right, like an engineering drawing) ---------- */
+    aside#titleblock {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      z-index: 5;
+      width: 232px;
+      padding: 10px 12px;
+      background: rgba(8, 17, 29, 0.78);
+      border: 1px solid var(--ink-1);
+      font-family: var(--font-mono);
+      font-size: 0.66rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      pointer-events: none;
+    }
+    aside#titleblock .row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding: 2px 0;
+      border-bottom: 1px dashed var(--ink-rule);
+    }
+    aside#titleblock .row:last-child { border-bottom: none; }
+    aside#titleblock .row .k { color: var(--muted); }
+    aside#titleblock .row .v { color: var(--ink-1); font-weight: 700; }
+    @media (max-width: 720px) { aside#titleblock { display: none; } }
+
+    /* ---------- Responsive ---------- */
+    @media (max-width: 720px) {
+      nav#topnav { flex-direction: column; align-items: flex-start; gap: 10px; }
+      nav#topnav ul { flex-wrap: wrap; }
+      header#page-header h1 { font-size: 1.7rem; }
+    }
+  </style>
+</head>
+<body>
+
+<nav id="topnav" aria-label="Page navigation">
+  <span class="brand"><span class="dim">WHB-ARCH-001 //</span> Multi-Device Architecture</span>
+  <ul>
+    <li><a href="#use-case-a">A</a></li>
+    <li><a href="#use-case-b">B</a></li>
+    <li><a href="#use-case-c">C</a></li>
+    <li><a href="#use-case-d">D</a></li>
+    <li><a href="#use-case-e">E</a></li>
+    <li><a href="#use-case-f">F</a></li>
+    <li><a href="#use-case-g">G</a></li>
+    <li><a href="#use-case-h">H</a></li>
+  </ul>
+</nav>
+
+<main>
+  <header id="page-header">
+    <span class="stamp">Drawing · Rev A · NTS</span>
+    <h1>Multi-Device <span class="ink">Architecture</span></h1>
+    <p>How the Serial Reader, Display, and Serial Writer ESP32 firmware variants compose into larger systems. Each ESP runs a server side and a client side; the diagrams below trace the wires between them.</p>
+  </header>
+
+  <section id="device-reference">
+    <span class="designation">Sheet 00 · Device Reference</span>
+    <h2>Device <span class="em">Reference</span></h2>
+    <p class="purpose">Each ESP32 firmware variant runs a server side and a client side. The cards below summarize what each device serves and what it connects out to.</p>
+  </section>
+
+  <section id="use-case-a"><span class="designation">Sheet A · 01</span><h2>Multiple Readers → <span class="em">Node-RED</span></h2></section>
+  <section id="use-case-b"><span class="designation">Sheet B · 02</span><h2>1 Reader + Display + <span class="em">Writer</span></h2></section>
+  <section id="use-case-c"><span class="designation">Sheet C · 03</span><h2>Reader as local monitor + <span class="em">cloud forwarder</span></h2></section>
+  <section id="use-case-d"><span class="designation">Sheet D · 04</span><h2>Multiple Displays from <span class="em">one Reader</span></h2></section>
+  <section id="use-case-e"><span class="designation">Sheet E · 05</span><h2>Node-RED commanding a <span class="em">Writer</span></h2></section>
+  <section id="use-case-f"><span class="designation">Sheet F · 06</span><h2>MQTT broker <span class="em">as hub</span></h2></section>
+  <section id="use-case-g"><span class="designation">Sheet G · 07</span><h2>Serial WiFi <span class="em">bridge</span></h2></section>
+  <section id="use-case-h"><span class="designation">Sheet H · 08</span><h2>Mixed protocol <span class="em">fan-out</span></h2></section>
+</main>
+
+<aside id="titleblock" aria-hidden="true">
+  <div class="row"><span class="k">Drawing</span><span class="v">WHB-ARCH-001</span></div>
+  <div class="row"><span class="k">Rev</span><span class="v">A</span></div>
+  <div class="row"><span class="k">Date</span><span class="v">2026-04-29</span></div>
+  <div class="row"><span class="k">Scale</span><span class="v">NTS</span></div>
+  <div class="row"><span class="k">Project</span><span class="v">Weighsoft</span></div>
+</aside>
+
+</body>
+</html>
