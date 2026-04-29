@@ -381,6 +381,130 @@
   color: var(--ink);
 }
 
+/* ---------- Diagram wrapper ---------- */
+.diagram {
+  position: relative;
+  margin-top: 12px;
+  padding: 18px 18px 14px;
+  background: var(--paper);
+  border: 1px solid var(--ink-rule);
+  overflow-x: auto;
+}
+.diagram::before,
+.diagram::after {
+  content: '';
+  position: absolute;
+  width: 14px; height: 14px;
+  pointer-events: none;
+}
+.diagram::before {
+  top: -1px; left: -1px;
+  border-top: 1px solid var(--ink-1);
+  border-left: 1px solid var(--ink-1);
+}
+.diagram::after {
+  bottom: -1px; right: -1px;
+  border-bottom: 1px solid var(--ink-1);
+  border-right: 1px solid var(--ink-1);
+}
+.diagram svg {
+  display: block;
+  width: 100%;
+  min-width: 600px;
+  height: var(--diagram-h);
+  font-family: var(--font-mono);
+}
+
+/* ---------- Device boxes drawn inside SVG ---------- */
+.dev-box {
+  fill: var(--paper);
+  stroke-width: 1.5;
+  rx: 0; ry: 0;
+}
+.dev-box.reader   { stroke: var(--c-reader); }
+.dev-box.display  { stroke: var(--c-display); }
+.dev-box.writer   { stroke: var(--c-writer); }
+.dev-box.nodered  { stroke: var(--c-nodered); }
+.dev-box.mqtt     { stroke: var(--c-mqtt); }
+.dev-box.mobile   { stroke: var(--c-mobile); }
+.dev-box.physical { stroke: var(--c-physical); stroke-dasharray: 4 3; }
+
+.dev-name {
+  fill: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  text-anchor: middle;
+  font-family: var(--font-mono);
+}
+.dev-role {
+  fill: var(--muted);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  text-anchor: middle;
+  font-family: var(--font-mono);
+}
+
+/* ---------- Flow paths ---------- */
+.flow-path {
+  fill: none;
+  stroke-width: 1.5;
+  stroke-linecap: square;
+  /* Path-draw reveal: dasharray = path length is set per-path inline.
+     The Task 12 script zeroes --draw-offset when the section enters view. */
+  stroke-dashoffset: var(--draw-offset, 0);
+  transition: stroke-dashoffset 800ms cubic-bezier(0.65, 0, 0.35, 1);
+}
+.flow-path.reader   { stroke: var(--c-reader); }
+.flow-path.display  { stroke: var(--c-display); }
+.flow-path.writer   { stroke: var(--c-writer); }
+.flow-path.nodered  { stroke: var(--c-nodered); }
+.flow-path.mqtt     { stroke: var(--c-mqtt); }
+.flow-path.mobile   { stroke: var(--c-mobile); }
+.flow-path.physical { stroke: var(--c-physical); }
+.flow-path.dashed   { stroke-dasharray: 6 5 !important; opacity: 0.55; }
+
+/* ---------- Animated dots (packet trains: 3 dots, decreasing opacity) ---------- */
+.flow-dot { r: 3.5; }
+.flow-dot.lead   { opacity: 1; }
+.flow-dot.mid    { opacity: 0.55; r: 2.8; }
+.flow-dot.trail  { opacity: 0.25; r: 2.2; }
+.flow-dot.reader   { fill: var(--c-reader); }
+.flow-dot.display  { fill: var(--c-display); }
+.flow-dot.writer   { fill: var(--c-writer); }
+.flow-dot.nodered  { fill: var(--c-nodered); }
+.flow-dot.mqtt     { fill: var(--c-mqtt); }
+.flow-dot.mobile   { fill: var(--c-mobile); }
+.flow-dot.physical { fill: var(--c-physical); }
+
+/* ---------- Protocol pills as schematic callouts ----------
+   Existing diagram markup uses <g class="proto-pill"><rect/><text/></g>.
+   We restyle that rect with sharp corners + paper fill + ink hairline so
+   it reads as a callout box on a schematic, not a Material chip.        */
+.proto-pill rect {
+  fill: var(--bg);
+  stroke: var(--ink-rule);
+  stroke-width: 1;
+  rx: 0; ry: 0;
+}
+.proto-pill text {
+  fill: var(--ink-1);
+  font-size: 9.5px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  text-anchor: middle;
+  dominant-baseline: middle;
+}
+
+/* ---------- Reduced motion ---------- */
+body[data-reduced-motion] .flow-dot { display: none; }
+body[data-reduced-motion] .flow-path { stroke-dashoffset: 0; transition: none; }
+
 @media (max-width: 900px) {
   .device-grid { grid-template-columns: 1fr; }
 }
