@@ -1126,6 +1126,31 @@ body[data-reduced-motion] .flow-path { stroke-dashoffset: 0; transition: none; }
 
   sections.forEach(s => observer.observe(s));
 })();
+
+/* ---- prefers-reduced-motion: pause/unpause all SVG SMIL animations ---- */
+(function () {
+  const mql = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+  const apply = (reduced) => {
+    document.querySelectorAll('svg').forEach(svg => {
+      if (typeof svg.pauseAnimations === 'function') {
+        if (reduced) svg.pauseAnimations();
+        else svg.unpauseAnimations();
+      }
+    });
+    if (reduced) document.body.setAttribute('data-reduced-motion', '');
+    else document.body.removeAttribute('data-reduced-motion');
+  };
+
+  apply(mql.matches);
+
+  if (typeof mql.addEventListener === 'function') {
+    mql.addEventListener('change', e => apply(e.matches));
+  } else if (typeof mql.addListener === 'function') {
+    // Older Safari fallback
+    mql.addListener(e => apply(e.matches));
+  }
+})();
 </script>
 </body>
 </html>
