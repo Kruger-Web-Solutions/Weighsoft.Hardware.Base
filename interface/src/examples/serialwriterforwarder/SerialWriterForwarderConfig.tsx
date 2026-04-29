@@ -31,7 +31,7 @@ const SerialWriterForwarderConfig: FC = () => {
       update: updateSerialWriterForwarder,
     });
 
-  const setField = (key: keyof SerialWriterForwarderData) => (value: any) => {
+  const setField = (key: keyof SerialWriterForwarderData) => (value: string | number | boolean) => {
     setData((prev) => (prev ? { ...prev, [key]: value } : prev));
   };
 
@@ -94,7 +94,7 @@ const SerialWriterForwarderConfig: FC = () => {
         <TextField
           fullWidth
           label="Source URL"
-          value={data.source_url}
+          value={data.source_url ?? ''}
           onChange={(e) => setField('source_url')(e.target.value)}
           placeholder={
             data.protocol === ForwarderSourceProtocol.HTTP
@@ -111,7 +111,7 @@ const SerialWriterForwarderConfig: FC = () => {
         <TextField
           fullWidth
           label="JSON Field"
-          value={data.json_field}
+          value={data.json_field ?? ''}
           onChange={(e) => setField('json_field')(e.target.value)}
           placeholder="last_line"
           helperText="Field name in the JSON response to use as the serial line (default: last_line)"

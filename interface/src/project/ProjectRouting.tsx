@@ -9,7 +9,7 @@ import SerialWriterForwarder from '../examples/serialwriterforwarder/SerialWrite
 const ProjectRouting: FC = () => {
   return (
     <Routes>
-      <Route path="/*" element={<Navigate to="serialwriter/information" />} />
+      <Route path="/*" element={<Navigate to="serialwriter/info" />} />
       <Route path="led-example/*" element={<LedExample />} />
       <Route path="diagnostics/*" element={<Diagnostics />} />
       <Route path="serialwriter/*" element={<SerialWriter />} />

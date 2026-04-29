@@ -46,6 +46,9 @@ SerialWriterService::SerialWriterService(AsyncWebServer* server,
   _mqttClient->onConnect(std::bind(&SerialWriterService::configureMqtt, this));
   _serialStarted = false;
   _suspended = false;
+  _appliedBaudrate = 0;
+  _appliedSerialConfig = 0;
+  _appliedLineTerminator = "";
 
   // Disable FSPersistence auto-handler to prevent flash thrash on every pending_line write
   _fsPersistence.disableUpdateHandler();
@@ -128,7 +131,7 @@ void SerialWriterService::writePendingLine() {
 #endif
 }
 
-void SerialWriterService::writeLineWithTerminatorToUsbSerial(const String& line) const {
+void SerialWriterService::writeLineWithTerminatorToUsbSerial(const String& line) {
 #ifdef ESP32
   // USB sink is the dedicated native USB CDC stream wired in main.cpp via
   // setDataUsbCdc(). We deliberately do NOT fall back to `Serial` here: that would
@@ -157,7 +160,7 @@ void SerialWriterService::writeLineWithTerminatorToUsbSerial(const String& line)
 #endif
 }
 
-void SerialWriterService::writeLineWithTerminatorToSerial1(const String& line) const {
+void SerialWriterService::writeLineWithTerminatorToSerial1(const String& line) {
 #ifdef ESP32
   SERIAL_WRITER_PORT.print(line);
   if (_state.lineTerminator == SERIAL_WRITER_TERMINATOR_LF) {
@@ -177,9 +180,12 @@ void SerialWriterService::enqueueForwardedLine(const String& line, uint8_t sinkM
     return;
   }
 
+  bool wroteAnything = false;
+
   if (sinkMask & SERIAL_WRITER_FORWARDER_SINK_USB) {
     writeLineWithTerminatorToUsbSerial(line);
     Serial.printf("[SerialWriter] Forwarder sink=USB len=%u\n", (unsigned)line.length());
+    wroteAnything = true;
   }
 
   if (sinkMask & SERIAL_WRITER_FORWARDER_SINK_SERIAL1) {
@@ -190,8 +196,13 @@ void SerialWriterService::enqueueForwardedLine(const String& line, uint8_t sinkM
     } else {
       writeLineWithTerminatorToSerial1(line);
       Serial.printf("[SerialWriter] Forwarder sink=Serial1 len=%u\n", (unsigned)line.length());
+      wroteAnything = true;
     }
 #endif
+  }
+
+  if (!wroteAnything) {
+    return;
   }
 
   unsigned long now = millis();
@@ -204,6 +215,20 @@ void SerialWriterService::enqueueForwardedLine(const String& line, uint8_t sinkM
 }
 
 void SerialWriterService::onConfigUpdated() {
+  // Guard: only restart UART / write FS when actual hardware config changed.
+  // pending_line POSTs reach here too; they change no hardware parameters so
+  // skip the 100ms blocking Serial1.end()+begin() and unnecessary flash write.
+  uint32_t newBaud = _state.baudrate;
+  if (newBaud < SERIAL_WRITER_MIN_BAUDRATE || newBaud > SERIAL_WRITER_MAX_BAUDRATE)
+    newBaud = SERIAL_WRITER_DEFAULT_BAUDRATE;
+  uint32_t newConfig = getSerialConfig();
+  bool serialChanged = (newBaud != _appliedBaudrate || newConfig != _appliedSerialConfig);
+  bool termChanged   = (_state.lineTerminator != _appliedLineTerminator);
+
+  if (!serialChanged && !termChanged) {
+    return;
+  }
+
   Serial.printf("[SerialWriter] Config updated - baud=%lu, terminator='%s'\n",
                 (unsigned long)_state.baudrate,
                 _state.lineTerminator.c_str());
@@ -211,7 +236,11 @@ void SerialWriterService::onConfigUpdated() {
   bool saved = _fsPersistence.writeToFS();
   Serial.printf("[SerialWriter] Config persisted: %s\n", saved ? "OK" : "FAILED");
 
-  applySerialConfig();
+  _appliedLineTerminator = _state.lineTerminator;
+
+  if (serialChanged) {
+    applySerialConfig();
+  }
 }
 
 uint32_t SerialWriterService::getSerialConfig() {
@@ -253,6 +282,8 @@ void SerialWriterService::applySerialConfig() {
   SERIAL_WRITER_PORT.begin(baud, config, SERIAL_WRITER_RX_PIN, SERIAL_WRITER_TX_PIN);
   delay(100);
   _serialStarted = true;
+  _appliedBaudrate = baud;
+  _appliedSerialConfig = config;
 
   Serial.printf("[SerialWriter] Serial1 started: %lu baud, %u%c%u, RX=GPIO%d, TX=GPIO%d\n",
                 (unsigned long)baud,

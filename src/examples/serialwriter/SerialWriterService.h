@@ -91,14 +91,17 @@ class SerialWriterService : public StatefulService<SerialWriterState> {
 
   bool _serialStarted;
   bool _suspended;
+  uint32_t _appliedBaudrate;
+  uint32_t _appliedSerialConfig;
+  String _appliedLineTerminator;
 
 #ifdef ESP32
   USBCDC* _dataUsbCdc = nullptr;
 #endif
 
   void writePendingLine();
-  void writeLineWithTerminatorToUsbSerial(const String& line) const;
-  void writeLineWithTerminatorToSerial1(const String& line) const;
+  void writeLineWithTerminatorToUsbSerial(const String& line);
+  void writeLineWithTerminatorToSerial1(const String& line);
   void applySerialConfig();
   uint32_t getSerialConfig();
   void onConfigUpdated();

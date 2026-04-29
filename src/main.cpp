@@ -56,29 +56,29 @@ void setup() {
   Serial.println(ESP.getFreeHeap());
   Serial.println();
 
-  Serial.println(F("[1/9] Creating web server..."));
+  Serial.println(F("[1/10] Creating web server..."));
   server = new AsyncWebServer(80);
-  Serial.println(F("[1/9] Web server created OK"));
+  Serial.println(F("[1/10] Web server created OK"));
 
-  Serial.println(F("[2/9] Initializing framework..."));
+  Serial.println(F("[2/10] Initializing framework..."));
   esp8266React = new ESP8266React(server);
-  Serial.println(F("[2/9] Framework created OK"));
+  Serial.println(F("[2/10] Framework created OK"));
 
-  Serial.println(F("[3/9] Starting framework services..."));
+  Serial.println(F("[3/10] Starting framework services..."));
   esp8266React->begin();
-  Serial.println(F("[3/9] Framework initialized OK"));
+  Serial.println(F("[3/10] Framework initialized OK"));
 
-  Serial.println(F("[4/9] Initializing version service..."));
+  Serial.println(F("[4/10] Initializing version service..."));
   versionService = new VersionService(server, esp8266React->getSecurityManager());
   versionService->begin();
-  Serial.println(F("[4/9] Version service loaded OK"));
+  Serial.println(F("[4/10] Version service loaded OK"));
 
-  Serial.println(F("[5/9] Initializing UART Mode service..."));
+  Serial.println(F("[5/10] Initializing UART Mode service..."));
   uartModeService = new UartModeService(server, esp8266React->getFS(), esp8266React->getSecurityManager());
   uartModeService->begin();
-  Serial.println(F("[5/9] UART Mode service loaded OK"));
+  Serial.println(F("[5/10] UART Mode service loaded OK"));
 
-  Serial.println(F("[6/9] Initializing LED example service..."));
+  Serial.println(F("[6/10] Initializing LED example service..."));
   ledExampleService = new LedExampleService(server,
                                             esp8266React->getSecurityManager(),
                                             esp8266React->getMqttClient()
@@ -88,9 +88,9 @@ void setup() {
 #endif
   );
   ledExampleService->begin();
-  Serial.println(F("[6/9] LED example service loaded OK"));
+  Serial.println(F("[6/10] LED example service loaded OK"));
 
-  Serial.println(F("[7/9] Initializing Serial Writer service..."));
+  Serial.println(F("[7/10] Initializing Serial Writer service..."));
   delay(200);  // ESP32-S3: allow hardware to settle before Serial1 init
   serialWriterService = new SerialWriterService(server,
                                                 esp8266React->getFS(),
@@ -105,18 +105,18 @@ void setup() {
   serialWriterService->setDataUsbCdc(&dataUsbCdc);
 #endif
   serialWriterService->begin();
-  Serial.println(F("[7/9] Serial Writer service loaded OK"));
+  Serial.println(F("[7/10] Serial Writer service loaded OK"));
 
-  Serial.println(F("[7/9] Initializing Serial Writer Forwarder service..."));
+  Serial.println(F("[8/10] Initializing Serial Writer Forwarder service..."));
   serialWriterForwarderService = new SerialWriterForwarderService(
       server, esp8266React->getFS(), esp8266React->getSecurityManager(), serialWriterService);
   serialWriterForwarderService->begin();
-  Serial.println(F("[7/9] Serial Writer Forwarder service loaded OK"));
+  Serial.println(F("[8/10] Serial Writer Forwarder service loaded OK"));
 
-  Serial.println(F("[8/9] Initializing UART Diagnostics service..."));
+  Serial.println(F("[9/10] Initializing UART Diagnostics service..."));
   diagnosticsService = new DiagnosticsService(server, esp8266React->getSecurityManager());
   diagnosticsService->begin();
-  Serial.println(F("[8/9] Diagnostics service loaded OK"));
+  Serial.println(F("[9/10] Diagnostics service loaded OK"));
 
   // Link services for Serial1 coordination
   uartModeService->setSerialWriterService(serialWriterService);
@@ -124,7 +124,7 @@ void setup() {
 
   // Apply persisted UART mode now that all services are linked
   uartModeService->applyMode();
-  Serial.println(F("[8/9] Services linked and UART mode applied"));
+  Serial.println(F("Services linked and UART mode applied"));
 
 #if FT_ENABLED(FT_BLE)
   esp8266React->getBleSettingsService()->onBleServerStarted([](BLEServer* bleServer) {
@@ -139,12 +139,12 @@ void setup() {
       serialWriterService->configureBle();
     }
   });
-  Serial.println(F("[9/9] BLE callbacks registered OK"));
+  Serial.println(F("[10/10] BLE callbacks registered OK"));
 #endif
 
-  Serial.println(F("[9/9] Starting web server..."));
+  Serial.println(F("[10/10] Starting web server..."));
   server->begin();
-  Serial.println(F("[9/9] Web server started OK"));
+  Serial.println(F("[10/10] Web server started OK"));
 
   Serial.println(F("=== System Ready! ==="));
   Serial.print(F("Free heap after init: "));
