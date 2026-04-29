@@ -853,7 +853,69 @@ body[data-reduced-motion] .flow-path { stroke-dashoffset: 0; transition: none; }
     <p class="caption"><strong>How it works:</strong> Node-RED POSTs <code>{"pending_line": "..."}</code> to the Writer's <code>/rest/serialWriter</code> endpoint. <code>SerialWriterService</code> picks up the queued line on its next loop and writes it out the UART (and optionally USB CDC).</p>
     <p class="example">Real-world example: Node-RED triggers a label printer or PLC by POSTing the command string to the Writer.</p>
   </section>
-  <section id="use-case-f"><span class="designation">Sheet F · 06</span><h2>MQTT broker <span class="em">as hub</span></h2></section>
+  <section id="use-case-f">
+    <span class="designation">Sheet F · 06</span><h2>MQTT broker <span class="em">as hub</span></h2>
+    <p class="purpose">All ESPs talk to one MQTT broker instead of each other. The broker decouples publishers and subscribers.</p>
+
+    <div class="diagram" role="img" aria-labelledby="diag-f-title">
+      <svg viewBox="0 0 900 360" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+        <title id="diag-f-title">A Reader publishes to an MQTT broker; Display, Writer, and Node-RED all subscribe.</title>
+
+        <rect class="dev-box physical" x="20" y="150" width="90" height="40"/>
+        <text class="dev-name" x="65" y="176">Scale</text>
+        <line x1="110" y1="170" x2="140" y2="170" stroke="#8b5cf6" stroke-width="2"/>
+
+        <text class="dev-role" x="210" y="132">Reader · Publisher</text>
+        <rect class="dev-box reader" x="140" y="140" width="140" height="60"/>
+        <text class="dev-name" x="210" y="176">Reader</text>
+
+        <text class="dev-role" x="450" y="132">MQTT Broker</text>
+        <rect class="dev-box mqtt" x="400" y="140" width="100" height="60"/>
+        <text class="dev-name" x="450" y="176">Broker</text>
+
+        <text class="dev-role" x="690" y="32">Display · Subscriber</text>
+        <rect class="dev-box display" x="620" y="40"  width="170" height="60"/>
+        <text class="dev-name" x="705" y="76">Display</text>
+
+        <text class="dev-role" x="690" y="132">Writer · Subscriber</text>
+        <rect class="dev-box writer" x="620" y="140" width="170" height="60"/>
+        <text class="dev-name" x="705" y="176">Writer</text>
+
+        <text class="dev-role" x="690" y="232">Node-RED</text>
+        <rect class="dev-box nodered" x="620" y="240" width="170" height="60"/>
+        <text class="dev-name" x="705" y="276">Node-RED</text>
+
+        <path id="f-pub"     class="flow-path reader"  d="M 280 170 L 400 170"/>
+        <path id="f-display" class="flow-path display" d="M 500 160 Q 560 70  620 70"/>
+        <path id="f-writer"  class="flow-path writer"  d="M 500 170 L 620 170"/>
+        <path id="f-nodered" class="flow-path nodered" d="M 500 180 Q 560 270 620 270"/>
+
+        <g class="proto-pill"><rect x="295" y="148" width="92" height="16"/><text x="341" y="156">serial/{id}/data</text></g>
+        <g class="proto-pill"><rect x="510" y="80"  width="92" height="16"/><text x="556" y="88">display/{id}/set</text></g>
+        <g class="proto-pill"><rect x="515" y="148" width="100" height="16"/><text x="565" y="156">serialwriter/{id}/send</text></g>
+        <g class="proto-pill"><rect x="510" y="248" width="92" height="16"/><text x="556" y="256">subscribe topic</text></g>
+
+        <circle class="flow-dot reader"><animateMotion dur="1.6s" begin="0s"      repeatCount="indefinite"><mpath href="#f-pub"/></animateMotion></circle>
+        <circle class="flow-dot reader"><animateMotion dur="1.6s" begin="0.533s"  repeatCount="indefinite"><mpath href="#f-pub"/></animateMotion></circle>
+        <circle class="flow-dot reader"><animateMotion dur="1.6s" begin="1.067s"  repeatCount="indefinite"><mpath href="#f-pub"/></animateMotion></circle>
+
+        <circle class="flow-dot display"><animateMotion dur="2.0s" begin="0s"     repeatCount="indefinite"><mpath href="#f-display"/></animateMotion></circle>
+        <circle class="flow-dot display"><animateMotion dur="2.0s" begin="0.667s" repeatCount="indefinite"><mpath href="#f-display"/></animateMotion></circle>
+        <circle class="flow-dot display"><animateMotion dur="2.0s" begin="1.333s" repeatCount="indefinite"><mpath href="#f-display"/></animateMotion></circle>
+
+        <circle class="flow-dot writer"><animateMotion dur="1.8s" begin="0s"   repeatCount="indefinite"><mpath href="#f-writer"/></animateMotion></circle>
+        <circle class="flow-dot writer"><animateMotion dur="1.8s" begin="0.6s" repeatCount="indefinite"><mpath href="#f-writer"/></animateMotion></circle>
+        <circle class="flow-dot writer"><animateMotion dur="1.8s" begin="1.2s" repeatCount="indefinite"><mpath href="#f-writer"/></animateMotion></circle>
+
+        <circle class="flow-dot nodered"><animateMotion dur="2.0s" begin="0s"     repeatCount="indefinite"><mpath href="#f-nodered"/></animateMotion></circle>
+        <circle class="flow-dot nodered"><animateMotion dur="2.0s" begin="0.667s" repeatCount="indefinite"><mpath href="#f-nodered"/></animateMotion></circle>
+        <circle class="flow-dot nodered"><animateMotion dur="2.0s" begin="1.333s" repeatCount="indefinite"><mpath href="#f-nodered"/></animateMotion></circle>
+      </svg>
+    </div>
+
+    <p class="caption"><strong>How it works:</strong> Reader publishes to <code>weighsoft/serial/{id}/data</code>. Display subscribes to <code>weighsoft/display/{id}/set</code>; in this topology the broker (or a Node-RED bridge node) republishes Reader data onto the Display topic. The Writer subscribes to <code>weighsoft/serialwriter/{id}/send</code> and publishes status on <code>/status</code>. Node-RED can subscribe to any of these.</p>
+    <p class="example">Real-world example: all ESPs talk to one broker; replacing or adding a device requires no IP reconfiguration on the others.</p>
+  </section>
   <section id="use-case-g"><span class="designation">Sheet G · 07</span><h2>Serial WiFi <span class="em">bridge</span></h2></section>
   <section id="use-case-h"><span class="designation">Sheet H · 08</span><h2>Mixed protocol <span class="em">fan-out</span></h2></section>
 </main>
