@@ -9,6 +9,40 @@
 
 #ifdef ESP32
 #include <esp_system.h>
+#include <WiFi.h>
+#endif
+
+#ifdef ESP32
+// Human-readable label for WiFi.getMode() so the periodic [WiFi] log line is grep-able.
+static const char* wifiModeLabel(wifi_mode_t mode) {
+  switch (mode) {
+    case WIFI_OFF:    return "OFF";
+    case WIFI_STA:    return "STA";
+    case WIFI_AP:     return "AP";
+    case WIFI_AP_STA: return "AP+STA";
+    default:          return "OTHER";
+  }
+}
+
+// One-line snapshot of the current connection state. Logged at boot once
+// the framework is up, and again every 60 s alongside [Heap]. Keeps the
+// IP / mode / signal strength visible from the COM port stream without
+// needing a REST poll.
+static void logWifiSnapshot(const char* tag) {
+  wifi_mode_t mode = WiFi.getMode();
+  bool staConnected = (mode == WIFI_STA || mode == WIFI_AP_STA) && WiFi.isConnected();
+  String staIp = staConnected ? WiFi.localIP().toString() : String("0.0.0.0");
+  uint8_t apClients = (mode == WIFI_AP || mode == WIFI_AP_STA) ? WiFi.softAPgetStationNum() : 0;
+  String apIp = (mode == WIFI_AP || mode == WIFI_AP_STA) ? WiFi.softAPIP().toString() : String("0.0.0.0");
+  Serial.printf("[%s] mode=%s sta_ip=%s sta_ssid=%s rssi=%d ap_ip=%s ap_clients=%u\n",
+                tag,
+                wifiModeLabel(mode),
+                staIp.c_str(),
+                staConnected ? WiFi.SSID().c_str() : "-",
+                staConnected ? (int)WiFi.RSSI() : 0,
+                apIp.c_str(),
+                (unsigned)apClients);
+}
 #endif
 
 #define SERIAL_BAUD_RATE 115200
@@ -196,6 +230,11 @@ void setup() {
 #ifdef ESP32
   Serial.printf("[Heap] at boot: free=%u max_alloc_heap=%u\n",
                 (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMaxAllocHeap());
+  // WiFi may not have associated yet at this point — the framework's
+  // manageSTA loop kicks in shortly. Log whatever we have now so the
+  // boot stream shows mode/IP, and the periodic [WiFi] log in loop()
+  // will pick up the live IP once association completes.
+  logWifiSnapshot("WiFi");
 #endif
 }
 
@@ -224,6 +263,10 @@ void loop() {
                     (unsigned)ESP.getFreeHeap(),
                     (unsigned)ESP.getMinFreeHeap(),
                     (unsigned)ESP.getMaxAllocHeap());
+      // Pair the heap log with a WiFi snapshot so the COM port stream
+      // tells you both "is the chip healthy?" and "is it on the network?"
+      // in one timestamp. Same 60 s cadence — cheap, just reads accessors.
+      logWifiSnapshot("WiFi");
     }
   }
   // Let IDLE/Wi‑Fi stack run between heavy loop iterations (stability under load).
