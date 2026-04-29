@@ -261,6 +261,122 @@
     aside#titleblock .row .v { color: var(--ink-1); font-weight: 700; }
     @media (max-width: 720px) { aside#titleblock { display: none; } }
 
+    /* Device reference grid */
+.device-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  margin-top: 20px;
+}
+.device-card {
+  position: relative;
+  padding: 20px 22px 22px;
+  background: var(--paper);
+  border: 1px solid var(--ink-rule);
+}
+.device-card::before,
+.device-card::after {
+  content: '';
+  position: absolute;
+  width: 12px;
+  height: 12px;
+}
+.device-card::before {
+  top: -1px; left: -1px;
+  border-top: 1px solid var(--ink);
+  border-left: 1px solid var(--ink);
+}
+.device-card::after {
+  bottom: -1px; right: -1px;
+  border-bottom: 1px solid var(--ink);
+  border-right: 1px solid var(--ink);
+}
+.device-card.reader  { --ink: var(--c-reader); }
+.device-card.reader  { border-color: rgba(127, 219, 255, 0.55); }
+.device-card.display { --ink: var(--c-display); }
+.device-card.display { border-color: rgba(106, 232, 179, 0.55); }
+.device-card.writer  { --ink: var(--c-writer); }
+.device-card.writer  { border-color: rgba(240, 184, 106, 0.55); }
+
+.device-card .designation-code {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 0.7rem;
+  letter-spacing: 0.18em;
+  color: var(--ink);
+}
+
+.device-card h3 {
+  margin: 0 0 4px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.device-card .summary {
+  margin: 0 0 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px dashed var(--ink-rule);
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.device-card .role-label {
+  display: inline-block;
+  margin: 12px 0 6px;
+  padding: 2px 8px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 0.65rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--bg);
+  background: var(--ink);
+}
+
+.device-card ul {
+  margin: 0 0 6px;
+  padding-left: 14px;
+  list-style: none;
+  font-size: 0.88rem;
+}
+.device-card li {
+  margin-bottom: 4px;
+  position: relative;
+}
+.device-card li::before {
+  content: '─';
+  position: absolute;
+  left: -14px;
+  color: var(--ink-rule);
+}
+.device-card code {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  padding: 1px 5px;
+  background: rgba(127, 219, 255, 0.05);
+  border: 1px solid var(--ink-rule);
+  color: var(--ink);
+}
+.device-card .source {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--ink-rule);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+@media (max-width: 900px) {
+  .device-grid { grid-template-columns: 1fr; }
+}
+
     /* ---------- Responsive ---------- */
     @media (max-width: 720px) {
       nav#topnav { flex-direction: column; align-items: flex-start; gap: 10px; }
@@ -296,6 +412,70 @@
     <span class="designation">Sheet 00 · Device Reference</span>
     <h2>Device <span class="em">Reference</span></h2>
     <p class="purpose">Each ESP32 firmware variant runs a server side and a client side. The cards below summarize what each device serves and what it connects out to.</p>
+
+    <div class="device-grid">
+      <article class="device-card reader">
+        <span class="designation-code">R-01</span>
+        <h3>Serial Reader</h3>
+        <p class="summary">Reads from a physical serial device (scale, sensor) and exposes the live stream to any subscriber.</p>
+
+        <span class="role-label">Server</span>
+        <ul>
+          <li><code>GET/POST /rest/serial</code></li>
+          <li><code>WS /ws/serial</code></li>
+          <li>MQTT publish <code>weighsoft/serial/{id}/data</code></li>
+          <li>BLE read+notify <code>12340000-…-1234</code></li>
+        </ul>
+
+        <span class="role-label">Client</span>
+        <ul>
+          <li><code>WeightForwarderService</code> HTTP POSTs lines to a remote URL (e.g. Node-RED).</li>
+        </ul>
+
+        <p class="source">src/examples/serial/SerialService.{h,cpp}<br>src/examples/weightforwarder/WeightForwarderService.{h,cpp}</p>
+      </article>
+
+      <article class="device-card display">
+        <span class="designation-code">D-01</span>
+        <h3>Display</h3>
+        <p class="summary">Drives a 16x2 I2C LCD. Accepts data from any source; can also pull a remote stream onto the screen.</p>
+
+        <span class="role-label">Server</span>
+        <ul>
+          <li><code>GET/POST /rest/display</code></li>
+          <li><code>WS /ws/display</code></li>
+          <li>MQTT subscribe <code>weighsoft/display/{id}/set</code></li>
+        </ul>
+
+        <span class="role-label">Client</span>
+        <ul>
+          <li><code>DisplayService</code> Serial Bridge connects out to a remote reader's <code>/ws/serial</code>, MQTT topic, or BLE peripheral and mirrors data on the LCD.</li>
+        </ul>
+
+        <p class="source">src/examples/display/DisplayService.{h,cpp}</p>
+      </article>
+
+      <article class="device-card writer">
+        <span class="designation-code">W-01</span>
+        <h3>Serial Writer</h3>
+        <p class="summary">Writes to a physical serial port. Accepts pending lines from any source, or pulls them from a remote reader.</p>
+
+        <span class="role-label">Server</span>
+        <ul>
+          <li><code>GET/POST /rest/serialWriter</code></li>
+          <li><code>WS /ws/serialWriter</code></li>
+          <li>MQTT subscribe <code>weighsoft/serialwriter/{id}/send</code></li>
+          <li>MQTT publish status <code>weighsoft/serialwriter/{id}/status</code></li>
+        </ul>
+
+        <span class="role-label">Client</span>
+        <ul>
+          <li><code>SerialWriterForwarderService</code> HTTP-polls or WebSocket-subscribes to a remote reader and writes received lines to the UART (and optionally USB CDC).</li>
+        </ul>
+
+        <p class="source">src/examples/serialwriter/SerialWriterService.{h,cpp}<br>src/examples/serialwriter/SerialWriterForwarderService.{h,cpp}</p>
+      </article>
+    </div>
   </section>
 
   <section id="use-case-a"><span class="designation">Sheet A · 01</span><h2>Multiple Readers → <span class="em">Node-RED</span></h2></section>
