@@ -20,8 +20,9 @@ should be openable as a static file from anywhere and render fully offline.
 
 ## Structure
 
-A vertically scrolling page with a sticky top navigation bar. Sections appear
-in this order:
+A vertically scrolling page with a sticky top navigation bar. The page has
+ten section blocks, made up of two preamble sections plus the eight use
+cases A–H:
 
 1. **Header** — page title, subtitle, branch context.
 2. **Device Reference** — three colored cards (Reader, Display, Writer) each
@@ -36,7 +37,14 @@ in this order:
 9. **Use Case G** — Serial WiFi bridge (Reader feeds Writer).
 10. **Use Case H** — Mixed protocol fan-out from one Reader.
 
-The sticky nav lists each use case as an anchor link with smooth scrolling.
+Sections 3–10 are the eight use cases referred to elsewhere in the spec.
+
+### Anchor IDs
+
+Each use case section uses a stable kebab-case ID for anchor links:
+`#use-case-a`, `#use-case-b`, …, `#use-case-h`. The Device Reference section
+uses `#device-reference`. The sticky nav lists each use case as an anchor
+link with smooth scrolling (`scroll-behavior: smooth` on `<html>`).
 
 ## Visual Style
 
@@ -69,7 +77,8 @@ Each card contains:
 - "Server role" sub-block: list of protocols served, default endpoint paths.
 - "Client role" sub-block: what the device connects out to and which service
   inside the firmware does it.
-- Source-of-truth references: `src/` directory and key service class name.
+- Source-of-truth references: relative `src/` paths to the key service files
+  for that device (paths listed in each device card section below).
 
 ### Serial Reader card content
 
@@ -80,6 +89,8 @@ Each card contains:
   (e.g. Node-RED).
 - Owning services: `SerialService` (server side), `WeightForwarderService`
   (client side).
+- Source files: `src/examples/serial/SerialService.{h,cpp}`,
+  `src/examples/weightforwarder/WeightForwarderService.{h,cpp}`.
 
 ### Display card content
 
@@ -89,17 +100,21 @@ Each card contains:
   reader's `/ws/serial` (or MQTT topic, or BLE peripheral) and mirrors that
   data onto the LCD.
 - Owning service: `DisplayService` (handles both server and bridge client).
+- Source files: `src/examples/display/DisplayService.{h,cpp}`.
 
 ### Serial Writer card content
 
-- Server role: `/rest/serialWriter`, `/ws/serialWriter`. Any client can POST
-  `pending_line` and the writer flushes it to the physical UART (and
-  optionally USB CDC).
+- Server role: `/rest/serialWriter`, `/ws/serialWriter`, MQTT subscribe
+  `weighsoft/serialwriter/{id}/send` (publish status on
+  `weighsoft/serialwriter/{id}/status`). Any client can POST `pending_line`
+  and the writer flushes it to the physical UART (and optionally USB CDC).
 - Client role: `SerialWriterForwarderService` HTTP-polls or WebSocket-
   subscribes to a remote reader, then enqueues lines back through the
   writer's hardware sinks.
 - Owning services: `SerialWriterService` (server side),
   `SerialWriterForwarderService` (client side).
+- Source files: `src/examples/serialwriter/SerialWriterService.{h,cpp}`,
+  `src/examples/serialwriter/SerialWriterForwarderService.{h,cpp}`.
 
 ## Use Case Sections
 
@@ -107,7 +122,8 @@ Each use case section is the same template:
 
 - Section title (e.g. "Use Case A — Multiple Readers → Node-RED").
 - One-line purpose statement.
-- Animated SVG diagram, full card width, ~360px tall.
+- Animated SVG diagram, full card width, exactly 360px tall (CSS variable
+  `--diagram-h: 360px` referenced by every diagram's wrapper).
 - "How it works" caption (2–4 lines).
 - "Real-world example" caption (1 line).
 
@@ -127,6 +143,18 @@ Each use case section is the same template:
 - Endpoint protocol labels (`HTTP`, `WS`, `MQTT`, `BLE`) sit as small pills
   near the midpoint of each path.
 
+### Diagram responsiveness
+
+- Each `<svg>` declares an explicit `viewBox` (e.g.
+  `viewBox="0 0 900 360"`) and `preserveAspectRatio="xMidYMid meet"` so it
+  scales proportionally with the container.
+- The wrapper card sets `width: 100%` with `min-width: 600px` and
+  `overflow-x: auto`, so on viewports narrower than 600px the diagram
+  becomes horizontally scrollable inside the card rather than collapsing
+  into unreadable overlapping nodes. This applies to all eight use cases —
+  the multi-node diagrams (F and H especially) are the reason for the
+  600px floor.
+
 ### Use Case A — Multiple Readers → Node-RED
 
 - Three Reader devices on the left, each connected to its own purple physical
@@ -142,7 +170,11 @@ Each use case section is the same template:
 - One Reader in the center with a purple physical serial device on its left.
 - Display above-right and Writer below-right.
 - Two flow paths from Reader's server: Reader → Display (`WS`) and Reader →
-  Writer (`HTTP poll` or `WS`).
+  Writer (`HTTP poll` — the firmware default for
+  `SerialWriterForwarderService`).
+- The "How it works" caption notes the Writer can also be configured for `WS`
+  subscribe instead of HTTP poll; the diagram shows the default to keep the
+  visual unambiguous.
 - Animated dots flow outward from Reader.
 - Real-world example: "One scale read by an ESP, mirrored to a floor LCD and
   echoed onto a printer's serial port."
@@ -182,7 +214,11 @@ Each use case section is the same template:
 - Reader on the left publishes to broker (`weighsoft/serial/{id}/data`).
 - Display on the upper-right subscribes to broker
   (`weighsoft/display/{id}/set`).
-- Writer on the lower-right subscribes via MQTT.
+- Writer on the lower-right subscribes to broker
+  (`weighsoft/serialwriter/{id}/send`) and publishes status on
+  `weighsoft/serialwriter/{id}/status`. Verified against the firmware:
+  `SerialWriterService` configures these topics via
+  `_mqttPubSub.configureTopics(statusTopic, sendTopic)`.
 - Optional: a Node-RED node on the far right also subscribes.
 - All paths labeled with their MQTT topic.
 - Animated dots flow Reader → Broker → fan-out to subscribers.
@@ -195,7 +231,9 @@ Each use case section is the same template:
   physical serial device B on the far right.
 - Single horizontal flow line with the WiFi gap visualized as a dashed
   segment between the two ESPs.
-- Animated dots traverse the entire chain end-to-end.
+- Animated dots traverse the entire chain end-to-end without interruption,
+  including across the dashed WiFi-gap segment, so the visual reads as one
+  continuous flow rather than two disconnected hops.
 - Caption: Writer's Forwarder is connected to Reader as a client, pulling
   every line and writing it back onto its own UART.
 - Real-world example: "Two pieces of legacy serial equipment that need to
@@ -208,6 +246,8 @@ Each use case section is the same template:
   Writer (HTTP poll), Node-RED (Forwarder HTTP POST), and a Mobile phone
   icon (BLE notify).
 - Four animated paths in distinct accent colors radiating from the Reader.
+  The Mobile/BLE pink (`#ec4899`) is intentionally used only here — Use Case
+  H is the single diagram where a mobile/BLE consumer appears.
 - Each path labeled with its protocol pill.
 - Real-world example: "One reader, four consumers — a single source of truth
   feeding every part of the operation in the protocol that suits each
@@ -218,11 +258,23 @@ Each use case section is the same template:
 - Use SVG `<animateMotion>` with `dur` set per path (between 1.6s and 2.8s
   depending on path length, longer paths get longer durations to keep
   perceived dot speed roughly uniform).
-- Each path gets 2–3 dots with staggered `begin` offsets so the path looks
-  like a continuous stream rather than discrete pulses.
-- `repeatCount="indefinite"` on every animation.
-- Use `prefers-reduced-motion: reduce` media query to disable
-  `<animateMotion>` (set CSS `animation-play-state: paused`, hide dots).
+- Each path gets `N` dots (use `N = 3` by default; drop to `N = 2` only when
+  the path is short enough that 3 dots crowd visually).
+- Stagger formula: dot `i` (0-indexed) has `begin = (i * dur) / N`. With the
+  default `N = 3`, the begins are `0`, `dur/3`, `2·dur/3`, producing an
+  evenly-spaced continuous stream.
+- `repeatCount="indefinite"` on every `<animateMotion>`.
+- Reduced-motion handling: SVG SMIL animations are not controlled by CSS
+  `animation-play-state`. Implementation must:
+  1. Detect `window.matchMedia('(prefers-reduced-motion: reduce)').matches`
+     in the inline script.
+  2. If matched, call `svg.pauseAnimations()` on every diagram's `<svg>`
+     root and add a `data-reduced-motion` attribute to the `<body>`.
+  3. CSS rule `body[data-reduced-motion] .flow-dot { display: none; }`
+     hides the now-stationary dots so the diagrams read as static
+     reference graphics.
+  4. Listen for `change` on the media query so the page reacts if the user
+     toggles the OS preference while the page is open.
 
 ## Sticky Navigation
 
