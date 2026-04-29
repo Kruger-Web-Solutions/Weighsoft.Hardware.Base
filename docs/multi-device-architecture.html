@@ -767,7 +767,60 @@ body[data-reduced-motion] .flow-path { stroke-dashoffset: 0; transition: none; }
     <p class="caption"><strong>How it works:</strong> The Reader's <code>SerialService</code> serves the Display over <code>/ws/serial</code>. In the same firmware, <code>WeightForwarderService</code> independently HTTP-POSTs every parsed line to Node-RED. Server side and client side run in parallel inside the same ESP.</p>
     <p class="example">Real-world example: local LCD on the production line for the operator, cloud logging in parallel for the office.</p>
   </section>
-  <section id="use-case-d"><span class="designation">Sheet D · 04</span><h2>Multiple Displays from <span class="em">one Reader</span></h2></section>
+  <section id="use-case-d">
+    <span class="designation">Sheet D · 04</span>
+    <h2>Multiple Displays from <span class="em">one Reader</span></h2>
+    <p class="purpose">One Reader, many Display ESPs all subscribed to its server. Every screen shows the same value live.</p>
+
+    <div class="diagram" role="img" aria-labelledby="diag-d-title">
+      <svg viewBox="0 0 900 360" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+        <title id="diag-d-title">One Serial Reader broadcasting to three Displays via WebSocket.</title>
+
+        <rect class="dev-box physical" x="20" y="150" width="90" height="40"/>
+        <text class="dev-name" x="65" y="176">Scale</text>
+        <line x1="110" y1="170" x2="180" y2="170" stroke="#8b5cf6" stroke-width="2"/>
+
+        <text class="dev-role" x="250" y="132">Reader · Server</text>
+        <rect class="dev-box reader" x="180" y="140" width="140" height="60"/>
+        <text class="dev-name" x="250" y="176">Reader</text>
+
+        <text class="dev-role" x="710" y="32">Display · Client</text>
+        <rect class="dev-box display" x="620" y="40"  width="180" height="60"/>
+        <text class="dev-name" x="710" y="76">Display 1</text>
+
+        <text class="dev-role" x="710" y="132">Display · Client</text>
+        <rect class="dev-box display" x="620" y="140" width="180" height="60"/>
+        <text class="dev-name" x="710" y="176">Display 2</text>
+
+        <text class="dev-role" x="710" y="232">Display · Client</text>
+        <rect class="dev-box display" x="620" y="240" width="180" height="60"/>
+        <text class="dev-name" x="710" y="276">Display 3</text>
+
+        <path id="d-flow-1" class="flow-path display" d="M 320 150 Q 470 70  620 70"/>
+        <path id="d-flow-2" class="flow-path display" d="M 320 170 L 620 170"/>
+        <path id="d-flow-3" class="flow-path display" d="M 320 190 Q 470 270 620 270"/>
+
+        <g class="proto-pill"><rect x="455" y="80"  width="40" height="16"/><text x="475" y="88">WS</text></g>
+        <g class="proto-pill"><rect x="455" y="158" width="40" height="16"/><text x="475" y="166">WS</text></g>
+        <g class="proto-pill"><rect x="455" y="262" width="40" height="16"/><text x="475" y="270">WS</text></g>
+
+        <circle class="flow-dot display"><animateMotion dur="2.2s" begin="0s"     repeatCount="indefinite"><mpath href="#d-flow-1"/></animateMotion></circle>
+        <circle class="flow-dot display"><animateMotion dur="2.2s" begin="0.733s" repeatCount="indefinite"><mpath href="#d-flow-1"/></animateMotion></circle>
+        <circle class="flow-dot display"><animateMotion dur="2.2s" begin="1.467s" repeatCount="indefinite"><mpath href="#d-flow-1"/></animateMotion></circle>
+
+        <circle class="flow-dot display"><animateMotion dur="2.0s" begin="0s"      repeatCount="indefinite"><mpath href="#d-flow-2"/></animateMotion></circle>
+        <circle class="flow-dot display"><animateMotion dur="2.0s" begin="0.667s"  repeatCount="indefinite"><mpath href="#d-flow-2"/></animateMotion></circle>
+        <circle class="flow-dot display"><animateMotion dur="2.0s" begin="1.333s"  repeatCount="indefinite"><mpath href="#d-flow-2"/></animateMotion></circle>
+
+        <circle class="flow-dot display"><animateMotion dur="2.2s" begin="0s"     repeatCount="indefinite"><mpath href="#d-flow-3"/></animateMotion></circle>
+        <circle class="flow-dot display"><animateMotion dur="2.2s" begin="0.733s" repeatCount="indefinite"><mpath href="#d-flow-3"/></animateMotion></circle>
+        <circle class="flow-dot display"><animateMotion dur="2.2s" begin="1.467s" repeatCount="indefinite"><mpath href="#d-flow-3"/></animateMotion></circle>
+      </svg>
+    </div>
+
+    <p class="caption"><strong>How it works:</strong> Each Display's Serial Bridge connects out to the same Reader's <code>/ws/serial</code>. WebSocket fan-out is handled inside the Reader by the framework's <code>WebSocketTxRx</code> — every connected client receives the same broadcast.</p>
+    <p class="example">Real-world example: one scale read by an ESP, the same value shown on every status board on the warehouse floor.</p>
+  </section>
   <section id="use-case-e"><span class="designation">Sheet E · 05</span><h2>Node-RED commanding a <span class="em">Writer</span></h2></section>
   <section id="use-case-f"><span class="designation">Sheet F · 06</span><h2>MQTT broker <span class="em">as hub</span></h2></section>
   <section id="use-case-g"><span class="designation">Sheet G · 07</span><h2>Serial WiFi <span class="em">bridge</span></h2></section>
