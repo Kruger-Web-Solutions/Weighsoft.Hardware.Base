@@ -195,7 +195,10 @@ void SerialWriterForwarderService::loop() {
     return;
   }
 
-#ifdef ESP32
+#ifndef ESP32
+  // HTTP and WebSocket client requires ESP32 — no-op on other platforms
+  return;
+#else
   if (_state.protocol == SERIAL_WRITER_FORWARDER_PROTOCOL_WS) {
     if (_wsClient) {
       _wsClient->loop();

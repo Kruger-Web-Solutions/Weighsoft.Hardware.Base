@@ -44,13 +44,14 @@ const SerialWriterForwarderConfig: FC = () => {
   }
 
   return (
-    <SectionContent title="Serial Writer Forwarder Configuration" titleGutter>
+    <SectionContent title="Serial Reader Source Configuration" titleGutter>
       <Alert severity="info" sx={{ mb: 2 }}>
-        The forwarder pulls lines from a remote HTTP or WebSocket source. Choose where each line is written:
-        <strong> Native USB CDC</strong> (clean data on the ESP32-S3 <em>USB</em> port, no log mixing),
-        <strong> Serial1 TX (GPIO17)</strong> for external scale hardware via a USB-TTL adapter, or
-        <strong> Both</strong> (mirror). Developer logs always stay on the on-board <em>UART</em> port at 115200 baud.
-        UART mode must be set to Writer when using Serial1.
+        Connect to a remote <strong>serialReader</strong> device and pull its weight / string data onto this
+        device's outputs. Point the Source URL at your serialReader's WebSocket (<code>/ws/serial</code>) or
+        HTTP (<code>/rest/serial</code>) endpoint and set JSON Field to <code>last_line</code>. Output
+        options: <strong>Native USB CDC</strong> (clean data stream on the ESP32-S3 USB port),
+        <strong> Serial1 TX (GPIO17)</strong> via USB-TTL adapter, or <strong>Both</strong>. UART mode must
+        be <strong>Writer</strong> when using Serial1.
       </Alert>
 
       <Box display="flex" flexDirection="column" gap={3}>
@@ -61,15 +62,15 @@ const SerialWriterForwarderConfig: FC = () => {
               onChange={(e) => setField('enabled')(e.target.checked)}
             />
           }
-          label="Enable Serial Writer Forwarder"
+          label="Enable Serial Reader Source"
         />
 
         <FormControl fullWidth>
-          <InputLabel>Forwarder output</InputLabel>
+          <InputLabel>Output destination</InputLabel>
           <Select
             value={data.output_targets ?? ForwarderOutputTargets.UsbOnly}
             onChange={(e) => setField('output_targets')(e.target.value as ForwarderOutputTargets)}
-            label="Forwarder output"
+            label="Output destination"
           >
             <MenuItem value={ForwarderOutputTargets.UsbOnly}>
               Native USB CDC only (PC opens ESP32-S3 USB-OTG COM, clean data, no log mixing)
@@ -93,28 +94,28 @@ const SerialWriterForwarderConfig: FC = () => {
 
         <TextField
           fullWidth
-          label="Source URL"
+          label="serialReader device URL"
           value={data.source_url ?? ''}
           onChange={(e) => setField('source_url')(e.target.value)}
           placeholder={
             data.protocol === ForwarderSourceProtocol.HTTP
-              ? 'http://192.168.1.100/rest/serial'
-              : 'ws://192.168.1.100/ws/serial'
+              ? 'http://192.168.1.xx/rest/serial'
+              : 'ws://192.168.1.xx/ws/serial'
           }
           helperText={
             data.protocol === ForwarderSourceProtocol.HTTP
-              ? 'HTTP endpoint to GET (expects JSON response)'
-              : 'WebSocket endpoint to subscribe to'
+              ? 'Your serialReader device IP — HTTP endpoint e.g. http://192.168.1.xx/rest/serial'
+              : 'Your serialReader device IP — WebSocket endpoint e.g. ws://192.168.1.xx/ws/serial'
           }
         />
 
         <TextField
           fullWidth
-          label="JSON Field"
+          label="JSON field to extract"
           value={data.json_field ?? ''}
           onChange={(e) => setField('json_field')(e.target.value)}
           placeholder="last_line"
-          helperText="Field name in the JSON response to use as the serial line (default: last_line)"
+          helperText='Field name from the serialReader JSON payload. Use "last_line" for the default serialReader output.'
         />
 
         {data.protocol === ForwarderSourceProtocol.HTTP && (

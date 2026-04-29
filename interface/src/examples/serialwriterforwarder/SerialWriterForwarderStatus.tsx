@@ -37,11 +37,11 @@ const SerialWriterForwarderStatus: FC = () => {
         : 'Native USB CDC (USB-OTG port)';
 
   return (
-    <SectionContent title="Serial Writer Forwarder Status" titleGutter>
+    <SectionContent title="Serial Reader Source — Status" titleGutter>
       {(outputTargets === ForwarderOutputTargets.Serial1Only || outputTargets === ForwarderOutputTargets.Both) && (
         <Alert severity="info" sx={{ mb: 2 }}>
-          Forwarder writes to Serial1 TX only when UART mode is <strong>Writer</strong>. If lines are missing on
-          GPIO17, switch UART mode on the Serial / Serial Writer Information tab.
+          Output to Serial1 TX is only active when UART mode is <strong>Writer</strong>. If lines are not
+          appearing on GPIO17, switch UART mode on the Serial Writer → Information tab.
         </Alert>
       )}
       <Paper>
@@ -62,7 +62,7 @@ const SerialWriterForwarderStatus: FC = () => {
 
             <TableRow>
               <TableCell>
-                <strong>Source Connection</strong>
+                <strong>serialReader Connection</strong>
               </TableCell>
               <TableCell>
                 <Chip
@@ -88,7 +88,7 @@ const SerialWriterForwarderStatus: FC = () => {
 
             <TableRow>
               <TableCell>
-                <strong>Forwarder output</strong>
+                <strong>Output destination</strong>
               </TableCell>
               <TableCell>{outputLabel}</TableCell>
             </TableRow>
@@ -137,14 +137,14 @@ const SerialWriterForwarderStatus: FC = () => {
 
             <TableRow>
               <TableCell>
-                <strong>Lines Received</strong>
+                <strong>Lines Pulled</strong>
               </TableCell>
               <TableCell>{data.received_count ?? 0}</TableCell>
             </TableRow>
 
             <TableRow>
               <TableCell>
-                <strong>Last Received</strong>
+                <strong>Last Value Received</strong>
               </TableCell>
               <TableCell sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
                 {data.last_received_line || '—'}

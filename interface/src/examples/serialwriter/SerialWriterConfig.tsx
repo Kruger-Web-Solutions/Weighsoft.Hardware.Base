@@ -110,7 +110,7 @@ const SerialWriterConfig: FC = () => {
           fullWidth
           label="Line Terminator"
           value={data.line_terminator ?? 'LF'}
-          onChange={(e) => setField('line_terminator')(e.target.value)}
+          onChange={(e) => setField('line_terminator')(e.target.value as LineTerminator)}
           disabled={saving}
           helperText="Appended automatically after each line sent"
         >

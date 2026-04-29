@@ -94,7 +94,14 @@ void SerialWriterService::loop() {
 }
 
 void SerialWriterService::writePendingLine() {
-#ifdef ESP32
+#ifndef ESP32
+  Serial.println(F("[SerialWriter] writePendingLine: not supported on this platform"));
+  update([&](SerialWriterState& state) {
+    state.pendingLine = "";
+    return StateUpdateResult::CHANGED;
+  }, "serial_writer_sent");
+  return;
+#else
   if (!_serialStarted || _suspended) {
     return;
   }

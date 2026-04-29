@@ -13,7 +13,7 @@ const ProjectMenu: FC = () => (
   <List>
     <LayoutMenuItem icon={LightbulbIcon} label="LED" to={`/${PROJECT_PATH}/led-example`} />
     <LayoutMenuItem icon={OutputIcon} label="Serial Writer" to={`/${PROJECT_PATH}/serialwriter`} />
-    <LayoutMenuItem icon={CloudDownloadIcon} label="Writer Forwarder" to={`/${PROJECT_PATH}/serialwriterforwarder`} />
+    <LayoutMenuItem icon={CloudDownloadIcon} label="Serial Reader Source" to={`/${PROJECT_PATH}/serialwriterforwarder`} />
     <LayoutMenuItem icon={BuildIcon} label="Diagnostics" to={`/${PROJECT_PATH}/diagnostics`} />
   </List>
 );

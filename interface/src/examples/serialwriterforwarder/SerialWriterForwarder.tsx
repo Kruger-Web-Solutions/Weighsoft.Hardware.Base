@@ -8,7 +8,7 @@ import SerialWriterForwarderConfig from './SerialWriterForwarderConfig';
 import SerialWriterForwarderStatus from './SerialWriterForwarderStatus';
 
 const SerialWriterForwarder: FC = () => {
-  useLayoutTitle('Serial Writer Forwarder');
+  useLayoutTitle('Serial Reader Source');
   const { routerTab } = useRouterTab();
 
   return (
