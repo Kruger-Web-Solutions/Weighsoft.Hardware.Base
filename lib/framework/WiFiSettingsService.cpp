@@ -16,9 +16,25 @@ WiFiSettingsService::WiFiSettingsService(AsyncWebServer* server, FS* fs, Securit
   WiFi.persistent(false);
   WiFi.setAutoReconnect(false);
 #ifdef ESP32
-  // Init the wifi driver on ESP32
+  // Init the wifi driver on ESP32. The MAX → NULL transition forces the
+  // framework to bring up esp_netif + the default event handlers, then
+  // immediately disable the radio so we control connection lifecycle
+  // ourselves below.
+  //
+  // On boards with OPI PSRAM (e.g. Sixspan ESP32-S3 N16R8) PSRAM init
+  // delays the boot sequence enough that, without a settle window between
+  // the two mode flips, the second WiFi.mode() returns before esp_netif
+  // has finished registering its netstack callback. The subsequent
+  // WiFi.onEvent() calls then race against a not-yet-ready event system,
+  // and esp_wifi_init() prints
+  //     E (1429) wifi_init_default: netstack cb reg failed with 12289
+  // (12289 == ESP_ERR_NETIF_INVALID_PARAMS). After that the chip stays
+  // alive but the WiFi stack is permanently broken until reboot.
+  // The 100 ms delay below gives netif/event-loop init time to complete.
   WiFi.mode(WIFI_MODE_MAX);
+  delay(100);
   WiFi.mode(WIFI_MODE_NULL);
+  delay(50);
   WiFi.onEvent(
       std::bind(&WiFiSettingsService::onStationModeDisconnected, this, std::placeholders::_1, std::placeholders::_2),
       WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
