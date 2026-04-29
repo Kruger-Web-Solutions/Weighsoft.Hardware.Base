@@ -1,4 +1,7 @@
 #include <ESP8266React.h>
+#ifdef ESP32
+#include <WiFi.h>
+#endif
 #include <examples/led/LedExampleService.h>
 #include <examples/serial/SerialService.h>
 #include <examples/diagnostics/DiagnosticsService.h>
@@ -245,6 +248,40 @@ void loop() {
         }
       } else {
         cdcStuckSince = 0;  // healthy — reset the stuck timer
+      }
+    }
+  }
+#endif
+
+  // Network watchdog. If WiFi has been disconnected for more than 60 s,
+  // the chip is stuck in a state the application-level reconnect can't
+  // recover from (we've seen this on the N16R8: AsyncTCP/netif silently
+  // dies but the CPU keeps running, so the loop ticks forever and no
+  // task watchdog fires). Force a full chip restart in that case so the
+  // device auto-recovers without needing the user to physically press
+  // RST.
+  //
+  // The 60 s threshold is generous — the SDK's auto-reconnect (enabled
+  // in WiFiSettingsService) gets first crack, and our manual reconnect
+  // backoff caps at ~30 s, so legitimate transient drops well under 60 s
+  // never trigger the reboot.
+#ifdef ESP32
+  {
+    static unsigned long lastWifiCheck = 0;
+    static unsigned long wifiDownSince = 0;
+    unsigned long now = millis();
+    if (now - lastWifiCheck >= 5000UL) {
+      lastWifiCheck = now;
+      if (WiFi.isConnected()) {
+        wifiDownSince = 0;  // healthy
+      } else {
+        if (wifiDownSince == 0) {
+          wifiDownSince = now;
+        } else if (now - wifiDownSince >= 60000UL) {
+          Serial.println(F("[main] WiFi down for >=60s — forcing ESP.restart() for auto-recovery"));
+          delay(100);  // let Serial flush
+          ESP.restart();
+        }
       }
     }
   }
