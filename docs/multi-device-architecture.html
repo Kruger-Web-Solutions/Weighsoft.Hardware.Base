@@ -821,7 +821,38 @@ body[data-reduced-motion] .flow-path { stroke-dashoffset: 0; transition: none; }
     <p class="caption"><strong>How it works:</strong> Each Display's Serial Bridge connects out to the same Reader's <code>/ws/serial</code>. WebSocket fan-out is handled inside the Reader by the framework's <code>WebSocketTxRx</code> — every connected client receives the same broadcast.</p>
     <p class="example">Real-world example: one scale read by an ESP, the same value shown on every status board on the warehouse floor.</p>
   </section>
-  <section id="use-case-e"><span class="designation">Sheet E · 05</span><h2>Node-RED commanding a <span class="em">Writer</span></h2></section>
+  <section id="use-case-e"><span class="designation">Sheet E · 05</span><h2>Node-RED commanding a <span class="em">Writer</span></h2>
+    <p class="purpose">Reverse direction. Node-RED POSTs commands to a Writer; the Writer pushes them out a physical serial port.</p>
+
+    <div class="diagram" role="img" aria-labelledby="diag-e-title">
+      <svg viewBox="0 0 900 360" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+        <title id="diag-e-title">Node-RED HTTP-POSTing commands to a Writer that drives a physical serial device.</title>
+
+        <text class="dev-role" x="150" y="132">Node-RED</text>
+        <rect class="dev-box nodered" x="80" y="140" width="140" height="60"/>
+        <text class="dev-name" x="150" y="176">Node-RED</text>
+
+        <text class="dev-role" x="470" y="132">Writer · Server</text>
+        <rect class="dev-box writer" x="400" y="140" width="140" height="60"/>
+        <text class="dev-name" x="470" y="176">Writer</text>
+
+        <line x1="540" y1="170" x2="610" y2="170" stroke="#8b5cf6" stroke-width="2"/>
+        <rect class="dev-box physical" x="610" y="150" width="120" height="40"/>
+        <text class="dev-name" x="670" y="176">Printer / PLC</text>
+
+        <path id="e-flow" class="flow-path nodered" d="M 220 170 L 400 170"/>
+
+        <g class="proto-pill"><rect x="265" y="148" width="90" height="16"/><text x="310" y="156">HTTP POST</text></g>
+
+        <circle class="flow-dot nodered"><animateMotion dur="1.8s" begin="0s"   repeatCount="indefinite"><mpath href="#e-flow"/></animateMotion></circle>
+        <circle class="flow-dot nodered"><animateMotion dur="1.8s" begin="0.6s" repeatCount="indefinite"><mpath href="#e-flow"/></animateMotion></circle>
+        <circle class="flow-dot nodered"><animateMotion dur="1.8s" begin="1.2s" repeatCount="indefinite"><mpath href="#e-flow"/></animateMotion></circle>
+      </svg>
+    </div>
+
+    <p class="caption"><strong>How it works:</strong> Node-RED POSTs <code>{"pending_line": "..."}</code> to the Writer's <code>/rest/serialWriter</code> endpoint. <code>SerialWriterService</code> picks up the queued line on its next loop and writes it out the UART (and optionally USB CDC).</p>
+    <p class="example">Real-world example: Node-RED triggers a label printer or PLC by POSTing the command string to the Writer.</p>
+  </section>
   <section id="use-case-f"><span class="designation">Sheet F · 06</span><h2>MQTT broker <span class="em">as hub</span></h2></section>
   <section id="use-case-g"><span class="designation">Sheet G · 07</span><h2>Serial WiFi <span class="em">bridge</span></h2></section>
   <section id="use-case-h"><span class="designation">Sheet H · 08</span><h2>Mixed protocol <span class="em">fan-out</span></h2></section>
