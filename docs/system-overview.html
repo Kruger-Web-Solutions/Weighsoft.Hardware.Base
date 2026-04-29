@@ -1,0 +1,994 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Weighsoft Display Branch — System Overview</title>
+<style>
+  :root {
+    --bg: #0d1117; --surface: #161b22; --card: #1e2631; --border: #30363d;
+    --primary: #2596D1; --secondary: #2B3449; --accent: #58a6ff;
+    --green: #3fb950; --orange: #f0883e; --purple: #bc8cff; --red: #f85149;
+    --yellow: #d29922; --cyan: #39d0d8; --pink: #f778ba;
+    --text: #e6edf3; --muted: #8b949e; --code: #f0883e;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; line-height: 1.6; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  header { background: linear-gradient(135deg, #1a2332 0%, #0d1117 100%); border-bottom: 1px solid var(--border); padding: 2rem; text-align: center; position: relative; overflow: hidden; }
+  header::before { content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: radial-gradient(ellipse at center, rgba(37,150,209,0.08) 0%, transparent 60%); animation: pulse 4s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{transform:scale(1);opacity:0.5} 50%{transform:scale(1.1);opacity:1} }
+  header h1 { font-size: 2.4rem; font-weight: 700; background: linear-gradient(135deg, #2596D1, #39d0d8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; position: relative; }
+  header p { color: var(--muted); margin-top: 0.5rem; font-size: 1.1rem; position: relative; }
+  .badge { display: inline-block; background: var(--secondary); border: 1px solid var(--primary); color: var(--primary); border-radius: 20px; padding: 0.2rem 0.8rem; font-size: 0.75rem; font-weight: 600; margin: 0.25rem; letter-spacing: 0.05em; }
+
+  nav { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0.75rem 2rem; display: flex; gap: 1.5rem; flex-wrap: wrap; justify-content: center; position: sticky; top: 0; z-index: 100; }
+  nav a { color: var(--muted); font-size: 0.875rem; font-weight: 500; padding: 0.3rem 0.6rem; border-radius: 6px; transition: all 0.2s; }
+  nav a:hover { color: var(--text); background: var(--card); text-decoration: none; }
+
+  main { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+  section { margin-bottom: 4rem; }
+  h2 { font-size: 1.8rem; font-weight: 700; color: var(--primary); border-bottom: 1px solid var(--border); padding-bottom: 0.75rem; margin-bottom: 1.5rem; }
+  h3 { font-size: 1.2rem; font-weight: 600; color: var(--accent); margin: 1.5rem 0 0.75rem; }
+  h4 { font-size: 1rem; font-weight: 600; color: var(--text); margin: 1rem 0 0.5rem; }
+  p { color: var(--muted); margin-bottom: 0.75rem; }
+
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; margin-bottom: 1rem; }
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; }
+  .card h3 { margin-top: 0; }
+
+  .tag { display: inline-block; border-radius: 4px; padding: 0.15rem 0.5rem; font-size: 0.75rem; font-weight: 600; margin: 0.1rem; }
+  .tag-green { background: rgba(63,185,80,0.15); color: var(--green); }
+  .tag-blue { background: rgba(37,150,209,0.15); color: var(--primary); }
+  .tag-orange { background: rgba(240,136,62,0.15); color: var(--orange); }
+  .tag-purple { background: rgba(188,140,255,0.15); color: var(--purple); }
+  .tag-cyan { background: rgba(57,208,216,0.15); color: var(--cyan); }
+  .tag-red { background: rgba(248,81,73,0.15); color: var(--red); }
+
+  code { font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 0.85em; background: rgba(240,136,62,0.15); color: var(--code); padding: 0.15em 0.4em; border-radius: 4px; }
+  pre { background: #0d1117; border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; overflow-x: auto; margin: 1rem 0; }
+  pre code { background: none; padding: 0; color: var(--text); font-size: 0.875rem; }
+
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+  th { background: var(--secondary); color: var(--text); font-weight: 600; padding: 0.75rem 1rem; text-align: left; font-size: 0.875rem; }
+  td { padding: 0.65rem 1rem; border-top: 1px solid var(--border); font-size: 0.875rem; color: var(--muted); vertical-align: top; }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+  td code { font-size: 0.8em; }
+
+  .tabs { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0; }
+  .tab-btn { background: none; border: none; color: var(--muted); cursor: pointer; padding: 0.6rem 1.2rem; font-size: 0.9rem; border-bottom: 2px solid transparent; transition: all 0.2s; margin-bottom: -1px; }
+  .tab-btn:hover { color: var(--text); }
+  .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* SVG diagram helpers */
+  .diagram { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; overflow-x: auto; margin: 1rem 0; }
+  .diagram svg { display: block; margin: 0 auto; }
+
+  /* Animated flow arrow */
+  @keyframes dash { to { stroke-dashoffset: -20; } }
+  .flow-arrow { stroke-dasharray: 6 4; animation: dash 1s linear infinite; }
+
+  /* LCD preview */
+  .lcd-preview { font-family: 'Courier New', monospace; background: #4FC3F7; color: #1a1a1a; padding: 0.75rem 1rem; border-radius: 8px; border: 3px solid #0277BD; display: inline-block; min-width: 240px; }
+  .lcd-preview.off { background: #424242; color: #666; border-color: #333; }
+  .lcd-row { font-size: 1.1rem; letter-spacing: 0.15em; white-space: pre; }
+
+  /* Highlight box */
+  .info-box { background: rgba(37,150,209,0.08); border-left: 3px solid var(--primary); padding: 1rem 1.25rem; border-radius: 0 8px 8px 0; margin: 1rem 0; }
+  .warn-box { background: rgba(240,136,62,0.08); border-left: 3px solid var(--orange); padding: 1rem 1.25rem; border-radius: 0 8px 8px 0; margin: 1rem 0; }
+
+  /* Wireframe component */
+  .wireframe { background: #0a0e14; border: 2px dashed var(--border); border-radius: 10px; padding: 1rem; font-family: monospace; font-size: 0.82rem; color: var(--muted); margin: 1rem 0; }
+  .wireframe .wf-tab-bar { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 0.75rem; }
+  .wireframe .wf-tab { padding: 0.3rem 0.8rem; border-bottom: 2px solid transparent; }
+  .wireframe .wf-tab.sel { color: var(--primary); border-bottom-color: var(--primary); }
+  .wireframe .wf-row { display: flex; gap: 0.75rem; margin-bottom: 0.5rem; align-items: center; }
+  .wireframe .wf-label { color: var(--muted); min-width: 120px; font-size: 0.8rem; }
+  .wireframe .wf-input { background: var(--surface); border: 1px solid var(--border); padding: 0.2rem 0.5rem; border-radius: 4px; flex: 1; color: var(--text); font-family: monospace; font-size: 0.8rem; }
+  .wireframe .wf-btn { background: var(--primary); color: white; border: none; padding: 0.25rem 0.75rem; border-radius: 4px; font-size: 0.8rem; }
+  .wireframe .wf-select { background: var(--surface); border: 1px solid var(--border); padding: 0.2rem 0.5rem; border-radius: 4px; color: var(--text); font-size: 0.8rem; }
+  .wireframe .wf-check { display: flex; align-items: center; gap: 0.5rem; }
+  .wireframe .wf-section { border: 1px dashed var(--border); padding: 0.5rem; border-radius: 6px; margin-top: 0.5rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Weighsoft — Display Branch</h1>
+  <p>ESP32 I²C LCD Display Driver · Serial Bridge · BLE / MQTT / WebSocket Channels</p>
+  <div style="margin-top:1rem">
+    <span class="badge">ESP32 / ESP8266</span>
+    <span class="badge">LiquidCrystal_I2C</span>
+    <span class="badge">16×2 LCD</span>
+    <span class="badge">I²C</span>
+    <span class="badge">BLE Server + Client</span>
+    <span class="badge">Serial Bridge</span>
+    <span class="badge">PlatformIO</span>
+    <span class="badge">React 18</span>
+  </div>
+</header>
+
+<nav>
+  <a href="#overview">Overview</a>
+  <a href="#hardware">Hardware</a>
+  <a href="#firmware">Firmware</a>
+  <a href="#dataflows">Data Flows</a>
+  <a href="#channels">Channels</a>
+  <a href="#security">Security</a>
+  <a href="#build">Build</a>
+  <a href="#ui">React UI</a>
+  <a href="#gotchas">Gotchas</a>
+</nav>
+
+<main>
+
+<!-- ═══════════════════════════════ OVERVIEW ═══════════════════════════════ -->
+<section id="overview">
+  <h2>Overview</h2>
+  <p>The <strong>display</strong> branch turns an ESP32 (or ESP8266) into a smart I²C LCD controller. It drives a 16×2 character LCD via LiquidCrystal_I2C, exposes a REST/WebSocket/MQTT/BLE API for controlling what the LCD shows, and — uniquely — can act as a <em>Serial Bridge client</em>: it connects to a remote Weighsoft serialReader device and automatically mirrors whatever that device's serial line reads onto the physical LCD screen.</p>
+
+  <div class="diagram">
+    <svg viewBox="0 0 820 320" width="820" height="320" xmlns="http://www.w3.org/2000/svg">
+      <!-- Remote instrument source -->
+      <rect x="10" y="120" width="130" height="60" rx="8" fill="#1e2631" stroke="#2596D1" stroke-width="1.5"/>
+      <text x="75" y="144" fill="#8b949e" font-size="11" text-anchor="middle">Remote Device</text>
+      <text x="75" y="162" fill="#2596D1" font-size="10" text-anchor="middle">(serialReader branch)</text>
+      <text x="75" y="176" fill="#58a6ff" font-size="10" text-anchor="middle">/ws/serial</text>
+
+      <!-- Arrow: remote → ESP32 -->
+      <line x1="140" y1="150" x2="200" y2="150" stroke="#3fb950" stroke-width="1.5" class="flow-arrow"/>
+      <text x="170" y="143" fill="#3fb950" font-size="9" text-anchor="middle">WS / MQTT / BLE</text>
+
+      <!-- ESP32 box -->
+      <rect x="200" y="60" width="200" height="200" rx="10" fill="#161b22" stroke="#2596D1" stroke-width="2"/>
+      <text x="300" y="82" fill="#2596D1" font-weight="bold" font-size="13" text-anchor="middle">ESP32</text>
+      <text x="300" y="98" fill="#8b949e" font-size="10" text-anchor="middle">Display Branch</text>
+      <!-- inner services -->
+      <rect x="215" y="106" width="170" height="28" rx="5" fill="#1e2631" stroke="#bc8cff" stroke-width="1"/>
+      <text x="300" y="125" fill="#bc8cff" font-size="11" text-anchor="middle">DisplayService</text>
+      <rect x="215" y="142" width="170" height="24" rx="5" fill="#1e2631" stroke="#3fb950" stroke-width="1"/>
+      <text x="300" y="159" fill="#3fb950" font-size="10" text-anchor="middle">Bridge loop() — WS/MQTT/BLE</text>
+      <rect x="215" y="174" width="170" height="24" rx="5" fill="#1e2631" stroke="#f0883e" stroke-width="1"/>
+      <text x="300" y="191" fill="#f0883e" font-size="10" text-anchor="middle">LiquidCrystal_I2C driver</text>
+      <rect x="215" y="206" width="170" height="24" rx="5" fill="#1e2631" stroke="#39d0d8" stroke-width="1"/>
+      <text x="300" y="223" fill="#39d0d8" font-size="10" text-anchor="middle">LedExampleService</text>
+      <rect x="215" y="238" width="170" height="16" rx="3" fill="#0d1117" stroke="#30363d" stroke-width="1"/>
+      <text x="300" y="250" fill="#30363d" font-size="9" text-anchor="middle">ESP8266React framework</text>
+
+      <!-- Arrow: ESP32 → LCD -->
+      <line x1="400" y1="195" x2="480" y2="195" stroke="#f0883e" stroke-width="2" class="flow-arrow"/>
+      <text x="440" y="188" fill="#f0883e" font-size="10" text-anchor="middle">I²C (SDA/SCL)</text>
+
+      <!-- LCD box -->
+      <rect x="480" y="160" width="140" height="70" rx="8" fill="#1e2631" stroke="#f0883e" stroke-width="1.5"/>
+      <text x="550" y="182" fill="#8b949e" font-size="11" text-anchor="middle">16×2 I²C LCD</text>
+      <rect x="495" y="192" width="110" height="28" rx="4" fill="#4FC3F7"/>
+      <text x="550" y="204" fill="#1a1a1a" font-size="8" text-anchor="middle" font-family="monospace">Weighsoft      </text>
+      <text x="550" y="215" fill="#1a1a1a" font-size="8" text-anchor="middle" font-family="monospace">Display Ready  </text>
+
+      <!-- Arrow: browser → ESP32 -->
+      <line x1="630" y1="120" x2="400" y2="120" stroke="#2596D1" stroke-width="1.5" class="flow-arrow"/>
+      <text x="515" y="113" fill="#2596D1" font-size="10" text-anchor="middle">REST / WS</text>
+
+      <!-- Browser -->
+      <rect x="630" y="90" width="130" height="60" rx="8" fill="#1e2631" stroke="#2596D1" stroke-width="1.5"/>
+      <text x="695" y="114" fill="#8b949e" font-size="11" text-anchor="middle">Browser / App</text>
+      <text x="695" y="130" fill="#2596D1" font-size="10" text-anchor="middle">React UI</text>
+      <text x="695" y="144" fill="#58a6ff" font-size="10" text-anchor="middle">/rest/display · /ws/display</text>
+
+      <!-- MQTT cloud -->
+      <ellipse cx="695" cy="250" rx="60" ry="28" fill="#1e2631" stroke="#3fb950" stroke-width="1.5"/>
+      <text x="695" y="246" fill="#3fb950" font-size="10" text-anchor="middle">MQTT Broker</text>
+      <text x="695" y="260" fill="#8b949e" font-size="9" text-anchor="middle">weighsoft/display/#</text>
+      <line x1="634" y1="250" x2="400" y2="175" stroke="#3fb950" stroke-width="1.5" stroke-dasharray="4 3" class="flow-arrow"/>
+    </svg>
+  </div>
+
+  <div class="card-grid">
+    <div class="card">
+      <h3>What This Branch Does</h3>
+      <p>Drives a 16×2 character LCD via I²C. Accepts text content from any channel (REST, WebSocket, MQTT, BLE). Optionally bridges a remote serialReader device — connecting back to its WebSocket/MQTT/BLE feed and rendering live weight data on the physical LCD.</p>
+    </div>
+    <div class="card">
+      <h3>Serial Bridge Modes</h3>
+      <p><span class="tag tag-blue">WebSocket</span> Connects to <code>/ws/serial</code> on a remote device IP. Receives <code>{"last_line":"…"}</code> JSON frames.</p>
+      <p><span class="tag tag-green">MQTT</span> Subscribes to a configured topic. Expects same JSON frame format.</p>
+      <p><span class="tag tag-purple">BLE</span> Scans for the remote device's BLE service UUID, connects, registers NOTIFY on its characteristic.</p>
+    </div>
+    <div class="card">
+      <h3>Key Characteristics</h3>
+      <ul style="color:var(--muted);padding-left:1.25rem;font-size:0.9rem">
+        <li>No filesystem persistence — all state is RAM only (except framework configs)</li>
+        <li>BLE operates as both <em>server</em> (for apps) and <em>client</em> (to bridge remote device)</li>
+        <li>I²C address configurable at runtime (0x27 or 0x3F)</li>
+        <li>LCD preview rendered in the React UI in real time</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════ HARDWARE ═══════════════════════════════ -->
+<section id="hardware">
+  <h2>Hardware</h2>
+
+  <div class="diagram">
+    <svg viewBox="0 0 700 240" width="700" height="240" xmlns="http://www.w3.org/2000/svg">
+      <!-- ESP32 chip -->
+      <rect x="50" y="50" width="160" height="140" rx="8" fill="#161b22" stroke="#2596D1" stroke-width="2"/>
+      <text x="130" y="75" fill="#2596D1" font-weight="bold" font-size="13" text-anchor="middle">ESP32</text>
+      <!-- pins -->
+      <text x="210" y="105" fill="#f0883e" font-size="10">GPIO21 (SDA)</text>
+      <text x="210" y="135" fill="#f0883e" font-size="10">GPIO22 (SCL)</text>
+      <text x="210" y="165" fill="#3fb950" font-size="10">3.3V / GND</text>
+      <text x="210" y="190" fill="#39d0d8" font-size="10">(ESP8266: D2/D1)</text>
+      <circle cx="208" cy="102" r="3" fill="#f0883e"/>
+      <circle cx="208" cy="132" r="3" fill="#f0883e"/>
+      <circle cx="208" cy="162" r="3" fill="#3fb950"/>
+
+      <!-- wires -->
+      <line x1="208" y1="102" x2="340" y2="102" stroke="#f0883e" stroke-width="2" class="flow-arrow"/>
+      <line x1="208" y1="132" x2="340" y2="132" stroke="#f0883e" stroke-width="2" class="flow-arrow"/>
+      <line x1="208" y1="162" x2="340" y2="162" stroke="#3fb950" stroke-width="2"/>
+
+      <!-- I2C LCD -->
+      <rect x="340" y="60" width="200" height="140" rx="8" fill="#1e2631" stroke="#f0883e" stroke-width="2"/>
+      <text x="440" y="84" fill="#f0883e" font-weight="bold" font-size="12" text-anchor="middle">YwRobot LCM1602</text>
+      <text x="440" y="100" fill="#8b949e" font-size="10" text-anchor="middle">16-col × 2-row I²C LCD</text>
+      <!-- LCD screen area -->
+      <rect x="360" y="110" width="160" height="50" rx="4" fill="#4FC3F7"/>
+      <text x="440" y="130" fill="#1a1a1a" font-family="monospace" font-size="9" text-anchor="middle">Weighsoft      </text>
+      <text x="440" y="148" fill="#1a1a1a" font-family="monospace" font-size="9" text-anchor="middle">Display Ready  </text>
+
+      <!-- Pin labels on LCD -->
+      <text x="344" y="102" fill="#f0883e" font-size="9" text-anchor="end">SDA</text>
+      <text x="344" y="132" fill="#f0883e" font-size="9" text-anchor="end">SCL</text>
+      <text x="344" y="162" fill="#3fb950" font-size="9" text-anchor="end">VCC 5V / GND</text>
+
+      <!-- I2C label -->
+      <text x="274" y="90" fill="#8b949e" font-size="9" text-anchor="middle">I²C Bus</text>
+    </svg>
+  </div>
+
+  <div class="card-grid">
+    <div class="card">
+      <h3>I²C Wiring (ESP32)</h3>
+      <table>
+        <tr><th>LCD Pin</th><th>ESP32 GPIO</th><th>Note</th></tr>
+        <tr><td>SDA</td><td><code>GPIO21</code></td><td>Data line</td></tr>
+        <tr><td>SCL</td><td><code>GPIO22</code></td><td>Clock line</td></tr>
+        <tr><td>VCC</td><td><strong>5V</strong></td><td>NOT 3.3V — LCD requires 5V</td></tr>
+        <tr><td>GND</td><td>GND</td><td>Common ground</td></tr>
+      </table>
+    </div>
+    <div class="card">
+      <h3>I²C Wiring (ESP8266)</h3>
+      <table>
+        <tr><th>LCD Pin</th><th>GPIO</th><th>NodeMCU Label</th></tr>
+        <tr><td>SDA</td><td><code>GPIO4</code></td><td>D2</td></tr>
+        <tr><td>SCL</td><td><code>GPIO5</code></td><td>D1</td></tr>
+        <tr><td>VCC</td><td><strong>5V / Vin</strong></td><td>NOT 3.3V</td></tr>
+        <tr><td>GND</td><td>GND</td><td>—</td></tr>
+      </table>
+    </div>
+    <div class="card">
+      <h3>I²C Address</h3>
+      <p>Most YwRobot / PCF8574-based backpacks ship at <code>0x27</code>. Some modules use <code>0x3F</code>.</p>
+      <p>The address is <strong>configurable at runtime</strong> via the Control tab or REST API — the firmware will re-initialise the LCD driver at the new address without reboot.</p>
+      <div class="warn-box"><strong>VCC is 5V.</strong> The I²C lines are pulled up to 5V on the PCB. ESP32 GPIO is 3.3V-tolerant on input but may need a level shifter for long runs. Short bench wires work fine in practice.</div>
+    </div>
+    <div class="card">
+      <h3>Built-in LED</h3>
+      <p>LedExampleService controls the onboard LED on <code>GPIO2</code>.</p>
+      <p>ESP32: active HIGH. ESP8266: active LOW (inverted logic).</p>
+      <p>Exposed via <code>/rest/ledExample</code> and <code>/ws/ledExample</code>. Home Assistant MQTT discovery is auto-published at boot.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════ FIRMWARE ═══════════════════════════════ -->
+<section id="firmware">
+  <h2>Firmware</h2>
+
+  <h3>Boot Sequence</h3>
+  <div class="diagram">
+    <svg viewBox="0 0 680 380" width="680" height="380" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arr" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#2596D1"/>
+        </marker>
+      </defs>
+      <!-- Steps as connected boxes -->
+      <g transform="translate(180,10)">
+        <!-- step boxes -->
+        <rect x="0" y="0" width="280" height="40" rx="6" fill="#1e2631" stroke="#2596D1" stroke-width="1.5"/>
+        <text x="140" y="25" fill="#2596D1" font-size="12" font-weight="bold" text-anchor="middle">① Serial.begin(115200) + 500ms delay</text>
+
+        <rect x="0" y="60" width="280" height="40" rx="6" fill="#1e2631" stroke="#2596D1" stroke-width="1.5"/>
+        <text x="140" y="85" fill="#2596D1" font-size="12" text-anchor="middle">② AsyncWebServer(80)</text>
+
+        <rect x="0" y="120" width="280" height="40" rx="6" fill="#1e2631" stroke="#2596D1" stroke-width="1.5"/>
+        <text x="140" y="145" fill="#2596D1" font-size="12" text-anchor="middle">③ ESP8266React(server) — framework</text>
+
+        <rect x="0" y="180" width="280" height="40" rx="6" fill="#1e2631" stroke="#2596D1" stroke-width="1.5"/>
+        <text x="140" y="205" fill="#2596D1" font-size="12" text-anchor="middle">④ esp8266React→begin()</text>
+
+        <rect x="0" y="240" width="130" height="40" rx="6" fill="#1e2631" stroke="#bc8cff" stroke-width="1.5"/>
+        <text x="65" y="265" fill="#bc8cff" font-size="11" text-anchor="middle">⑤a LedExampleService</text>
+
+        <rect x="150" y="240" width="130" height="40" rx="6" fill="#1e2631" stroke="#f0883e" stroke-width="1.5"/>
+        <text x="215" y="260" fill="#f0883e" font-size="11" text-anchor="middle">⑤b DisplayService</text>
+        <text x="215" y="275" fill="#8b949e" font-size="9" text-anchor="middle">LCD init 0x27</text>
+
+        <rect x="0" y="300" width="280" height="40" rx="6" fill="#1e2631" stroke="#3fb950" stroke-width="1.5"/>
+        <text x="140" y="320" fill="#3fb950" font-size="11" text-anchor="middle">⑥ BLE: onBleServerStarted → configureBle()</text>
+        <text x="140" y="335" fill="#8b949e" font-size="9" text-anchor="middle">LED + Display services inject BLEServer*</text>
+
+        <!-- connectors -->
+        <line x1="140" y1="40" x2="140" y2="60" stroke="#2596D1" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="140" y1="100" x2="140" y2="120" stroke="#2596D1" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="140" y1="160" x2="140" y2="180" stroke="#2596D1" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="140" y1="220" x2="65" y2="240" stroke="#2596D1" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="140" y1="220" x2="215" y2="240" stroke="#2596D1" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="65" y1="280" x2="140" y2="300" stroke="#2596D1" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="215" y1="280" x2="140" y2="300" stroke="#2596D1" stroke-width="1.5" marker-end="url(#arr)"/>
+      </g>
+      <!-- loop box on right -->
+      <rect x="530" y="100" width="140" height="140" rx="8" fill="#0d1117" stroke="#39d0d8" stroke-width="1.5"/>
+      <text x="600" y="120" fill="#39d0d8" font-size="11" text-anchor="middle" font-weight="bold">loop()</text>
+      <text x="600" y="144" fill="#8b949e" font-size="10" text-anchor="middle">esp8266React</text>
+      <text x="600" y="158" fill="#8b949e" font-size="10" text-anchor="middle">→loop()</text>
+      <text x="600" y="180" fill="#f0883e" font-size="10" text-anchor="middle">displayService</text>
+      <text x="600" y="194" fill="#f0883e" font-size="10" text-anchor="middle">→loop()</text>
+      <text x="600" y="212" fill="#8b949e" font-size="9" text-anchor="middle">(drives WS client</text>
+      <text x="600" y="224" fill="#8b949e" font-size="9" text-anchor="middle"> for serial bridge)</text>
+    </svg>
+  </div>
+
+  <h3>DisplayService — State Fields</h3>
+  <table>
+    <tr><th>Field</th><th>Type</th><th>JSON Key</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>line1</code></td><td>String</td><td><code>line1</code></td><td>"Weighsoft"</td><td>First row text (max 16 chars)</td></tr>
+    <tr><td><code>line2</code></td><td>String</td><td><code>line2</code></td><td>"Display Ready"</td><td>Second row text (max 16 chars)</td></tr>
+    <tr><td><code>i2cAddress</code></td><td>uint8_t</td><td><code>i2c_address</code></td><td>0x27</td><td>I²C address; change triggers LCD re-init</td></tr>
+    <tr><td><code>backlight</code></td><td>bool</td><td><code>backlight</code></td><td>true</td><td>LCD backlight on/off</td></tr>
+    <tr><td><code>bridgeMode</code></td><td>String</td><td><code>bridge_mode</code></td><td>"off"</td><td>off | websocket | mqtt | ble</td></tr>
+    <tr><td><code>serialDeviceIP</code></td><td>String</td><td><code>serial_device_ip</code></td><td>""</td><td>WS bridge: remote device IP</td></tr>
+    <tr><td><code>serialDevicePort</code></td><td>uint16_t</td><td><code>serial_device_port</code></td><td>80</td><td>WS bridge: remote device port</td></tr>
+    <tr><td><code>serialMqttTopic</code></td><td>String</td><td><code>serial_mqtt_topic</code></td><td>""</td><td>MQTT bridge: topic to subscribe</td></tr>
+    <tr><td><code>serialBleServiceUuid</code></td><td>String</td><td><code>serial_ble_service_uuid</code></td><td>""</td><td>BLE bridge: remote service UUID</td></tr>
+    <tr><td><code>serialBleCharUuid</code></td><td>String</td><td><code>serial_ble_char_uuid</code></td><td>""</td><td>BLE bridge: remote characteristic UUID</td></tr>
+  </table>
+  <div class="info-box">State is <strong>not persisted to flash</strong>. On reboot the display returns to "Weighsoft / Display Ready". If persistence is needed, add <code>FSPersistence&lt;DisplayState&gt;</code> and a <code>readConfig</code>/<code>updateConfig</code> pair.</div>
+
+  <h3>LedExampleService — State Fields</h3>
+  <table>
+    <tr><th>Field</th><th>Type</th><th>JSON Key</th><th>HA Format</th></tr>
+    <tr><td><code>ledOn</code></td><td>bool</td><td><code>led_on</code></td><td><code>state</code>: "ON"/"OFF"</td></tr>
+  </table>
+
+  <h3>DisplayService Serial Bridge — Mode State Machine</h3>
+  <div class="diagram">
+    <svg viewBox="0 0 700 200" width="700" height="200" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arr2" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#8b949e"/>
+        </marker>
+      </defs>
+      <!-- States -->
+      <rect x="10" y="75" width="90" height="40" rx="8" fill="#1e2631" stroke="#8b949e" stroke-width="1.5"/>
+      <text x="55" y="100" fill="#8b949e" font-size="11" text-anchor="middle">off</text>
+
+      <rect x="170" y="20" width="110" height="40" rx="8" fill="#1e2631" stroke="#2596D1" stroke-width="1.5"/>
+      <text x="225" y="45" fill="#2596D1" font-size="11" text-anchor="middle">websocket</text>
+      <text x="225" y="58" fill="#8b949e" font-size="9" text-anchor="middle">_wsClient→begin(ip,port)</text>
+
+      <rect x="170" y="80" width="110" height="40" rx="8" fill="#1e2631" stroke="#3fb950" stroke-width="1.5"/>
+      <text x="225" y="105" fill="#3fb950" font-size="11" text-anchor="middle">mqtt</text>
+      <text x="225" y="118" fill="#8b949e" font-size="9" text-anchor="middle">subscribe(topic)</text>
+
+      <rect x="170" y="140" width="110" height="40" rx="8" fill="#1e2631" stroke="#bc8cff" stroke-width="1.5"/>
+      <text x="225" y="162" fill="#bc8cff" font-size="11" text-anchor="middle">ble</text>
+      <text x="225" y="176" fill="#8b949e" font-size="9" text-anchor="middle">scan→connect→notify</text>
+
+      <!-- Trigger -->
+      <rect x="390" y="75" width="130" height="40" rx="8" fill="#0d1117" stroke="#f0883e" stroke-width="1.5"/>
+      <text x="455" y="95" fill="#f0883e" font-size="11" text-anchor="middle">onSerialDataReceived</text>
+      <text x="455" y="109" fill="#8b949e" font-size="9" text-anchor="middle">chars 0-15 → line1 · 16-31 → line2</text>
+
+      <!-- LCD -->
+      <rect x="570" y="75" width="100" height="40" rx="8" fill="#1e2631" stroke="#f0883e" stroke-width="1.5"/>
+      <text x="620" y="95" fill="#f0883e" font-size="11" text-anchor="middle">LCD Update</text>
+      <text x="620" y="109" fill="#8b949e" font-size="9" text-anchor="middle">+ state broadcast</text>
+
+      <!-- arrows off→modes -->
+      <line x1="100" y1="90" x2="170" y2="40" stroke="#8b949e" stroke-width="1.2" marker-end="url(#arr2)"/>
+      <line x1="100" y1="95" x2="170" y2="95" stroke="#8b949e" stroke-width="1.2" marker-end="url(#arr2)"/>
+      <line x1="100" y1="100" x2="170" y2="155" stroke="#8b949e" stroke-width="1.2" marker-end="url(#arr2)"/>
+
+      <!-- arrows modes → callback -->
+      <line x1="280" y1="40" x2="390" y2="85" stroke="#8b949e" stroke-width="1.2" marker-end="url(#arr2)"/>
+      <line x1="280" y1="95" x2="390" y2="95" stroke="#8b949e" stroke-width="1.2" marker-end="url(#arr2)"/>
+      <line x1="280" y1="155" x2="390" y2="105" stroke="#8b949e" stroke-width="1.2" marker-end="url(#arr2)"/>
+
+      <!-- callback → lcd -->
+      <line x1="520" y1="95" x2="570" y2="95" stroke="#f0883e" stroke-width="1.5" marker-end="url(#arr2)"/>
+    </svg>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════ DATA FLOWS ═══════════════════════════════ -->
+<section id="dataflows">
+  <h2>Data Flows</h2>
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="showTab('df','manual')">Manual Control</button>
+    <button class="tab-btn" onclick="showTab('df','ws-bridge')">WS Serial Bridge</button>
+    <button class="tab-btn" onclick="showTab('df','mqtt-bridge')">MQTT Bridge</button>
+    <button class="tab-btn" onclick="showTab('df','ble-bridge')">BLE Bridge</button>
+  </div>
+
+  <div id="df-manual" class="tab-panel active">
+    <p>User writes text directly to the display via REST or WebSocket — no external device involved.</p>
+    <div class="diagram">
+      <svg viewBox="0 0 640 120" width="640" height="120" xmlns="http://www.w3.org/2000/svg">
+        <rect x="10" y="40" width="120" height="40" rx="6" fill="#1e2631" stroke="#2596D1" stroke-width="1.5"/>
+        <text x="70" y="65" fill="#2596D1" font-size="11" text-anchor="middle">Browser React UI</text>
+        <line x1="130" y1="60" x2="210" y2="60" stroke="#2596D1" stroke-width="1.5" class="flow-arrow"/>
+        <text x="170" y="52" fill="#8b949e" font-size="9" text-anchor="middle">POST /rest/display</text>
+        <text x="170" y="74" fill="#8b949e" font-size="9" text-anchor="middle">or /ws/display</text>
+        <rect x="210" y="40" width="140" height="40" rx="6" fill="#1e2631" stroke="#bc8cff" stroke-width="1.5"/>
+        <text x="280" y="65" fill="#bc8cff" font-size="11" text-anchor="middle">DisplayService</text>
+        <line x1="350" y1="60" x2="430" y2="60" stroke="#f0883e" stroke-width="1.5" class="flow-arrow"/>
+        <text x="390" y="52" fill="#8b949e" font-size="9" text-anchor="middle">I²C</text>
+        <rect x="430" y="30" width="180" height="60" rx="6" fill="#1e2631" stroke="#f0883e" stroke-width="1.5"/>
+        <text x="520" y="55" fill="#f0883e" font-size="11" text-anchor="middle">16×2 LCD</text>
+        <rect x="445" y="62" width="150" height="22" rx="3" fill="#4FC3F7"/>
+        <text x="520" y="77" fill="#1a1a1a" font-size="8" font-family="monospace" text-anchor="middle">line1  /  line2</text>
+      </svg>
+    </div>
+    <h4>REST flow</h4>
+    <pre><code>POST /rest/display
+Authorization: Bearer &lt;jwt&gt;
+Content-Type: application/json
+
+{ "line1": "12.500 kg", "line2": "NET     ", "backlight": true }</code></pre>
+    <h4>WebSocket flow</h4>
+    <pre><code>// Client sends:
+{ "line1": "12.500 kg", "line2": "NET     " }
+
+// Server broadcasts to all WS clients:
+{ "type": "payload", "origin_id": "&lt;clientId&gt;", "payload": { "line1": "…", "line2": "…", … } }</code></pre>
+  </div>
+
+  <div id="df-ws-bridge" class="tab-panel">
+    <p>DisplayService connects as a WebSocket <em>client</em> to the serialReader device's <code>/ws/serial</code> endpoint. Incoming JSON frames update the LCD.</p>
+    <div class="diagram">
+      <svg viewBox="0 0 700 120" width="700" height="120" xmlns="http://www.w3.org/2000/svg">
+        <rect x="10" y="40" width="130" height="40" rx="6" fill="#1e2631" stroke="#39d0d8" stroke-width="1.5"/>
+        <text x="75" y="60" fill="#39d0d8" font-size="11" text-anchor="middle">serialReader ESP32</text>
+        <text x="75" y="75" fill="#8b949e" font-size="9" text-anchor="middle">/ws/serial</text>
+        <line x1="140" y1="60" x2="220" y2="60" stroke="#39d0d8" stroke-width="1.5" class="flow-arrow"/>
+        <text x="180" y="50" fill="#8b949e" font-size="9" text-anchor="middle">WebSocket</text>
+        <text x="180" y="75" fill="#8b949e" font-size="9" text-anchor="middle">{last_line:"…"}</text>
+        <rect x="220" y="30" width="160" height="60" rx="6" fill="#1e2631" stroke="#bc8cff" stroke-width="1.5"/>
+        <text x="300" y="55" fill="#bc8cff" font-size="11" text-anchor="middle">DisplayService</text>
+        <text x="300" y="70" fill="#8b949e" font-size="9" text-anchor="middle">loop() → wsClient.loop()</text>
+        <text x="300" y="83" fill="#8b949e" font-size="9" text-anchor="middle">onSerialDataReceived()</text>
+        <line x1="380" y1="60" x2="460" y2="60" stroke="#f0883e" stroke-width="1.5" class="flow-arrow"/>
+        <text x="420" y="52" fill="#8b949e" font-size="9" text-anchor="middle">I²C write</text>
+        <rect x="460" y="30" width="200" height="60" rx="6" fill="#1e2631" stroke="#f0883e" stroke-width="1.5"/>
+        <text x="560" y="53" fill="#f0883e" font-size="11" text-anchor="middle">16×2 LCD</text>
+        <rect x="475" y="60" width="170" height="22" rx="3" fill="#4FC3F7"/>
+        <text x="560" y="75" fill="#1a1a1a" font-size="8" font-family="monospace" text-anchor="middle">chars[0..15] · chars[16..31]</text>
+      </svg>
+    </div>
+    <p>Bridge is configured via the Serial Bridge tab in the UI. The display device needs a route to the serialReader's IP on port 80.</p>
+    <pre><code>// Serial Bridge config (POST /rest/display)
+{
+  "bridge_mode": "websocket",
+  "serial_device_ip": "192.168.1.xx",
+  "serial_device_port": 80
+}</code></pre>
+  </div>
+
+  <div id="df-mqtt-bridge" class="tab-panel">
+    <p>Both display and serialReader devices share a common MQTT broker. SerialReader publishes weight data; Display subscribes and renders it.</p>
+    <div class="diagram">
+      <svg viewBox="0 0 700 160" width="700" height="160" xmlns="http://www.w3.org/2000/svg">
+        <rect x="10" y="50" width="130" height="40" rx="6" fill="#1e2631" stroke="#39d0d8" stroke-width="1.5"/>
+        <text x="75" y="70" fill="#39d0d8" font-size="11" text-anchor="middle">serialReader</text>
+        <text x="75" y="83" fill="#8b949e" font-size="9" text-anchor="middle">publishes weight</text>
+        <line x1="140" y1="70" x2="270" y2="70" stroke="#3fb950" stroke-width="1.5" class="flow-arrow"/>
+        <ellipse cx="330" cy="70" rx="60" ry="28" fill="#1e2631" stroke="#3fb950" stroke-width="1.5"/>
+        <text x="330" y="66" fill="#3fb950" font-size="10" text-anchor="middle">MQTT Broker</text>
+        <text x="330" y="81" fill="#8b949e" font-size="9" text-anchor="middle">weighsoft/serial/…</text>
+        <line x1="390" y1="70" x2="490" y2="70" stroke="#3fb950" stroke-width="1.5" class="flow-arrow"/>
+        <rect x="490" y="50" width="120" height="40" rx="6" fill="#1e2631" stroke="#bc8cff" stroke-width="1.5"/>
+        <text x="550" y="70" fill="#bc8cff" font-size="11" text-anchor="middle">DisplayService</text>
+        <text x="550" y="83" fill="#8b949e" font-size="9" text-anchor="middle">subscribes configured topic</text>
+        <line x1="550" y1="90" x2="550" y2="115" stroke="#f0883e" stroke-width="1.5" class="flow-arrow"/>
+        <rect x="480" y="115" width="140" height="35" rx="6" fill="#1e2631" stroke="#f0883e" stroke-width="1.5"/>
+        <text x="550" y="137" fill="#f0883e" font-size="11" text-anchor="middle">LCD Updated</text>
+      </svg>
+    </div>
+    <pre><code>// Bridge config
+{
+  "bridge_mode": "mqtt",
+  "serial_mqtt_topic": "weighsoft/serial/&lt;serial-device-id&gt;/data"
+}</code></pre>
+  </div>
+
+  <div id="df-ble-bridge" class="tab-panel">
+    <p>The display ESP32 acts as a BLE <em>client</em>: it scans for the serialReader's BLE service UUID, connects, and subscribes to NOTIFY on the weight characteristic.</p>
+    <div class="diagram">
+      <svg viewBox="0 0 700 160" width="700" height="160" xmlns="http://www.w3.org/2000/svg">
+        <rect x="10" y="50" width="130" height="60" rx="6" fill="#1e2631" stroke="#bc8cff" stroke-width="1.5"/>
+        <text x="75" y="72" fill="#bc8cff" font-size="11" text-anchor="middle">serialReader BLE</text>
+        <text x="75" y="87" fill="#8b949e" font-size="9" text-anchor="middle">Service UUID:</text>
+        <text x="75" y="100" fill="#8b949e" font-size="9" text-anchor="middle">12340000-…1234</text>
+        <line x1="140" y1="80" x2="240" y2="80" stroke="#bc8cff" stroke-width="1.5" class="flow-arrow"/>
+        <text x="190" y="68" fill="#8b949e" font-size="9" text-anchor="middle">BLE NOTIFY</text>
+        <rect x="240" y="40" width="200" height="80" rx="6" fill="#1e2631" stroke="#bc8cff" stroke-width="1.5"/>
+        <text x="340" y="62" fill="#bc8cff" font-size="11" text-anchor="middle">Display BLE Client</text>
+        <text x="340" y="77" fill="#8b949e" font-size="9" text-anchor="middle">1. scan(5s) for service UUID</text>
+        <text x="340" y="91" fill="#8b949e" font-size="9" text-anchor="middle">2. connect + find char</text>
+        <text x="340" y="105" fill="#8b949e" font-size="9" text-anchor="middle">3. registerForNotify(callback)</text>
+        <line x1="440" y1="80" x2="530" y2="80" stroke="#f0883e" stroke-width="1.5" class="flow-arrow"/>
+        <rect x="530" y="60" width="140" height="40" rx="6" fill="#1e2631" stroke="#f0883e" stroke-width="1.5"/>
+        <text x="600" y="80" fill="#f0883e" font-size="11" text-anchor="middle">LCD Updated</text>
+        <text x="600" y="94" fill="#8b949e" font-size="9" text-anchor="middle">via onSerialDataReceived</text>
+      </svg>
+    </div>
+    <pre><code>// Bridge config
+{
+  "bridge_mode": "ble",
+  "serial_ble_service_uuid": "12340000-e8f2-537e-4f6c-d104768a1234",
+  "serial_ble_char_uuid":    "12340001-e8f2-537e-4f6c-d104768a1234"
+}</code></pre>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════ CHANNELS ═══════════════════════════════ -->
+<section id="channels">
+  <h2>Channels &amp; Endpoints</h2>
+
+  <h3>Project Endpoints</h3>
+  <table>
+    <tr><th>Method</th><th>Path</th><th>Service</th><th>Auth</th><th>Notes</th></tr>
+    <tr><td><span class="tag tag-blue">GET</span><span class="tag tag-green">POST</span></td><td><code>/rest/display</code></td><td>DisplayService</td><td><span class="tag tag-orange">IS_AUTHENTICATED</span></td><td>Read/write DisplayState</td></tr>
+    <tr><td><span class="tag tag-cyan">WS</span></td><td><code>/ws/display</code></td><td>DisplayService</td><td><span class="tag tag-orange">IS_AUTHENTICATED</span></td><td>Real-time state sync</td></tr>
+    <tr><td><span class="tag tag-blue">GET</span><span class="tag tag-green">POST</span></td><td><code>/rest/ledExample</code></td><td>LedExampleService</td><td><span class="tag tag-orange">IS_AUTHENTICATED</span></td><td>Toggle onboard LED</td></tr>
+    <tr><td><span class="tag tag-cyan">WS</span></td><td><code>/ws/ledExample</code></td><td>LedExampleService</td><td><span class="tag tag-orange">IS_AUTHENTICATED</span></td><td>Real-time LED state</td></tr>
+  </table>
+
+  <h3>MQTT Topics</h3>
+  <table>
+    <tr><th>Topic</th><th>Service</th><th>Direction</th><th>Format</th></tr>
+    <tr><td><code>weighsoft/display/#{id}/data</code></td><td>DisplayService</td><td>Device publishes</td><td>Full DisplayState JSON</td></tr>
+    <tr><td><code>weighsoft/display/#{id}/set</code></td><td>DisplayService</td><td>Device subscribes</td><td>Partial DisplayState JSON</td></tr>
+    <tr><td><code>homeassistant/light/#{id}/config</code></td><td>LedExampleService</td><td>Device publishes</td><td>HA discovery payload</td></tr>
+    <tr><td><code>homeassistant/light/#{id}/state</code></td><td>LedExampleService</td><td>Device publishes</td><td><code>"ON"</code> or <code>"OFF"</code></td></tr>
+    <tr><td><code>homeassistant/light/#{id}/set</code></td><td>LedExampleService</td><td>Device subscribes</td><td><code>"ON"</code> or <code>"OFF"</code></td></tr>
+  </table>
+
+  <h3>Display BLE (server role)</h3>
+  <table>
+    <tr><th>Attribute</th><th>Value</th></tr>
+    <tr><td>Service UUID</td><td><code>a8f3d5e0-8b2c-4f1a-9d6e-3c7b4a5f1e8d</code></td></tr>
+    <tr><td>Characteristic UUID</td><td><code>a8f3d5e1-8b2c-4f1a-9d6e-3c7b4a5f1e8d</code></td></tr>
+    <tr><td>Properties</td><td>READ · WRITE · NOTIFY</td></tr>
+    <tr><td>Write payload</td><td><code>{"line1":"…","line2":"…"}</code></td></tr>
+  </table>
+
+  <h3>Framework Endpoints (all branches)</h3>
+  <table>
+    <tr><th>Method</th><th>Path</th><th>Auth</th></tr>
+    <tr><td>GET</td><td><code>/rest/features</code></td><td>none</td></tr>
+    <tr><td>POST</td><td><code>/rest/signIn</code></td><td>none</td></tr>
+    <tr><td>GET</td><td><code>/rest/verifyAuthorization</code></td><td>IS_AUTHENTICATED</td></tr>
+    <tr><td>GET/PUT</td><td><code>/rest/userTheme</code></td><td>IS_AUTHENTICATED</td></tr>
+    <tr><td>GET/POST</td><td><code>/rest/wifiSettings</code></td><td>IS_ADMIN</td></tr>
+    <tr><td>GET</td><td><code>/rest/wifiStatus</code></td><td>IS_AUTHENTICATED</td></tr>
+    <tr><td>GET</td><td><code>/rest/wifiScan</code> · <code>/ws/wifiScan</code></td><td>IS_AUTHENTICATED</td></tr>
+    <tr><td>GET/POST</td><td><code>/rest/apSettings</code></td><td>IS_ADMIN</td></tr>
+    <tr><td>GET</td><td><code>/rest/apStatus</code> · <code>/ws/apStatus</code></td><td>IS_AUTHENTICATED</td></tr>
+    <tr><td>GET/POST</td><td><code>/rest/ntpSettings</code></td><td>IS_ADMIN</td></tr>
+    <tr><td>GET</td><td><code>/rest/ntpStatus</code> · <code>/ws/ntpStatus</code></td><td>IS_AUTHENTICATED</td></tr>
+    <tr><td>GET/POST</td><td><code>/rest/mqttSettings</code></td><td>IS_ADMIN</td></tr>
+    <tr><td>GET</td><td><code>/rest/mqttStatus</code> · <code>/ws/mqttStatus</code></td><td>IS_AUTHENTICATED</td></tr>
+    <tr><td>GET/POST</td><td><code>/rest/bleSettings</code></td><td>IS_ADMIN</td></tr>
+    <tr><td>GET</td><td><code>/rest/bleStatus</code></td><td>IS_AUTHENTICATED</td></tr>
+    <tr><td>GET/POST</td><td><code>/rest/securitySettings</code></td><td>IS_ADMIN</td></tr>
+    <tr><td>POST</td><td><code>/rest/restart</code></td><td>IS_ADMIN</td></tr>
+    <tr><td>POST</td><td><code>/rest/factoryReset</code></td><td>IS_ADMIN</td></tr>
+    <tr><td>GET</td><td><code>/rest/systemStatus</code></td><td>IS_AUTHENTICATED</td></tr>
+    <tr><td>POST</td><td><code>/rest/uploadFirmware</code></td><td>IS_ADMIN</td></tr>
+  </table>
+</section>
+
+<!-- ═══════════════════════════════ SECURITY ═══════════════════════════════ -->
+<section id="security">
+  <h2>Security</h2>
+
+  <div class="card-grid">
+    <div class="card">
+      <h3>Three-Tier JWT</h3>
+      <table>
+        <tr><th>Tier</th><th>Who</th><th>Endpoints</th></tr>
+        <tr><td><span class="tag tag-green">NONE_REQUIRED</span></td><td>Anyone</td><td><code>/rest/features</code>, <code>/rest/signIn</code></td></tr>
+        <tr><td><span class="tag tag-orange">IS_AUTHENTICATED</span></td><td>Any logged-in user</td><td>Display, LED, status endpoints</td></tr>
+        <tr><td><span class="tag tag-red">IS_ADMIN</span></td><td>Admin user only</td><td>WiFi, AP, NTP, MQTT, BLE, security, restart, factory reset, OTA</td></tr>
+      </table>
+    </div>
+    <div class="card">
+      <h3>JWT Flow</h3>
+      <p>1. <code>POST /rest/signIn</code> with username + password → returns <code>{ access_token: "…" }</code></p>
+      <p>2. Token stored in <code>localStorage</code></p>
+      <p>3. All AXIOS requests inject <code>Authorization: Bearer &lt;token&gt;</code> via <code>transformRequest</code></p>
+      <p>4. WebSocket connections append <code>?access_token=&lt;token&gt;</code> query param</p>
+      <p>5. 401 response → Axios interceptor redirects to <code>/unauthorized</code> → sign-out</p>
+    </div>
+    <div class="card">
+      <h3>Factory Defaults</h3>
+      <table>
+        <tr><th>Setting</th><th>Value</th></tr>
+        <tr><td>Admin user</td><td><code>admin</code> / <code>admin</code></td></tr>
+        <tr><td>Guest user</td><td><code>guest</code> / <code>guest</code></td></tr>
+        <tr><td>AP SSID</td><td><code>ESP8266-React-#{mac}</code></td></tr>
+        <tr><td>AP password</td><td><code>esp-react</code></td></tr>
+        <tr><td>AP mode</td><td><code>AP_MODE_DISCONNECTED</code></td></tr>
+        <tr><td>JWT secret</td><td>random (per device)</td></tr>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════ BUILD ═══════════════════════════════ -->
+<section id="build">
+  <h2>Build Targets</h2>
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="showTab('bt','node32s')">node32s (default)</button>
+    <button class="tab-btn" onclick="showTab('bt','esp32dev')">esp32dev</button>
+    <button class="tab-btn" onclick="showTab('bt','esp12e')">esp12e</button>
+    <button class="tab-btn" onclick="showTab('bt','flags')">Feature Flags</button>
+  </div>
+
+  <div id="bt-node32s" class="tab-panel active">
+    <h4>node32s — Primary Target</h4>
+    <table>
+      <tr><th>Setting</th><th>Value</th></tr>
+      <tr><td>Platform</td><td>espressif32</td></tr>
+      <tr><td>Board</td><td>node32s</td></tr>
+      <tr><td>Filesystem</td><td>LittleFS</td></tr>
+      <tr><td>WDT</td><td>10 seconds</td></tr>
+      <tr><td>BLE</td><td><code>FT_BLE=1</code> ✓ enabled</td></tr>
+      <tr><td>Partition</td><td><code>partitions_ble.csv</code> — single app, no OTA (factory 3.3MB + spiffs 640KB)</td></tr>
+    </table>
+    <div class="warn-box">BLE partition has no OTA slots. Firmware updates require USB serial upload.</div>
+  </div>
+
+  <div id="bt-esp32dev" class="tab-panel">
+    <h4>esp32dev — Debug Target</h4>
+    <table>
+      <tr><th>Setting</th><th>Value</th></tr>
+      <tr><td>Platform</td><td>espressif32</td></tr>
+      <tr><td>Board</td><td>esp32dev</td></tr>
+      <tr><td>Debug level</td><td><code>CORE_DEBUG_LEVEL=5</code> (verbose)</td></tr>
+      <tr><td>Partition</td><td><code>partitions_custom.csv</code> — dual OTA (app0+app1 1.5MB each)</td></tr>
+      <tr><td>BLE</td><td>Not included</td></tr>
+    </table>
+  </div>
+
+  <div id="bt-esp12e" class="tab-panel">
+    <h4>esp12e — ESP8266 Target</h4>
+    <table>
+      <tr><th>Setting</th><th>Value</th></tr>
+      <tr><td>Platform</td><td>espressif8266</td></tr>
+      <tr><td>Board</td><td>esp12e</td></tr>
+      <tr><td>CPU</td><td>160 MHz</td></tr>
+      <tr><td>Filesystem</td><td>LittleFS</td></tr>
+      <tr><td>BLE</td><td>Not available (ESP8266 has no BLE)</td></tr>
+    </table>
+    <p>I²C pins differ: SDA=GPIO4 (D2), SCL=GPIO5 (D1). LED polarity is inverted.</p>
+  </div>
+
+  <div id="bt-flags" class="tab-panel">
+    <h4>Feature Flags (features.ini)</h4>
+    <table>
+      <tr><th>Flag</th><th>Default</th><th>Effect</th></tr>
+      <tr><td><code>FT_PROJECT</code></td><td>1</td><td>Display + LED routes active</td></tr>
+      <tr><td><code>FT_SECURITY</code></td><td>1</td><td>JWT auth required</td></tr>
+      <tr><td><code>FT_MQTT</code></td><td>1</td><td>MQTT pub/sub enabled</td></tr>
+      <tr><td><code>FT_NTP</code></td><td>1</td><td>NTP time sync enabled</td></tr>
+      <tr><td><code>FT_OTA</code></td><td>1</td><td>ArduinoOTA enabled</td></tr>
+      <tr><td><code>FT_UPLOAD_FIRMWARE</code></td><td>1</td><td>HTTP firmware upload enabled</td></tr>
+      <tr><td><code>FT_BLE</code></td><td>1 (node32s only)</td><td>BLE server + client enabled</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════ REACT UI ═══════════════════════════════ -->
+<section id="ui">
+  <h2>React UI</h2>
+
+  <h3>Provider Tree</h3>
+  <div class="card">
+    <pre><code>ThemeProvider (contexts/theme — Weighsoft brand: #2596D1 / #2B3449)
+  SnackbarProvider (notistack, max 3, bottom-left)
+    FeaturesLoader (fetches /rest/features → FeaturesContext)
+      Authentication (JWT decode, localStorage, verify)
+        AuthenticatedRouting
+          ├── /project/led-example/* → LedExample
+          ├── /project/display/*     → Display ◀ branch feature
+          ├── /wifi/*                → WiFiConnection
+          ├── /ap/*                  → AccessPoint
+          ├── /ntp/*                 → NetworkTime
+          ├── /mqtt/*                → Mqtt
+          ├── /ble/*                 → Ble
+          ├── /security/*            → Security (admin)
+          └── /system/*             → System</code></pre>
+  </div>
+
+  <h3>Display Page — 4 Tabs</h3>
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="showTab('dp','info')">Information</button>
+    <button class="tab-btn" onclick="showTab('dp','control')">Control</button>
+    <button class="tab-btn" onclick="showTab('dp','bridge')">Serial Bridge</button>
+    <button class="tab-btn" onclick="showTab('dp','ble')">BLE Control</button>
+  </div>
+
+  <div id="dp-info" class="tab-panel active">
+    <p>Static documentation page. No API calls. Shows wiring table, I²C addresses, bridge mode descriptions.</p>
+    <div class="wireframe">
+      <div class="wf-tab-bar">
+        <div class="wf-tab sel">Information</div>
+        <div class="wf-tab">Control</div>
+        <div class="wf-tab">Serial Bridge</div>
+        <div class="wf-tab">BLE Control</div>
+      </div>
+      <b style="color:var(--text)">Display Hardware — I²C LCD 16×2</b><br><br>
+      <span style="color:var(--muted);font-size:0.85rem">Wiring table · I²C addresses · Bridge mode explanations</span>
+    </div>
+  </div>
+
+  <div id="dp-control" class="tab-panel">
+    <p>Toggle between REST (form + Save) and WebSocket (real-time) modes. Shows a live LCD colour preview that matches the physical backlight state.</p>
+    <div class="wireframe">
+      <div class="wf-tab-bar">
+        <div class="wf-tab">Information</div>
+        <div class="wf-tab sel">Control</div>
+        <div class="wf-tab">Serial Bridge</div>
+        <div class="wf-tab">BLE Control</div>
+      </div>
+      <div style="margin-bottom:0.75rem">
+        <span style="color:var(--muted);font-size:0.85rem">Mode: </span>
+        <span class="wf-select">REST ▾</span> &nbsp;
+        <span class="wf-select">WebSocket ▾</span>
+      </div>
+      <div class="wf-row"><span class="wf-label">Line 1</span><span class="wf-input">Weighsoft</span><span style="color:var(--muted);font-size:0.8rem"> 9/16 chars</span></div>
+      <div class="wf-row"><span class="wf-label">Line 2</span><span class="wf-input">Display Ready</span></div>
+      <div class="wf-row"><span class="wf-label">I²C Address</span><span class="wf-select">0x27 ▾</span></div>
+      <div class="wf-row"><span class="wf-check"><input type="checkbox" checked disabled><span class="wf-label" style="min-width:0">Backlight</span></span></div>
+      <div style="margin:0.75rem 0">
+        <div class="lcd-preview"><div class="lcd-row">Weighsoft       </div><div class="lcd-row">Display Ready   </div></div>
+      </div>
+      <button class="wf-btn">Save</button>
+    </div>
+    <h4>REST mode</h4>
+    <p>Uses <code>useRest&lt;DisplayData&gt;</code> — loads on mount via GET, saves on button click via POST.</p>
+    <h4>WebSocket mode</h4>
+    <p>Uses <code>useWs&lt;DisplayData&gt;(DISPLAY_SOCKET_PATH)</code> — changes propagate in 100ms debounced sends. All connected clients see the update instantly.</p>
+  </div>
+
+  <div id="dp-bridge" class="tab-panel">
+    <p>Configures the serial bridge mode. Sub-forms appear conditionally based on the selected mode. Always uses REST (not WS) — bridge reconnection happens server-side on config save.</p>
+    <div class="wireframe">
+      <div class="wf-tab-bar">
+        <div class="wf-tab">Information</div>
+        <div class="wf-tab">Control</div>
+        <div class="wf-tab sel">Serial Bridge</div>
+        <div class="wf-tab">BLE Control</div>
+      </div>
+      <div class="wf-row"><span class="wf-label">Bridge Mode</span><span class="wf-select">WebSocket ▾</span></div>
+      <div class="wf-section">
+        <b style="color:var(--muted);font-size:0.85rem">WebSocket Bridge</b><br>
+        <div class="wf-row" style="margin-top:0.4rem"><span class="wf-label">Device IP</span><span class="wf-input">192.168.1.xx</span></div>
+        <div class="wf-row"><span class="wf-label">Port</span><span class="wf-input">80</span></div>
+      </div>
+      <div style="margin-top:0.75rem">
+        <button class="wf-btn" disabled style="opacity:0.5">Save</button> &nbsp;
+        <button class="wf-btn">Save ✓</button>
+      </div>
+      <div style="color:var(--muted);font-size:0.8rem;margin-top:0.5rem">
+        (MQTT mode shows: topic field · BLE mode shows: service UUID + char UUID)
+      </div>
+    </div>
+  </div>
+
+  <div id="dp-ble" class="tab-panel">
+    <p>Static documentation page. No API calls. Shows the Display BLE server UUIDs and nRF Connect connection steps.</p>
+    <div class="wireframe">
+      <div class="wf-tab-bar">
+        <div class="wf-tab">Information</div>
+        <div class="wf-tab">Control</div>
+        <div class="wf-tab">Serial Bridge</div>
+        <div class="wf-tab sel">BLE Control</div>
+      </div>
+      <b style="color:var(--text)">Display BLE Server</b><br><br>
+      <span style="color:var(--muted);font-size:0.85rem">Service UUID: a8f3d5e0-8b2c-4f1a-9d6e-3c7b4a5f1e8d</span><br>
+      <span style="color:var(--muted);font-size:0.85rem">Char UUID: a8f3d5e1-8b2c-4f1a-9d6e-3c7b4a5f1e8d</span><br><br>
+      <span style="color:var(--muted);font-size:0.85rem">Properties: READ · WRITE · NOTIFY</span><br><br>
+      <span style="color:var(--muted);font-size:0.85rem">Write payload: {"line1":"…","line2":"…"}</span>
+    </div>
+  </div>
+
+  <h3>Key Hooks</h3>
+  <div class="card-grid">
+    <div class="card">
+      <h3>useRest&lt;T&gt;</h3>
+      <p>Import from <code>'../../utils'</code></p>
+      <pre><code>const { data, setData, saveData, saving } =
+  useRest&lt;DisplayData&gt;({
+    read:   readDisplayData,   // GET /rest/display
+    update: updateDisplayData  // POST /rest/display
+  });</code></pre>
+      <p>Auto-loads on mount. <code>saveData()</code> calls POST, shows snackbar on success/error.</p>
+    </div>
+    <div class="card">
+      <h3>useWs&lt;T&gt;</h3>
+      <p>Import from <code>'../../utils'</code></p>
+      <pre><code>const { connected, data, updateData } =
+  useWs&lt;DisplayData&gt;(DISPLAY_SOCKET_PATH);
+// DISPLAY_SOCKET_PATH = ws://&lt;host&gt;/ws/display</code></pre>
+      <p>Sockette with JWT <code>?access_token=</code> query param. 100ms debounce on sends. Optimistic updates when origin_id matches own clientId.</p>
+    </div>
+    <div class="card">
+      <h3>FeaturesContext</h3>
+      <p>Import from <code>'../../contexts/features'</code></p>
+      <pre><code>const { features } = useFeatures();
+if (features.ble) { /* show BLE tab */ }</code></pre>
+      <p>Features loaded from <code>GET /rest/features</code> at app start. <strong>Never</strong> use <code>import.meta.env</code> for feature flags — they're runtime, not build-time.</p>
+    </div>
+    <div class="card">
+      <h3>AXIOS instance</h3>
+      <p>Import from <code>'../../api/endpoints'</code></p>
+      <pre><code>import AXIOS from '../../api/endpoints';
+// baseURL = /rest/
+// JWT header injected automatically</code></pre>
+      <p><strong>Always</strong> use <code>AXIOS</code>, never <code>fetch()</code> or plain <code>axios</code> — the instance injects the JWT Bearer token via <code>transformRequest</code>.</p>
+    </div>
+  </div>
+
+  <h3>Build Pipeline</h3>
+  <div class="card">
+    <pre><code>pio run --target upload
+  └─ scripts/build_interface.py (pre-build hook)
+       ├─ cd interface && npm install
+       ├─ npm run build   (Vite + React → interface/build/)
+       │    └─ ProgmemGenerator webpack plugin:
+       │         gzip every asset → C++ uint8_t[] PROGMEM
+       │         writes interface/build/WWWData.h
+       └─ (PROGMEM_WWW defined — skip file copy)
+
+Linker includes WWWData.h → firmware.bin contains the entire React app
+Upload firmware.bin → hard reset (press EN/RST) → hard-refresh browser</code></pre>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════ GOTCHAS ═══════════════════════════════ -->
+<section id="gotchas">
+  <h2>Gotchas</h2>
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="showTab('gc','axios')">AXIOS vs fetch</button>
+    <button class="tab-btn" onclick="showTab('gc','features')">Feature Flags</button>
+    <button class="tab-btn" onclick="showTab('gc','hooks')">Hook Imports</button>
+    <button class="tab-btn" onclick="showTab('gc','progmem')">PROGMEM Upload</button>
+    <button class="tab-btn" onclick="showTab('gc','com')">COM Port Busy</button>
+    <button class="tab-btn" onclick="showTab('gc','ble-part')">BLE Partition</button>
+  </div>
+
+  <div id="gc-axios" class="tab-panel active">
+    <div class="warn-box">
+      <strong>Always use <code>AXIOS</code>, never <code>fetch()</code></strong><br>
+      The <code>AXIOS</code> instance imported from <code>'../../api/endpoints'</code> injects <code>Authorization: Bearer &lt;token&gt;</code> via <code>transformRequest</code> before every request. Plain <code>fetch()</code> sends no auth header → 401 Unauthorized.
+    </div>
+    <pre><code>// ✓ Correct
+import AXIOS from '../../api/endpoints';
+AXIOS.post('display', data);
+
+// ✗ Wrong — gets 401
+fetch('/rest/display', { method: 'POST', body: JSON.stringify(data) });</code></pre>
+  </div>
+
+  <div id="gc-features" class="tab-panel">
+    <div class="warn-box">
+      <strong>Feature flags are runtime, not build-time</strong><br>
+      Flags come from <code>GET /rest/features</code> at app start. They reflect what was compiled into the firmware. Do not use <code>import.meta.env</code> — those are Vite build-time values and won't match the actual firmware capabilities.
+    </div>
+    <pre><code>// ✓ Correct
+const { features } = useFeatures();
+{features.ble && &lt;BleTab /&gt;}
+
+// ✗ Wrong
+{import.meta.env.VITE_BLE_ENABLED && &lt;BleTab /&gt;}</code></pre>
+  </div>
+
+  <div id="gc-hooks" class="tab-panel">
+    <div class="warn-box">
+      <strong>Hook import path is <code>'../../utils'</code></strong><br>
+      <code>useWs</code> and <code>useRest</code> live in <code>interface/src/utils/</code>. Trying to import from <code>'../../hooks'</code> or <code>'../../components'</code> will fail at build time.
+    </div>
+    <pre><code>// ✓ Correct
+import { useWs, useRest } from '../../utils';
+
+// ✗ Wrong
+import { useWs } from '../../hooks/useWs';
+import { useRest } from '../../components/useRest';</code></pre>
+  </div>
+
+  <div id="gc-progmem" class="tab-panel">
+    <div class="warn-box">
+      <strong>Firmware upload = web interface update</strong><br>
+      The React build is embedded inside the firmware binary via <code>PROGMEM_WWW</code>. Uploading to the filesystem does NOT update the web UI. After every firmware upload you must: (1) upload the firmware, (2) press the physical EN/RST reset button, (3) hard-refresh the browser (<kbd>Ctrl+Shift+R</kbd>).
+    </div>
+    <pre><code>pio run --target upload   # uploads firmware.bin containing the React app
+# Then: press EN/RST on the board
+# Then: Ctrl+Shift+R in browser</code></pre>
+  </div>
+
+  <div id="gc-com" class="tab-panel">
+    <div class="warn-box">
+      <strong>COM port busy on Windows</strong><br>
+      If PlatformIO upload fails with "port is busy", a Python serial monitor process is holding the COM port. Kill it before uploading.
+    </div>
+    <pre><code># PowerShell — kill serial monitor processes
+Get-Process python* | Stop-Process -Force
+
+# Then retry upload
+pio run --target upload</code></pre>
+  </div>
+
+  <div id="gc-ble-part" class="tab-panel">
+    <div class="warn-box">
+      <strong>BLE partition has no OTA slots</strong><br>
+      The default <code>node32s</code> environment uses <code>partitions_ble.csv</code> — a single-app layout that gives BLE more heap by eliminating the OTA partitions. You cannot use ArduinoOTA or the HTTP firmware upload with this partition. Always use USB serial upload for BLE builds.
+    </div>
+    <table>
+      <tr><th>Partition file</th><th>OTA?</th><th>Factory size</th><th>When to use</th></tr>
+      <tr><td><code>partitions_ble.csv</code></td><td>No</td><td>3.3 MB</td><td>node32s BLE production builds</td></tr>
+      <tr><td><code>partitions_custom.csv</code></td><td>Yes (dual)</td><td>1.5 MB × 2</td><td>esp32dev debug builds</td></tr>
+    </table>
+  </div>
+</section>
+
+</main>
+
+<footer style="text-align:center;padding:3rem 2rem;color:var(--muted);border-top:1px solid var(--border);margin-top:4rem;font-size:0.85rem">
+  Weighsoft Hardware Base — <strong>display</strong> branch &nbsp;·&nbsp; ESP32 I²C LCD Display Driver &nbsp;·&nbsp; Generated 2026-04-29
+</footer>
+
+<script>
+function showTab(group, name) {
+  const panels = document.querySelectorAll('[id^="' + group + '-"]');
+  panels.forEach(p => p.classList.remove('active'));
+  const target = document.getElementById(group + '-' + name);
+  if (target) target.classList.add('active');
+
+  // Update tab buttons — find the button whose onclick includes the name
+  const btns = document.querySelectorAll('.tab-btn');
+  btns.forEach(b => {
+    if (b.getAttribute('onclick') && b.getAttribute('onclick').includes("'" + group + "'")) {
+      b.classList.toggle('active', b.getAttribute('onclick').includes("'" + name + "'"));
+    }
+  });
+}
+</script>
+</body>
+</html>
