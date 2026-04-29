@@ -4,9 +4,21 @@
 
 **Goal:** Build a single self-contained `docs/multi-device-architecture.html` page that visually documents how the three Weighsoft ESP32 firmware variants (Serial Reader, Display, Serial Writer) compose into larger systems via 8 use case diagrams.
 
-**Architecture:** One static HTML file. All CSS in a single `<style>` block, one inline `<script>` for `IntersectionObserver` nav highlighting and `prefers-reduced-motion` handling. Diagrams are inline SVG with `<animateMotion>` driving small dots along data flow paths. No build step, no external dependencies, no CDN.
+**Architecture:** One static HTML file. All CSS in a single `<style>` block, one inline `<script>` for `IntersectionObserver` nav highlighting / path-draw reveal and `prefers-reduced-motion` handling. Diagrams are inline SVG with `<animateMotion>` driving small dots along data flow paths. No build step, no external dependencies, no CDN. Two self-hosted woff2 fonts live alongside the HTML for offline-capable distinctive typography.
 
-**Tech Stack:** Plain HTML5, CSS (custom properties, grid, sticky positioning), inline SVG with SMIL `<animateMotion>`, vanilla JS (`IntersectionObserver`, `matchMedia`).
+**Tech Stack:** Plain HTML5, CSS (custom properties, grid, sticky positioning), inline SVG with SMIL `<animateMotion>`, vanilla JS (`IntersectionObserver`, `matchMedia`). Self-hosted JetBrains Mono Bold + IBM Plex Sans Condensed Regular.
+
+**Visual direction — Blueprint Cyanotype:**
+
+This page is documentation about industrial serial hardware. The visual language is an engineering schematic / cyanotype blueprint, not a generic dashboard. The Blueprint direction *supersedes* the color palette listed in the spec — keep the spec's structure and content intent, replace the surface palette with the Blueprint values below.
+
+- **Background:** deep oxide-blue `#08111d` with a faint `#1c3a5e` 24px grid (CSS repeating-linear-gradient at ~8% opacity) and a 1px noise grain overlay at ~3% opacity. A fixed title-block lives in the bottom-right corner of the viewport.
+- **Ink palette:** signature cyan `#7fdbff` (= "Reader" channel and section accents). Other channels use desaturated technical hues so the page reads as one coherent drawing rather than a Tailwind rainbow:
+  - Display:  `#6ae8b3` · Writer: `#f0b86a` · Node-RED: `#f08383` · MQTT broker: `#b78dff` · Mobile/BLE: `#ff9ec7` · Physical device: `#8ca0c0`.
+  - Body text `#cbe7ff`, muted `#6b89a8`, hairlines `#2a4a6e`.
+- **Geometry:** sharp 90° corners everywhere (no `border-radius` on any element). Device boxes use a 1px ink stroke with a translucent fill so they read as wet ink on paper. Each device card and diagram wrapper has L-shaped corner brackets (top-left / bottom-right) drawn via two pseudo-elements.
+- **Typography:** **JetBrains Mono Bold** for headings, designation codes, and the title-block (uppercase, letter-spaced). **IBM Plex Sans Condensed Regular** for body and captions. No system fonts.
+- **Motion:** dots travel as 3-dot "packet trains" with decreasing opacity (1.0 → 0.55 → 0.25) so each packet leaves a phosphor trail. On first scroll into a section, paths trace themselves via `stroke-dasharray` reveal before dots start flowing.
 
 **Spec reference:** `docs/superpowers/specs/2026-04-29-multi-device-architecture-design.md`
 
@@ -41,22 +53,75 @@ CSS sections inside the `<style>` block, in order:
 - Reduced-motion overrides.
 - Responsive breakpoints.
 
-Color palette (from spec, lock these as CSS variables):
+Color palette (Blueprint Cyanotype — overrides the spec's surface colors):
 
 ```css
---bg: #0f172a;
---surface: #1e293b;
---border: #334155;
---text: #e2e8f0;
---muted: #94a3b8;
---c-reader: #3b82f6;
---c-display: #10b981;
---c-writer: #f59e0b;
---c-nodered: #ef4444;
---c-mqtt: #06b6d4;
---c-mobile: #ec4899;
---c-physical: #8b5cf6;
---diagram-h: 360px;
+--bg: #08111d;
+--grid: #1c3a5e;
+--paper: rgba(127, 219, 255, 0.025);
+--ink-rule: #2a4a6e;
+--ink-1: #7fdbff;
+--text: #cbe7ff;
+--muted: #6b89a8;
+--c-reader:   #7fdbff;
+--c-display:  #6ae8b3;
+--c-writer:   #f0b86a;
+--c-nodered:  #f08383;
+--c-mqtt:     #b78dff;
+--c-mobile:   #ff9ec7;
+--c-physical: #8ca0c0;
+--diagram-h: 380px;
+```
+
+---
+
+### Task 0: Download self-hosted fonts
+
+**Files:**
+- Create: `docs/assets/fonts/JetBrainsMono-Bold.woff2`
+- Create: `docs/assets/fonts/IBMPlexSansCondensed-Regular.woff2`
+
+The page is dark, technical, offline-capable. Two distinctive fonts replace the system stack: JetBrains Mono Bold for headings/designation codes/title-block, IBM Plex Sans Condensed Regular for body. Both are open source (OFL).
+
+- [ ] **Step 1: Create the fonts directory**
+
+```bash
+mkdir -p docs/assets/fonts
+```
+
+- [ ] **Step 2: Download JetBrains Mono Bold woff2**
+
+```bash
+curl -L -o docs/assets/fonts/JetBrainsMono-Bold.woff2 \
+  https://github.com/JetBrains/JetBrainsMono/raw/v2.304/fonts/webfonts/JetBrainsMono-Bold.woff2
+```
+
+Expected: file exists, ~80KB, non-empty. Verify:
+
+```bash
+ls -lh docs/assets/fonts/JetBrainsMono-Bold.woff2
+```
+
+- [ ] **Step 3: Download IBM Plex Sans Condensed Regular woff2**
+
+```bash
+curl -L -o docs/assets/fonts/IBMPlexSansCondensed-Regular.woff2 \
+  https://github.com/IBM/plex/raw/v6.4.0/IBM-Plex-Sans-Condensed/fonts/complete/woff2/IBMPlexSansCondensed-Regular.woff2
+```
+
+Expected: file exists, ~50KB, non-empty. Verify:
+
+```bash
+ls -lh docs/assets/fonts/IBMPlexSansCondensed-Regular.woff2
+```
+
+If either curl returns an HTML error page instead of a woff2 file (check the file size — under 5KB is suspect), find the current release tag at https://github.com/JetBrains/JetBrainsMono/releases or https://github.com/IBM/plex/releases and substitute the version into the URL above. Do not fall back to a CDN — the page must render offline.
+
+- [ ] **Step 4: Commit the fonts**
+
+```bash
+git add docs/assets/fonts/JetBrainsMono-Bold.woff2 docs/assets/fonts/IBMPlexSansCondensed-Regular.woff2
+git commit -m "docs(serialWriter): self-host JetBrains Mono Bold and IBM Plex Sans Condensed for blueprint typography"
 ```
 
 ---
@@ -66,9 +131,9 @@ Color palette (from spec, lock these as CSS variables):
 **Files:**
 - Create: `docs/multi-device-architecture.html`
 
-- [ ] **Step 1: Create the file with full skeleton, palette, sticky nav, and empty section anchors**
+- [ ] **Step 1: Create the file with the Blueprint skeleton**
 
-Write the entire file content below. The page will render as a dark background with a sticky nav listing 8 anchor links and 9 empty sections beneath it. No diagrams yet — they're added in later tasks.
+Write the entire file content below. The page will render with a deep oxide-blue background, a faint 24px blueprint grid, a fixed engineering-drawing title-block in the bottom-right corner, a sticky monospace nav, and 9 empty sections (the device reference + 8 use case anchors). No diagrams yet — they're added in later tasks.
 
 ```html
 <!DOCTYPE html>
@@ -76,37 +141,79 @@ Write the entire file content below. The page will render as a dark background w
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Weighsoft Multi-Device Architecture</title>
+  <title>WHB-ARCH-001 — Weighsoft Multi-Device Architecture</title>
   <style>
+    /* ---------- Self-hosted fonts ---------- */
+    @font-face {
+      font-family: 'JetBrains Mono';
+      font-style: normal;
+      font-weight: 700;
+      font-display: swap;
+      src: url('assets/fonts/JetBrainsMono-Bold.woff2') format('woff2');
+    }
+    @font-face {
+      font-family: 'IBM Plex Sans Condensed';
+      font-style: normal;
+      font-weight: 400;
+      font-display: swap;
+      src: url('assets/fonts/IBMPlexSansCondensed-Regular.woff2') format('woff2');
+    }
+
+    /* ---------- Tokens ---------- */
     :root {
-      --bg: #0f172a;
-      --surface: #1e293b;
-      --border: #334155;
-      --text: #e2e8f0;
-      --muted: #94a3b8;
-      --c-reader: #3b82f6;
-      --c-display: #10b981;
-      --c-writer: #f59e0b;
-      --c-nodered: #ef4444;
-      --c-mqtt: #06b6d4;
-      --c-mobile: #ec4899;
-      --c-physical: #8b5cf6;
-      --diagram-h: 360px;
+      --bg: #08111d;
+      --grid: #1c3a5e;
+      --paper: rgba(127, 219, 255, 0.025);
+      --ink-rule: #2a4a6e;
+      --ink-1: #7fdbff;
+      --text: #cbe7ff;
+      --muted: #6b89a8;
+
+      --c-reader:   #7fdbff;
+      --c-display:  #6ae8b3;
+      --c-writer:   #f0b86a;
+      --c-nodered:  #f08383;
+      --c-mqtt:     #b78dff;
+      --c-mobile:   #ff9ec7;
+      --c-physical: #8ca0c0;
+
+      --diagram-h: 380px;
+
+      --font-mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+      --font-sans: 'IBM Plex Sans Condensed', 'IBM Plex Sans', sans-serif;
     }
 
     * { box-sizing: border-box; }
-
     html { scroll-behavior: smooth; }
 
     body {
       margin: 0;
-      background: var(--bg);
+      background-color: var(--bg);
+      background-image:
+        repeating-linear-gradient(0deg,  var(--grid) 0 1px, transparent 1px 24px),
+        repeating-linear-gradient(90deg, var(--grid) 0 1px, transparent 1px 24px);
+      background-size: 24px 24px;
+      background-attachment: fixed;
       color: var(--text);
-      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-      line-height: 1.5;
+      font-family: var(--font-sans);
+      font-size: 15px;
+      line-height: 1.55;
+      letter-spacing: 0.005em;
     }
 
-    /* Sticky nav */
+    /* Faint film-grain overlay so the page reads as printed paper */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 1;
+      opacity: 0.035;
+      mix-blend-mode: screen;
+      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.6 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+    }
+
+    /* ---------- Sticky nav ---------- */
     nav#topnav {
       position: sticky;
       top: 0;
@@ -114,84 +221,196 @@ Write the entire file content below. The page will render as a dark background w
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 12px 24px;
-      background: rgba(15, 23, 42, 0.85);
+      padding: 14px 28px;
+      background: rgba(8, 17, 29, 0.82);
       backdrop-filter: blur(6px);
       -webkit-backdrop-filter: blur(6px);
-      border-bottom: 1px solid var(--border);
+      border-bottom: 1px solid var(--ink-rule);
     }
     nav#topnav .brand {
-      font-weight: 600;
-      font-size: 0.95rem;
-      letter-spacing: 0.02em;
+      font-family: var(--font-mono);
+      font-weight: 700;
+      font-size: 0.78rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--ink-1);
     }
+    nav#topnav .brand .dim { color: var(--muted); margin-right: 10px; }
     nav#topnav ul {
       list-style: none;
       margin: 0;
       padding: 0;
       display: flex;
-      gap: 6px;
+      gap: 0;
+      border: 1px solid var(--ink-rule);
     }
+    nav#topnav li + li { border-left: 1px solid var(--ink-rule); }
     nav#topnav a {
       display: inline-block;
-      padding: 6px 10px;
-      border-radius: 6px;
+      padding: 6px 12px;
+      font-family: var(--font-mono);
+      font-weight: 700;
+      font-size: 0.78rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
       color: var(--muted);
       text-decoration: none;
-      font-size: 0.85rem;
-      font-weight: 500;
       transition: color 0.15s, background 0.15s;
     }
-    nav#topnav a:hover { color: var(--text); background: var(--surface); }
-    nav#topnav a.active { color: var(--text); background: var(--surface); }
+    nav#topnav a:hover  { color: var(--ink-1); background: rgba(127, 219, 255, 0.06); }
+    nav#topnav a.active { color: var(--bg); background: var(--ink-1); }
 
-    /* Page layout */
-    main { max-width: 1100px; margin: 0 auto; padding: 32px 24px 64px; }
-
-    header#page-header { padding: 32px 0 16px; }
-    header#page-header h1 {
-      margin: 0 0 8px;
-      font-size: 2rem;
-      letter-spacing: -0.01em;
+    /* ---------- Page shell ---------- */
+    main {
+      position: relative;
+      z-index: 2;
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 48px 28px 96px;
     }
+
+    /* ---------- Header ---------- */
+    header#page-header {
+      position: relative;
+      padding: 24px 0 36px;
+      margin-bottom: 8px;
+      border-bottom: 1px solid var(--ink-rule);
+    }
+    header#page-header .stamp {
+      display: inline-block;
+      padding: 4px 10px;
+      margin-bottom: 18px;
+      border: 1px solid var(--ink-1);
+      font-family: var(--font-mono);
+      font-weight: 700;
+      font-size: 0.7rem;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--ink-1);
+    }
+    header#page-header h1 {
+      margin: 0 0 12px;
+      font-family: var(--font-mono);
+      font-weight: 700;
+      font-size: 2.4rem;
+      letter-spacing: -0.01em;
+      line-height: 1.1;
+      color: var(--text);
+    }
+    header#page-header h1 .ink { color: var(--ink-1); }
     header#page-header p {
       margin: 0;
+      max-width: 64ch;
       color: var(--muted);
       font-size: 1.05rem;
     }
 
-    section { padding: 32px 0; border-top: 1px solid var(--border); }
-    section h2 {
-      margin: 0 0 4px;
-      font-size: 1.4rem;
-      letter-spacing: -0.01em;
+    /* ---------- Sections ---------- */
+    section {
+      position: relative;
+      padding: 40px 0 36px;
+      border-top: 1px solid var(--ink-rule);
     }
+    section .designation {
+      display: inline-block;
+      margin-bottom: 8px;
+      padding: 2px 8px;
+      border: 1px solid var(--ink-rule);
+      font-family: var(--font-mono);
+      font-weight: 700;
+      font-size: 0.7rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    section h2 {
+      margin: 0 0 6px;
+      font-family: var(--font-mono);
+      font-weight: 700;
+      font-size: 1.35rem;
+      letter-spacing: 0.01em;
+      color: var(--text);
+    }
+    section h2 .em { color: var(--ink-1); }
     section .purpose {
-      margin: 0 0 20px;
+      margin: 0 0 22px;
+      max-width: 72ch;
       color: var(--muted);
     }
     section .caption {
-      margin: 16px 0 6px;
+      margin: 18px 0 6px;
+      max-width: 72ch;
       color: var(--text);
       font-size: 0.95rem;
     }
+    section .caption strong {
+      font-family: var(--font-mono);
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      font-size: 0.78rem;
+      color: var(--ink-1);
+      margin-right: 8px;
+    }
     section .example {
       margin: 0;
+      max-width: 72ch;
       color: var(--muted);
-      font-size: 0.9rem;
+      font-size: 0.88rem;
       font-style: italic;
     }
+    section code {
+      font-family: var(--font-mono);
+      font-size: 0.85em;
+      padding: 1px 4px;
+      background: var(--paper);
+      border: 1px solid var(--ink-rule);
+      color: var(--ink-1);
+    }
 
+    /* ---------- Title block (bottom-right, like an engineering drawing) ---------- */
+    aside#titleblock {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      z-index: 5;
+      width: 232px;
+      padding: 10px 12px;
+      background: rgba(8, 17, 29, 0.78);
+      border: 1px solid var(--ink-1);
+      font-family: var(--font-mono);
+      font-size: 0.66rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      pointer-events: none;
+    }
+    aside#titleblock .row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding: 2px 0;
+      border-bottom: 1px dashed var(--ink-rule);
+    }
+    aside#titleblock .row:last-child { border-bottom: none; }
+    aside#titleblock .row .k { color: var(--muted); }
+    aside#titleblock .row .v { color: var(--ink-1); font-weight: 700; }
+    @media (max-width: 720px) { aside#titleblock { display: none; } }
+
+    /* ---------- Responsive ---------- */
     @media (max-width: 720px) {
-      nav#topnav { flex-direction: column; align-items: flex-start; gap: 8px; }
+      nav#topnav { flex-direction: column; align-items: flex-start; gap: 10px; }
       nav#topnav ul { flex-wrap: wrap; }
+      header#page-header h1 { font-size: 1.7rem; }
     }
   </style>
 </head>
 <body>
 
 <nav id="topnav" aria-label="Page navigation">
-  <span class="brand">Weighsoft Multi-Device Architecture</span>
+  <span class="brand"><span class="dim">WHB-ARCH-001 //</span> Multi-Device Architecture</span>
   <ul>
     <li><a href="#use-case-a">A</a></li>
     <li><a href="#use-case-b">B</a></li>
@@ -206,24 +425,34 @@ Write the entire file content below. The page will render as a dark background w
 
 <main>
   <header id="page-header">
-    <h1>Weighsoft Multi-Device Architecture</h1>
-    <p>How the Serial Reader, Display, and Serial Writer ESP32 firmware variants compose into larger systems.</p>
+    <span class="stamp">Drawing · Rev A · NTS</span>
+    <h1>Multi-Device <span class="ink">Architecture</span></h1>
+    <p>How the Serial Reader, Display, and Serial Writer ESP32 firmware variants compose into larger systems. Each ESP runs a server side and a client side; the diagrams below trace the wires between them.</p>
   </header>
 
   <section id="device-reference">
-    <h2>Device Reference</h2>
+    <span class="designation">Sheet 00 · Device Reference</span>
+    <h2>Device <span class="em">Reference</span></h2>
     <p class="purpose">Each ESP32 firmware variant runs a server side and a client side. The cards below summarize what each device serves and what it connects out to.</p>
   </section>
 
-  <section id="use-case-a"><h2>Use Case A — Multiple Readers → Node-RED</h2></section>
-  <section id="use-case-b"><h2>Use Case B — 1 Reader + Display + Writer</h2></section>
-  <section id="use-case-c"><h2>Use Case C — Reader as local monitor and cloud forwarder</h2></section>
-  <section id="use-case-d"><h2>Use Case D — Multiple Displays from one Reader</h2></section>
-  <section id="use-case-e"><h2>Use Case E — Node-RED commanding a Writer</h2></section>
-  <section id="use-case-f"><h2>Use Case F — MQTT broker as hub</h2></section>
-  <section id="use-case-g"><h2>Use Case G — Serial WiFi bridge</h2></section>
-  <section id="use-case-h"><h2>Use Case H — Mixed protocol fan-out</h2></section>
+  <section id="use-case-a"><span class="designation">Sheet A · 01</span><h2>Multiple Readers → <span class="em">Node-RED</span></h2></section>
+  <section id="use-case-b"><span class="designation">Sheet B · 02</span><h2>1 Reader + Display + <span class="em">Writer</span></h2></section>
+  <section id="use-case-c"><span class="designation">Sheet C · 03</span><h2>Reader as local monitor + <span class="em">cloud forwarder</span></h2></section>
+  <section id="use-case-d"><span class="designation">Sheet D · 04</span><h2>Multiple Displays from <span class="em">one Reader</span></h2></section>
+  <section id="use-case-e"><span class="designation">Sheet E · 05</span><h2>Node-RED commanding a <span class="em">Writer</span></h2></section>
+  <section id="use-case-f"><span class="designation">Sheet F · 06</span><h2>MQTT broker <span class="em">as hub</span></h2></section>
+  <section id="use-case-g"><span class="designation">Sheet G · 07</span><h2>Serial WiFi <span class="em">bridge</span></h2></section>
+  <section id="use-case-h"><span class="designation">Sheet H · 08</span><h2>Mixed protocol <span class="em">fan-out</span></h2></section>
 </main>
+
+<aside id="titleblock" aria-hidden="true">
+  <div class="row"><span class="k">Drawing</span><span class="v">WHB-ARCH-001</span></div>
+  <div class="row"><span class="k">Rev</span><span class="v">A</span></div>
+  <div class="row"><span class="k">Date</span><span class="v">2026-04-29</span></div>
+  <div class="row"><span class="k">Scale</span><span class="v">NTS</span></div>
+  <div class="row"><span class="k">Project</span><span class="v">Weighsoft</span></div>
+</aside>
 
 </body>
 </html>
@@ -233,16 +462,18 @@ Write the entire file content below. The page will render as a dark background w
 
 Open `docs/multi-device-architecture.html` directly (Windows: double-click or `start docs/multi-device-architecture.html`).
 Expected:
-- Dark navy background, no errors in DevTools console.
-- Sticky nav at top with brand text on left, A–H links on right.
-- Clicking each nav link smoothly scrolls to a section heading.
-- Sections appear with their h2 titles, no diagram content yet.
+- Deep oxide-blue background with a faint 24px grid covering the whole viewport. Subtle grain texture visible.
+- Both fonts loaded (DevTools → Network → font requests for both woff2 files succeed). The nav and headings render in JetBrains Mono Bold; body text in IBM Plex Sans Condensed.
+- Sticky nav at top with `WHB-ARCH-001 //  Multi-Device Architecture` on the left and a row of bordered A–H letters on the right. Clicking a letter smoothly scrolls to its section.
+- Each section shows a designation badge (`Sheet A · 01`, etc.) above its heading.
+- A fixed engineering title-block hovers in the bottom-right corner with `Drawing / Rev / Date / Scale / Project` rows.
+- DevTools Console is clean.
 
 - [ ] **Step 3: Commit**
 
 ```bash
 git add docs/multi-device-architecture.html
-git commit -m "docs(serialWriter): scaffold multi-device-architecture.html with sticky nav"
+git commit -m "docs(serialWriter): scaffold multi-device-architecture.html with blueprint cyanotype shell"
 ```
 
 ---
@@ -254,6 +485,8 @@ git commit -m "docs(serialWriter): scaffold multi-device-architecture.html with 
 
 - [ ] **Step 1: Add device-card CSS rules to the `<style>` block**
 
+The cards are styled like schematic component data-sheet entries: sharp 90° corners, a 1px ink border on the device's channel color, a designation code in the top-right (R-01 / D-01 / W-01), and L-shaped corner brackets in two diagonal corners drawn with two pseudo-elements.
+
 Insert these rules immediately before the `@media (max-width: 720px)` block at the end of the `<style>` element:
 
 ```css
@@ -261,52 +494,111 @@ Insert these rules immediately before the `@media (max-width: 720px)` block at t
 .device-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-  margin-top: 16px;
+  gap: 20px;
+  margin-top: 20px;
 }
 .device-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-left-width: 4px;
-  border-radius: 10px;
-  padding: 16px 18px;
+  position: relative;
+  padding: 20px 22px 22px;
+  background: var(--paper);
+  border: 1px solid var(--ink-rule);
 }
-.device-card.reader  { border-left-color: var(--c-reader); }
-.device-card.display { border-left-color: var(--c-display); }
-.device-card.writer  { border-left-color: var(--c-writer); }
+.device-card::before,
+.device-card::after {
+  content: '';
+  position: absolute;
+  width: 12px;
+  height: 12px;
+}
+.device-card::before {
+  top: -1px; left: -1px;
+  border-top: 1px solid var(--ink);
+  border-left: 1px solid var(--ink);
+}
+.device-card::after {
+  bottom: -1px; right: -1px;
+  border-bottom: 1px solid var(--ink);
+  border-right: 1px solid var(--ink);
+}
+.device-card.reader  { --ink: var(--c-reader); }
+.device-card.reader  { border-color: rgba(127, 219, 255, 0.55); }
+.device-card.display { --ink: var(--c-display); }
+.device-card.display { border-color: rgba(106, 232, 179, 0.55); }
+.device-card.writer  { --ink: var(--c-writer); }
+.device-card.writer  { border-color: rgba(240, 184, 106, 0.55); }
+
+.device-card .designation-code {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 0.7rem;
+  letter-spacing: 0.18em;
+  color: var(--ink);
+}
+
 .device-card h3 {
   margin: 0 0 4px;
-  font-size: 1.05rem;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink);
 }
-.device-card .summary { margin: 0 0 12px; color: var(--muted); font-size: 0.9rem; }
+.device-card .summary {
+  margin: 0 0 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px dashed var(--ink-rule);
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
 .device-card .role-label {
   display: inline-block;
-  margin-top: 10px;
-  margin-bottom: 6px;
+  margin: 12px 0 6px;
   padding: 2px 8px;
-  font-size: 0.7rem;
-  font-weight: 600;
-  letter-spacing: 0.05em;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 0.65rem;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--text);
+  color: var(--bg);
+  background: var(--ink);
 }
+
 .device-card ul {
   margin: 0 0 6px;
-  padding-left: 18px;
-  font-size: 0.85rem;
+  padding-left: 14px;
+  list-style: none;
+  font-size: 0.88rem;
 }
-.device-card li { margin-bottom: 2px; }
+.device-card li {
+  margin-bottom: 4px;
+  position: relative;
+}
+.device-card li::before {
+  content: '─';
+  position: absolute;
+  left: -14px;
+  color: var(--ink-rule);
+}
 .device-card code {
-  background: rgba(255, 255, 255, 0.06);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
   padding: 1px 5px;
-  border-radius: 3px;
-  font-size: 0.8rem;
+  background: rgba(127, 219, 255, 0.05);
+  border: 1px solid var(--ink-rule);
+  color: var(--ink);
 }
 .device-card .source {
-  margin-top: 12px;
-  font-size: 0.75rem;
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--ink-rule);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
   color: var(--muted);
 }
 
@@ -321,11 +613,13 @@ Replace the existing `<section id="device-reference">…</section>` block with:
 
 ```html
   <section id="device-reference">
-    <h2>Device Reference</h2>
+    <span class="designation">Sheet 00 · Device Reference</span>
+    <h2>Device <span class="em">Reference</span></h2>
     <p class="purpose">Each ESP32 firmware variant runs a server side and a client side. The cards below summarize what each device serves and what it connects out to.</p>
 
     <div class="device-grid">
       <article class="device-card reader">
+        <span class="designation-code">R-01</span>
         <h3>Serial Reader</h3>
         <p class="summary">Reads from a physical serial device (scale, sensor) and exposes the live stream to any subscriber.</p>
 
@@ -346,6 +640,7 @@ Replace the existing `<section id="device-reference">…</section>` block with:
       </article>
 
       <article class="device-card display">
+        <span class="designation-code">D-01</span>
         <h3>Display</h3>
         <p class="summary">Drives a 16x2 I2C LCD. Accepts data from any source; can also pull a remote stream onto the screen.</p>
 
@@ -365,6 +660,7 @@ Replace the existing `<section id="device-reference">…</section>` block with:
       </article>
 
       <article class="device-card writer">
+        <span class="designation-code">W-01</span>
         <h3>Serial Writer</h3>
         <p class="summary">Writes to a physical serial port. Accepts pending lines from any source, or pulls them from a remote reader.</p>
 
@@ -391,10 +687,12 @@ Replace the existing `<section id="device-reference">…</section>` block with:
 
 Reload the page.
 Expected:
-- Three cards side-by-side under the Device Reference heading.
-- Each card has a colored 4px left border (blue / green / amber).
+- Three cards side-by-side, each with sharp 90° corners and a hairline ink border in its channel color (cyan / mint / amber).
+- Each card shows a designation code in its top-right (`R-01`, `D-01`, `W-01`) in mono caps.
+- Each card has a top-left and bottom-right L-shaped corner bracket (the registration marks drawn with ::before / ::after pseudo-elements).
+- Server/Client role labels render as filled mono-uppercase chips in the channel color.
+- List items use `─` dash bullets, code chips use the mono font with hairline borders.
 - Cards collapse to a single column when the browser is narrowed below 900px.
-- Server/Client role labels render as small uppercase pills with a subtle background.
 
 - [ ] **Step 4: Commit**
 
@@ -412,30 +710,58 @@ git commit -m "docs(serialWriter): add device reference cards"
 
 - [ ] **Step 1: Add diagram CSS rules**
 
+These primitives apply uniformly to every diagram in Tasks 4–11. The eight diagrams keep their topology and coordinates; they inherit this visual language. Key choices:
+
+- **Sharp corners** (`rx: 0; ry: 0`).
+- **Ink stroke** at 1.5px (1px feels too fine on dark, 3px feels chunky).
+- **Translucent fill** (`var(--paper)`) so the box reads as wet ink on paper rather than a Material card.
+- **Mono device names** (uppercase, letter-spaced) and tiny mono role labels.
+- **Callout protocol pills** — no rounded chip background; just mono text bracketed by `⌜ ⌟` corner-bracket characters with a hairline underline.
+- **Packet trains** — three dots per train with opacity 1.0 / 0.55 / 0.25 so each "packet" leaves a brief phosphor trail.
+- **Path-draw reveal** — paths start with `stroke-dashoffset` set to their length; the IntersectionObserver in Task 12 zeroes that offset on first entry, animating the line drawing itself.
+
 Insert these rules immediately before the `@media (max-width: 900px)` block in the `<style>` element:
 
 ```css
-/* Diagram wrapper and SVG */
+/* ---------- Diagram wrapper ---------- */
 .diagram {
-  margin-top: 8px;
-  padding: 16px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  position: relative;
+  margin-top: 12px;
+  padding: 18px 18px 14px;
+  background: var(--paper);
+  border: 1px solid var(--ink-rule);
   overflow-x: auto;
+}
+.diagram::before,
+.diagram::after {
+  content: '';
+  position: absolute;
+  width: 14px; height: 14px;
+  pointer-events: none;
+}
+.diagram::before {
+  top: -1px; left: -1px;
+  border-top: 1px solid var(--ink-1);
+  border-left: 1px solid var(--ink-1);
+}
+.diagram::after {
+  bottom: -1px; right: -1px;
+  border-bottom: 1px solid var(--ink-1);
+  border-right: 1px solid var(--ink-1);
 }
 .diagram svg {
   display: block;
   width: 100%;
   min-width: 600px;
   height: var(--diagram-h);
+  font-family: var(--font-mono);
 }
 
-/* Device boxes drawn inside SVG */
+/* ---------- Device boxes drawn inside SVG ---------- */
 .dev-box {
-  fill: var(--surface);
-  stroke-width: 3;
-  rx: 8; ry: 8;
+  fill: var(--paper);
+  stroke-width: 1.5;
+  rx: 0; ry: 0;
 }
 .dev-box.reader   { stroke: var(--c-reader); }
 .dev-box.display  { stroke: var(--c-display); }
@@ -443,28 +769,36 @@ Insert these rules immediately before the `@media (max-width: 900px)` block in t
 .dev-box.nodered  { stroke: var(--c-nodered); }
 .dev-box.mqtt     { stroke: var(--c-mqtt); }
 .dev-box.mobile   { stroke: var(--c-mobile); }
-.dev-box.physical { stroke: var(--c-physical); }
+.dev-box.physical { stroke: var(--c-physical); stroke-dasharray: 4 3; }
 
 .dev-name {
   fill: var(--text);
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
   text-anchor: middle;
+  font-family: var(--font-mono);
 }
 .dev-role {
   fill: var(--muted);
-  font-size: 11px;
-  text-anchor: middle;
-  font-weight: 500;
-  letter-spacing: 0.03em;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
+  text-anchor: middle;
+  font-family: var(--font-mono);
 }
 
-/* Flow paths and animated dots */
+/* ---------- Flow paths ---------- */
 .flow-path {
   fill: none;
-  stroke-width: 2;
-  stroke-linecap: round;
+  stroke-width: 1.5;
+  stroke-linecap: square;
+  /* Path-draw reveal: dasharray = path length is set per-path inline.
+     The Task 12 script zeroes --draw-offset when the section enters view. */
+  stroke-dashoffset: var(--draw-offset, 0);
+  transition: stroke-dashoffset 800ms cubic-bezier(0.65, 0, 0.35, 1);
 }
 .flow-path.reader   { stroke: var(--c-reader); }
 .flow-path.display  { stroke: var(--c-display); }
@@ -473,9 +807,13 @@ Insert these rules immediately before the `@media (max-width: 900px)` block in t
 .flow-path.mqtt     { stroke: var(--c-mqtt); }
 .flow-path.mobile   { stroke: var(--c-mobile); }
 .flow-path.physical { stroke: var(--c-physical); }
-.flow-path.dashed   { stroke-dasharray: 8 6; opacity: 0.6; }
+.flow-path.dashed   { stroke-dasharray: 6 5 !important; opacity: 0.55; }
 
-.flow-dot { r: 4; }
+/* ---------- Animated dots (packet trains: 3 dots, decreasing opacity) ---------- */
+.flow-dot { r: 3.5; }
+.flow-dot.lead   { opacity: 1; }
+.flow-dot.mid    { opacity: 0.55; r: 2.8; }
+.flow-dot.trail  { opacity: 0.25; r: 2.2; }
 .flow-dot.reader   { fill: var(--c-reader); }
 .flow-dot.display  { fill: var(--c-display); }
 .flow-dot.writer   { fill: var(--c-writer); }
@@ -484,29 +822,37 @@ Insert these rules immediately before the `@media (max-width: 900px)` block in t
 .flow-dot.mobile   { fill: var(--c-mobile); }
 .flow-dot.physical { fill: var(--c-physical); }
 
-/* Protocol pill labels */
+/* ---------- Protocol pills as schematic callouts ----------
+   Existing diagram markup uses <g class="proto-pill"><rect/><text/></g>.
+   We restyle that rect with sharp corners + paper fill + ink hairline so
+   it reads as a callout box on a schematic, not a Material chip.        */
 .proto-pill rect {
   fill: var(--bg);
-  stroke: var(--border);
+  stroke: var(--ink-rule);
   stroke-width: 1;
-  rx: 4; ry: 4;
+  rx: 0; ry: 0;
 }
 .proto-pill text {
-  fill: var(--text);
-  font-size: 10px;
-  font-weight: 600;
+  fill: var(--ink-1);
+  font-size: 9.5px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
   text-anchor: middle;
   dominant-baseline: middle;
-  letter-spacing: 0.04em;
 }
 
-/* Reduced motion */
+/* ---------- Reduced motion ---------- */
 body[data-reduced-motion] .flow-dot { display: none; }
+body[data-reduced-motion] .flow-path { stroke-dashoffset: 0; transition: none; }
 ```
+
+**Note for Tasks 4–11:** No diagram-markup changes are needed. The diagrams in Tasks 4–11 declare 3 dots per path with begins staggered across the full duration (`0`, `dur/3`, `2·dur/3`) — that produces three independent packets continuously circling the path, which is exactly what we want for the Blueprint look. The packet-trail effect (decreasing opacity behind each dot) is added at runtime by the script in Task 12, which clones each `<circle class="flow-dot">` into a 3-dot train (`lead` / `mid` / `trail`) with begins offset by `-0.08s` / `-0.16s` from the original. The cloning approach keeps the eight diagram markup blocks untouched.
 
 - [ ] **Step 2: Open the browser to verify nothing broke**
 
-Reload. Expected: page looks identical (no diagrams yet — these styles are unused so far). Console shows no errors.
+Reload. Expected: page looks identical to the end of Task 2 (no diagrams yet — these styles are unused so far). Console shows no errors. The new CSS rules don't apply visibly until Task 4 inserts the first SVG.
 
 - [ ] **Step 3: Commit**
 
@@ -1129,24 +1475,77 @@ git commit -m "docs(serialWriter): add Use Case H diagram (mixed protocol fan-ou
 
 ---
 
-### Task 12: Add IntersectionObserver active nav highlighting
+### Task 12: Add IntersectionObserver — active nav highlight, path-draw reveal, packet-train dots
 
 **Files:**
 - Modify: `docs/multi-device-architecture.html` (add `<script>` at the end of `<body>`)
 
-- [ ] **Step 1: Insert the script just before `</body>`**
+This task wires up three behaviors in a single script block:
 
-Add this script block immediately before the closing `</body>` tag:
+1. **Active nav highlight** — IntersectionObserver toggles `.active` on the nav link whose section is in view.
+2. **Path-draw reveal** — on first entry, each `.flow-path` in the entering section animates `stroke-dashoffset` from its full path length down to 0 over 800ms, then the dots become visible.
+3. **Packet-train cloning** — at startup, each `<circle class="flow-dot">` is replaced with a 3-circle train (`lead` / `mid` / `trail`) so each animated dot drags a fading phosphor trail.
+
+- [ ] **Step 1: Insert the script just before `</body>`**
 
 ```html
 <script>
+/* ---- Packet-train cloning: turn every flow-dot into a 3-circle phosphor train ---- */
+(function () {
+  document.querySelectorAll('svg').forEach(svg => {
+    const dots = Array.from(svg.querySelectorAll('circle.flow-dot'));
+    dots.forEach(dot => {
+      // Mark the original as the lead dot.
+      dot.classList.add('lead');
+      const motion = dot.querySelector('animateMotion');
+      if (!motion) return;
+
+      const beginAttr = motion.getAttribute('begin') || '0s';
+      const beginSec = parseFloat(beginAttr);
+      if (Number.isNaN(beginSec)) return;
+
+      const dur = motion.getAttribute('dur') || '2s';
+      const mpath = motion.querySelector('mpath');
+      const pathHref = mpath ? mpath.getAttribute('href') : null;
+      if (!pathHref) return;
+
+      // Clone two trailing dots offset slightly behind the lead.
+      [['mid', 0.08], ['trail', 0.16]].forEach(([cls, delta]) => {
+        const clone = dot.cloneNode(false);
+        clone.classList.remove('lead');
+        clone.classList.add(cls);
+        const am = document.createElementNS('http://www.w3.org/2000/svg', 'animateMotion');
+        am.setAttribute('dur', dur);
+        am.setAttribute('begin', (beginSec - delta).toFixed(3) + 's');
+        am.setAttribute('repeatCount', 'indefinite');
+        const mp = document.createElementNS('http://www.w3.org/2000/svg', 'mpath');
+        mp.setAttribute('href', pathHref);
+        am.appendChild(mp);
+        clone.appendChild(am);
+        dot.parentNode.insertBefore(clone, dot);
+      });
+    });
+  });
+})();
+
+/* ---- Path-draw reveal preparation: set stroke-dasharray = path length, hide ---- */
+(function () {
+  document.querySelectorAll('.flow-path:not(.dashed)').forEach(p => {
+    try {
+      const len = p.getTotalLength();
+      if (!len) return;
+      p.style.strokeDasharray = len + ' ' + len;
+      p.style.setProperty('--draw-offset', len + 'px');
+      p.dataset.drawLength = String(len);
+    } catch (_) { /* getTotalLength fails on detached SVGs in some browsers — ignore */ }
+  });
+})();
+
+/* ---- IntersectionObserver: active nav + first-time path-draw reveal ---- */
 (function () {
   const navLinks = document.querySelectorAll('nav#topnav a[href^="#"]');
   const linkById = new Map();
-  navLinks.forEach(a => {
-    const id = a.getAttribute('href').slice(1);
-    linkById.set(id, a);
-  });
+  navLinks.forEach(a => linkById.set(a.getAttribute('href').slice(1), a));
 
   const sections = Array.from(linkById.keys())
     .map(id => document.getElementById(id))
@@ -1154,22 +1553,36 @@ Add this script block immediately before the closing `</body>` tag:
 
   if (!('IntersectionObserver' in window) || sections.length === 0) return;
 
+  const drawn = new WeakSet();
+
   const setActive = (id) => {
     navLinks.forEach(a => a.classList.remove('active'));
     const a = linkById.get(id);
     if (a) a.classList.add('active');
   };
 
+  const drawPaths = (section) => {
+    if (drawn.has(section)) return;
+    drawn.add(section);
+    section.querySelectorAll('.flow-path:not(.dashed)').forEach(p => {
+      // Trigger transition by zeroing the stroke-dashoffset.
+      requestAnimationFrame(() => p.style.setProperty('--draw-offset', '0px'));
+    });
+  };
+
   const observer = new IntersectionObserver((entries) => {
-    // Pick the entry whose top is closest to (but past) the sticky-nav line.
+    // Active-nav: pick the topmost intersecting section.
     const visible = entries
       .filter(e => e.isIntersecting)
       .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
-    if (visible.length > 0) {
-      setActive(visible[0].target.id);
-    }
+    if (visible.length > 0) setActive(visible[0].target.id);
+
+    // Path-draw: any entry that just became intersecting gets its paths drawn.
+    entries.forEach(e => {
+      if (e.isIntersecting) drawPaths(e.target);
+    });
   }, {
-    rootMargin: '-80px 0px -60% 0px',
+    rootMargin: '-80px 0px -50% 0px',
     threshold: 0,
   });
 
@@ -1180,16 +1593,18 @@ Add this script block immediately before the closing `</body>` tag:
 
 - [ ] **Step 2: Verify in browser**
 
-Reload. Slowly scroll from top to bottom.
+Reload. Scroll slowly from top to bottom.
 Expected:
-- The corresponding nav link (A, B, C…) gains the `.active` class as each use case section enters the viewport — visible as a slightly lighter background and brighter text.
-- Console shows no errors.
+- The first time each use case section enters the viewport, its data-flow paths trace themselves over ~0.8s (paths visibly draw in from source to destination) and then the animated dot trains start running.
+- Each dot is now followed by a fainter mid dot and a faintest trail dot — packet-train phosphor effect.
+- The corresponding nav letter (A–H) gains the active style (cyan-on-dark inverted) as each section scrolls into view.
+- Console shows no errors. (If `getTotalLength()` warns on Firefox for off-screen paths, the catch block silences it harmlessly.)
 
 - [ ] **Step 3: Commit**
 
 ```bash
 git add docs/multi-device-architecture.html
-git commit -m "docs(serialWriter): highlight active nav link via IntersectionObserver"
+git commit -m "docs(serialWriter): add path-draw reveal, packet-train dots, active nav highlight"
 ```
 
 ---
@@ -1259,12 +1674,23 @@ git commit -m "docs(serialWriter): respect prefers-reduced-motion via SMIL pause
 
 This task does not modify the file unless an issue is found. It is a structured verification pass. If any check fails, fix it inline and re-run all checks before committing.
 
-- [ ] **Step 1: Console / network sanity**
+- [ ] **Step 1: Console / network sanity + font loading**
 
 Open the file with DevTools open. Reload.
 Expected:
 - No errors or warnings in the Console tab.
-- No 404s in the Network tab (the file is fully self-contained — there should be zero external requests beyond the HTML itself).
+- Network tab shows exactly two external font requests, both 200 OK:
+  - `assets/fonts/JetBrainsMono-Bold.woff2`
+  - `assets/fonts/IBMPlexSansCondensed-Regular.woff2`
+- No 404s. No CDN requests, no Google Fonts requests, no other external resources.
+
+Verify the page is using the loaded fonts (not falling back to system mono):
+
+```js
+getComputedStyle(document.querySelector('h1')).fontFamily
+```
+
+Expected output: starts with `"JetBrains Mono"`. If it's falling back to `ui-monospace` or `Menlo`, the font failed to load — check the path and the woff2 files from Task 0.
 
 - [ ] **Step 2: Heading structure**
 
@@ -1307,11 +1733,43 @@ Resize further to ~400px. Expected:
 - Sticky nav `<ul>` wraps and the brand text stacks above the links (the existing `@media (max-width: 720px)` rule).
 - The page is still readable; diagrams scroll horizontally rather than crushing.
 
-- [ ] **Step 6: Smooth-scroll behavior**
+- [ ] **Step 6: Smooth-scroll behavior + first-time path reveal**
 
-Click each nav link A–H in turn. Expected: page smoothly scrolls (not snaps) to each section, and the corresponding nav link becomes `.active` while that section is in view.
+Hard-refresh (Ctrl+Shift+R) so the IntersectionObserver state is reset. Click each nav link A–H in turn. Expected:
+- Page smoothly scrolls (not snaps) to each section.
+- The first time a section enters view, its diagram's flow paths visibly trace themselves before the dots start flowing.
+- After all sections have been visited, scrolling back over them does NOT re-trigger the path-draw (the `WeakSet` in the script ensures one-shot reveal).
+- The corresponding nav link becomes `.active` (cyan-on-dark inverted) while that section is in view.
 
-- [ ] **Step 7: If everything passes, no commit needed**
+- [ ] **Step 7: Title-block presence**
+
+Verify the engineering title-block is fixed in the bottom-right corner of the viewport:
+
+```js
+const tb = document.getElementById('titleblock');
+[getComputedStyle(tb).position, tb.offsetWidth, tb.querySelectorAll('.row').length]
+```
+
+Expected: `["fixed", 232, 5]`. Title-block hides itself below 720px viewport width — verify by resizing.
+
+- [ ] **Step 8: Packet-train dot count**
+
+After the script runs, every original `.flow-dot` has been cloned into 3. Total dot count should be a multiple of 3:
+
+```js
+const dots = document.querySelectorAll('.flow-dot');
+[dots.length, dots.length % 3 === 0]
+```
+
+Expected: `[N, true]` where N is the total. Also verify the three classes are present:
+
+```js
+['lead', 'mid', 'trail'].map(c => document.querySelectorAll('.flow-dot.' + c).length)
+```
+
+Expected: three equal numbers (one third of total each).
+
+- [ ] **Step 9: If everything passes, no commit needed**
 
 This task is read-only when all checks pass. If a check failed and you fixed it inline, commit the fix:
 
@@ -1322,7 +1780,7 @@ git commit -m "docs(serialWriter): fix issues found in final verification pass"
 
 If everything passed first try, no commit is created.
 
-- [ ] **Step 8: Push the branch**
+- [ ] **Step 10: Push the branch**
 
 Once all verification passes:
 
@@ -1335,20 +1793,31 @@ git push origin serialWriter
 ## Self-Review Notes
 
 This plan was self-reviewed against the spec at
-`docs/superpowers/specs/2026-04-29-multi-device-architecture-design.md`:
+`docs/superpowers/specs/2026-04-29-multi-device-architecture-design.md` and
+the Blueprint Cyanotype visual direction agreed in the design review:
 
-- **Spec coverage:** All ten structure items mapped to tasks. Header → Task 1.
-  Device Reference → Task 2. Use Cases A–H → Tasks 4–11. Sticky nav → Task 1.
-  Active nav highlight → Task 12. Reduced motion → Task 13. Anchor IDs use the
-  `#use-case-x` convention from the spec. Color palette and `--diagram-h`
-  variable match the spec verbatim.
+- **Spec coverage:** All ten structure items mapped to tasks. Fonts → Task 0.
+  Header → Task 1. Device Reference → Task 2. Diagram primitives → Task 3.
+  Use Cases A–H → Tasks 4–11. Sticky nav → Task 1. Active nav highlight +
+  path-draw reveal + packet-train dots → Task 12. Reduced motion → Task 13.
+  Anchor IDs use the `#use-case-x` convention from the spec.
+- **Visual direction supersedes spec palette:** the Blueprint Cyanotype
+  palette replaces the spec's Tailwind-default colors. Structure, content,
+  and topology of the spec are preserved; only the surface aesthetic
+  changes. This is called out at the top of the plan under "Visual
+  direction".
 - **Animation:** Stagger formula `begin = (i * dur) / N` from the spec is
-  applied per diagram with `N = 3` (most paths) or with rounded begin times
-  matching the spec's intent.
+  applied per diagram with `N = 3`. The packet-train cloning in Task 12
+  layers two trailing dots at `-0.08s` and `-0.16s` for the phosphor effect
+  on top of the spec's stagger, without changing the spec's intent.
 - **Reduced motion:** Uses `svg.pauseAnimations()` + `data-reduced-motion`
   attribute as the spec specifies, not the CSS `animation-play-state`
-  approach the spec called out as wrong.
+  approach the spec called out as wrong. Reduced motion also disables the
+  path-draw transition so paths render fully drawn immediately.
 - **Responsive:** Diagram wrappers use `overflow-x: auto` with `min-width:
-  600px` per spec. Device grid collapses below 900px.
+  600px` per spec. Device grid collapses below 900px. Title-block hides
+  below 720px.
+- **Self-contained:** Two woff2 fonts live in `docs/assets/fonts/`. No CDN,
+  no Google Fonts, no external CSS or JS. The page renders fully offline.
 - **No placeholders:** Every step contains real code or a real verification
   step — no TBDs, no "implement appropriately".
