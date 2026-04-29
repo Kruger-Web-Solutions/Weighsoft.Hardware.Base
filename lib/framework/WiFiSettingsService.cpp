@@ -120,8 +120,26 @@ void WiFiSettingsService::manageSTA() {
       WiFi.hostname(_state.hostname);
 #endif
     }
-    // attempt to connect to the network
+    // attempt to connect to the network. If we've already discovered a
+    // 2.4 GHz BSSID for this SSID, pin to it — this defeats router-side
+    // band-steering that would otherwise try to push us to a 5 GHz BSSID
+    // we cannot physically associate with (ESP32-S3 has no 5 GHz radio).
+#ifdef ESP32
+    if (!_pinnedBssidValid) {
+      findBest24GHzBSSID();  // populates _pinnedBssid + _pinnedChannel on success
+    }
+    if (_pinnedBssidValid) {
+      Serial.printf("[WiFi] Pinning to 2.4GHz BSSID %02x:%02x:%02x:%02x:%02x:%02x ch=%u\n",
+                    _pinnedBssid[0], _pinnedBssid[1], _pinnedBssid[2],
+                    _pinnedBssid[3], _pinnedBssid[4], _pinnedBssid[5],
+                    _pinnedChannel);
+      WiFi.begin(_state.ssid.c_str(), _state.password.c_str(), _pinnedChannel, _pinnedBssid);
+    } else {
+      WiFi.begin(_state.ssid.c_str(), _state.password.c_str());
+    }
+#else
     WiFi.begin(_state.ssid.c_str(), _state.password.c_str());
+#endif
 
     // Reliability tuning applied right after WiFi.begin() (calls are
     // idempotent — safe to repeat on every retry):
@@ -181,5 +199,67 @@ void WiFiSettingsService::onStationModeStop(WiFiEvent_t event, WiFiEventInfo_t i
 #elif defined(ESP8266)
 void WiFiSettingsService::onStationModeDisconnected(const WiFiEventStationModeDisconnected& event) {
   WiFi.disconnect(true);
+}
+#endif
+
+#ifdef ESP32
+// Scan for the strongest 2.4 GHz BSSID broadcasting our configured SSID.
+//
+// Why: ESP32-S3 only has a 2.4 GHz radio. Band-steering routers that
+// broadcast the same SSID on 2.4 GHz and 5 GHz can confuse the chip — it
+// associates with a 5 GHz BSSID it cannot physically reach, retries
+// endlessly, or gets kicked off when the router decides the chip "should
+// be on 5 GHz". By picking the strongest 2.4 GHz BSSID up-front and
+// passing both BSSID and channel to WiFi.begin(), we bypass band-steering
+// entirely.
+//
+// 2.4 GHz channels are 1–14 (14 only in JP). 5 GHz starts at 36. Anything
+// with channel >= 14 we ignore. We pick the BSSID with the highest RSSI
+// among 2.4 GHz matches.
+//
+// Cost: ~2-3 seconds for the scan, run once on first connect attempt and
+// cached. If the AP MAC ever changes (router replacement) the user can
+// trigger a re-scan by power-cycling.
+bool WiFiSettingsService::findBest24GHzBSSID() {
+  if (_state.ssid.length() == 0) return false;
+
+  Serial.printf("[WiFi] Scanning for 2.4GHz BSSID matching '%s' ...\n", _state.ssid.c_str());
+  // Synchronous scan, hidden=false, passive=false. Blocks ~2-3s.
+  int n = WiFi.scanNetworks(false, false);
+  if (n <= 0) {
+    Serial.printf("[WiFi] Scan returned %d networks — falling back to plain begin()\n", n);
+    WiFi.scanDelete();
+    return false;
+  }
+
+  int bestIdx = -1;
+  int32_t bestRssi = -127;
+  for (int i = 0; i < n; i++) {
+    if (WiFi.SSID(i) != _state.ssid) continue;
+    int32_t ch = WiFi.channel(i);
+    if (ch < 1 || ch > 14) continue;  // skip 5 GHz BSSIDs (channel >= 36)
+    int32_t rssi = WiFi.RSSI(i);
+    if (rssi > bestRssi) {
+      bestRssi = rssi;
+      bestIdx = i;
+    }
+  }
+
+  if (bestIdx < 0) {
+    Serial.println(F("[WiFi] No 2.4GHz BSSID found for our SSID — falling back to plain begin()"));
+    WiFi.scanDelete();
+    return false;
+  }
+
+  uint8_t* bssid = WiFi.BSSID(bestIdx);
+  memcpy(_pinnedBssid, bssid, 6);
+  _pinnedChannel = (uint8_t)WiFi.channel(bestIdx);
+  _pinnedBssidValid = true;
+  Serial.printf("[WiFi] Selected 2.4GHz BSSID %02x:%02x:%02x:%02x:%02x:%02x ch=%u rssi=%d\n",
+                _pinnedBssid[0], _pinnedBssid[1], _pinnedBssid[2],
+                _pinnedBssid[3], _pinnedBssid[4], _pinnedBssid[5],
+                _pinnedChannel, (int)bestRssi);
+  WiFi.scanDelete();
+  return true;
 }
 #endif

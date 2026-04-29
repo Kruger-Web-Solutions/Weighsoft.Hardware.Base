@@ -103,6 +103,14 @@ class WiFiSettingsService : public StatefulService<WiFiSettings> {
   bool _stopping;
   void onStationModeDisconnected(WiFiEvent_t event, WiFiEventInfo_t info);
   void onStationModeStop(WiFiEvent_t event, WiFiEventInfo_t info);
+
+  // Band-pinning state — discovered once on first connect attempt then
+  // re-used to bypass band-steering routers that broadcast the same SSID
+  // on 2.4 GHz and 5 GHz.
+  uint8_t _pinnedBssid[6];
+  bool _pinnedBssidValid = false;
+  uint8_t _pinnedChannel = 0;
+  bool findBest24GHzBSSID();
 #elif defined(ESP8266)
   WiFiEventHandler _onStationModeDisconnectedHandler;
   void onStationModeDisconnected(const WiFiEventStationModeDisconnected& event);
