@@ -1,0 +1,1647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Weighsoft Hardware Base — System Overview</title>
+<style>
+:root {
+  --bg: #0d1117; --bg2: #161b22; --bg3: #21262d;
+  --border: #30363d; --text: #e6edf3; --muted: #8b949e;
+  --blue: #58a6ff; --green: #3fb950; --orange: #f0883e;
+  --purple: #bc8cff; --red: #f85149; --yellow: #d29922;
+  --cyan: #39d353; --teal: #2ea8b3;
+  --glow-blue: rgba(88,166,255,0.3); --glow-green: rgba(63,185,80,0.3);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; line-height: 1.6; }
+
+/* NAV */
+nav {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(13,17,23,0.95); backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 0; padding: 0 2rem;
+  overflow-x: auto;
+}
+nav a {
+  color: var(--muted); text-decoration: none; padding: 1rem 1.2rem;
+  font-size: .85rem; border-bottom: 2px solid transparent;
+  transition: color .2s, border-color .2s; white-space: nowrap;
+}
+nav a:hover, nav a.active { color: var(--blue); border-color: var(--blue); }
+.nav-brand { color: var(--text); font-weight: 700; font-size: 1rem; margin-right: 1rem; white-space: nowrap; }
+
+/* HERO */
+.hero {
+  background: linear-gradient(135deg, #0d1117 0%, #161b22 50%, #0d1117 100%);
+  padding: 4rem 2rem 3rem; text-align: center; position: relative; overflow: hidden;
+}
+.hero::before {
+  content: ''; position: absolute; inset: 0;
+  background: radial-gradient(ellipse at 50% 0%, rgba(88,166,255,0.08) 0%, transparent 70%);
+}
+.hero h1 { font-size: clamp(2rem, 5vw, 3.5rem); font-weight: 700; background: linear-gradient(135deg, var(--blue), var(--purple)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+.hero p { color: var(--muted); max-width: 600px; margin: 1rem auto; font-size: 1.1rem; }
+.badge-row { display: flex; gap: .5rem; justify-content: center; flex-wrap: wrap; margin-top: 1.5rem; }
+.badge { background: var(--bg3); border: 1px solid var(--border); border-radius: 2rem; padding: .3rem .9rem; font-size: .78rem; color: var(--muted); }
+.badge.blue { border-color: var(--blue); color: var(--blue); }
+.badge.green { border-color: var(--green); color: var(--green); }
+.badge.orange { border-color: var(--orange); color: var(--orange); }
+
+/* SECTIONS */
+section { padding: 4rem 2rem; max-width: 1200px; margin: 0 auto; }
+section + section { border-top: 1px solid var(--border); }
+.section-label { font-size: .75rem; text-transform: uppercase; letter-spacing: .1em; color: var(--blue); font-weight: 600; margin-bottom: .5rem; }
+h2 { font-size: 1.8rem; font-weight: 700; margin-bottom: .5rem; }
+h3 { font-size: 1.1rem; font-weight: 600; margin-bottom: .75rem; color: var(--text); }
+.lead { color: var(--muted); max-width: 700px; margin-bottom: 2.5rem; font-size: 1rem; }
+
+/* CARDS */
+.card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; }
+.card {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 12px;
+  padding: 1.5rem; transition: border-color .2s, box-shadow .2s;
+}
+.card:hover { border-color: var(--blue); box-shadow: 0 0 20px var(--glow-blue); }
+.card-icon { font-size: 1.8rem; margin-bottom: .75rem; }
+.card h3 { font-size: 1rem; margin-bottom: .5rem; }
+.card p { color: var(--muted); font-size: .875rem; line-height: 1.5; }
+.card .tag { display: inline-block; background: var(--bg3); border-radius: 4px; padding: .15rem .5rem; font-size: .72rem; color: var(--muted); margin-top: .75rem; }
+
+/* FLOW DIAGRAMS */
+.flow-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 2rem; overflow-x: auto; margin: 2rem 0; }
+svg text { font-family: 'Segoe UI', system-ui, sans-serif; }
+
+/* ANIMATED PULSE */
+@keyframes pulse { 0%,100%{opacity:.3} 50%{opacity:1} }
+@keyframes flow { 0%{stroke-dashoffset:100} 100%{stroke-dashoffset:0} }
+@keyframes dot-move { 0%{offset-distance:0%} 100%{offset-distance:100%} }
+@keyframes fadeIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+@keyframes glow-pulse { 0%,100%{filter:drop-shadow(0 0 4px rgba(88,166,255,0.3))} 50%{filter:drop-shadow(0 0 12px rgba(88,166,255,0.8))} }
+
+.anim-line { stroke-dasharray: 8 4; animation: flow 1.5s linear infinite; }
+.anim-line-slow { stroke-dasharray: 8 4; animation: flow 3s linear infinite; }
+.anim-line-fast { stroke-dasharray: 6 3; animation: flow .8s linear infinite; }
+
+.node-box { transition: filter .2s; cursor: default; }
+.node-box:hover { filter: drop-shadow(0 0 10px rgba(88,166,255,0.6)); }
+
+/* BRANCH TABS */
+.tab-bar { display: flex; gap: .5rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+.tab-btn {
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 8px;
+  color: var(--muted); padding: .5rem 1.2rem; font-size: .85rem; cursor: pointer;
+  transition: all .2s;
+}
+.tab-btn.active, .tab-btn:hover { background: var(--blue); border-color: var(--blue); color: #fff; }
+.tab-panel { display: none; animation: fadeIn .3s ease; }
+.tab-panel.active { display: block; }
+
+/* CODE BLOCK */
+pre {
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 8px;
+  padding: 1.25rem; overflow-x: auto; font-size: .83rem; line-height: 1.6;
+}
+code { font-family: 'Cascadia Code', 'Fira Code', monospace; }
+.k { color: var(--purple); } .s { color: var(--orange); } .c { color: var(--muted); }
+.fn { color: var(--blue); } .n { color: var(--green); }
+
+/* TABLE */
+table { width: 100%; border-collapse: collapse; font-size: .875rem; }
+th { text-align: left; padding: .75rem 1rem; background: var(--bg3); color: var(--muted); font-weight: 600; border-bottom: 1px solid var(--border); }
+td { padding: .75rem 1rem; border-bottom: 1px solid var(--border); color: var(--text); vertical-align: top; }
+tr:hover td { background: var(--bg3); }
+.pill { display: inline-block; border-radius: 2rem; padding: .1rem .6rem; font-size: .72rem; font-weight: 600; }
+.pill-blue { background: rgba(88,166,255,.15); color: var(--blue); }
+.pill-green { background: rgba(63,185,80,.15); color: var(--green); }
+.pill-orange { background: rgba(240,136,62,.15); color: var(--orange); }
+.pill-purple { background: rgba(188,140,255,.15); color: var(--purple); }
+.pill-red { background: rgba(248,81,73,.15); color: var(--red); }
+
+/* PIN STRIP */
+.pin-strip { display: flex; gap: 1rem; flex-wrap: wrap; margin: 1.5rem 0; }
+.pin-item { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: .75rem 1.25rem; font-size: .82rem; }
+.pin-item strong { color: var(--blue); display: block; font-size: .72rem; text-transform: uppercase; margin-bottom: .2rem; }
+
+/* SCROLLBAR */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* MOVING DOT on path */
+.moving-dot { r: 4; fill: var(--blue); }
+.moving-dot-g { r: 4; fill: var(--green); }
+.moving-dot-o { r: 4; fill: var(--orange); }
+.moving-dot-p { r: 4; fill: var(--purple); }
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="nav-brand">Weighsoft HW Base</span>
+  <a href="#overview" class="active">Overview</a>
+  <a href="#hardware">Hardware</a>
+  <a href="#firmware">Firmware</a>
+  <a href="#dataflow">Data Flow</a>
+  <a href="#channels">Channels</a>
+  <a href="#security">Security</a>
+  <a href="#builds">Build Targets</a>
+  <a href="#frontend">Frontend</a>
+  <a href="#oiml">OIML</a>
+  <a href="#ui">UI</a>
+</nav>
+
+<!-- HERO -->
+<div class="hero">
+  <p class="section-label">Technical Reference</p>
+  <h1>Weighsoft Hardware Base</h1>
+  <p>Industrial IoT weighing platform for ESP32/ESP8266 — OIML D31:2023 compliant, multi-channel real-time sync, secure web UI.</p>
+  <div class="badge-row">
+    <span class="badge blue">ESP32 / ESP8266</span>
+    <span class="badge green">PlatformIO</span>
+    <span class="badge orange">OIML D31:2023</span>
+    <span class="badge blue">React 18 + MUI</span>
+    <span class="badge">v0.1.0</span>
+    <span class="badge">ADS1231 24-bit ADC</span>
+  </div>
+</div>
+
+<!-- ═══════════ OVERVIEW ═══════════ -->
+<section id="overview">
+  <p class="section-label">Architecture</p>
+  <h2>System Overview</h2>
+  <p class="lead">Four layers — hardware interface, firmware services, communication channels, and web UI — working together to deliver real-time, legally-traceable weighing.</p>
+
+  <div class="flow-wrap">
+    <svg width="100%" viewBox="0 0 900 420" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#58a6ff"/></marker>
+        <marker id="arrg" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#3fb950"/></marker>
+        <marker id="arro" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#f0883e"/></marker>
+        <marker id="arrp" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#bc8cff"/></marker>
+      </defs>
+
+      <!-- Layer labels -->
+      <text x="10" y="55" fill="#8b949e" font-size="11" font-weight="600">HARDWARE</text>
+      <text x="10" y="175" fill="#8b949e" font-size="11" font-weight="600">FIRMWARE</text>
+      <text x="10" y="295" fill="#8b949e" font-size="11" font-weight="600">CHANNELS</text>
+      <text x="10" y="395" fill="#8b949e" font-size="11" font-weight="600">CLIENTS</text>
+
+      <!-- Lane backgrounds -->
+      <rect x="85" y="30" width="810" height="65" rx="8" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+      <rect x="85" y="150" width="810" height="90" rx="8" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+      <rect x="85" y="265" width="810" height="75" rx="8" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+      <rect x="85" y="365" width="810" height="50" rx="8" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+
+      <!-- Hardware nodes -->
+      <rect class="node-box" x="100" y="42" width="130" height="42" rx="6" fill="#21262d" stroke="#58a6ff" stroke-width="1.5"/>
+      <text x="165" y="60" fill="#58a6ff" font-size="11" font-weight="600" text-anchor="middle">ADS1231 ADC</text>
+      <text x="165" y="76" fill="#8b949e" font-size="9.5" text-anchor="middle">24-bit, GPIO bit-bang</text>
+
+      <rect class="node-box" x="270" y="42" width="130" height="42" rx="6" fill="#21262d" stroke="#58a6ff" stroke-width="1.5"/>
+      <text x="335" y="60" fill="#58a6ff" font-size="11" font-weight="600" text-anchor="middle">ESP32 Node32S</text>
+      <text x="335" y="76" fill="#8b949e" font-size="9.5" text-anchor="middle">240MHz dual-core</text>
+
+      <rect class="node-box" x="440" y="42" width="130" height="42" rx="6" fill="#21262d" stroke="#f0883e" stroke-width="1.5"/>
+      <text x="505" y="60" fill="#f0883e" font-size="11" font-weight="600" text-anchor="middle">LittleFS Flash</text>
+      <text x="505" y="76" fill="#8b949e" font-size="9.5" text-anchor="middle">Config + Audit logs</text>
+
+      <rect class="node-box" x="610" y="42" width="130" height="42" rx="6" fill="#21262d" stroke="#3fb950" stroke-width="1.5"/>
+      <text x="675" y="60" fill="#3fb950" font-size="11" font-weight="600" text-anchor="middle">WiFi / BLE Radio</text>
+      <text x="675" y="76" fill="#8b949e" font-size="9.5" text-anchor="middle">802.11 b/g/n</text>
+
+      <!-- Firmware nodes -->
+      <rect class="node-box" x="100" y="162" width="115" height="38" rx="6" fill="#21262d" stroke="#bc8cff" stroke-width="1.5"/>
+      <text x="157" y="179" fill="#bc8cff" font-size="10.5" font-weight="600" text-anchor="middle">WeighingService</text>
+      <text x="157" y="194" fill="#8b949e" font-size="9" text-anchor="middle">Core logic + state</text>
+
+      <rect class="node-box" x="235" y="162" width="115" height="38" rx="6" fill="#21262d" stroke="#bc8cff" stroke-width="1.5"/>
+      <text x="292" y="179" fill="#bc8cff" font-size="10.5" font-weight="600" text-anchor="middle">ESP8266React</text>
+      <text x="292" y="194" fill="#8b949e" font-size="9" text-anchor="middle">Framework core</text>
+
+      <rect class="node-box" x="370" y="162" width="115" height="38" rx="6" fill="#21262d" stroke="#bc8cff" stroke-width="1.5"/>
+      <text x="427" y="179" fill="#bc8cff" font-size="10.5" font-weight="600" text-anchor="middle">SecurityManager</text>
+      <text x="427" y="194" fill="#8b949e" font-size="9" text-anchor="middle">JWT auth</text>
+
+      <rect class="node-box" x="505" y="162" width="115" height="38" rx="6" fill="#21262d" stroke="#bc8cff" stroke-width="1.5"/>
+      <text x="562" y="179" fill="#bc8cff" font-size="10.5" font-weight="600" text-anchor="middle">AuditTrail</text>
+      <text x="562" y="194" fill="#8b949e" font-size="9" text-anchor="middle">OIML event log</text>
+
+      <rect class="node-box" x="640" y="162" width="115" height="38" rx="6" fill="#21262d" stroke="#bc8cff" stroke-width="1.5"/>
+      <text x="697" y="179" fill="#bc8cff" font-size="10.5" font-weight="600" text-anchor="middle">OTA / NTP</text>
+      <text x="697" y="194" fill="#8b949e" font-size="9" text-anchor="middle">Updates + time sync</text>
+
+      <rect class="node-box" x="775" y="162" width="115" height="38" rx="6" fill="#21262d" stroke="#bc8cff" stroke-width="1.5"/>
+      <text x="832" y="179" fill="#bc8cff" font-size="10.5" font-weight="600" text-anchor="middle">FSPersistence</text>
+      <text x="832" y="194" fill="#8b949e" font-size="9" text-anchor="middle">Flash R/W</text>
+
+      <!-- Channel nodes -->
+      <rect class="node-box" x="100" y="278" width="100" height="38" rx="6" fill="#21262d" stroke="#58a6ff" stroke-width="1.5"/>
+      <text x="150" y="295" fill="#58a6ff" font-size="10.5" font-weight="600" text-anchor="middle">REST API</text>
+      <text x="150" y="309" fill="#8b949e" font-size="9" text-anchor="middle">HTTP GET/POST</text>
+
+      <rect class="node-box" x="225" y="278" width="100" height="38" rx="6" fill="#21262d" stroke="#3fb950" stroke-width="1.5"/>
+      <text x="275" y="295" fill="#3fb950" font-size="10.5" font-weight="600" text-anchor="middle">WebSocket</text>
+      <text x="275" y="309" fill="#8b949e" font-size="9" text-anchor="middle">~2Hz real-time</text>
+
+      <rect class="node-box" x="350" y="278" width="100" height="38" rx="6" fill="#21262d" stroke="#f0883e" stroke-width="1.5"/>
+      <text x="400" y="295" fill="#f0883e" font-size="10.5" font-weight="600" text-anchor="middle">MQTT</text>
+      <text x="400" y="309" fill="#8b949e" font-size="9" text-anchor="middle">Pub/Sub broker</text>
+
+      <rect class="node-box" x="475" y="278" width="100" height="38" rx="6" fill="#21262d" stroke="#d29922" stroke-width="1.5"/>
+      <text x="525" y="295" fill="#d29922" font-size="10.5" font-weight="600" text-anchor="middle">BLE</text>
+      <text x="525" y="309" fill="#8b949e" font-size="9" text-anchor="middle">Bluetooth LE</text>
+
+      <!-- Client nodes -->
+      <rect class="node-box" x="100" y="377" width="100" height="30" rx="6" fill="#21262d" stroke="#58a6ff" stroke-width="1"/>
+      <text x="150" y="396" fill="#58a6ff" font-size="10" font-weight="600" text-anchor="middle">Web Browser</text>
+
+      <rect class="node-box" x="225" y="377" width="100" height="30" rx="6" fill="#21262d" stroke="#3fb950" stroke-width="1"/>
+      <text x="275" y="396" fill="#3fb950" font-size="10" font-weight="600" text-anchor="middle">React SPA</text>
+
+      <rect class="node-box" x="350" y="377" width="100" height="30" rx="6" fill="#21262d" stroke="#f0883e" stroke-width="1"/>
+      <text x="400" y="396" fill="#f0883e" font-size="10" font-weight="600" text-anchor="middle">Home Assistant</text>
+
+      <rect class="node-box" x="475" y="377" width="100" height="30" rx="6" fill="#21262d" stroke="#d29922" stroke-width="1"/>
+      <text x="525" y="396" fill="#d29922" font-size="10" font-weight="600" text-anchor="middle">Mobile / BLE App</text>
+
+      <!-- Arrows HW → FW -->
+      <line x1="165" y1="84" x2="165" y2="160" stroke="#58a6ff" stroke-width="1.5" marker-end="url(#arr)" class="anim-line"/>
+      <line x1="335" y1="84" x2="292" y2="160" stroke="#58a6ff" stroke-width="1.5" marker-end="url(#arr)" class="anim-line"/>
+      <line x1="505" y1="84" x2="562" y2="160" stroke="#f0883e" stroke-width="1.5" marker-end="url(#arro)" class="anim-line-slow"/>
+      <line x1="675" y1="84" x2="697" y2="160" stroke="#3fb950" stroke-width="1.5" marker-end="url(#arrg)" class="anim-line"/>
+
+      <!-- FW → Channels -->
+      <line x1="157" y1="200" x2="150" y2="276" stroke="#bc8cff" stroke-width="1.5" marker-end="url(#arrp)" class="anim-line"/>
+      <line x1="190" y1="200" x2="275" y2="276" stroke="#bc8cff" stroke-width="1.5" marker-end="url(#arrp)" class="anim-line"/>
+      <line x1="200" y1="205" x2="400" y2="276" stroke="#bc8cff" stroke-width="1.5" marker-end="url(#arrp)" class="anim-line-slow"/>
+      <line x1="210" y1="208" x2="525" y2="276" stroke="#bc8cff" stroke-width="1.5" marker-end="url(#arrp)" class="anim-line-slow"/>
+
+      <!-- Channels → Clients -->
+      <line x1="150" y1="316" x2="150" y2="375" stroke="#58a6ff" stroke-width="1.5" marker-end="url(#arr)" class="anim-line"/>
+      <line x1="275" y1="316" x2="275" y2="375" stroke="#3fb950" stroke-width="1.5" marker-end="url(#arrg)" class="anim-line"/>
+      <line x1="400" y1="316" x2="400" y2="375" stroke="#f0883e" stroke-width="1.5" marker-end="url(#arro)" class="anim-line-slow"/>
+      <line x1="525" y1="316" x2="525" y2="375" stroke="#d29922" stroke-width="1.5" marker-end="url(#arr)" class="anim-line-slow"/>
+    </svg>
+  </div>
+</section>
+
+<!-- ═══════════ HARDWARE ═══════════ -->
+<section id="hardware">
+  <p class="section-label">Layer 1</p>
+  <h2>Hardware Interface</h2>
+  <p class="lead">The ADS1231 is a 24-bit sigma-delta ADC connected to the ESP32 via bit-banged GPIO. Four pins control the entire measurement pipeline.</p>
+
+  <div class="flow-wrap">
+    <svg width="100%" viewBox="0 0 860 300" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arrh" markerWidth="7" markerHeight="7" refX="5" refY="2.5" orient="auto"><path d="M0,0 L0,5 L7,2.5 z" fill="#58a6ff"/></marker>
+        <marker id="arrg2" markerWidth="7" markerHeight="7" refX="5" refY="2.5" orient="auto"><path d="M0,0 L0,5 L7,2.5 z" fill="#3fb950"/></marker>
+      </defs>
+
+      <!-- Load Cell -->
+      <rect x="20" y="105" width="120" height="90" rx="10" fill="#21262d" stroke="#f0883e" stroke-width="1.5"/>
+      <text x="80" y="145" fill="#f0883e" font-size="12" font-weight="700" text-anchor="middle">Load Cell</text>
+      <text x="80" y="163" fill="#8b949e" font-size="10" text-anchor="middle">Strain gauge</text>
+      <text x="80" y="178" fill="#8b949e" font-size="10" text-anchor="middle">bridge sensor</text>
+
+      <!-- ADS1231 -->
+      <rect x="210" y="70" width="150" height="165" rx="10" fill="#21262d" stroke="#58a6ff" stroke-width="2"/>
+      <text x="285" y="100" fill="#58a6ff" font-size="12" font-weight="700" text-anchor="middle">ADS1231</text>
+      <text x="285" y="116" fill="#8b949e" font-size="9.5" text-anchor="middle">24-bit ADC</text>
+      <line x1="220" y1="128" x2="350" y2="128" stroke="#30363d" stroke-width="1"/>
+      <text x="285" y="145" fill="#3fb950" font-size="9.5" text-anchor="middle">DOUT (GPIO 25)</text>
+      <text x="285" y="162" fill="#bc8cff" font-size="9.5" text-anchor="middle">SCLK (GPIO 26)</text>
+      <text x="285" y="179" fill="#f0883e" font-size="9.5" text-anchor="middle">PDWN (GPIO 27)</text>
+      <text x="285" y="196" fill="#d29922" font-size="9.5" text-anchor="middle">SPEED (GPIO 33)</text>
+      <line x1="220" y1="208" x2="350" y2="208" stroke="#30363d" stroke-width="1"/>
+      <text x="285" y="224" fill="#8b949e" font-size="9" text-anchor="middle">10 SPS / 80 SPS</text>
+
+      <!-- ESP32 -->
+      <rect x="450" y="55" width="200" height="195" rx="10" fill="#21262d" stroke="#3fb950" stroke-width="2"/>
+      <text x="550" y="85" fill="#3fb950" font-size="12" font-weight="700" text-anchor="middle">ESP32 Node32S</text>
+      <text x="550" y="101" fill="#8b949e" font-size="9.5" text-anchor="middle">240 MHz Xtensa LX6</text>
+      <line x1="460" y1="112" x2="640" y2="112" stroke="#30363d" stroke-width="1"/>
+      <text x="550" y="130" fill="#3fb950" font-size="9.5" text-anchor="middle">GPIO 25 ← DOUT (IN)</text>
+      <text x="550" y="147" fill="#bc8cff" font-size="9.5" text-anchor="middle">GPIO 26 → SCLK (OUT)</text>
+      <text x="550" y="164" fill="#f0883e" font-size="9.5" text-anchor="middle">GPIO 27 → PDWN (OUT)</text>
+      <text x="550" y="181" fill="#d29922" font-size="9.5" text-anchor="middle">GPIO 33 → SPEED (OUT)</text>
+      <line x1="460" y1="193" x2="640" y2="193" stroke="#30363d" stroke-width="1"/>
+      <text x="550" y="210" fill="#8b949e" font-size="9" text-anchor="middle">520KB SRAM</text>
+      <text x="550" y="227" fill="#8b949e" font-size="9" text-anchor="middle">4MB Flash (custom partitions)</text>
+
+      <!-- Process box -->
+      <rect x="715" y="100" width="130" height="100" rx="10" fill="#21262d" stroke="#bc8cff" stroke-width="1.5"/>
+      <text x="780" y="127" fill="#bc8cff" font-size="11" font-weight="700" text-anchor="middle">readRawAverage</text>
+      <text x="780" y="143" fill="#8b949e" font-size="9.5" text-anchor="middle">(N samples)</text>
+      <line x1="725" y1="155" x2="835" y2="155" stroke="#30363d" stroke-width="1"/>
+      <text x="780" y="170" fill="#3fb950" font-size="9" text-anchor="middle">→ int32_t raw</text>
+      <text x="780" y="185" fill="#8b949e" font-size="9" text-anchor="middle">INT32_MIN on timeout</text>
+
+      <!-- Connections -->
+      <line x1="140" y1="150" x2="208" y2="150" stroke="#f0883e" stroke-width="2" marker-end="url(#arrh)" class="anim-line"/>
+      <!-- GPIO lines -->
+      <line x1="360" y1="143" x2="448" y2="130" stroke="#3fb950" stroke-width="1.5" marker-end="url(#arrg2)" class="anim-line-fast"/>
+      <line x1="360" y1="160" x2="448" y2="147" stroke="#bc8cff" stroke-width="1.5" stroke-dasharray="8 4" marker-end="url(#arrh)"/>
+      <line x1="360" y1="177" x2="448" y2="164" stroke="#f0883e" stroke-width="1.5" stroke-dasharray="8 4" marker-end="url(#arrh)"/>
+      <line x1="360" y1="194" x2="448" y2="181" stroke="#d29922" stroke-width="1.5" stroke-dasharray="8 4" marker-end="url(#arrh)"/>
+      <line x1="650" y1="150" x2="713" y2="150" stroke="#58a6ff" stroke-width="2" marker-end="url(#arrh)" class="anim-line-fast"/>
+    </svg>
+  </div>
+
+  <div class="pin-strip">
+    <div class="pin-item"><strong>GPIO 25</strong>DOUT — Data ready + serial data (INPUT)</div>
+    <div class="pin-item"><strong>GPIO 26</strong>SCLK — Serial clock, bit-banged (OUTPUT)</div>
+    <div class="pin-item"><strong>GPIO 27</strong>PDWN — Power down, HIGH = active (OUTPUT)</div>
+    <div class="pin-item"><strong>GPIO 33</strong>SPEED — 10 SPS (LOW) / 80 SPS (HIGH) (OUTPUT)</div>
+  </div>
+</section>
+
+<!-- ═══════════ FIRMWARE ═══════════ -->
+<section id="firmware">
+  <p class="section-label">Layer 2</p>
+  <h2>Firmware Architecture</h2>
+  <p class="lead">Services compose reusable framework components. Each application service owns its own channels inline — no separate protocol-settings services needed.</p>
+
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-icon">⚖️</div>
+      <h3>WeighingService</h3>
+      <p>Core measurement loop: reads ADS1231, computes gross/net/tare, stability detection, AZT, seal enforcement, calibration, and audit logging.</p>
+      <span class="tag">src/examples/weighing/WeighingService.cpp</span>
+    </div>
+    <div class="card">
+      <div class="card-icon">🔧</div>
+      <h3>ESP8266React</h3>
+      <p>Framework orchestrator — sets up async HTTP server, mounts all services, manages WiFi, MQTT, NTP, OTA, and security.</p>
+      <span class="tag">lib/framework/ESP8266React.h</span>
+    </div>
+    <div class="card">
+      <div class="card-icon">📋</div>
+      <h3>StatefulService&lt;T&gt;</h3>
+      <p>Generic thread-safe state manager. Services extend this; state changes notify all registered listeners (HTTP, WS, MQTT, BLE).</p>
+      <span class="tag">lib/framework/StatefulService.h</span>
+    </div>
+    <div class="card">
+      <div class="card-icon">💾</div>
+      <h3>FSPersistence&lt;T&gt;</h3>
+      <p>Automatically serializes state to LittleFS on config change. Separate read() vs readConfig() prevents ADC-frequency flash wear.</p>
+      <span class="tag">lib/framework/FSPersistence.h</span>
+    </div>
+    <div class="card">
+      <div class="card-icon">📜</div>
+      <h3>AuditTrail</h3>
+      <p>Appends NDJSON events to /audit/weighing.json. Immutable, FIFO with 100-entry cap, survives OTA updates.</p>
+      <span class="tag">src/examples/weighing/AuditTrail.cpp</span>
+    </div>
+    <div class="card">
+      <div class="card-icon">💡</div>
+      <h3>LedExampleService</h3>
+      <p>Demo service showing multi-channel sync pattern (REST + WS + MQTT + BLE) for GPIO 2. Includes Home Assistant auto-discovery.</p>
+      <span class="tag">src/examples/led/LedExampleService.cpp</span>
+    </div>
+  </div>
+
+  <h3 style="margin-top:2.5rem">Main Loop Flow</h3>
+  <div class="flow-wrap">
+    <svg width="100%" viewBox="0 0 860 200" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="a1" markerWidth="7" markerHeight="7" refX="5" refY="2.5" orient="auto"><path d="M0,0 L0,5 L7,2.5 z" fill="#58a6ff"/></marker>
+      </defs>
+      <!-- Steps -->
+      <g transform="translate(20,60)">
+        <rect width="110" height="70" rx="8" fill="#21262d" stroke="#58a6ff" stroke-width="1.5"/>
+        <text x="55" y="28" fill="#58a6ff" font-size="10" font-weight="600" text-anchor="middle">ADS1231 Read</text>
+        <text x="55" y="44" fill="#8b949e" font-size="9" text-anchor="middle">readRawAverage(N)</text>
+        <text x="55" y="59" fill="#3fb950" font-size="9" text-anchor="middle">→ int32_t raw</text>
+      </g>
+      <line x1="132" y1="95" x2="152" y2="95" stroke="#58a6ff" stroke-width="1.5" marker-end="url(#a1)" class="anim-line-fast"/>
+
+      <g transform="translate(154,60)">
+        <rect width="120" height="70" rx="8" fill="#21262d" stroke="#bc8cff" stroke-width="1.5"/>
+        <text x="60" y="28" fill="#bc8cff" font-size="10" font-weight="600" text-anchor="middle">Calculate Weight</text>
+        <text x="60" y="44" fill="#8b949e" font-size="9" text-anchor="middle">gross=(raw-zero)×factor</text>
+        <text x="60" y="59" fill="#8b949e" font-size="9" text-anchor="middle">net=gross−tare</text>
+      </g>
+      <line x1="276" y1="95" x2="296" y2="95" stroke="#58a6ff" stroke-width="1.5" marker-end="url(#a1)" class="anim-line-fast"/>
+
+      <g transform="translate(298,60)">
+        <rect width="115" height="70" rx="8" fill="#21262d" stroke="#3fb950" stroke-width="1.5"/>
+        <text x="57" y="28" fill="#3fb950" font-size="10" font-weight="600" text-anchor="middle">Stability Check</text>
+        <text x="57" y="44" fill="#8b949e" font-size="9" text-anchor="middle">8-sample rolling buf</text>
+        <text x="57" y="59" fill="#8b949e" font-size="9" text-anchor="middle">range &lt; minDivision?</text>
+      </g>
+      <line x1="415" y1="95" x2="435" y2="95" stroke="#58a6ff" stroke-width="1.5" marker-end="url(#a1)" class="anim-line-fast"/>
+
+      <g transform="translate(437,60)">
+        <rect width="110" height="70" rx="8" fill="#21262d" stroke="#d29922" stroke-width="1.5"/>
+        <text x="55" y="28" fill="#d29922" font-size="10" font-weight="600" text-anchor="middle">AZT Correct</text>
+        <text x="55" y="44" fill="#8b949e" font-size="9" text-anchor="middle">if stable + CoZ</text>
+        <text x="55" y="59" fill="#8b949e" font-size="9" text-anchor="middle">adj. zeroOffset</text>
+      </g>
+      <line x1="549" y1="95" x2="569" y2="95" stroke="#58a6ff" stroke-width="1.5" marker-end="url(#a1)" class="anim-line-fast"/>
+
+      <g transform="translate(571,60)">
+        <rect width="115" height="70" rx="8" fill="#21262d" stroke="#f0883e" stroke-width="1.5"/>
+        <text x="57" y="28" fill="#f0883e" font-size="10" font-weight="600" text-anchor="middle">State Update</text>
+        <text x="57" y="44" fill="#8b949e" font-size="9" text-anchor="middle">silent (no broadcast)</text>
+        <text x="57" y="59" fill="#8b949e" font-size="9" text-anchor="middle">~100-200ms</text>
+      </g>
+      <line x1="688" y1="95" x2="708" y2="95" stroke="#58a6ff" stroke-width="1.5" marker-end="url(#a1)" class="anim-line-fast"/>
+
+      <g transform="translate(710,60)">
+        <rect width="120" height="70" rx="8" fill="#21262d" stroke="#58a6ff" stroke-width="2"/>
+        <text x="60" y="25" fill="#58a6ff" font-size="10" font-weight="600" text-anchor="middle">Broadcast</text>
+        <text x="60" y="40" fill="#8b949e" font-size="9" text-anchor="middle">every 500ms</text>
+        <text x="60" y="55" fill="#8b949e" font-size="9" text-anchor="middle">heap &gt; 32KB</text>
+        <text x="60" y="68" fill="#3fb950" font-size="9" text-anchor="middle">→ all channels</text>
+      </g>
+
+      <!-- Loop-back arrow -->
+      <path d="M 75 130 Q 75 175 430 175 Q 785 175 785 132" fill="none" stroke="#30363d" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#a1)"/>
+      <text x="430" y="170" fill="#8b949e" font-size="9" text-anchor="middle">loop() continues</text>
+    </svg>
+  </div>
+</section>
+
+<!-- ═══════════ DATA FLOW ═══════════ -->
+<section id="dataflow">
+  <p class="section-label">Flows</p>
+  <h2>Key Data Flows</h2>
+  <p class="lead">Three critical scenarios: calibration, automatic zero tracking, and seal/unseal. Each has distinct audit and persistence implications.</p>
+
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="showTab('cal')">Calibration</button>
+    <button class="tab-btn" onclick="showTab('azt')">Auto Zero Tracking</button>
+    <button class="tab-btn" onclick="showTab('seal')">Seal / Unseal</button>
+    <button class="tab-btn" onclick="showTab('cmd')">Command Processing</button>
+  </div>
+
+  <!-- Calibration -->
+  <div id="tab-cal" class="tab-panel active">
+    <div class="flow-wrap">
+      <svg width="100%" viewBox="0 0 860 340" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="ac" markerWidth="7" markerHeight="7" refX="5" refY="2.5" orient="auto"><path d="M0,0 L0,5 L7,2.5 z" fill="#3fb950"/></marker>
+        </defs>
+        <!-- Step boxes vertically -->
+        <rect x="30" y="20" width="200" height="45" rx="7" fill="#21262d" stroke="#58a6ff" stroke-width="1.5"/>
+        <text x="130" y="40" fill="#58a6ff" font-size="11" font-weight="600" text-anchor="middle">1. Web UI Input</text>
+        <text x="130" y="57" fill="#8b949e" font-size="10" text-anchor="middle">known_weight=1.000 kg, click Calibrate</text>
+
+        <line x1="130" y1="65" x2="130" y2="85" stroke="#3fb950" stroke-width="1.5" marker-end="url(#ac)" class="anim-line"/>
+
+        <rect x="30" y="87" width="200" height="45" rx="7" fill="#21262d" stroke="#3fb950" stroke-width="1.5"/>
+        <text x="130" y="107" fill="#3fb950" font-size="11" font-weight="600" text-anchor="middle">2. REST POST</text>
+        <text x="130" y="123" fill="#8b949e" font-size="10" text-anchor="middle">POST /rest/weighing {calibrate:true}</text>
+
+        <line x1="130" y1="132" x2="130" y2="152" stroke="#3fb950" stroke-width="1.5" marker-end="url(#ac)" class="anim-line"/>
+
+        <rect x="30" y="154" width="200" height="45" rx="7" fill="#21262d" stroke="#bc8cff" stroke-width="1.5"/>
+        <text x="130" y="174" fill="#bc8cff" font-size="11" font-weight="600" text-anchor="middle">3. executeCalibration()</text>
+        <text x="130" y="190" fill="#8b949e" font-size="10" text-anchor="middle">factor = known ÷ (raw − zero)</text>
+
+        <line x1="130" y1="199" x2="130" y2="219" stroke="#3fb950" stroke-width="1.5" marker-end="url(#ac)" class="anim-line"/>
+
+        <rect x="30" y="221" width="200" height="45" rx="7" fill="#21262d" stroke="#f0883e" stroke-width="1.5"/>
+        <text x="130" y="241" fill="#f0883e" font-size="11" font-weight="600" text-anchor="middle">4. Persist + Audit</text>
+        <text x="130" y="257" fill="#8b949e" font-size="10" text-anchor="middle">saveConfig() + logEvent("calibrate")</text>
+
+        <line x1="130" y1="266" x2="130" y2="286" stroke="#3fb950" stroke-width="1.5" marker-end="url(#ac)" class="anim-line"/>
+
+        <rect x="30" y="288" width="200" height="38" rx="7" fill="#21262d" stroke="#58a6ff" stroke-width="1.5"/>
+        <text x="130" y="305" fill="#58a6ff" font-size="11" font-weight="600" text-anchor="middle">5. Broadcast</text>
+        <text x="130" y="320" fill="#8b949e" font-size="10" text-anchor="middle">WS + MQTT + BLE updated</text>
+
+        <!-- Side annotation -->
+        <rect x="310" y="154" width="230" height="85" rx="7" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+        <text x="425" y="175" fill="#d29922" font-size="11" font-weight="600" text-anchor="middle">Calculation Detail</text>
+        <text x="425" y="194" fill="#8b949e" font-size="10" text-anchor="middle">rawSpan = currentRaw − zeroOffset</text>
+        <text x="425" y="211" fill="#8b949e" font-size="10" text-anchor="middle">newFactor = knownWeight ÷ rawSpan</text>
+        <text x="425" y="228" fill="#3fb950" font-size="10" text-anchor="middle">eventCounter++ (OIML monotonic)</text>
+        <line x1="232" y1="176" x2="308" y2="195" stroke="#d29922" stroke-width="1" stroke-dasharray="4 3"/>
+
+        <rect x="310" y="250" width="230" height="70" rx="7" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+        <text x="425" y="270" fill="#f0883e" font-size="11" font-weight="600" text-anchor="middle">Files Written</text>
+        <text x="425" y="288" fill="#8b949e" font-size="10" text-anchor="middle">/config/weighing.json</text>
+        <text x="425" y="305" fill="#8b949e" font-size="10" text-anchor="middle">/audit/weighing.json</text>
+        <line x1="232" y1="243" x2="308" y2="265" stroke="#f0883e" stroke-width="1" stroke-dasharray="4 3"/>
+      </svg>
+    </div>
+  </div>
+
+  <!-- AZT -->
+  <div id="tab-azt" class="tab-panel">
+    <div class="flow-wrap">
+      <svg width="100%" viewBox="0 0 860 280" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="aaz" markerWidth="7" markerHeight="7" refX="5" refY="2.5" orient="auto"><path d="M0,0 L0,5 L7,2.5 z" fill="#d29922"/></marker>
+        </defs>
+        <!-- Diamond decision -->
+        <rect x="30" y="20" width="160" height="40" rx="7" fill="#21262d" stroke="#bc8cff" stroke-width="1.5"/>
+        <text x="110" y="44" fill="#bc8cff" font-size="11" font-weight="600" text-anchor="middle">loop() iteration</text>
+
+        <line x1="110" y1="60" x2="110" y2="80" stroke="#d29922" stroke-width="1.5" marker-end="url(#aaz)" class="anim-line"/>
+
+        <polygon points="110,82 50,120 110,158 170,120" fill="#21262d" stroke="#d29922" stroke-width="1.5"/>
+        <text x="110" y="116" fill="#d29922" font-size="9.5" font-weight="600" text-anchor="middle">AZT enabled?</text>
+        <text x="110" y="130" fill="#d29922" font-size="9.5" text-anchor="middle">stable? CoZ?</text>
+
+        <!-- Yes path -->
+        <line x1="170" y1="120" x2="260" y2="120" stroke="#3fb950" stroke-width="1.5" marker-end="url(#aaz)" class="anim-line"/>
+        <text x="215" y="113" fill="#3fb950" font-size="9" text-anchor="middle">YES</text>
+
+        <rect x="262" y="90" width="160" height="60" rx="7" fill="#21262d" stroke="#3fb950" stroke-width="1.5"/>
+        <text x="342" y="115" fill="#3fb950" font-size="11" font-weight="600" text-anchor="middle">performAzt(gross)</text>
+        <text x="342" y="131" fill="#8b949e" font-size="9.5" text-anchor="middle">correction = −gross (clamped)</text>
+        <text x="342" y="144" fill="#8b949e" font-size="9.5" text-anchor="middle">zeroOffset − rawCorrection</text>
+
+        <line x1="422" y1="120" x2="500" y2="120" stroke="#3fb950" stroke-width="1.5" marker-end="url(#aaz)" class="anim-line"/>
+
+        <rect x="502" y="90" width="160" height="60" rx="7" fill="#21262d" stroke="#58a6ff" stroke-width="1.5"/>
+        <text x="582" y="114" fill="#58a6ff" font-size="11" font-weight="600" text-anchor="middle">Silent Update</text>
+        <text x="582" y="130" fill="#8b949e" font-size="9.5" text-anchor="middle">No audit log</text>
+        <text x="582" y="146" fill="#8b949e" font-size="9.5" text-anchor="middle">No event counter ++</text>
+
+        <!-- No path -->
+        <line x1="110" y1="158" x2="110" y2="200" stroke="#f85149" stroke-width="1.5" marker-end="url(#aaz)"/>
+        <text x="120" y="182" fill="#f85149" font-size="9">NO</text>
+        <rect x="35" y="202" width="150" height="40" rx="7" fill="#21262d" stroke="#f85149" stroke-width="1.5"/>
+        <text x="110" y="218" fill="#f85149" font-size="10" font-weight="600" text-anchor="middle">Skip AZT</text>
+        <text x="110" y="234" fill="#8b949e" font-size="9" text-anchor="middle">Continue loop</text>
+
+        <!-- Note -->
+        <rect x="680" y="80" width="165" height="95" rx="7" fill="#161b22" stroke="#30363d"/>
+        <text x="762" y="102" fill="#d29922" font-size="11" font-weight="700" text-anchor="middle">AZT Conditions</text>
+        <text x="762" y="120" fill="#8b949e" font-size="9.5" text-anchor="middle">✓ ztEnabled = true</text>
+        <text x="762" y="136" fill="#8b949e" font-size="9.5" text-anchor="middle">✓ stable = true</text>
+        <text x="762" y="152" fill="#8b949e" font-size="9.5" text-anchor="middle">✓ |gross| ≤ 0.25 × minDiv</text>
+        <text x="762" y="168" fill="#8b949e" font-size="9.5" text-anchor="middle">✓ no tare set</text>
+      </svg>
+    </div>
+  </div>
+
+  <!-- Seal -->
+  <div id="tab-seal" class="tab-panel">
+    <div class="flow-wrap">
+      <svg width="100%" viewBox="0 0 860 320" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="as" markerWidth="7" markerHeight="7" refX="5" refY="2.5" orient="auto"><path d="M0,0 L0,5 L7,2.5 z" fill="#f0883e"/></marker>
+        </defs>
+        <!-- Seal flow -->
+        <rect x="30" y="20" width="160" height="40" rx="7" fill="#21262d" stroke="#58a6ff" stroke-width="1.5"/>
+        <text x="110" y="44" fill="#58a6ff" font-size="11" font-weight="600" text-anchor="middle">Admin: POST seal:true</text>
+
+        <line x1="110" y1="60" x2="110" y2="85" stroke="#f0883e" stroke-width="1.5" marker-end="url(#as)" class="anim-line-slow"/>
+
+        <rect x="30" y="87" width="160" height="55" rx="7" fill="#21262d" stroke="#f0883e" stroke-width="1.5"/>
+        <text x="110" y="108" fill="#f0883e" font-size="11" font-weight="600" text-anchor="middle">executeSeal()</text>
+        <text x="110" y="124" fill="#8b949e" font-size="9.5" text-anchor="middle">sealActive = true</text>
+        <text x="110" y="138" fill="#8b949e" font-size="9.5" text-anchor="middle">eventCounter++, logEvent</text>
+
+        <!-- Blocked operations -->
+        <rect x="250" y="60" width="180" height="110" rx="7" fill="#21262d" stroke="#f85149" stroke-width="1.5"/>
+        <text x="340" y="83" fill="#f85149" font-size="11" font-weight="700" text-anchor="middle">BLOCKED while Sealed</text>
+        <text x="340" y="103" fill="#8b949e" font-size="10" text-anchor="middle">✗ zero command</text>
+        <text x="340" y="120" fill="#8b949e" font-size="10" text-anchor="middle">✗ calibrate command</text>
+        <text x="340" y="137" fill="#8b949e" font-size="10" text-anchor="middle">✗ config changes</text>
+        <text x="340" y="154" fill="#8b949e" font-size="10" text-anchor="middle">✗ unit / range edits</text>
+        <line x1="192" y1="114" x2="248" y2="114" stroke="#f85149" stroke-width="1.5" marker-end="url(#as)"/>
+
+        <!-- Unseal flow -->
+        <line x1="110" y1="142" x2="110" y2="170" stroke="#f0883e" stroke-width="1.5" marker-end="url(#as)" class="anim-line-slow"/>
+
+        <rect x="30" y="172" width="160" height="40" rx="7" fill="#21262d" stroke="#3fb950" stroke-width="1.5"/>
+        <text x="110" y="190" fill="#3fb950" font-size="11" font-weight="600" text-anchor="middle">POST unseal:true, pin</text>
+        <text x="110" y="205" fill="#8b949e" font-size="9.5" text-anchor="middle">Admin provides factory PIN</text>
+
+        <line x1="110" y1="212" x2="110" y2="235" stroke="#3fb950" stroke-width="1.5" marker-end="url(#as)"/>
+
+        <polygon points="110,237 50,265 110,293 170,265" fill="#21262d" stroke="#3fb950" stroke-width="1.5"/>
+        <text x="110" y="262" fill="#3fb950" font-size="9.5" font-weight="600" text-anchor="middle">SHA-256</text>
+        <text x="110" y="277" fill="#3fb950" font-size="9.5" text-anchor="middle">match?</text>
+
+        <!-- Pass -->
+        <line x1="170" y1="265" x2="250" y2="265" stroke="#3fb950" stroke-width="1.5" marker-end="url(#as)" class="anim-line"/>
+        <text x="210" y="258" fill="#3fb950" font-size="9">PASS</text>
+        <rect x="252" y="242" width="160" height="45" rx="7" fill="#21262d" stroke="#3fb950" stroke-width="1.5"/>
+        <text x="332" y="263" fill="#3fb950" font-size="11" font-weight="600" text-anchor="middle">Unsealed</text>
+        <text x="332" y="278" fill="#8b949e" font-size="9.5" text-anchor="middle">eventCounter++, logEvent</text>
+
+        <!-- Fail -->
+        <line x1="50" y1="265" x2="20" y2="265" stroke="#f85149" stroke-width="1" stroke-dasharray="4 3"/>
+        <text x="10" y="258" fill="#f85149" font-size="9">FAIL×5</text>
+        <rect x="-30" y="250" width="50" height="30" rx="5" fill="#21262d" stroke="#f85149" stroke-width="1"/>
+        <text x="-5" y="270" fill="#f85149" font-size="8.5" text-anchor="middle">Lock 5min</text>
+
+        <!-- PIN info -->
+        <rect x="480" y="172" width="220" height="100" rx="7" fill="#161b22" stroke="#30363d"/>
+        <text x="590" y="194" fill="#d29922" font-size="11" font-weight="700" text-anchor="middle">PIN Security</text>
+        <text x="590" y="214" fill="#8b949e" font-size="9.5" text-anchor="middle">Factory PIN = "800125"</text>
+        <text x="590" y="230" fill="#8b949e" font-size="9.5" text-anchor="middle">Stored as SHA-256 hash</text>
+        <text x="590" y="246" fill="#8b949e" font-size="9.5" text-anchor="middle">Never transmitted in plaintext</text>
+        <text x="590" y="262" fill="#8b949e" font-size="9.5" text-anchor="middle">5 attempts → 5-min lockout</text>
+      </svg>
+    </div>
+  </div>
+
+  <!-- Command Processing -->
+  <div id="tab-cmd" class="tab-panel">
+    <div class="flow-wrap">
+      <svg width="100%" viewBox="0 0 860 280" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="acmd" markerWidth="7" markerHeight="7" refX="5" refY="2.5" orient="auto"><path d="M0,0 L0,5 L7,2.5 z" fill="#bc8cff"/></marker>
+        </defs>
+        <!-- 4 input channels -->
+        <rect x="20" y="20" width="90" height="35" rx="6" fill="#21262d" stroke="#58a6ff" stroke-width="1.5"/>
+        <text x="65" y="41" fill="#58a6ff" font-size="10" font-weight="600" text-anchor="middle">REST POST</text>
+
+        <rect x="20" y="70" width="90" height="35" rx="6" fill="#21262d" stroke="#3fb950" stroke-width="1.5"/>
+        <text x="65" y="91" fill="#3fb950" font-size="10" font-weight="600" text-anchor="middle">WebSocket</text>
+
+        <rect x="20" y="120" width="90" height="35" rx="6" fill="#21262d" stroke="#f0883e" stroke-width="1.5"/>
+        <text x="65" y="141" fill="#f0883e" font-size="10" font-weight="600" text-anchor="middle">MQTT set</text>
+
+        <rect x="20" y="170" width="90" height="35" rx="6" fill="#21262d" stroke="#d29922" stroke-width="1.5"/>
+        <text x="65" y="191" fill="#d29922" font-size="10" font-weight="600" text-anchor="middle">BLE WRITE</text>
+
+        <!-- Lines to update() -->
+        <line x1="110" y1="37" x2="200" y2="115" stroke="#58a6ff" stroke-width="1.5" marker-end="url(#acmd)" class="anim-line"/>
+        <line x1="110" y1="87" x2="200" y2="120" stroke="#3fb950" stroke-width="1.5" marker-end="url(#acmd)" class="anim-line"/>
+        <line x1="110" y1="137" x2="200" y2="130" stroke="#f0883e" stroke-width="1.5" marker-end="url(#acmd)" class="anim-line-slow"/>
+        <line x1="110" y1="187" x2="200" y2="140" stroke="#d29922" stroke-width="1.5" marker-end="url(#acmd)" class="anim-line-slow"/>
+
+        <!-- update() box -->
+        <rect x="202" y="95" width="130" height="65" rx="8" fill="#21262d" stroke="#bc8cff" stroke-width="2"/>
+        <text x="267" y="120" fill="#bc8cff" font-size="11" font-weight="700" text-anchor="middle">update(state)</text>
+        <text x="267" y="138" fill="#8b949e" font-size="9.5" text-anchor="middle">origin tracked</text>
+        <text x="267" y="152" fill="#8b949e" font-size="9.5" text-anchor="middle">seal check</text>
+
+        <line x1="332" y1="127" x2="382" y2="127" stroke="#bc8cff" stroke-width="1.5" marker-end="url(#acmd)" class="anim-line"/>
+
+        <!-- onCommandReceived -->
+        <rect x="384" y="95" width="150" height="65" rx="8" fill="#21262d" stroke="#bc8cff" stroke-width="2"/>
+        <text x="459" y="118" fill="#bc8cff" font-size="10.5" font-weight="700" text-anchor="middle">onCommandReceived</text>
+        <text x="459" y="134" fill="#8b949e" font-size="9.5" text-anchor="middle">dispatch to executor</text>
+        <text x="459" y="150" fill="#d29922" font-size="9.5" text-anchor="middle">e.g. executeTare()</text>
+
+        <!-- Executors -->
+        <line x1="534" y1="112" x2="590" y2="50" stroke="#3fb950" stroke-width="1.2" marker-end="url(#acmd)"/>
+        <line x1="534" y1="120" x2="590" y2="95" stroke="#3fb950" stroke-width="1.2" marker-end="url(#acmd)"/>
+        <line x1="534" y1="128" x2="590" y2="140" stroke="#3fb950" stroke-width="1.2" marker-end="url(#acmd)"/>
+        <line x1="534" y1="135" x2="590" y2="185" stroke="#3fb950" stroke-width="1.2" marker-end="url(#acmd)"/>
+        <line x1="534" y1="142" x2="590" y2="230" stroke="#3fb950" stroke-width="1.2" marker-end="url(#acmd)"/>
+
+        <rect x="592" y="28" width="120" height="30" rx="5" fill="#21262d" stroke="#3fb950" stroke-width="1"/>
+        <text x="652" y="47" fill="#3fb950" font-size="9.5" text-anchor="middle">executeTare()</text>
+        <rect x="592" y="75" width="120" height="30" rx="5" fill="#21262d" stroke="#3fb950" stroke-width="1"/>
+        <text x="652" y="94" fill="#3fb950" font-size="9.5" text-anchor="middle">executeZero()</text>
+        <rect x="592" y="122" width="120" height="30" rx="5" fill="#21262d" stroke="#3fb950" stroke-width="1"/>
+        <text x="652" y="141" fill="#3fb950" font-size="9.5" text-anchor="middle">executeCalibration()</text>
+        <rect x="592" y="169" width="120" height="30" rx="5" fill="#21262d" stroke="#3fb950" stroke-width="1"/>
+        <text x="652" y="188" fill="#3fb950" font-size="9.5" text-anchor="middle">executeSeal()</text>
+        <rect x="592" y="216" width="120" height="30" rx="5" fill="#21262d" stroke="#3fb950" stroke-width="1"/>
+        <text x="652" y="235" fill="#3fb950" font-size="9.5" text-anchor="middle">executeUnseal(pin)</text>
+
+        <!-- callUpdateHandlers -->
+        <line x1="714" y1="143" x2="760" y2="143" stroke="#58a6ff" stroke-width="1.5" marker-end="url(#acmd)" class="anim-line"/>
+        <rect x="762" y="118" width="85" height="55" rx="7" fill="#21262d" stroke="#58a6ff" stroke-width="1.5"/>
+        <text x="804" y="140" fill="#58a6ff" font-size="9.5" font-weight="600" text-anchor="middle">Broadcast</text>
+        <text x="804" y="155" fill="#8b949e" font-size="9" text-anchor="middle">all channels</text>
+        <text x="804" y="168" fill="#8b949e" font-size="9" text-anchor="middle">notify</text>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ CHANNELS ═══════════ -->
+<section id="channels">
+  <p class="section-label">Layer 3</p>
+  <h2>Communication Channels</h2>
+  <p class="lead">Four parallel channels carry the same state. Origin tracking prevents echo loops. Each client filters updates by originId.</p>
+
+  <div class="flow-wrap">
+    <svg width="100%" viewBox="0 0 860 260" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="ach" markerWidth="7" markerHeight="7" refX="5" refY="2.5" orient="auto"><path d="M0,0 L0,5 L7,2.5 z" fill="#bc8cff"/></marker>
+      </defs>
+
+      <!-- Central service -->
+      <rect x="340" y="95" width="175" height="65" rx="10" fill="#21262d" stroke="#bc8cff" stroke-width="2"/>
+      <text x="427" y="122" fill="#bc8cff" font-size="12" font-weight="700" text-anchor="middle">WeighingService</text>
+      <text x="427" y="140" fill="#8b949e" font-size="9.5" text-anchor="middle">callUpdateHandlers()</text>
+      <text x="427" y="155" fill="#8b949e" font-size="9.5" text-anchor="middle">origin = "weighing_hw"</text>
+
+      <!-- REST -->
+      <rect x="20" y="20" width="140" height="65" rx="8" fill="#21262d" stroke="#58a6ff" stroke-width="1.5"/>
+      <text x="90" y="45" fill="#58a6ff" font-size="11" font-weight="600" text-anchor="middle">REST API</text>
+      <text x="90" y="62" fill="#8b949e" font-size="9.5" text-anchor="middle">GET /rest/weighing</text>
+      <text x="90" y="77" fill="#8b949e" font-size="9.5" text-anchor="middle">IS_AUTHENTICATED</text>
+      <line x1="160" y1="52" x2="338" y2="118" stroke="#58a6ff" stroke-width="1.5" marker-end="url(#ach)" class="anim-line"/>
+
+      <!-- WebSocket -->
+      <rect x="20" y="115" width="140" height="65" rx="8" fill="#21262d" stroke="#3fb950" stroke-width="1.5"/>
+      <text x="90" y="140" fill="#3fb950" font-size="11" font-weight="600" text-anchor="middle">WebSocket</text>
+      <text x="90" y="157" fill="#8b949e" font-size="9.5" text-anchor="middle">/ws/weighing</text>
+      <text x="90" y="172" fill="#8b949e" font-size="9.5" text-anchor="middle">~2Hz, heap-aware</text>
+      <line x1="160" y1="148" x2="338" y2="138" stroke="#3fb950" stroke-width="1.5" marker-end="url(#ach)" class="anim-line"/>
+
+      <!-- MQTT -->
+      <rect x="700" y="20" width="145" height="65" rx="8" fill="#21262d" stroke="#f0883e" stroke-width="1.5"/>
+      <text x="772" y="45" fill="#f0883e" font-size="11" font-weight="600" text-anchor="middle">MQTT</text>
+      <text x="772" y="62" fill="#8b949e" font-size="9.5" text-anchor="middle">weighsoft/…/data (pub)</text>
+      <text x="772" y="77" fill="#8b949e" font-size="9.5" text-anchor="middle">weighsoft/…/set (sub)</text>
+      <line x1="516" y1="118" x2="698" y2="52" stroke="#f0883e" stroke-width="1.5" marker-end="url(#ach)" class="anim-line-slow"/>
+
+      <!-- BLE -->
+      <rect x="700" y="115" width="145" height="65" rx="8" fill="#21262d" stroke="#d29922" stroke-width="1.5"/>
+      <text x="772" y="140" fill="#d29922" font-size="11" font-weight="600" text-anchor="middle">BLE</text>
+      <text x="772" y="157" fill="#8b949e" font-size="9.5" text-anchor="middle">56780001 characteristic</text>
+      <text x="772" y="172" fill="#8b949e" font-size="9.5" text-anchor="middle">READ + WRITE + NOTIFY</text>
+      <line x1="516" y1="138" x2="698" y2="148" stroke="#d29922" stroke-width="1.5" marker-end="url(#ach)" class="anim-line-slow"/>
+
+      <!-- Clients bottom -->
+      <rect x="20" y="215" width="140" height="35" rx="7" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+      <text x="90" y="237" fill="#muted" font-size="10" text-anchor="middle" fill="#8b949e">Browser / React SPA</text>
+      <line x1="90" y1="180" x2="90" y2="213" stroke="#3fb950" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#ach)"/>
+
+      <rect x="700" y="215" width="145" height="35" rx="7" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+      <text x="772" y="237" fill="#8b949e" font-size="10" text-anchor="middle">Home Assistant / Mobile</text>
+      <line x1="772" y1="180" x2="772" y2="213" stroke="#f0883e" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#ach)"/>
+    </svg>
+  </div>
+
+  <table>
+    <thead><tr><th>Channel</th><th>Endpoint</th><th>Direction</th><th>Frequency</th><th>Auth</th><th>Use Case</th></tr></thead>
+    <tbody>
+      <tr><td><span class="pill pill-blue">REST</span></td><td><code>/rest/weighing</code></td><td>Bidirectional</td><td>On demand</td><td><span class="pill pill-green">JWT</span></td><td>Web UI commands, one-off reads</td></tr>
+      <tr><td><span class="pill pill-green">WS</span></td><td><code>/ws/weighing</code></td><td>Bidirectional</td><td>~2 Hz</td><td><span class="pill pill-green">JWT</span></td><td>Live display, real-time dashboard</td></tr>
+      <tr><td><span class="pill pill-orange">MQTT</span></td><td>Configurable topic</td><td>Pub + Sub</td><td>On change</td><td><span class="pill pill-orange">Broker</span></td><td>Home Assistant integration</td></tr>
+      <tr><td><span class="pill pill-purple">BLE</span></td><td>UUID 56780001</td><td>R/W/Notify</td><td>On notify</td><td><span class="pill pill-purple">Pairing</span></td><td>Mobile apps, offline use</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ═══════════ SECURITY ═══════════ -->
+<section id="security">
+  <p class="section-label">Security</p>
+  <h2>Authentication &amp; Authorization</h2>
+  <p class="lead">JWT tokens gate access. Three tiers control what each role can do. The seal mechanism adds a hardware-level lock for OIML compliance.</p>
+
+  <div class="flow-wrap">
+    <svg width="100%" viewBox="0 0 860 250" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="asec" markerWidth="7" markerHeight="7" refX="5" refY="2.5" orient="auto"><path d="M0,0 L0,5 L7,2.5 z" fill="#58a6ff"/></marker>
+      </defs>
+
+      <!-- Login flow -->
+      <rect x="20" y="95" width="130" height="55" rx="8" fill="#21262d" stroke="#58a6ff" stroke-width="1.5"/>
+      <text x="85" y="118" fill="#58a6ff" font-size="11" font-weight="600" text-anchor="middle">POST /rest/signIn</text>
+      <text x="85" y="135" fill="#8b949e" font-size="9.5" text-anchor="middle">username + password</text>
+      <text x="85" y="147" fill="#8b949e" font-size="9.5" text-anchor="middle">→ JWT token</text>
+
+      <line x1="152" y1="122" x2="202" y2="122" stroke="#58a6ff" stroke-width="1.5" marker-end="url(#asec)" class="anim-line"/>
+
+      <!-- Security Manager -->
+      <rect x="204" y="75" width="160" height="95" rx="8" fill="#21262d" stroke="#bc8cff" stroke-width="2"/>
+      <text x="284" y="100" fill="#bc8cff" font-size="11" font-weight="700" text-anchor="middle">SecurityManager</text>
+      <line x1="214" y1="110" x2="354" y2="110" stroke="#30363d" stroke-width="1"/>
+      <text x="284" y="126" fill="#8b949e" font-size="9.5" text-anchor="middle">Verify JWT signature</text>
+      <text x="284" y="142" fill="#8b949e" font-size="9.5" text-anchor="middle">Check expiry</text>
+      <text x="284" y="157" fill="#8b949e" font-size="9.5" text-anchor="middle">Extract role</text>
+
+      <!-- Auth tiers -->
+      <line x1="364" y1="90" x2="440" y2="40" stroke="#3fb950" stroke-width="1.5" marker-end="url(#asec)"/>
+      <rect x="442" y="18" width="155" height="45" rx="7" fill="#21262d" stroke="#3fb950" stroke-width="1.5"/>
+      <text x="519" y="40" fill="#3fb950" font-size="10.5" font-weight="600" text-anchor="middle">NONE_REQUIRED</text>
+      <text x="519" y="56" fill="#8b949e" font-size="9" text-anchor="middle">Public — /rest/version, status</text>
+
+      <line x1="364" y1="122" x2="440" y2="122" stroke="#d29922" stroke-width="1.5" marker-end="url(#asec)"/>
+      <rect x="442" y="99" width="155" height="45" rx="7" fill="#21262d" stroke="#d29922" stroke-width="1.5"/>
+      <text x="519" y="120" fill="#d29922" font-size="10.5" font-weight="600" text-anchor="middle">IS_AUTHENTICATED</text>
+      <text x="519" y="137" fill="#8b949e" font-size="9" text-anchor="middle">Any logged-in user</text>
+
+      <line x1="364" y1="150" x2="440" y2="195" stroke="#f85149" stroke-width="1.5" marker-end="url(#asec)"/>
+      <rect x="442" y="173" width="155" height="45" rx="7" fill="#21262d" stroke="#f85149" stroke-width="1.5"/>
+      <text x="519" y="194" fill="#f85149" font-size="10.5" font-weight="600" text-anchor="middle">IS_ADMIN</text>
+      <text x="519" y="211" fill="#8b949e" font-size="9" text-anchor="middle">Seal ops + Audit trail</text>
+
+      <!-- Scope boxes -->
+      <rect x="640" y="18" width="200" height="45" rx="7" fill="#161b22" stroke="#3fb950" stroke-width="1"/>
+      <text x="740" y="39" fill="#8b949e" font-size="9.5" text-anchor="middle">version · uptime · WiFi scan</text>
+      <line x1="597" y1="40" x2="638" y2="40" stroke="#3fb950" stroke-width="1" stroke-dasharray="4 3"/>
+
+      <rect x="640" y="99" width="200" height="45" rx="7" fill="#161b22" stroke="#d29922" stroke-width="1"/>
+      <text x="740" y="116" fill="#8b949e" font-size="9.5" text-anchor="middle">weighing R/W · tare · zero</text>
+      <text x="740" y="132" fill="#8b949e" font-size="9.5" text-anchor="middle">MQTT settings · NTP config</text>
+      <line x1="597" y1="122" x2="638" y2="122" stroke="#d29922" stroke-width="1" stroke-dasharray="4 3"/>
+
+      <rect x="640" y="173" width="200" height="45" rx="7" fill="#161b22" stroke="#f85149" stroke-width="1"/>
+      <text x="740" y="190" fill="#8b949e" font-size="9.5" text-anchor="middle">security settings · seal/unseal</text>
+      <text x="740" y="206" fill="#8b949e" font-size="9.5" text-anchor="middle">audit trail · user management</text>
+      <line x1="597" y1="195" x2="638" y2="195" stroke="#f85149" stroke-width="1" stroke-dasharray="4 3"/>
+    </svg>
+  </div>
+</section>
+
+<!-- ═══════════ BUILD TARGETS ═══════════ -->
+<section id="builds">
+  <p class="section-label">Build Targets</p>
+  <h2>PlatformIO Branches</h2>
+  <p class="lead">Three hardware targets share the same firmware codebase. Feature flags and partition tables differ per target.</p>
+
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="showTab('node32s')">node32s (Primary)</button>
+    <button class="tab-btn" onclick="showTab('esp32dev')">esp32dev</button>
+    <button class="tab-btn" onclick="showTab('esp12e')">esp12e (ESP8266)</button>
+  </div>
+
+  <div id="tab-node32s" class="tab-panel active">
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon">🎯</div>
+        <h3>Target: node32s</h3>
+        <p>Primary production target. Custom partition table splits flash into 2× 1.5 MB OTA slots + 960 KB SPIFFS for web assets and config.</p>
+        <span class="tag">platformio.ini [env:node32s]</span>
+      </div>
+      <div class="card">
+        <div class="card-icon">🗂️</div>
+        <h3>Partition Table</h3>
+        <p>otadata 8KB · factory 1.5MB · ota_1 1.5MB · spiffs 960KB. Dual OTA allows safe updates — one slot active, one receives new firmware.</p>
+        <span class="tag">partitions_custom.csv</span>
+      </div>
+      <div class="card">
+        <div class="card-icon">⚡</div>
+        <h3>Performance</h3>
+        <p>240 MHz dual-core Xtensa LX6. 520 KB SRAM. Arduino-ESP32 framework. All async I/O via ESPAsyncWebServer prevents measurement blocking.</p>
+        <span class="tag">framework = arduino</span>
+      </div>
+    </div>
+    <div class="flow-wrap" style="margin-top:1.5rem">
+      <svg width="100%" viewBox="0 0 860 140" xmlns="http://www.w3.org/2000/svg">
+        <rect x="20" y="40" width="780" height="60" rx="8" fill="#21262d" stroke="#58a6ff" stroke-width="1.5"/>
+        <text x="50" y="62" fill="#8b949e" font-size="9.5">0x0000</text>
+        <text x="50" y="80" fill="#d29922" font-size="9.5">otadata</text>
+        <text x="50" y="95" fill="#8b949e" font-size="9">8 KB</text>
+
+        <line x1="120" y1="40" x2="120" y2="100" stroke="#30363d" stroke-width="1"/>
+        <text x="130" y="62" fill="#8b949e" font-size="9.5">0x1000</text>
+        <text x="130" y="80" fill="#3fb950" font-size="9.5">factory (ota_0)</text>
+        <text x="130" y="95" fill="#8b949e" font-size="9">1.5 MB — Active firmware</text>
+
+        <line x1="450" y1="40" x2="450" y2="100" stroke="#30363d" stroke-width="1"/>
+        <text x="460" y="62" fill="#8b949e" font-size="9.5">0x181000</text>
+        <text x="460" y="80" fill="#58a6ff" font-size="9.5">ota_1</text>
+        <text x="460" y="95" fill="#8b949e" font-size="9">1.5 MB — OTA receive slot</text>
+
+        <line x1="650" y1="40" x2="650" y2="100" stroke="#30363d" stroke-width="1"/>
+        <text x="660" y="62" fill="#8b949e" font-size="9.5">0x302000</text>
+        <text x="660" y="80" fill="#f0883e" font-size="9.5">spiffs</text>
+        <text x="660" y="95" fill="#8b949e" font-size="9">960 KB — Web + Config</text>
+      </svg>
+    </div>
+  </div>
+
+  <div id="tab-esp32dev" class="tab-panel">
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon">🔌</div>
+        <h3>Target: esp32dev</h3>
+        <p>Generic ESP32 dev board — useful for rapid prototyping. Same firmware, default partition layout (no custom CSV).</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">📦</div>
+        <h3>Library Stack</h3>
+        <p>ArduinoJson 6.x · ESPAsyncWebServer · AsyncMqttClient 0.9.x. All shared with node32s target.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">⚙️</div>
+        <h3>Feature Flags</h3>
+        <p>FT_PROJECT, FT_SECURITY, FT_MQTT, FT_NTP, FT_OTA enabled. FT_BLE disabled by default.</p>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-esp12e" class="tab-panel">
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon">📡</div>
+        <h3>Target: esp12e (ESP8266)</h3>
+        <p>ESP-12E module at 160 MHz. Single-core — no mutex support; WiFi can briefly block the measurement loop.</p>
+        <span class="tag">platform = espressif8266</span>
+      </div>
+      <div class="card">
+        <div class="card-icon">⚠️</div>
+        <h3>Constraints</h3>
+        <p>80 KB usable heap. No BLE. GPIO logic for LED is inverted vs ESP32 (LOW = ON). Reduced concurrent WebSocket clients.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">🔗</div>
+        <h3>Compatibility</h3>
+        <p>Same REST/WS/MQTT/SPIFFS API. Factory settings can target either platform via <code>#{platform}</code> placeholder substitution.</p>
+      </div>
+    </div>
+  </div>
+
+  <h3 style="margin-top:2.5rem">Feature Flags</h3>
+  <table>
+    <thead><tr><th>Flag</th><th>Purpose</th><th>Default</th></tr></thead>
+    <tbody>
+      <tr><td><code>FT_PROJECT</code></td><td>Enable project-specific UI section (weighing tab in React)</td><td><span class="pill pill-green">ON</span></td></tr>
+      <tr><td><code>FT_SECURITY</code></td><td>JWT authentication + user management</td><td><span class="pill pill-green">ON</span></td></tr>
+      <tr><td><code>FT_MQTT</code></td><td>MQTT client, pub/sub, Home Assistant auto-discovery</td><td><span class="pill pill-green">ON</span></td></tr>
+      <tr><td><code>FT_NTP</code></td><td>Network time synchronization (required for audit timestamps)</td><td><span class="pill pill-green">ON</span></td></tr>
+      <tr><td><code>FT_OTA</code></td><td>Over-the-air firmware updates via web UI</td><td><span class="pill pill-green">ON</span></td></tr>
+      <tr><td><code>FT_UPLOAD_FIRMWARE</code></td><td>Manual firmware binary upload through browser</td><td><span class="pill pill-green">ON</span></td></tr>
+      <tr><td><code>FT_BLE</code></td><td>Bluetooth Low Energy — Phase 2, currently disabled</td><td><span class="pill pill-red">OFF</span></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ═══════════ FRONTEND ═══════════ -->
+<section id="frontend">
+  <p class="section-label">Layer 4</p>
+  <h2>React Frontend</h2>
+  <p class="lead">React 18 + Material-UI 5 SPA served from SPIFFS or PROGMEM. Authenticated via JWT, communicates over REST and WebSocket.</p>
+
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-icon">🔐</div>
+      <h3>Authentication</h3>
+      <p>Login page issues JWT via <code>/rest/signIn</code>. Token stored in session, attached to all subsequent requests.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">📡</div>
+      <h3>WiFi Configuration</h3>
+      <p>Network scan, station credentials, AP fallback mode. Changes write to LittleFS and trigger reconnection.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">⚖️</div>
+      <h3>Weighing Panel</h3>
+      <p>Live weight display, tare/zero controls, calibration wizard, seal/unseal UI, unit selector. WebSocket-driven real-time updates.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">📋</div>
+      <h3>Audit Trail Viewer</h3>
+      <p>Admin-only table of all OIML events. Timestamps, event types, old/new values, event counter column.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">🔧</div>
+      <h3>MQTT / NTP Settings</h3>
+      <p>Runtime broker configuration, topic prefix, NTP server and timezone. All persisted to flash.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">🚀</div>
+      <h3>OTA Updates</h3>
+      <p>Upload firmware binary or trigger update. New binary lands in ota_1 slot; reboot activates it.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ OIML ═══════════ -->
+<section id="oiml">
+  <p class="section-label">Compliance</p>
+  <h2>OIML D31:2023 Compliance</h2>
+  <p class="lead">Five requirements implemented to support legal-for-trade type approval: event counter, audit trail, electronic seal, stability, and traceability.</p>
+
+  <div class="flow-wrap">
+    <svg width="100%" viewBox="0 0 860 320" xmlns="http://www.w3.org/2000/svg">
+      <!-- 5 pillars -->
+      <rect x="20" y="30" width="140" height="260" rx="10" fill="#21262d" stroke="#3fb950" stroke-width="1.5"/>
+      <text x="90" y="56" fill="#3fb950" font-size="11" font-weight="700" text-anchor="middle">Event Counter</text>
+      <text x="90" y="74" fill="#8b949e" font-size="9" text-anchor="middle">OIML 6.2.3.5</text>
+      <line x1="30" y1="84" x2="150" y2="84" stroke="#30363d" stroke-width="1"/>
+      <text x="90" y="102" fill="#8b949e" font-size="9.5" text-anchor="middle">Monotonic uint32</text>
+      <text x="90" y="118" fill="#8b949e" font-size="9.5" text-anchor="middle">Never decreases</text>
+      <text x="90" y="134" fill="#8b949e" font-size="9.5" text-anchor="middle">Persisted to flash</text>
+      <text x="90" y="150" fill="#8b949e" font-size="9.5" text-anchor="middle">Increments on:</text>
+      <text x="90" y="166" fill="#3fb950" font-size="9" text-anchor="middle">calibrate</text>
+      <text x="90" y="182" fill="#3fb950" font-size="9" text-anchor="middle">zero</text>
+      <text x="90" y="198" fill="#3fb950" font-size="9" text-anchor="middle">seal / unseal</text>
+      <text x="90" y="214" fill="#8b949e" font-size="9" text-anchor="middle">Survives OTA</text>
+      <text x="90" y="230" fill="#8b949e" font-size="9" text-anchor="middle">Rolls at 2³²</text>
+
+      <rect x="180" y="30" width="140" height="260" rx="10" fill="#21262d" stroke="#58a6ff" stroke-width="1.5"/>
+      <text x="250" y="56" fill="#58a6ff" font-size="11" font-weight="700" text-anchor="middle">Audit Trail</text>
+      <text x="250" y="74" fill="#8b949e" font-size="9" text-anchor="middle">OIML 6.3.8.4</text>
+      <line x1="190" y1="84" x2="310" y2="84" stroke="#30363d" stroke-width="1"/>
+      <text x="250" y="102" fill="#8b949e" font-size="9.5" text-anchor="middle">NDJSON format</text>
+      <text x="250" y="118" fill="#8b949e" font-size="9.5" text-anchor="middle">/audit/weighing.json</text>
+      <text x="250" y="134" fill="#8b949e" font-size="9.5" text-anchor="middle">Append-only</text>
+      <text x="250" y="150" fill="#8b949e" font-size="9.5" text-anchor="middle">100-entry FIFO</text>
+      <text x="250" y="166" fill="#58a6ff" font-size="9" text-anchor="middle">seq · timestamp</text>
+      <text x="250" y="182" fill="#58a6ff" font-size="9" text-anchor="middle">event · parameter</text>
+      <text x="250" y="198" fill="#58a6ff" font-size="9" text-anchor="middle">old_val · new_val</text>
+      <text x="250" y="214" fill="#8b949e" font-size="9" text-anchor="middle">Separate partition</text>
+
+      <rect x="340" y="30" width="140" height="260" rx="10" fill="#21262d" stroke="#f0883e" stroke-width="1.5"/>
+      <text x="410" y="56" fill="#f0883e" font-size="11" font-weight="700" text-anchor="middle">Electronic Seal</text>
+      <text x="410" y="74" fill="#8b949e" font-size="9" text-anchor="middle">Configuration lock</text>
+      <line x1="350" y1="84" x2="470" y2="84" stroke="#30363d" stroke-width="1"/>
+      <text x="410" y="102" fill="#8b949e" font-size="9.5" text-anchor="middle">Factory PIN hash</text>
+      <text x="410" y="118" fill="#8b949e" font-size="9.5" text-anchor="middle">SHA-256 stored</text>
+      <text x="410" y="134" fill="#8b949e" font-size="9.5" text-anchor="middle">Never transmitted</text>
+      <text x="410" y="150" fill="#8b949e" font-size="9.5" text-anchor="middle">Blocks all config</text>
+      <text x="410" y="166" fill="#f0883e" font-size="9" text-anchor="middle">zero / calibrate</text>
+      <text x="410" y="182" fill="#f0883e" font-size="9" text-anchor="middle">unit / ranges</text>
+      <text x="410" y="198" fill="#8b949e" font-size="9" text-anchor="middle">5-fail lockout</text>
+      <text x="410" y="214" fill="#8b949e" font-size="9" text-anchor="middle">5 min cooldown</text>
+
+      <rect x="500" y="30" width="140" height="260" rx="10" fill="#21262d" stroke="#bc8cff" stroke-width="1.5"/>
+      <text x="570" y="56" fill="#bc8cff" font-size="11" font-weight="700" text-anchor="middle">Stability</text>
+      <text x="570" y="74" fill="#8b949e" font-size="9" text-anchor="middle">OIML settled weight</text>
+      <line x1="510" y1="84" x2="630" y2="84" stroke="#30363d" stroke-width="1"/>
+      <text x="570" y="102" fill="#8b949e" font-size="9.5" text-anchor="middle">8-sample ring buffer</text>
+      <text x="570" y="118" fill="#8b949e" font-size="9.5" text-anchor="middle">range &lt; minDivision</text>
+      <text x="570" y="134" fill="#8b949e" font-size="9.5" text-anchor="middle">Gates tare ops</text>
+      <text x="570" y="150" fill="#8b949e" font-size="9.5" text-anchor="middle">CoZ = center of zero</text>
+      <text x="570" y="166" fill="#bc8cff" font-size="9" text-anchor="middle">|gross| ≤ 0.25×div</text>
+      <text x="570" y="182" fill="#8b949e" font-size="9" text-anchor="middle">Enables AZT</text>
+      <text x="570" y="198" fill="#8b949e" font-size="9" text-anchor="middle">UI stability indicator</text>
+
+      <rect x="660" y="30" width="180" height="260" rx="10" fill="#21262d" stroke="#d29922" stroke-width="1.5"/>
+      <text x="750" y="56" fill="#d29922" font-size="11" font-weight="700" text-anchor="middle">Traceability</text>
+      <text x="750" y="74" fill="#8b949e" font-size="9" text-anchor="middle">Time + Identity</text>
+      <line x1="670" y1="84" x2="830" y2="84" stroke="#30363d" stroke-width="1"/>
+      <text x="750" y="102" fill="#8b949e" font-size="9.5" text-anchor="middle">NTP ISO 8601 timestamps</text>
+      <text x="750" y="118" fill="#8b949e" font-size="9.5" text-anchor="middle">Fallback: NO_NTP_&lt;ms&gt;</text>
+      <text x="750" y="134" fill="#8b949e" font-size="9.5" text-anchor="middle">lastCalibrationTime</text>
+      <text x="750" y="150" fill="#8b949e" font-size="9.5" text-anchor="middle">Admin role required</text>
+      <text x="750" y="166" fill="#d29922" font-size="9" text-anchor="middle">for seal/audit access</text>
+      <text x="750" y="182" fill="#8b949e" font-size="9" text-anchor="middle">Event counter links</text>
+      <text x="750" y="198" fill="#8b949e" font-size="9" text-anchor="middle">audit ↔ config state</text>
+      <text x="750" y="214" fill="#8b949e" font-size="9" text-anchor="middle">Git branch: weighingboard</text>
+    </svg>
+  </div>
+</section>
+
+<!-- ═══════════ UI ═══════════ -->
+<section id="ui">
+  <p class="section-label">Layer 4 — Deep Dive</p>
+  <h2>React UI Architecture</h2>
+  <p class="lead">React 18 + TypeScript + Material-UI 5 SPA. Served from ESP32 flash (gzip-compressed PROGMEM or SPIFFS). Communicates via REST + WebSocket with JWT auth.</p>
+
+  <!-- TECH STACK ROW -->
+  <div class="pin-strip" style="margin-bottom:2rem">
+    <div class="pin-item"><strong>React</strong>18.1.0</div>
+    <div class="pin-item"><strong>TypeScript</strong>4.6.4</div>
+    <div class="pin-item"><strong>Material-UI</strong>5.8.0</div>
+    <div class="pin-item"><strong>React Router</strong>6.3.0</div>
+    <div class="pin-item"><strong>Axios</strong>0.27.2</div>
+    <div class="pin-item"><strong>Sockette</strong>2.0.6</div>
+    <div class="pin-item"><strong>notistack</strong>2.0.5</div>
+    <div class="pin-item"><strong>jwt-decode</strong>3.1.2</div>
+    <div class="pin-item"><strong>async-validator</strong>4.1.1</div>
+  </div>
+
+  <!-- ── PROVIDER TREE ── -->
+  <h3>Provider &amp; Context Tree</h3>
+  <div class="flow-wrap">
+    <svg width="100%" viewBox="0 0 860 340" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="ui-arr" markerWidth="7" markerHeight="7" refX="5" refY="2.5" orient="auto"><path d="M0,0 L0,5 L7,2.5 z" fill="#58a6ff"/></marker>
+      </defs>
+
+      <!-- Root providers -->
+      <rect x="310" y="10" width="240" height="38" rx="7" fill="#21262d" stroke="#bc8cff" stroke-width="2"/>
+      <text x="430" y="27" fill="#bc8cff" font-size="10.5" font-weight="700" text-anchor="middle">App.tsx</text>
+      <text x="430" y="42" fill="#8b949e" font-size="9" text-anchor="middle">ThemeProvider + SnackbarProvider + FeaturesLoader</text>
+
+      <line x1="430" y1="48" x2="430" y2="68" stroke="#58a6ff" stroke-width="1.5" marker-end="url(#ui-arr)" class="anim-line"/>
+
+      <rect x="280" y="70" width="300" height="38" rx="7" fill="#21262d" stroke="#bc8cff" stroke-width="1.5"/>
+      <text x="430" y="87" fill="#bc8cff" font-size="10.5" font-weight="700" text-anchor="middle">AppRouting.tsx</text>
+      <text x="430" y="102" fill="#8b949e" font-size="9" text-anchor="middle">Authentication context init — /unauthorized redirect</text>
+
+      <line x1="430" y1="108" x2="430" y2="128" stroke="#58a6ff" stroke-width="1.5" marker-end="url(#ui-arr)" class="anim-line"/>
+
+      <!-- Two branches: sign-in vs authenticated -->
+      <line x1="430" y1="128" x2="180" y2="148" stroke="#58a6ff" stroke-width="1.5" marker-end="url(#ui-arr)"/>
+      <line x1="430" y1="128" x2="620" y2="148" stroke="#3fb950" stroke-width="1.5" marker-end="url(#ui-arr)"/>
+
+      <rect x="60" y="150" width="240" height="38" rx="7" fill="#21262d" stroke="#58a6ff" stroke-width="1.5"/>
+      <text x="180" y="167" fill="#58a6ff" font-size="10.5" font-weight="700" text-anchor="middle">RequireUnauthenticated</text>
+      <text x="180" y="182" fill="#8b949e" font-size="9" text-anchor="middle">SignIn page at /</text>
+
+      <rect x="480" y="150" width="280" height="38" rx="7" fill="#21262d" stroke="#3fb950" stroke-width="1.5"/>
+      <text x="620" y="167" fill="#3fb950" font-size="10.5" font-weight="700" text-anchor="middle">RequireAuthenticated</text>
+      <text x="620" y="182" fill="#8b949e" font-size="9" text-anchor="middle">AuthenticatedRouting — Layout wrapper</text>
+
+      <line x1="620" y1="188" x2="620" y2="208" stroke="#3fb950" stroke-width="1.5" marker-end="url(#ui-arr)" class="anim-line"/>
+
+      <rect x="460" y="210" width="320" height="38" rx="7" fill="#21262d" stroke="#3fb950" stroke-width="1.5"/>
+      <text x="620" y="227" fill="#3fb950" font-size="10.5" font-weight="700" text-anchor="middle">AuthenticatedRouting.tsx</text>
+      <text x="620" y="242" fill="#8b949e" font-size="9" text-anchor="middle">Feature-gated routes — 401 interceptor</text>
+
+      <!-- Sub routes -->
+      <line x1="620" y1="248" x2="620" y2="270" stroke="#3fb950" stroke-width="1" marker-end="url(#ui-arr)"/>
+
+      <rect x="430" y="272" width="90" height="55" rx="6" fill="#21262d" stroke="#d29922" stroke-width="1"/>
+      <text x="475" y="292" fill="#d29922" font-size="9" font-weight="600" text-anchor="middle">ProjectRouting</text>
+      <text x="475" y="308" fill="#8b949e" font-size="8.5" text-anchor="middle">LED + Weighing</text>
+      <text x="475" y="321" fill="#8b949e" font-size="8" text-anchor="middle">/led-example/*</text>
+
+      <rect x="535" y="272" width="90" height="55" rx="6" fill="#21262d" stroke="#58a6ff" stroke-width="1"/>
+      <text x="580" y="292" fill="#58a6ff" font-size="9" font-weight="600" text-anchor="middle">WiFi</text>
+      <text x="580" y="308" fill="#8b949e" font-size="8.5" text-anchor="middle">Station + AP</text>
+      <text x="580" y="321" fill="#8b949e" font-size="8" text-anchor="middle">/wifi/* /ap/*</text>
+
+      <rect x="640" y="272" width="90" height="55" rx="6" fill="#21262d" stroke="#f0883e" stroke-width="1"/>
+      <text x="685" y="292" fill="#f0883e" font-size="9" font-weight="600" text-anchor="middle">MQTT / NTP</text>
+      <text x="685" y="308" fill="#8b949e" font-size="8.5" text-anchor="middle">Settings forms</text>
+      <text x="685" y="321" fill="#8b949e" font-size="8" text-anchor="middle">/mqtt/* /ntp/*</text>
+
+      <rect x="745" y="272" width="90" height="55" rx="6" fill="#21262d" stroke="#bc8cff" stroke-width="1"/>
+      <text x="790" y="292" fill="#bc8cff" font-size="9" font-weight="600" text-anchor="middle">Security</text>
+      <text x="790" y="308" fill="#8b949e" font-size="8.5" text-anchor="middle">Admin only</text>
+      <text x="790" y="321" fill="#8b949e" font-size="8" text-anchor="middle">/security/*</text>
+
+      <!-- Context bubbles left side -->
+      <rect x="10" y="210" width="160" height="120" rx="8" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+      <text x="90" y="232" fill="#d29922" font-size="10.5" font-weight="700" text-anchor="middle">Contexts (Global)</text>
+      <line x1="20" y1="242" x2="160" y2="242" stroke="#30363d" stroke-width="1"/>
+      <text x="90" y="258" fill="#bc8cff" font-size="9.5" text-anchor="middle">AuthenticationContext</text>
+      <text x="90" y="272" fill="#8b949e" font-size="8.5" text-anchor="middle">me, signIn, signOut</text>
+      <text x="90" y="291" fill="#3fb950" font-size="9.5" text-anchor="middle">FeaturesContext</text>
+      <text x="90" y="305" fill="#8b949e" font-size="8.5" text-anchor="middle">project/mqtt/ble flags</text>
+      <text x="90" y="321" fill="#58a6ff" font-size="9.5" text-anchor="middle">ThemeContext</text>
+    </svg>
+  </div>
+
+  <!-- ── AUTHENTICATION FLOW ── -->
+  <h3 style="margin-top:2.5rem">Authentication Flow</h3>
+  <div class="flow-wrap">
+    <svg width="100%" viewBox="0 0 860 200" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="ui-a2" markerWidth="7" markerHeight="7" refX="5" refY="2.5" orient="auto"><path d="M0,0 L0,5 L7,2.5 z" fill="#3fb950"/></marker>
+        <marker id="ui-a3" markerWidth="7" markerHeight="7" refX="5" refY="2.5" orient="auto"><path d="M0,0 L0,5 L7,2.5 z" fill="#f85149"/></marker>
+      </defs>
+
+      <rect x="20" y="70" width="120" height="55" rx="7" fill="#21262d" stroke="#58a6ff" stroke-width="1.5"/>
+      <text x="80" y="93" fill="#58a6ff" font-size="10.5" font-weight="700" text-anchor="middle">SignIn.tsx</text>
+      <text x="80" y="109" fill="#8b949e" font-size="9" text-anchor="middle">username + password</text>
+      <text x="80" y="121" fill="#8b949e" font-size="9" text-anchor="middle">async-validator</text>
+
+      <line x1="142" y1="97" x2="182" y2="97" stroke="#58a6ff" stroke-width="1.5" marker-end="url(#ui-arr)" class="anim-line"/>
+
+      <rect x="184" y="70" width="130" height="55" rx="7" fill="#21262d" stroke="#58a6ff" stroke-width="1.5"/>
+      <text x="249" y="88" fill="#58a6ff" font-size="10" font-weight="700" text-anchor="middle">POST /rest/signIn</text>
+      <text x="249" y="104" fill="#8b949e" font-size="9" text-anchor="middle">{username, password}</text>
+      <text x="249" y="118" fill="#3fb950" font-size="9" text-anchor="middle">→ {access_token}</text>
+
+      <line x1="316" y1="97" x2="356" y2="97" stroke="#3fb950" stroke-width="1.5" marker-end="url(#ui-a2)" class="anim-line"/>
+
+      <rect x="358" y="70" width="145" height="55" rx="7" fill="#21262d" stroke="#3fb950" stroke-width="1.5"/>
+      <text x="430" y="89" fill="#3fb950" font-size="10" font-weight="700" text-anchor="middle">authContext.signIn()</text>
+      <text x="430" y="105" fill="#8b949e" font-size="9" text-anchor="middle">jwtDecode(token)</text>
+      <text x="430" y="119" fill="#8b949e" font-size="9" text-anchor="middle">localStorage store</text>
+
+      <line x1="505" y1="97" x2="545" y2="97" stroke="#3fb950" stroke-width="1.5" marker-end="url(#ui-a2)" class="anim-line"/>
+
+      <rect x="547" y="70" width="145" height="55" rx="7" fill="#21262d" stroke="#3fb950" stroke-width="1.5"/>
+      <text x="620" y="89" fill="#3fb950" font-size="10" font-weight="700" text-anchor="middle">me = {username, admin}</text>
+      <text x="620" y="105" fill="#8b949e" font-size="9" text-anchor="middle">RequireAuthenticated</text>
+      <text x="620" y="119" fill="#8b949e" font-size="9" text-anchor="middle">allows through</text>
+
+      <line x1="694" y1="97" x2="734" y2="97" stroke="#3fb950" stroke-width="1.5" marker-end="url(#ui-a2)" class="anim-line"/>
+
+      <rect x="736" y="70" width="105" height="55" rx="7" fill="#21262d" stroke="#3fb950" stroke-width="1.5"/>
+      <text x="788" y="89" fill="#3fb950" font-size="10" font-weight="700" text-anchor="middle">App Loads</text>
+      <text x="788" y="105" fill="#8b949e" font-size="9" text-anchor="middle">Bearer token on</text>
+      <text x="788" y="119" fill="#8b949e" font-size="9" text-anchor="middle">every request</text>
+
+      <!-- 401 path -->
+      <path d="M 620 125 Q 620 165 430 165 Q 240 165 80 155 Q 80 148 80 127" fill="none" stroke="#f85149" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#ui-a3)"/>
+      <text x="430" y="160" fill="#f85149" font-size="8.5" text-anchor="middle">401 → store location → redirect to /unauthorized → signOut</text>
+    </svg>
+  </div>
+
+  <!-- ── WEBSOCKET LIVE DATA ── -->
+  <h3 style="margin-top:2.5rem">WebSocket Live Data Flow</h3>
+  <div class="flow-wrap">
+    <svg width="100%" viewBox="0 0 860 230" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="ui-ws" markerWidth="7" markerHeight="7" refX="5" refY="2.5" orient="auto"><path d="M0,0 L0,5 L7,2.5 z" fill="#3fb950"/></marker>
+      </defs>
+
+      <!-- ESP32 side -->
+      <rect x="20" y="85" width="140" height="60" rx="8" fill="#21262d" stroke="#bc8cff" stroke-width="1.5"/>
+      <text x="90" y="107" fill="#bc8cff" font-size="10.5" font-weight="700" text-anchor="middle">ESP32 Firmware</text>
+      <text x="90" y="123" fill="#8b949e" font-size="9" text-anchor="middle">WeighingService loop</text>
+      <text x="90" y="137" fill="#8b949e" font-size="9" text-anchor="middle">every 500ms broadcast</text>
+
+      <line x1="162" y1="115" x2="210" y2="115" stroke="#3fb950" stroke-width="2" marker-end="url(#ui-ws)" class="anim-line-fast"/>
+      <text x="186" y="109" fill="#8b949e" font-size="8.5" text-anchor="middle">/ws/weighing</text>
+
+      <!-- WS protocol box -->
+      <rect x="212" y="60" width="175" height="110" rx="8" fill="#21262d" stroke="#3fb950" stroke-width="1.5"/>
+      <text x="299" y="82" fill="#3fb950" font-size="10.5" font-weight="700" text-anchor="middle">WebSocket Protocol</text>
+      <line x1="222" y1="90" x2="377" y2="90" stroke="#30363d" stroke-width="1"/>
+      <text x="299" y="107" fill="#58a6ff" font-size="9.5" text-anchor="middle">{type:"id", id:"abc123"}</text>
+      <text x="299" y="121" fill="#8b949e" font-size="8.5" text-anchor="middle">Server assigns client ID</text>
+      <line x1="222" y1="130" x2="377" y2="130" stroke="#30363d" stroke-width="1"/>
+      <text x="299" y="147" fill="#3fb950" font-size="9.5" text-anchor="middle">{type:"payload", payload:{…}}</text>
+      <text x="299" y="161" fill="#8b949e" font-size="8.5" text-anchor="middle">Live WeighingData JSON</text>
+
+      <line x1="389" y1="115" x2="435" y2="115" stroke="#3fb950" stroke-width="2" marker-end="url(#ui-ws)" class="anim-line-fast"/>
+
+      <!-- useWs hook -->
+      <rect x="437" y="70" width="165" height="90" rx="8" fill="#21262d" stroke="#d29922" stroke-width="1.5"/>
+      <text x="519" y="92" fill="#d29922" font-size="10.5" font-weight="700" text-anchor="middle">useWs hook</text>
+      <text x="519" y="108" fill="#8b949e" font-size="9" text-anchor="middle">Sockette (auto-reconnect)</text>
+      <text x="519" y="122" fill="#8b949e" font-size="9" text-anchor="middle">onMessage → parse JSON</text>
+      <text x="519" y="136" fill="#d29922" font-size="9" text-anchor="middle">data: WeighingData</text>
+      <text x="519" y="150" fill="#8b949e" font-size="9" text-anchor="middle">debounced 100ms send</text>
+
+      <line x1="604" y1="115" x2="645" y2="115" stroke="#3fb950" stroke-width="2" marker-end="url(#ui-ws)" class="anim-line-fast"/>
+
+      <!-- WeighingLive -->
+      <rect x="647" y="55" width="190" height="120" rx="8" fill="#21262d" stroke="#58a6ff" stroke-width="2"/>
+      <text x="742" y="77" fill="#58a6ff" font-size="10.5" font-weight="700" text-anchor="middle">WeighingLive.tsx</text>
+      <line x1="657" y1="86" x2="827" y2="86" stroke="#30363d" stroke-width="1"/>
+      <text x="742" y="103" fill="#3fb950" font-size="9" text-anchor="middle">▶ Live weight display</text>
+      <text x="742" y="117" fill="#8b949e" font-size="9" text-anchor="middle">▶ Stable / Motion badge</text>
+      <text x="742" y="131" fill="#8b949e" font-size="9" text-anchor="middle">▶ Overload / Underload</text>
+      <text x="742" y="145" fill="#8b949e" font-size="9" text-anchor="middle">▶ Tare / Zero buttons</text>
+      <text x="742" y="159" fill="#f0883e" font-size="9" text-anchor="middle">▶ updateData() → sends cmd</text>
+
+      <!-- Reverse command arrow -->
+      <path d="M 742 175 Q 742 200 519 200 Q 390 200 299 200 Q 299 185 299 172" fill="none" stroke="#f0883e" stroke-width="1.5" stroke-dasharray="6 3" marker-end="url(#ui-ws)"/>
+      <text x="519" y="196" fill="#f0883e" font-size="8.5" text-anchor="middle">Commands (tare/zero/calibrate) sent back via same WS</text>
+    </svg>
+  </div>
+
+  <!-- ── useRest PATTERN ── -->
+  <h3 style="margin-top:2.5rem">useRest Form Pattern</h3>
+  <div class="flow-wrap">
+    <svg width="100%" viewBox="0 0 860 190" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="ui-r" markerWidth="7" markerHeight="7" refX="5" refY="2.5" orient="auto"><path d="M0,0 L0,5 L7,2.5 z" fill="#f0883e"/></marker>
+      </defs>
+
+      <rect x="20" y="65" width="130" height="60" rx="7" fill="#21262d" stroke="#d29922" stroke-width="1.5"/>
+      <text x="85" y="87" fill="#d29922" font-size="10.5" font-weight="700" text-anchor="middle">Component Mount</text>
+      <text x="85" y="103" fill="#8b949e" font-size="9" text-anchor="middle">useRest({read, update})</text>
+      <text x="85" y="117" fill="#8b949e" font-size="9" text-anchor="middle">→ loadData() called</text>
+
+      <line x1="152" y1="95" x2="192" y2="95" stroke="#f0883e" stroke-width="1.5" marker-end="url(#ui-r)" class="anim-line"/>
+
+      <rect x="194" y="65" width="120" height="60" rx="7" fill="#21262d" stroke="#f0883e" stroke-width="1.5"/>
+      <text x="254" y="85" fill="#f0883e" font-size="10" font-weight="700" text-anchor="middle">GET request</text>
+      <text x="254" y="101" fill="#8b949e" font-size="9" text-anchor="middle">read() → axios.get</text>
+      <text x="254" y="116" fill="#3fb950" font-size="9" text-anchor="middle">→ setData(response)</text>
+
+      <line x1="316" y1="95" x2="356" y2="95" stroke="#f0883e" stroke-width="1.5" marker-end="url(#ui-r)" class="anim-line"/>
+
+      <rect x="358" y="50" width="140" height="90" rx="7" fill="#21262d" stroke="#3fb950" stroke-width="1.5"/>
+      <text x="428" y="72" fill="#3fb950" font-size="10" font-weight="700" text-anchor="middle">MUI Form Renders</text>
+      <text x="428" y="88" fill="#8b949e" font-size="9" text-anchor="middle">ValidatedTextField</text>
+      <text x="428" y="103" fill="#8b949e" font-size="9" text-anchor="middle">updateValue(setData)</text>
+      <text x="428" y="118" fill="#8b949e" font-size="9" text-anchor="middle">onChange → setData</text>
+      <text x="428" y="132" fill="#d29922" font-size="9" text-anchor="middle">async-validator on submit</text>
+
+      <line x1="500" y1="95" x2="540" y2="95" stroke="#f0883e" stroke-width="1.5" marker-end="url(#ui-r)" class="anim-line"/>
+
+      <rect x="542" y="65" width="120" height="60" rx="7" fill="#21262d" stroke="#f0883e" stroke-width="1.5"/>
+      <text x="602" y="85" fill="#f0883e" font-size="10" font-weight="700" text-anchor="middle">saveData()</text>
+      <text x="602" y="101" fill="#8b949e" font-size="9" text-anchor="middle">update() → axios.post</text>
+      <text x="602" y="116" fill="#8b949e" font-size="9" text-anchor="middle">saving = true</text>
+
+      <line x1="664" y1="95" x2="704" y2="95" stroke="#f0883e" stroke-width="1.5" marker-end="url(#ui-r)" class="anim-line"/>
+
+      <rect x="706" y="50" width="135" height="90" rx="7" fill="#21262d" stroke="#3fb950" stroke-width="1.5"/>
+      <text x="773" y="70" fill="#3fb950" font-size="10" font-weight="700" text-anchor="middle">Result</text>
+      <line x1="716" y1="78" x2="831" y2="78" stroke="#30363d" stroke-width="1"/>
+      <text x="773" y="95" fill="#3fb950" font-size="9" text-anchor="middle">✓ Snackbar success</text>
+      <text x="773" y="110" fill="#8b949e" font-size="9" text-anchor="middle">setData(newState)</text>
+      <text x="773" y="128" fill="#f85149" font-size="9" text-anchor="middle">✗ Snackbar error</text>
+      <text x="773" y="141" fill="#8b949e" font-size="9" text-anchor="middle">setFieldErrors()</text>
+    </svg>
+  </div>
+
+  <!-- ── WEIGHING TABS ── -->
+  <h3 style="margin-top:2.5rem">Weighing Panel Tabs</h3>
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="showTab('wt-live')">Live Stream</button>
+    <button class="tab-btn" onclick="showTab('wt-config')">Configuration</button>
+    <button class="tab-btn" onclick="showTab('wt-cal')">Calibration</button>
+    <button class="tab-btn" onclick="showTab('wt-audit')">Audit Trail</button>
+    <button class="tab-btn" onclick="showTab('wt-rest')">REST Poll</button>
+    <button class="tab-btn" onclick="showTab('wt-ble')">BLE Docs</button>
+  </div>
+
+  <div id="tab-wt-live" class="tab-panel active">
+    <div class="flow-wrap">
+      <svg width="100%" viewBox="0 0 860 260" xmlns="http://www.w3.org/2000/svg">
+        <!-- Mock UI wireframe -->
+        <rect x="20" y="10" width="820" height="240" rx="10" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+        <!-- Tab bar mock -->
+        <rect x="20" y="10" width="820" height="32" rx="10" fill="#21262d" stroke="#30363d" stroke-width="1"/>
+        <text x="85" y="30" fill="#58a6ff" font-size="9.5" font-weight="700" text-anchor="middle">Information</text>
+        <text x="175" y="30" fill="#58a6ff" font-size="9.5" font-weight="700" text-anchor="middle">Configuration</text>
+        <text x="265" y="30" fill="#58a6ff" font-size="9.5" font-weight="700" text-anchor="middle">Calibration</text>
+        <text x="355" y="30" fill="#58a6ff" font-size="9.5" font-weight="700" text-anchor="middle">REST</text>
+        <rect x="400" y="10" width="100" height="32" rx="0" fill="#0d1117" stroke="none"/>
+        <text x="450" y="30" fill="#3fb950" font-size="9.5" font-weight="700" text-anchor="middle">▶ Live Stream</text>
+        <text x="545" y="30" fill="#58a6ff" font-size="9.5" font-weight="700" text-anchor="middle">Audit</text>
+        <text x="635" y="30" fill="#58a6ff" font-size="9.5" font-weight="700" text-anchor="middle">BLE</text>
+
+        <!-- Weight display -->
+        <text x="430" y="90" fill="#e6edf3" font-size="38" font-weight="700" text-anchor="middle" font-family="monospace">12.340</text>
+        <text x="430" y="115" fill="#3fb950" font-size="14" font-weight="600" text-anchor="middle">kg</text>
+        <text x="430" y="135" fill="#8b949e" font-size="10" text-anchor="middle">NET  (Tare: 2.000 kg)</text>
+
+        <!-- Status badges -->
+        <rect x="340" y="148" width="80" height="22" rx="11" fill="rgba(63,185,80,0.2)" stroke="#3fb950" stroke-width="1"/>
+        <text x="380" y="163" fill="#3fb950" font-size="9" font-weight="600" text-anchor="middle">✓ STABLE</text>
+        <rect x="435" y="148" width="80" height="22" rx="11" fill="rgba(88,166,255,0.2)" stroke="#58a6ff" stroke-width="1"/>
+        <text x="475" y="163" fill="#58a6ff" font-size="9" font-weight="600" text-anchor="middle">&gt; 0 &lt;</text>
+
+        <!-- Buttons -->
+        <rect x="50" y="190" width="100" height="35" rx="6" fill="#2596D1" stroke="none"/>
+        <text x="100" y="212" fill="#fff" font-size="10" font-weight="600" text-anchor="middle">TARE</text>
+        <rect x="165" y="190" width="130" height="35" rx="6" fill="#21262d" stroke="#58a6ff" stroke-width="1"/>
+        <text x="230" y="212" fill="#58a6ff" font-size="10" font-weight="600" text-anchor="middle">PRESET TARE</text>
+        <rect x="310" y="190" width="120" height="35" rx="6" fill="#21262d" stroke="#58a6ff" stroke-width="1"/>
+        <text x="370" y="212" fill="#58a6ff" font-size="10" font-weight="600" text-anchor="middle">CLEAR TARE</text>
+        <rect x="445" y="190" width="80" height="35" rx="6" fill="#21262d" stroke="#8b949e" stroke-width="1"/>
+        <text x="485" y="212" fill="#8b949e" font-size="10" font-weight="600" text-anchor="middle">ZERO 🔒</text>
+
+        <!-- Summary grid -->
+        <rect x="600" y="145" width="80" height="45" rx="5" fill="#21262d" stroke="#30363d" stroke-width="1"/>
+        <text x="640" y="163" fill="#8b949e" font-size="8" text-anchor="middle">GROSS</text>
+        <text x="640" y="180" fill="#e6edf3" font-size="10.5" font-weight="700" text-anchor="middle" font-family="monospace">14.340</text>
+
+        <rect x="695" y="145" width="80" height="45" rx="5" fill="#21262d" stroke="#30363d" stroke-width="1"/>
+        <text x="735" y="163" fill="#8b949e" font-size="8" text-anchor="middle">TARE</text>
+        <text x="735" y="180" fill="#e6edf3" font-size="10.5" font-weight="700" text-anchor="middle" font-family="monospace">2.000</text>
+      </svg>
+    </div>
+    <div class="card-grid" style="margin-top:1rem">
+      <div class="card"><h3>Live Weight</h3><p>Monospace large display updates ~2Hz via WebSocket. Shows gross or net depending on mode. Unit displayed alongside.</p></div>
+      <div class="card"><h3>Status Badges</h3><p>STABLE (green) when rolling 8-sample range &lt; minDivision. Center-of-zero badge when |gross| ≤ 0.25×div. ADC-disconnected / Overload / Underload alerts.</p></div>
+      <div class="card"><h3>Commands</h3><p>Tare sends <code>{tare:true}</code> via REST POST. Preset Tare opens dialog for <code>preset_tare</code> value. Zero is disabled when instrument is sealed.</p></div>
+    </div>
+  </div>
+
+  <div id="tab-wt-config" class="tab-panel">
+    <div class="card-grid">
+      <div class="card"><h3>Seal Lock</h3><p>When <code>seal_active=true</code>, an orange Alert banner appears and all inputs are disabled. Cannot save changes until unsealed.</p></div>
+      <div class="card"><h3>Measurement Unit</h3><p>Dropdown: kg / g / lb. Triggers recalculation of all display values.</p></div>
+      <div class="card"><h3>Scale Parameters</h3><p>Max Capacity · Min Division (d) · Decimal Places (0–6) · Samples to Average (1–32) · Speed Mode radio (10 SPS vs 80 SPS).</p></div>
+      <div class="card"><h3>Zero Tracking</h3><p>Checkbox enables AZT. When enabled, shows Zero Tracking Range field (max correction per cycle). Also sets Power-On Zero Range (%) and Manual Zero Range (%).</p></div>
+      <div class="card"><h3>Event Counter</h3><p>Read-only display. Monotonic uint32. Never editable — shown to demonstrate OIML compliance to an inspector.</p></div>
+      <div class="card"><h3>useRest hook</h3><p>Calls <code>GET /rest/weighing</code> on mount. "Apply Configuration" calls <code>POST /rest/weighing</code> with changed fields. Shows success/error snackbar.</p></div>
+    </div>
+  </div>
+
+  <div id="tab-wt-cal" class="tab-panel">
+    <div class="flow-wrap">
+      <svg width="100%" viewBox="0 0 860 220" xmlns="http://www.w3.org/2000/svg">
+        <defs><marker id="wc-arr" markerWidth="7" markerHeight="7" refX="5" refY="2.5" orient="auto"><path d="M0,0 L0,5 L7,2.5 z" fill="#3fb950"/></marker></defs>
+
+        <!-- State 1: Unsealed -->
+        <rect x="20" y="15" width="250" height="190" rx="10" fill="#21262d" stroke="#3fb950" stroke-width="1.5"/>
+        <text x="145" y="38" fill="#3fb950" font-size="10.5" font-weight="700" text-anchor="middle">Unsealed — Normal</text>
+        <line x1="30" y1="48" x2="260" y2="48" stroke="#30363d" stroke-width="1"/>
+        <text x="145" y="67" fill="#8b949e" font-size="9.5" text-anchor="middle">Zero Offset: 123456 (raw)</text>
+        <text x="145" y="82" fill="#8b949e" font-size="9.5" text-anchor="middle">Cal. Factor: 0.00152340</text>
+        <text x="145" y="97" fill="#8b949e" font-size="9.5" text-anchor="middle">Last Cal: 2026-04-29T15:27Z</text>
+        <rect x="40" y="112" width="210" height="30" rx="5" fill="#21262d" stroke="#d29922" stroke-width="1"/>
+        <text x="145" y="131" fill="#d29922" font-size="9.5" text-anchor="middle">Input: Known Weight (kg)</text>
+        <rect x="40" y="152" width="95" height="28" rx="5" fill="#2596D1" stroke="none"/>
+        <text x="87" y="170" fill="#fff" font-size="9" font-weight="600" text-anchor="middle">CALIBRATE</text>
+        <rect x="145" y="152" width="105" height="28" rx="5" fill="#21262d" stroke="#f0883e" stroke-width="1"/>
+        <text x="197" y="170" fill="#f0883e" font-size="9" font-weight="600" text-anchor="middle">SEAL INSTRUMENT</text>
+
+        <!-- Arrow -->
+        <line x1="272" y1="110" x2="312" y2="110" stroke="#f0883e" stroke-width="1.5" marker-end="url(#wc-arr)"/>
+        <text x="292" y="103" fill="#f0883e" font-size="8.5" text-anchor="middle">SEAL</text>
+
+        <!-- State 2: Sealed -->
+        <rect x="314" y="15" width="250" height="190" rx="10" fill="#21262d" stroke="#f0883e" stroke-width="1.5"/>
+        <text x="439" y="38" fill="#f0883e" font-size="10.5" font-weight="700" text-anchor="middle">🔒 Sealed</text>
+        <line x1="324" y1="48" x2="554" y2="48" stroke="#30363d" stroke-width="1"/>
+        <text x="439" y="65" fill="#8b949e" font-size="9" text-anchor="middle">Event Counter: 7</text>
+        <text x="439" y="80" fill="#8b949e" font-size="9" text-anchor="middle">All config changes blocked</text>
+        <rect x="334" y="100" width="210" height="30" rx="5" fill="#21262d" stroke="#30363d" stroke-width="1"/>
+        <text x="439" y="118" fill="#muted" fill-opacity="0.5" font-size="9" text-anchor="middle" fill="#8b949e">PIN (max 8 chars) ●●●●●●</text>
+        <rect x="334" y="140" width="210" height="28" rx="5" fill="#21262d" stroke="#3fb950" stroke-width="1"/>
+        <text x="439" y="158" fill="#3fb950" font-size="9" font-weight="600" text-anchor="middle">UNSEAL INSTRUMENT</text>
+        <rect x="334" y="175" width="210" height="25" rx="5" fill="rgba(248,81,73,0.1)" stroke="none"/>
+        <text x="439" y="191" fill="#f85149" font-size="8.5" text-anchor="middle">PIN_LOCKOUT: disabled 240s</text>
+
+        <!-- Arrow -->
+        <line x1="566" y1="110" x2="606" y2="110" stroke="#3fb950" stroke-width="1.5" marker-end="url(#wc-arr)"/>
+        <text x="586" y="103" fill="#3fb950" font-size="8.5" text-anchor="middle">UNSEAL</text>
+
+        <!-- State 3: Back to unsealed -->
+        <rect x="608" y="15" width="232" height="190" rx="10" fill="#21262d" stroke="#3fb950" stroke-width="1.5"/>
+        <text x="724" y="38" fill="#3fb950" font-size="10.5" font-weight="700" text-anchor="middle">Unsealed Again</text>
+        <line x1="618" y1="48" x2="830" y2="48" stroke="#30363d" stroke-width="1"/>
+        <text x="724" y="65" fill="#8b949e" font-size="9" text-anchor="middle">Event Counter: 8</text>
+        <text x="724" y="80" fill="#8b949e" font-size="9" text-anchor="middle">Audit log: unseal event</text>
+        <text x="724" y="95" fill="#8b949e" font-size="9" text-anchor="middle">Config edits re-enabled</text>
+        <text x="724" y="120" fill="#3fb950" font-size="9" text-anchor="middle">Can calibrate again</text>
+        <text x="724" y="135" fill="#3fb950" font-size="9" text-anchor="middle">Can zero again</text>
+      </svg>
+    </div>
+  </div>
+
+  <div id="tab-wt-audit" class="tab-panel">
+    <div class="card-grid">
+      <div class="card"><h3>Audit Table</h3><p>Read-only table via <code>GET /rest/weighingAudit</code>. Columns: seq, timestamp, event, parameter, old_value, new_value, event_counter.</p></div>
+      <div class="card"><h3>Event Colors</h3><p><span style="color:var(--red)">seal</span> and <span style="color:var(--red)">unseal_fail</span> rows show in red. <span style="color:var(--green)">unseal</span> rows show in green. All other events in default color.</p></div>
+      <div class="card"><h3>Admin Only</h3><p>Route protected by <code>RequireAdmin</code>. Only users with <code>admin:true</code> in JWT can access this tab.</p></div>
+      <div class="card"><h3>NDJSON Storage</h3><p>Stored in <code>/audit/weighing.json</code> on LittleFS. FIFO, max 100 entries. Lives on a separate flash partition — survives OTA firmware updates.</p></div>
+    </div>
+  </div>
+
+  <div id="tab-wt-rest" class="tab-panel">
+    <div class="card-grid">
+      <div class="card"><h3>Polling Mode</h3><p>Uses <code>setInterval</code> at 2-second cadence. Good for debugging or low-bandwidth environments where WebSocket is impractical.</p></div>
+      <div class="card"><h3>Display</h3><p>Shows weight, gross/net/tare grid, mode chip, stability chip, ADC connected indicator, raw ADC value, event counter, and overload/underload chips.</p></div>
+      <div class="card"><h3>vs Live Stream</h3><p>REST tab is read-only (no buttons). Live Stream tab has controls. REST is slower (2s) but works through firewalls that block WebSocket upgrades.</p></div>
+    </div>
+  </div>
+
+  <div id="tab-wt-ble" class="tab-panel">
+    <div class="card-grid">
+      <div class="card"><h3>BLE Service</h3><p>Service UUID: <code>56780000-e8f2-537e-4f6c-d104768a5678</code></p></div>
+      <div class="card"><h3>Characteristic</h3><p>UUID: <code>56780001-…5678</code> with READ, WRITE, NOTIFY properties. Same JSON schema as REST/WS.</p></div>
+      <div class="card"><h3>Commands via BLE</h3><p>Write <code>{tare:true}</code>, <code>{preset_tare:1.5}</code>, <code>{zero:true}</code>, <code>{calibrate:true,known_weight:5.0}</code>, <code>{seal:true}</code>, <code>{unseal:true,pin:"800125"}</code>.</p></div>
+      <div class="card"><h3>Status</h3><p>FT_BLE currently disabled. Phase 2 feature. UI tab shows documentation only. BLE settings page still accessible to configure device_name.</p></div>
+    </div>
+  </div>
+
+  <!-- ── ROUTING MAP ── -->
+  <h3 style="margin-top:2.5rem">Full Route Map</h3>
+  <div class="flow-wrap">
+    <svg width="100%" viewBox="0 0 860 300" xmlns="http://www.w3.org/2000/svg">
+      <defs><marker id="rm-arr" markerWidth="6" markerHeight="6" refX="5" refY="2.5" orient="auto"><path d="M0,0 L0,5 L6,2.5 z" fill="#8b949e"/></marker></defs>
+
+      <!-- Root -->
+      <rect x="350" y="10" width="160" height="35" rx="7" fill="#21262d" stroke="#bc8cff" stroke-width="2"/>
+      <text x="430" y="31" fill="#bc8cff" font-size="11" font-weight="700" text-anchor="middle">/ (root)</text>
+
+      <!-- Two branches -->
+      <line x1="350" y1="27" x2="150" y2="75" stroke="#8b949e" stroke-width="1" marker-end="url(#rm-arr)"/>
+      <line x1="510" y1="27" x2="650" y2="75" stroke="#8b949e" stroke-width="1" marker-end="url(#rm-arr)"/>
+
+      <rect x="50" y="77" width="200" height="30" rx="6" fill="#21262d" stroke="#58a6ff" stroke-width="1.5"/>
+      <text x="150" y="96" fill="#58a6ff" font-size="9.5" font-weight="600" text-anchor="middle">/ → SignIn (unauthenticated)</text>
+
+      <rect x="545" y="77" width="220" height="30" rx="6" fill="#21262d" stroke="#3fb950" stroke-width="1.5"/>
+      <text x="655" y="96" fill="#3fb950" font-size="9.5" font-weight="600" text-anchor="middle">/* → AuthenticatedRouting</text>
+
+      <!-- Auth sub-routes -->
+      <line x1="655" y1="107" x2="655" y2="130" stroke="#8b949e" stroke-width="1" marker-end="url(#rm-arr)"/>
+
+      <!-- Col 1 -->
+      <line x1="600" y1="130" x2="85" y2="155" stroke="#8b949e" stroke-width="1" marker-end="url(#rm-arr)"/>
+      <rect x="10" y="157" width="155" height="25" rx="5" fill="#21262d" stroke="#d29922" stroke-width="1"/>
+      <text x="87" y="174" fill="#d29922" font-size="9" text-anchor="middle">/weighing/* → tabs below</text>
+
+      <line x1="87" y1="182" x2="20" y2="205" stroke="#8b949e" stroke-width="1" marker-end="url(#rm-arr)"/>
+      <line x1="87" y1="182" x2="87" y2="205" stroke="#8b949e" stroke-width="1" marker-end="url(#rm-arr)"/>
+      <line x1="87" y1="182" x2="155" y2="205" stroke="#8b949e" stroke-width="1" marker-end="url(#rm-arr)"/>
+
+      <rect x="5" y="207" width="30" height="55" rx="4" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+      <text x="20" y="224" fill="#8b949e" font-size="7.5" text-anchor="middle">info</text>
+      <text x="20" y="237" fill="#8b949e" font-size="7.5" text-anchor="middle">config</text>
+      <text x="20" y="250" fill="#8b949e" font-size="7.5" text-anchor="middle">calib</text>
+
+      <rect x="65" y="207" width="45" height="55" rx="4" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+      <text x="87" y="224" fill="#8b949e" font-size="7.5" text-anchor="middle">rest</text>
+      <text x="87" y="237" fill="#8b949e" font-size="7.5" text-anchor="middle">stream</text>
+      <text x="87" y="250" fill="#8b949e" font-size="7.5" text-anchor="middle">audit</text>
+
+      <rect x="132" y="207" width="45" height="25" rx="4" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+      <text x="154" y="224" fill="#8b949e" font-size="7.5" text-anchor="middle">ble</text>
+
+      <!-- Col 2 -->
+      <line x1="620" y1="130" x2="270" y2="155" stroke="#8b949e" stroke-width="1" marker-end="url(#rm-arr)"/>
+      <rect x="195" y="157" width="155" height="25" rx="5" fill="#21262d" stroke="#58a6ff" stroke-width="1"/>
+      <text x="272" y="174" fill="#58a6ff" font-size="9" text-anchor="middle">/wifi/* /ap/*</text>
+
+      <line x1="640" y1="130" x2="450" y2="155" stroke="#8b949e" stroke-width="1" marker-end="url(#rm-arr)"/>
+      <rect x="375" y="157" width="155" height="25" rx="5" fill="#21262d" stroke="#f0883e" stroke-width="1"/>
+      <text x="452" y="174" fill="#f0883e" font-size="9" text-anchor="middle">/ntp/* /mqtt/* /ble/*</text>
+
+      <line x1="655" y1="130" x2="632" y2="155" stroke="#8b949e" stroke-width="1" marker-end="url(#rm-arr)"/>
+      <rect x="555" y="157" width="155" height="25" rx="5" fill="#21262d" stroke="#f85149" stroke-width="1"/>
+      <text x="632" y="174" fill="#f85149" font-size="9" text-anchor="middle">/security/* (admin)</text>
+
+      <line x1="670" y1="130" x2="780" y2="155" stroke="#8b949e" stroke-width="1" marker-end="url(#rm-arr)"/>
+      <rect x="700" y="157" width="150" height="25" rx="5" fill="#21262d" stroke="#bc8cff" stroke-width="1"/>
+      <text x="775" y="174" fill="#bc8cff" font-size="9" text-anchor="middle">/system/* (OTA + restart)</text>
+    </svg>
+  </div>
+
+  <!-- ── BUILD PIPELINE ── -->
+  <h3 style="margin-top:2.5rem">Build &amp; Embedding Pipeline</h3>
+  <div class="flow-wrap">
+    <svg width="100%" viewBox="0 0 860 170" xmlns="http://www.w3.org/2000/svg">
+      <defs><marker id="bp-arr" markerWidth="7" markerHeight="7" refX="5" refY="2.5" orient="auto"><path d="M0,0 L0,5 L7,2.5 z" fill="#58a6ff"/></marker></defs>
+
+      <rect x="20" y="55" width="130" height="60" rx="8" fill="#21262d" stroke="#3fb950" stroke-width="1.5"/>
+      <text x="85" y="78" fill="#3fb950" font-size="10.5" font-weight="700" text-anchor="middle">React Source</text>
+      <text x="85" y="94" fill="#8b949e" font-size="9" text-anchor="middle">interface/src/</text>
+      <text x="85" y="108" fill="#8b949e" font-size="9" text-anchor="middle">npm run build</text>
+
+      <line x1="152" y1="85" x2="192" y2="85" stroke="#58a6ff" stroke-width="1.5" marker-end="url(#bp-arr)" class="anim-line"/>
+
+      <rect x="194" y="45" width="140" height="80" rx="8" fill="#21262d" stroke="#d29922" stroke-width="1.5"/>
+      <text x="264" y="70" fill="#d29922" font-size="10.5" font-weight="700" text-anchor="middle">webpack build</text>
+      <text x="264" y="86" fill="#8b949e" font-size="9" text-anchor="middle">Minify + chunk</text>
+      <text x="264" y="100" fill="#8b949e" font-size="9" text-anchor="middle">Short filenames</text>
+      <text x="264" y="114" fill="#8b949e" font-size="9" text-anchor="middle">config-overrides.js</text>
+
+      <line x1="336" y1="85" x2="376" y2="85" stroke="#58a6ff" stroke-width="1.5" marker-end="url(#bp-arr)" class="anim-line"/>
+
+      <rect x="378" y="45" width="160" height="80" rx="8" fill="#21262d" stroke="#f0883e" stroke-width="1.5"/>
+      <text x="458" y="70" fill="#f0883e" font-size="10.5" font-weight="700" text-anchor="middle">ProgmemGenerator</text>
+      <text x="458" y="86" fill="#8b949e" font-size="9" text-anchor="middle">Gzip each asset</text>
+      <text x="458" y="100" fill="#8b949e" font-size="9" text-anchor="middle">→ C++ uint8_t[]</text>
+      <text x="458" y="114" fill="#8b949e" font-size="9" text-anchor="middle">PROGMEM arrays</text>
+
+      <line x1="540" y1="85" x2="580" y2="85" stroke="#58a6ff" stroke-width="1.5" marker-end="url(#bp-arr)" class="anim-line"/>
+
+      <rect x="582" y="45" width="145" height="80" rx="8" fill="#21262d" stroke="#bc8cff" stroke-width="1.5"/>
+      <text x="654" y="70" fill="#bc8cff" font-size="10.5" font-weight="700" text-anchor="middle">WWWData.h</text>
+      <text x="654" y="86" fill="#8b949e" font-size="9" text-anchor="middle">C++ header file</text>
+      <text x="654" y="100" fill="#8b949e" font-size="9" text-anchor="middle">registerRoutes()</text>
+      <text x="654" y="114" fill="#8b949e" font-size="9" text-anchor="middle">→ firmware includes</text>
+
+      <line x1="729" y1="85" x2="769" y2="85" stroke="#58a6ff" stroke-width="1.5" marker-end="url(#bp-arr)" class="anim-line"/>
+
+      <rect x="771" y="55" width="70" height="60" rx="8" fill="#21262d" stroke="#3fb950" stroke-width="2"/>
+      <text x="806" y="80" fill="#3fb950" font-size="10" font-weight="700" text-anchor="middle">Flash</text>
+      <text x="806" y="96" fill="#8b949e" font-size="8.5" text-anchor="middle">Browser</text>
+      <text x="806" y="108" fill="#8b949e" font-size="8.5" text-anchor="middle">fetches</text>
+
+      <!-- Labels below -->
+      <text x="85" y="140" fill="#8b949e" font-size="8" text-anchor="middle">TypeScript</text>
+      <text x="264" y="140" fill="#8b949e" font-size="8" text-anchor="middle">react-app-rewired</text>
+      <text x="458" y="140" fill="#8b949e" font-size="8" text-anchor="middle">webpack plugin</text>
+      <text x="654" y="140" fill="#8b949e" font-size="8" text-anchor="middle">lib/framework/WWWData.h</text>
+      <text x="806" y="140" fill="#8b949e" font-size="8" text-anchor="middle">gzip</text>
+    </svg>
+  </div>
+
+  <h3 style="margin-top:2rem">Theme System</h3>
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-icon">🌙</div>
+      <h3>Initial Mode</h3>
+      <p>Detected via <code>window.matchMedia('prefers-color-scheme: dark')</code>. Matches system preference on first visit.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">☀️</div>
+      <h3>Per-User Persistence</h3>
+      <p>On login, fetches <code>GET /rest/userTheme</code>. On toggle, calls <code>PUT /rest/userTheme</code>. Each user account stores their preferred theme.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">🎨</div>
+      <h3>Brand Colors</h3>
+      <p>Primary: Curious Blue <code>#2596D1</code>. Secondary: Bunting <code>#2B3449</code>. Responsive fonts via MUI <code>responsiveFontSizes()</code>.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">🔄</div>
+      <h3>Optimistic Toggle</h3>
+      <p>UI switches immediately on click. <code>toggleTheme()</code> updates state first, then persists to backend async. Reverts on error.</p>
+    </div>
+  </div>
+</section>
+
+<footer style="text-align:center; padding: 2rem; color: var(--muted); font-size:.85rem; border-top:1px solid var(--border);">
+  Weighsoft Hardware Base · v0.1.0 · Branch: <code>weighingboard</code> · ESP32 / ESP8266 · OIML D31:2023
+</footer>
+
+<script>
+// Tab switching
+function showTab(id) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  const panel = document.getElementById('tab-' + id);
+  if (panel) panel.classList.add('active');
+  event.target.classList.add('active');
+}
+
+// Nav active state on scroll
+const sections = document.querySelectorAll('section[id]');
+const navLinks = document.querySelectorAll('nav a');
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      navLinks.forEach(l => l.classList.remove('active'));
+      const link = document.querySelector(`nav a[href="#${e.target.id}"]`);
+      if (link) link.classList.add('active');
+    }
+  });
+}, { threshold: 0.4 });
+sections.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>
