@@ -916,7 +916,45 @@ body[data-reduced-motion] .flow-path { stroke-dashoffset: 0; transition: none; }
     <p class="caption"><strong>How it works:</strong> Reader publishes to <code>weighsoft/serial/{id}/data</code>. Display subscribes to <code>weighsoft/display/{id}/set</code>; in this topology the broker (or a Node-RED bridge node) republishes Reader data onto the Display topic. The Writer subscribes to <code>weighsoft/serialwriter/{id}/send</code> and publishes status on <code>/status</code>. Node-RED can subscribe to any of these.</p>
     <p class="example">Real-world example: all ESPs talk to one broker; replacing or adding a device requires no IP reconfiguration on the others.</p>
   </section>
-  <section id="use-case-g"><span class="designation">Sheet G · 07</span><h2>Serial WiFi <span class="em">bridge</span></h2></section>
+  <section id="use-case-g"><span class="designation">Sheet G · 07</span><h2>Serial WiFi <span class="em">bridge</span></h2>
+    <p class="purpose">Two physical serial ports linked across WiFi. Reader reads device A; Writer writes the same data to device B.</p>
+
+    <div class="diagram" role="img" aria-labelledby="diag-g-title">
+      <svg viewBox="0 0 900 360" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+        <title id="diag-g-title">A serial signal travels from device A through Reader, over WiFi to Writer, and out to device B.</title>
+
+        <rect class="dev-box physical" x="20" y="150" width="100" height="40"/>
+        <text class="dev-name" x="70" y="176">Device A</text>
+        <line x1="120" y1="170" x2="180" y2="170" stroke="#8b5cf6" stroke-width="2"/>
+
+        <text class="dev-role" x="250" y="132">Reader · Server</text>
+        <rect class="dev-box reader" x="180" y="140" width="140" height="60"/>
+        <text class="dev-name" x="250" y="176">Reader</text>
+
+        <text class="dev-role" x="650" y="132">Writer · Client</text>
+        <rect class="dev-box writer" x="580" y="140" width="140" height="60"/>
+        <text class="dev-name" x="650" y="176">Writer</text>
+
+        <line x1="720" y1="170" x2="780" y2="170" stroke="#8b5cf6" stroke-width="2"/>
+        <rect class="dev-box physical" x="780" y="150" width="100" height="40"/>
+        <text class="dev-name" x="830" y="176">Device B</text>
+
+        <!-- Single end-to-end flow path. The middle segment is rendered by a
+             second visible dashed path overlaid on the same trajectory. -->
+        <path id="g-flow"        class="flow-path reader"          d="M 320 170 L 580 170"/>
+        <path                    class="flow-path reader dashed"   d="M 320 170 L 580 170"/>
+
+        <g class="proto-pill"><rect x="410" y="148" width="80" height="16"/><text x="450" y="156">WiFi · HTTP</text></g>
+
+        <circle class="flow-dot reader"><animateMotion dur="2.2s" begin="0s"      repeatCount="indefinite"><mpath href="#g-flow"/></animateMotion></circle>
+        <circle class="flow-dot reader"><animateMotion dur="2.2s" begin="0.733s"  repeatCount="indefinite"><mpath href="#g-flow"/></animateMotion></circle>
+        <circle class="flow-dot reader"><animateMotion dur="2.2s" begin="1.467s"  repeatCount="indefinite"><mpath href="#g-flow"/></animateMotion></circle>
+      </svg>
+    </div>
+
+    <p class="caption"><strong>How it works:</strong> The Writer's <code>SerialWriterForwarderService</code> is configured with the Reader as its source URL. The Writer pulls every line and re-emits it on its own UART. The dashed segment is the WiFi hop; dots traverse it continuously so the visual reads as one stream from device A to device B.</p>
+    <p class="example">Real-world example: two pieces of legacy serial equipment that need to share data but are physically too far apart for an RS-232 cable.</p>
+  </section>
   <section id="use-case-h"><span class="designation">Sheet H · 08</span><h2>Mixed protocol <span class="em">fan-out</span></h2></section>
 </main>
 
