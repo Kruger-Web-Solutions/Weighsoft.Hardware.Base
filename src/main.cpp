@@ -261,6 +261,14 @@ void loop() {
   // device auto-recovers without needing the user to physically press
   // RST.
   //
+  // EXCEPTION: if the access-point captive portal is up AND a user is
+  // actively connected to it (softAPgetStationNum() > 0), defer the
+  // reboot. The user is mid-configuration and rebooting would drop
+  // their session right when they're entering new WiFi credentials.
+  // Once they save (which writes config and triggers our reconnect
+  // path) or disconnect from the AP, the watchdog resumes its normal
+  // 60 s window.
+  //
   // The 60 s threshold is generous — the SDK's auto-reconnect (enabled
   // in WiFiSettingsService) gets first crack, and our manual reconnect
   // backoff caps at ~30 s, so legitimate transient drops well under 60 s
@@ -272,15 +280,25 @@ void loop() {
     unsigned long now = millis();
     if (now - lastWifiCheck >= 5000UL) {
       lastWifiCheck = now;
-      if (WiFi.isConnected()) {
+      bool wifiOk = WiFi.isConnected() && (WiFi.localIP() != IPAddress(0, 0, 0, 0));
+      if (wifiOk) {
         wifiDownSince = 0;  // healthy
       } else {
         if (wifiDownSince == 0) {
           wifiDownSince = now;
         } else if (now - wifiDownSince >= 60000UL) {
-          Serial.println(F("[main] WiFi down for >=60s — forcing ESP.restart() for auto-recovery"));
-          delay(100);  // let Serial flush
-          ESP.restart();
+          // Don't reboot if user is configuring via captive portal.
+          uint8_t apClients = WiFi.softAPgetStationNum();
+          if (apClients > 0) {
+            Serial.printf("[main] WiFi down >=60s but %u AP client(s) connected — deferring reboot\n",
+                          (unsigned)apClients);
+            // Reset the timer so we re-arm 60 s from NOW once they disconnect.
+            wifiDownSince = now;
+          } else {
+            Serial.println(F("[main] WiFi down for >=60s — forcing ESP.restart() for auto-recovery"));
+            delay(100);  // let Serial flush
+            ESP.restart();
+          }
         }
       }
     }

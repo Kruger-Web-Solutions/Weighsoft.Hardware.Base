@@ -31,8 +31,19 @@ void APSettingsService::loop() {
 
 void APSettingsService::manageAP() {
   WiFiMode_t currentWiFiMode = WiFi.getMode();
+
+  // "Really connected" check — stronger than just WiFi.status() because
+  // ESP32-S3 has been observed reporting WL_CONNECTED while netif is dead
+  // (no valid IP, no actual data path). Require both a valid status AND
+  // a non-zero local IP so the AP fallback fires for the "stuck" case.
+  bool wifiActive = (WiFi.status() == WL_CONNECTED)
+#ifdef ESP32
+                    && (WiFi.localIP() != IPAddress(0, 0, 0, 0))
+#endif
+      ;
+
   if (_state.provisionMode == AP_MODE_ALWAYS ||
-      (_state.provisionMode == AP_MODE_DISCONNECTED && WiFi.status() != WL_CONNECTED)) {
+      (_state.provisionMode == AP_MODE_DISCONNECTED && !wifiActive)) {
     if (_reconfigureAp || currentWiFiMode == WIFI_OFF || currentWiFiMode == WIFI_STA) {
       startAP();
     }
