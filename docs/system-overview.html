@@ -87,6 +87,8 @@ tr:hover td{background:var(--bg3);}
   <a href="#channels">Channels</a>
   <a href="#builds">Builds</a>
   <a href="#ui">React UI</a>
+  <a href="#devtools">Dev Tools</a>
+  <a href="#gotchas">Gotchas</a>
 </nav>
 
 <!-- HERO -->
@@ -949,6 +951,356 @@ tr:hover td{background:var(--bg3);}
 
 <span style="color:var(--green)">readSerialData</span>()   → GET  /rest/serial
 <span style="color:var(--green)">updateSerialData</span>() → POST /rest/serial  (only config fields sent)</code></pre>
+</section>
+
+<!-- ═══════════ MISSING UI DETAILS ═══════════ -->
+<section id="ui-extra" style="padding-top:0">
+  <!-- Fix: already inside #ui section conceptually, this extends it -->
+
+  <!-- UART MODE SWITCHER COMPONENT -->
+  <h3 style="margin-top:2.5rem">UartModeSwitcher — Shared Component</h3>
+  <p class="lead" style="margin-bottom:1.5rem">A shared MUI ToggleButtonGroup rendered at the top of both the Serial Info and Diagnostics Info pages. Reads and writes <code>/rest/uartMode</code>. Warns when the current page's expected mode doesn't match the active device mode.</p>
+  <div class="flow-wrap">
+    <svg width="100%" viewBox="0 0 860 130" xmlns="http://www.w3.org/2000/svg">
+      <!-- Alert banner -->
+      <rect x="20" y="10" width="820" height="30" rx="6" fill="rgba(88,166,255,0.1)" stroke="#58a6ff" stroke-width="1"/>
+      <text x="40" y="30" fill="#58a6ff" font-size="10" font-weight="600">ℹ  UART Mode: Live Monitoring — Only one mode can use Serial2 (GPIO17/18) at a time.</text>
+
+      <!-- Toggle buttons -->
+      <rect x="20" y="50" width="400" height="50" rx="8" fill="#21262d" stroke="#3fb950" stroke-width="2"/>
+      <text x="130" y="70" fill="#3fb950" font-size="10" font-weight="700" text-anchor="middle">📺  Live Monitoring</text>
+      <text x="130" y="86" fill="#8b949e" font-size="9" text-anchor="middle">Scale data streaming  ●  active</text>
+
+      <rect x="422" y="50" width="400" height="50" rx="8" fill="#21262d" stroke="#30363d" stroke-width="1"/>
+      <text x="622" y="70" fill="#8b949e" font-size="10" font-weight="600" text-anchor="middle">🔧  Diagnostics</text>
+      <text x="622" y="86" fill="#8b949e" font-size="9" text-anchor="middle">Hardware testing</text>
+
+      <!-- Warning badge when mode mismatch -->
+      <rect x="20" y="108" width="820" height="18" rx="4" fill="rgba(210,153,34,0.12)" stroke="#d29922" stroke-width="1"/>
+      <text x="40" y="121" fill="#d29922" font-size="9">⚠  Mode has changed. Current screen is for live mode, but system is in diagnostics mode.</text>
+    </svg>
+  </div>
+  <div class="card-grid">
+    <div class="card"><h3>Where it appears</h3><p>Top of <code>SerialInfoWithMode.tsx</code> and <code>DiagnosticsInfoWithMode.tsx</code>. Both info pages embed this switcher so the user can change mode without navigating away.</p></div>
+    <div class="card"><h3>Mismatch Warning</h3><p>If the page's expected mode doesn't match the device's active mode it shows an amber alert — e.g. you're on the Serial Info page but device is in Diagnostics mode.</p></div>
+    <div class="card"><h3>useRest inside</h3><p>Calls <code>readUartMode()</code> on mount and <code>updateUartMode()</code> on toggle. Shows a <code>CircularProgress</code> spinner while saving.</p><span class="tag">interface/src/components/UartModeSwitcher.tsx</span></div>
+  </div>
+
+  <!-- SERIAL MONITOR — all 5 tabs -->
+  <h3 style="margin-top:2.5rem">Serial Monitor — All 5 Tabs</h3>
+  <table>
+    <thead><tr><th>Tab</th><th>Route</th><th>Component</th><th>What it does</th></tr></thead>
+    <tbody>
+      <tr><td>Info</td><td><code>info</code></td><td><code>SerialInfoWithMode</code></td><td>Hardware wiring, GPIO table, UartModeSwitcher at top, regex guide</td></tr>
+      <tr><td>Configuration</td><td><code>config</code></td><td><code>SerialConfig</code></td><td>Baud/bits/parity dropdowns + regex field + live preview (polls REST)</td></tr>
+      <tr><td>REST</td><td><code>rest</code></td><td><code>SerialRest</code></td><td>Polls <code>GET /rest/serial</code> every 2 s, shows last_line + debug fields</td></tr>
+      <tr><td>Stream</td><td><code>stream</code></td><td><code>SerialWebSocket</code></td><td>Live WS stream, last 100 lines, auto-scroll, monospace, timestamps</td></tr>
+      <tr><td>BLE</td><td><code>ble</code></td><td><code>SerialBle</code></td><td>Static doc page — UUIDs for nRF Connect + JSON payload example</td></tr>
+    </tbody>
+  </table>
+
+  <!-- DIAGNOSTICS UI — all 4 tabs -->
+  <h3 style="margin-top:2.5rem">Diagnostics UI — All 4 Tabs</h3>
+  <div class="flow-wrap">
+    <svg width="100%" viewBox="0 0 860 160" xmlns="http://www.w3.org/2000/svg">
+      <!-- Tab bar -->
+      <rect x="20" y="10" width="820" height="32" rx="8" fill="#21262d" stroke="#30363d" stroke-width="1"/>
+      <text x="120" y="30" fill="#d29922" font-size="10" font-weight="700" text-anchor="middle">Info</text>
+      <line x1="220" y1="10" x2="220" y2="42" stroke="#30363d" stroke-width="1"/>
+      <text x="310" y="30" fill="#8b949e" font-size="10" font-weight="600" text-anchor="middle">Loopback Test</text>
+      <line x1="440" y1="10" x2="440" y2="42" stroke="#30363d" stroke-width="1"/>
+      <text x="535" y="30" fill="#8b949e" font-size="10" font-weight="600" text-anchor="middle">Baud Detector</text>
+      <line x1="665" y1="10" x2="665" y2="42" stroke="#30363d" stroke-width="1"/>
+      <text x="755" y="30" fill="#8b949e" font-size="10" font-weight="600" text-anchor="middle">Signal Quality</text>
+
+      <!-- Content area panels (described) -->
+      <rect x="20" y="52" width="200" height="98" rx="6" fill="#161b22" stroke="#d29922" stroke-width="1"/>
+      <text x="120" y="74" fill="#d29922" font-size="9.5" font-weight="600" text-anchor="middle">Info tab</text>
+      <text x="120" y="91" fill="#8b949e" font-size="8.5" text-anchor="middle">UartModeSwitcher</text>
+      <text x="120" y="105" fill="#8b949e" font-size="8.5" text-anchor="middle">GPIO wiring guide</text>
+      <text x="120" y="119" fill="#8b949e" font-size="8.5" text-anchor="middle">Jumper wire instructions</text>
+      <text x="120" y="133" fill="#8b949e" font-size="8.5" text-anchor="middle">Links to other tabs</text>
+
+      <rect x="232" y="52" width="200" height="98" rx="6" fill="#161b22" stroke="#bc8cff" stroke-width="1"/>
+      <text x="332" y="74" fill="#bc8cff" font-size="9.5" font-weight="600" text-anchor="middle">LoopbackTest</text>
+      <text x="332" y="91" fill="#8b949e" font-size="8.5" text-anchor="middle">Start/Stop button</text>
+      <text x="332" y="105" fill="#8b949e" font-size="8.5" text-anchor="middle">Tx/Rx/Error counters</text>
+      <text x="332" y="119" fill="#8b949e" font-size="8.5" text-anchor="middle">Success % chip</text>
+      <text x="332" y="133" fill="#8b949e" font-size="8.5" text-anchor="middle">PASS / FAIL status</text>
+
+      <rect x="444" y="52" width="210" height="98" rx="6" fill="#161b22" stroke="#58a6ff" stroke-width="1"/>
+      <text x="549" y="74" fill="#58a6ff" font-size="9.5" font-weight="600" text-anchor="middle">BaudDetector</text>
+      <text x="549" y="91" fill="#8b949e" font-size="8.5" text-anchor="middle">Scan 8 rates (1200–115200)</text>
+      <text x="549" y="105" fill="#8b949e" font-size="8.5" text-anchor="middle">Progress through indices</text>
+      <text x="549" y="119" fill="#8b949e" font-size="8.5" text-anchor="middle">Detected rate chip (green)</text>
+      <text x="549" y="133" fill="#8b949e" font-size="8.5" text-anchor="middle">NOT_FOUND chip (red)</text>
+
+      <rect x="666" y="52" width="174" height="98" rx="6" fill="#161b22" stroke="#3fb950" stroke-width="1"/>
+      <text x="753" y="74" fill="#3fb950" font-size="9.5" font-weight="600" text-anchor="middle">SignalQuality</text>
+      <text x="753" y="91" fill="#8b949e" font-size="8.5" text-anchor="middle">Quality % progress bar</text>
+      <text x="753" y="105" fill="#8b949e" font-size="8.5" text-anchor="middle">Avg latency + jitter (ms)</text>
+      <text x="753" y="119" fill="#8b949e" font-size="8.5" text-anchor="middle">Sent / Received / Errors</text>
+      <text x="753" y="133" fill="#8b949e" font-size="8.5" text-anchor="middle">WS live updates during run</text>
+    </svg>
+  </div>
+
+  <!-- WEIGHT FORWARDER UI -->
+  <h3 style="margin-top:2.5rem">Weight Forwarder UI — Config + Status Tabs</h3>
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="showTab('wf-cfg')">Config Tab</button>
+    <button class="tab-btn" onclick="showTab('wf-sts')">Status Tab</button>
+  </div>
+
+  <div id="tab-wf-cfg" class="tab-panel active">
+    <div class="flow-wrap">
+      <svg width="100%" viewBox="0 0 860 300" xmlns="http://www.w3.org/2000/svg">
+        <rect x="20" y="10" width="820" height="280" rx="10" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+        <text x="430" y="36" fill="#58a6ff" font-size="12" font-weight="700" text-anchor="middle">Weight Stream Forwarder Configuration</text>
+        <line x1="20" y1="46" x2="840" y2="46" stroke="#30363d" stroke-width="1"/>
+
+        <!-- Enable checkbox -->
+        <rect x="40" y="58" width="16" height="16" rx="3" fill="#2596D1" stroke="none"/>
+        <text x="62" y="71" fill="#e6edf3" font-size="10">Enable Weight Forwarding</text>
+
+        <!-- Protocol selector -->
+        <rect x="40" y="88" width="300" height="35" rx="5" fill="#21262d" stroke="#58a6ff" stroke-width="1"/>
+        <text x="55" y="101" fill="#8b949e" font-size="8.5">Protocol</text>
+        <text x="55" y="116" fill="#e6edf3" font-size="10">HTTP POST ▾</text>
+        <text x="360" y="109" fill="#8b949e" font-size="8.5">Options (feature-gated):</text>
+        <text x="360" y="123" fill="#8b949e" font-size="8.5">HTTP POST · WebSocket · MQTT (if FT_MQTT) · BLE (if FT_BLE)</text>
+
+        <!-- HTTP fields (shown when HTTP selected) -->
+        <rect x="40" y="138" width="500" height="30" rx="5" fill="#21262d" stroke="#30363d" stroke-width="1"/>
+        <text x="55" y="149" fill="#8b949e" font-size="8">Target URL</text>
+        <text x="55" y="162" fill="#8b949e" font-size="9" font-family="monospace">http://192.168.3.100/rest/display</text>
+
+        <rect x="40" y="178" width="240" height="28" rx="5" fill="#21262d" stroke="#30363d" stroke-width="1"/>
+        <text x="55" y="188" fill="#8b949e" font-size="8">Target login (username)</text>
+        <text x="55" y="200" fill="#8b949e" font-size="9">admin</text>
+
+        <rect x="290" y="178" width="240" height="28" rx="5" fill="#21262d" stroke="#30363d" stroke-width="1"/>
+        <text x="305" y="188" fill="#8b949e" font-size="8">Target login (password)</text>
+        <text x="305" y="200" fill="#8b949e" font-size="9">●●●●●●●●</text>
+
+        <text x="40" y="225" fill="#d29922" font-size="8.5">⚠  Required when target device returns HTTP 401 (e.g. display device with authentication enabled)</text>
+
+        <!-- display_mode checkbox -->
+        <rect x="40" y="238" width="16" height="16" rx="3" fill="#21262d" stroke="#30363d" stroke-width="1"/>
+        <text x="62" y="251" fill="#e6edf3" font-size="10">Display Mode  <tspan fill="#8b949e" font-size="8.5">(16-char line1/line2 format for LCD devices)</tspan></text>
+        <text x="62" y="265" fill="#8b949e" font-size="8.5">When off: {last_line, weight, timestamp}  ·  When on: {line1:"12.500 kg", line2:"NET     "}</text>
+
+        <!-- Save button -->
+        <rect x="680" y="268" width="140" height="18" rx="4" fill="#2596D1" stroke="none"/>
+        <text x="750" y="281" fill="#fff" font-size="9" font-weight="600" text-anchor="middle">SAVE CONFIGURATION</text>
+      </svg>
+    </div>
+    <div class="card-grid" style="margin-top:1rem">
+      <div class="card"><h3>Feature-gated Protocols</h3><p>The protocol dropdown only shows MQTT if <code>features.mqtt</code> is true and BLE if <code>features.ble</code> is true. Read at runtime from <code>FeaturesContext</code> — not compile-time flags.</p></div>
+      <div class="card"><h3>Auth for Target Device</h3><p>If forwarding to another ESP8266React device (e.g. the display branch), that device's REST API requires JWT. Enter the target's admin credentials here — the forwarder signs in and sends <code>Authorization: Bearer</code> with each POST.</p></div>
+      <div class="card"><h3>Display Mode payload</h3><p>Standard: <code>{last_line, weight, timestamp}</code>. Display mode: <code>{line1:"12.500 kg ", line2:"NET     "}</code> — pre-formatted for 16×2 LCD character displays.</p></div>
+    </div>
+  </div>
+
+  <div id="tab-wf-sts" class="tab-panel">
+    <div class="card-grid">
+      <div class="card"><h3>Live via WebSocket</h3><p>Uses <code>useWs(WEIGHT_FORWARDER_WEBSOCKET_URL)</code> — updates in real time as forwards succeed or fail. No polling needed.</p></div>
+      <div class="card"><h3>Status Table</h3><p>Rows: Service Status (Enabled/Disabled chip) · Connection Status (Connected/Disconnected chip) · WS Status · Protocol · Target · Display Mode · Last Forward Time · Last Error (only if set).</p></div>
+      <div class="card"><h3>Target info by protocol</h3><p>Target column shows <code>target_url</code> for HTTP, <code>ws_url</code> for WS, <code>mqtt_topic</code> for MQTT, <code>ble_service_uuid</code> for BLE — resolved dynamically by <code>getTargetInfo()</code>.</p><span class="tag">interface/src/examples/weightforwarder/WeightForwarderStatus.tsx</span></div>
+    </div>
+  </div>
+
+  <!-- DiagnosticsState correction -->
+  <h3 style="margin-top:2.5rem">DiagnosticsState — Correct Baud Rate List</h3>
+  <p style="color:var(--muted);font-size:.875rem;margin-bottom:1rem">8 rates are tested (not 17 as documented elsewhere). The state JSON uses nested objects per test domain.</p>
+  <table>
+    <thead><tr><th>Domain</th><th>Key JSON path</th><th>Notable fields</th></tr></thead>
+    <tbody>
+      <tr><td><span class="pill pill-purple">loopback</span></td><td><code>loopback.*</code></td><td>enabled, status, tx_count, rx_count, error_count, success_rate (computed), uptime_seconds</td></tr>
+      <tr><td><span class="pill pill-blue">baud_scan</span></td><td><code>baud_scan.*</code></td><td>enabled, status, detected_baud, current_index, current_baud, test_packets</td></tr>
+      <tr><td><span class="pill pill-green">signal_quality</span></td><td><code>signal_quality.*</code></td><td>enabled, status, quality_percent, sent_packets, received_packets, avg_latency_ms, jitter_ms, error_count, progress</td></tr>
+    </tbody>
+  </table>
+  <div class="pin-strip">
+    <div class="pin-item"><strong>Rate 0</strong>1200</div>
+    <div class="pin-item"><strong>Rate 1</strong>2400</div>
+    <div class="pin-item"><strong>Rate 2</strong>4800</div>
+    <div class="pin-item"><strong>Rate 3</strong>9600</div>
+    <div class="pin-item"><strong>Rate 4</strong>19200</div>
+    <div class="pin-item"><strong>Rate 5</strong>38400</div>
+    <div class="pin-item"><strong>Rate 6</strong>57600</div>
+    <div class="pin-item"><strong>Rate 7</strong>115200</div>
+  </div>
+
+  <!-- VersionService -->
+  <h3 style="margin-top:2.5rem">VersionService — Public Endpoint</h3>
+  <div class="card-grid">
+    <div class="card"><h3>GET /rest/version</h3><p>No authentication required. Returns build metadata: version, api_version, build_date, build_time, project_name, project_url. Used by the UI's <code>VersionDisplay</code> component in the sidebar footer.</p><span class="tag">src/VersionService.h · src/version.h</span></div>
+    <div class="card"><h3>Read-only</h3><p>POST to this endpoint always returns <code>UNCHANGED</code> — the state is set at compile time from <code>version.h</code> macros and cannot be changed at runtime.</p></div>
+  </div>
+</section>
+
+<!-- ═══════════ DEV TOOLS ═══════════ -->
+<section id="devtools">
+  <p class="section-label">Development</p>
+  <h2>Developer Scripts</h2>
+  <p class="lead">Three PowerShell scripts in <code>scripts/</code> for local testing without a real scale attached. Run them from a Windows terminal on the host machine.</p>
+
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-icon">📤</div>
+      <h3>stream-com12.ps1</h3>
+      <p>Opens a COM port (default COM13) and streams simulated scale data at configurable baud and interval. Format: <code>WN0000.04kg</code> — incrementing weight in industry scale notation.</p>
+      <pre style="margin-top:.75rem;font-size:.78rem"><code>.\scripts\stream-com12.ps1 -Port COM13 -BaudRate 9600 -DelayMs 500</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-icon">🧪</div>
+      <h3>test-serial-stream.ps1</h3>
+      <p>Streams human-readable weight strings: <code>WEIGHT: 100.0 kg</code>. Useful for testing the regex extractor against verbose format strings.</p>
+      <pre style="margin-top:.75rem;font-size:.78rem"><code>.\scripts\test-serial-stream.ps1 -Port COM12 -BaudRate 9600</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-icon">🔫</div>
+      <h3>kill-for-test.ps1</h3>
+      <p>Kills all Python processes to free the COM port before a PlatformIO upload. Windows COM ports are exclusive — any open serial monitor will block the upload with <code>Access is denied</code>.</p>
+      <pre style="margin-top:.75rem;font-size:.78rem"><code>Get-Process python* | Stop-Process -Force</code></pre>
+    </div>
+  </div>
+
+  <h3 style="margin-top:2rem">Dev Proxy (npm start)</h3>
+  <div class="card-grid">
+    <div class="card"><h3>setupProxy.js</h3><p>CRA dev proxy: <code>/rest/*</code> and <code>/ws/*</code> forwarded to the ESP32's IP. Set <code>PROXY=http://&lt;device-ip&gt;</code> env var or edit the file. Avoids CORS during local development.</p><span class="tag">interface/setupProxy.js</span></div>
+    <div class="card"><h3>stream-ttyUSB0.sh</h3><p>Linux/Mac equivalent of stream-com12.ps1 — sends serial data via <code>/dev/ttyUSB0</code> using bash <code>echo</code> redirection. For testing on non-Windows hosts.</p><span class="tag">scripts/stream-ttyUSB0.sh</span></div>
+  </div>
+</section>
+
+<!-- ═══════════ GOTCHAS ═══════════ -->
+<section id="gotchas">
+  <p class="section-label">Lessons Learned</p>
+  <h2>Developer Gotchas</h2>
+  <p class="lead">Six real bugs from <code>docs/WEIGHT-FORWARDER-LESSONS.md</code> that each cost 15–35 minutes. Read before extending this branch.</p>
+
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="showTab('g1')">1 · AXIOS vs fetch</button>
+    <button class="tab-btn" onclick="showTab('g2')">2 · 401 on forward</button>
+    <button class="tab-btn" onclick="showTab('g3')">3 · Feature flags</button>
+    <button class="tab-btn" onclick="showTab('g4')">4 · Hook imports</button>
+    <button class="tab-btn" onclick="showTab('g5')">5 · Physical reset</button>
+    <button class="tab-btn" onclick="showTab('g6')">6 · COM port busy</button>
+  </div>
+
+  <div id="tab-g1" class="tab-panel active">
+    <div class="card-grid">
+      <div class="card" style="border-color:var(--red)">
+        <h3 style="color:var(--red)">❌ Wrong — plain fetch()</h3>
+        <pre><code>export function readWeightForwarder() {
+  return fetch('/rest/weightForwarder')  // No JWT!
+    .then(r => r.json());
+}</code></pre>
+        <p style="margin-top:.75rem">Returns <code>401 Unauthorized</code> — no <code>Authorization: Bearer</code> header sent.</p>
+      </div>
+      <div class="card" style="border-color:var(--green)">
+        <h3 style="color:var(--green)">✓ Correct — project AXIOS instance</h3>
+        <pre><code>import { AXIOS } from './endpoints';
+
+export function readWeightForwarder() {
+  return AXIOS.get('weightForwarder');
+  // JWT injected automatically by interceptor
+}</code></pre>
+        <p style="margin-top:.75rem"><code>AXIOS</code> has a request interceptor that adds the stored JWT on every call.</p>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-g2" class="tab-panel">
+    <div class="card-grid">
+      <div class="card">
+        <h3>Symptom</h3>
+        <p>WeightForwarder shows <span style="color:var(--red)">Last Error: HTTP 401</span> and <em>Last Forward Time: Never</em> even though the target device is reachable.</p>
+      </div>
+      <div class="card">
+        <h3>Cause</h3>
+        <p>The target device (e.g. display branch ESP32) uses the same ESP8266React framework and requires JWT auth on all <code>/rest/*</code> endpoints.</p>
+      </div>
+      <div class="card" style="border-color:var(--green)">
+        <h3>Fix</h3>
+        <p>In WeightForwarder Config, fill in <strong>Target login username + password</strong> (the admin credentials of the target device). The forwarder signs in, gets a JWT, and attaches it to every POST.</p>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-g3" class="tab-panel">
+    <div class="card-grid">
+      <div class="card" style="border-color:var(--red)">
+        <h3 style="color:var(--red)">❌ Wrong — Vite env vars</h3>
+        <pre><code>// Causes TS error:
+// "Property 'env' does not exist on type 'ImportMeta'"
+const hasMqtt = import.meta.env.FT_MQTT;</code></pre>
+      </div>
+      <div class="card" style="border-color:var(--green)">
+        <h3 style="color:var(--green)">✓ Correct — FeaturesContext</h3>
+        <pre><code>import { FeaturesContext } from
+  '../../contexts/features';
+
+const { features } = useContext(FeaturesContext);
+// features.mqtt, features.ble, features.ntp …</code></pre>
+        <p style="margin-top:.75rem">Flags are loaded at runtime from <code>GET /rest/features</code> — not build-time env vars.</p>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-g4" class="tab-panel">
+    <div class="card-grid">
+      <div class="card" style="border-color:var(--red)">
+        <h3 style="color:var(--red)">❌ Wrong import paths</h3>
+        <pre><code>import { useWs } from '../../components'; // ❌
+import { useWs } from '../../hooks/useWs'; // ❌
+import { useWs } from '../../utils/useWs'; // ❌</code></pre>
+      </div>
+      <div class="card" style="border-color:var(--green)">
+        <h3 style="color:var(--green)">✓ Always from utils index</h3>
+        <pre><code>import { useWs, useRest } from '../../utils';
+// Resolves via interface/src/utils/index.ts</code></pre>
+        <p style="margin-top:.75rem">Also: <code>SectionContent</code>, <code>FormLoader</code>, <code>ButtonRow</code> from <code>'../../components'</code>. There is no <code>ValidatedForm</code>.</p>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-g5" class="tab-panel">
+    <div class="card-grid">
+      <div class="card">
+        <h3>Symptom</h3>
+        <p>Upload succeeds, but the new menu item / endpoint doesn't appear. UI still shows old behaviour. May also see 401 on new endpoints.</p>
+      </div>
+      <div class="card" style="border-color:var(--orange)">
+        <h3>Why</h3>
+        <p><code>PROGMEM_WWW</code> means the web interface is embedded in the firmware binary. Auto-reset after upload doesn't always reload the new firmware on ESP32-S3.</p>
+      </div>
+      <div class="card" style="border-color:var(--green)">
+        <h3>Fix — 5 steps</h3>
+        <p>1. Kill Python processes (see Gotcha 6)<br>2. <code>pio run -e esp32s3 -t upload</code><br>3. <strong>Physically press EN/RST button</strong><br>4. Watch serial output for boot messages<br>5. <strong>Ctrl+Shift+R</strong> hard-refresh browser</p>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-g6" class="tab-panel">
+    <div class="card-grid">
+      <div class="card">
+        <h3>Symptom</h3>
+        <p>Upload fails: <code>PermissionError(13, 'Access is denied.')</code> or <em>"COM port is busy"</em>. Happens even when no serial monitor appears to be open.</p>
+      </div>
+      <div class="card">
+        <h3>Cause</h3>
+        <p>Windows COM ports are exclusive. A background Python process (serial monitor, stream script, PlatformIO device monitor) is holding it open.</p>
+      </div>
+      <div class="card" style="border-color:var(--green)">
+        <h3>Fix — always run first</h3>
+        <pre><code>Get-Process python* | Stop-Process -Force
+# Then upload:
+pio run -e node32s -t upload</code></pre>
+        <p style="margin-top:.75rem">The <code>kill-for-test.ps1</code> script does this in one step.</p>
+      </div>
+    </div>
+  </div>
 </section>
 
 <footer style="text-align:center;padding:2rem;color:var(--muted);font-size:.85rem;border-top:1px solid var(--border);">
