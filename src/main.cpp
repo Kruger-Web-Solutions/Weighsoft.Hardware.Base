@@ -1,6 +1,8 @@
 #include <ESP8266React.h>
 #include <examples/led/LedExampleService.h>
 #include <examples/serial/SerialService.h>
+#include <examples/serialwriter/SerialWriterService.h>
+#include <examples/serialwriter/SerialWriterForwarderService.h>
 #include <examples/diagnostics/DiagnosticsService.h>
 #include <examples/weightforwarder/WeightForwarderService.h>
 #include "VersionService.h"
@@ -84,6 +86,8 @@ AsyncWebServer* server;
 ESP8266React* esp8266React;
 LedExampleService* ledExampleService;
 SerialService* serialService;
+SerialWriterService* serialWriterService;
+SerialWriterForwarderService* serialWriterForwarderService;
 DiagnosticsService* diagnosticsService;
 VersionService* versionService;
 UartModeService* uartModeService;
@@ -171,6 +175,23 @@ void setup() {
   serialService->begin();
   Serial.println(F("[7/10] Serial service loaded OK"));
 
+  serialWriterService = new SerialWriterService(
+      server,
+      esp8266React->getFS(),
+      esp8266React->getSecurityManager(),
+      esp8266React->getMqttClient()
+      );
+  serialWriterService->begin();
+
+  serialWriterForwarderService = new SerialWriterForwarderService(
+      server,
+      esp8266React->getFS(),
+      esp8266React->getSecurityManager(),
+      serialWriterService
+      );
+  serialWriterForwarderService->begin();
+  Serial.println(F("[7/10] Serial Writer services loaded OK"));
+
   Serial.println(F("[8/10] Initializing UART Diagnostics service..."));
   diagnosticsService = new DiagnosticsService(
       server,
@@ -182,6 +203,8 @@ void setup() {
   // Link services for Serial1 coordination
   diagnosticsService->setSerialService(serialService);
   uartModeService->setSerialService(serialService);
+  uartModeService->setWriterService(serialWriterService);
+  uartModeService->setForwarderService(serialWriterForwarderService);
   uartModeService->setDiagnosticsService(diagnosticsService);
   Serial.println(F("[8/10] Services linked for Serial1 coordination"));
   
@@ -244,6 +267,10 @@ void loop() {
 
   // read serial data
   serialService->loop();
+
+  // write serial data
+  serialWriterService->loop();
+  serialWriterForwarderService->loop();
 
   // run diagnostic tests
   diagnosticsService->loop();
