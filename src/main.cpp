@@ -8,6 +8,7 @@
 #include <examples/weightforwarder/WeightForwarderService.h>
 #include "VersionService.h"
 #include "UartModeService.h"
+#include "MdnsService.h"
 #include "version.h"
 
 #ifdef ESP32
@@ -82,6 +83,30 @@ static const char* resetReasonLabel(esp_reset_reason_t reason) {
 }
 #endif
 
+// Compose the mode-aware AP SSID for the current device mode.
+static String composeApSsid(UartModeService* m) {
+  if (!m) return "Weighsoft-Esp-NEW";
+  if (m->isWriter()) return "Weighsoft-Esp-Writer";
+  if (m->isDiagnostics()) return "Weighsoft-Esp-Diagnostics";
+  if (m->isReader()) return "Weighsoft-Esp-Reader";
+  return "Weighsoft-Esp-NEW";
+}
+
+// Update the AP SSID to match the current mode, but only if the current SSID
+// follows the auto-managed Weighsoft-Esp-* pattern. Hand-edited SSIDs are preserved.
+static void syncApSsidToMode(StatefulService<APSettings>* ap, UartModeService* m) {
+  if (!ap || !m) return;
+  String desired = composeApSsid(m);
+  ap->update([&](APSettings& s) {
+    bool isAutoManaged = s.ssid.startsWith("Weighsoft-Esp-");
+    if (isAutoManaged && s.ssid != desired) {
+      s.ssid = desired;
+      return StateUpdateResult::CHANGED;
+    }
+    return StateUpdateResult::UNCHANGED;
+  }, "mode-ssid-sync");
+}
+
 // Use pointers to avoid early construction issues on ESP32
 AsyncWebServer* server;
 ESP8266React* esp8266React;
@@ -94,6 +119,7 @@ DiagnosticsService* diagnosticsService;
 VersionService* versionService;
 UartModeService* uartModeService;
 WeightForwarderService* weightForwarderService;
+MdnsService* mdnsService;
 
 void setup() {
   // start serial and filesystem
@@ -223,6 +249,15 @@ void setup() {
   uartModeService->applyMode();
   Serial.println(F("[8/10] Persisted UART mode applied"));
 
+  // Sync AP SSID to the current UART mode at boot
+  syncApSsidToMode(esp8266React->getAPSettingsService(), uartModeService);
+
+  // Re-sync AP SSID and refresh mDNS whenever the user changes mode
+  uartModeService->addUpdateHandler([&](const String& origin) {
+    syncApSsidToMode(esp8266React->getAPSettingsService(), uartModeService);
+    if (mdnsService) mdnsService->refresh();
+  }, false);
+
   Serial.println(F("[9/10] Initializing Weight Forwarder service..."));
   weightForwarderService = new WeightForwarderService(
       server,
@@ -233,6 +268,9 @@ void setup() {
       );
   weightForwarderService->begin();
   Serial.println(F("[9/10] Weight Forwarder service loaded OK"));
+
+  mdnsService = new MdnsService(uartModeService);
+  mdnsService->begin();
 
 #if FT_ENABLED(FT_BLE)
   // Register callbacks after both services exist so callback never sees null
