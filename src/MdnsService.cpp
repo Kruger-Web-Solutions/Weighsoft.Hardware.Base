@@ -1,20 +1,37 @@
 #include "MdnsService.h"
 #include <ESPmDNS.h>
+#include <WiFi.h>
 #include <SettingValue.h>
 
 #define MDNS_SERVICE_NAME  "_weighsoft"
 #define MDNS_SERVICE_PROTO "_tcp"
 #define MDNS_SERVICE_PORT  80
+#define MDNS_RETRY_INTERVAL_MS 5000UL
 
 MdnsService::MdnsService(UartModeService* uartModeService)
     : _uartModeService(uartModeService) {}
 
 void MdnsService::begin() {
-  if (_started) return;
+  // Defer the actual MDNS.begin() call until the network is up. loop() handles it.
+  _enabled = true;
+}
+
+void MdnsService::loop() {
+  if (!_enabled || _started) return;
+  unsigned long now = millis();
+  if (now < _nextRetryMs) return;
+  _nextRetryMs = now + MDNS_RETRY_INTERVAL_MS;
+
+  // Wait until at least one network interface is up:
+  //  - STA connected to a real WiFi network, OR
+  //  - SoftAP is running (we'll have a valid AP IP)
+  bool staReady = WiFi.status() == WL_CONNECTED;
+  bool apReady = WiFi.softAPIP() != IPAddress(0, 0, 0, 0);
+  if (!staReady && !apReady) return;
 
   String hostname = String("weighsoft-") + currentId();
   if (!MDNS.begin(hostname.c_str())) {
-    Serial.printf("[mDNS] begin(%s) failed\n", hostname.c_str());
+    Serial.printf("[mDNS] begin(%s) failed; will retry\n", hostname.c_str());
     return;
   }
   MDNS.addService(MDNS_SERVICE_NAME, MDNS_SERVICE_PROTO, MDNS_SERVICE_PORT);

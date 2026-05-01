@@ -328,6 +328,9 @@ void loop() {
   // process weight forwarding
   weightForwarderService->loop();
 
+  // mDNS announcement (deferred start — runs only once the network is up)
+  if (mdnsService) mdnsService->loop();
+
 #ifdef ESP32
   {
     static unsigned long heapLogMs = 0;
