@@ -1,4 +1,5 @@
 #include <examples/serial/SerialService.h>
+#include <examples/serial/KnownWritersService.h>
 #include <regex.h>  // POSIX regex
 
 #ifdef ESP32
@@ -120,6 +121,7 @@ void SerialService::drainRxLineQueue() {
     return StateUpdateResult::CHANGED;
   }, "serial_hw");
   _lastRxLinePublishMs = now;
+  if (_knownWriters) _knownWriters->recordBroadcastToOnlineWriters(line);
 }
 
 void SerialService::begin() {

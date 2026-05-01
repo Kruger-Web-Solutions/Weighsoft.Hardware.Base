@@ -1,6 +1,7 @@
 #include <ESP8266React.h>
 #include <examples/led/LedExampleService.h>
 #include <examples/serial/SerialService.h>
+#include <examples/serial/KnownWritersService.h>
 #include <examples/serialwriter/SerialWriterService.h>
 #include <examples/serialwriter/SerialWriterForwarderService.h>
 #include <examples/diagnostics/DiagnosticsService.h>
@@ -86,6 +87,7 @@ AsyncWebServer* server;
 ESP8266React* esp8266React;
 LedExampleService* ledExampleService;
 SerialService* serialService;
+KnownWritersService* knownWritersService;
 SerialWriterService* serialWriterService;
 SerialWriterForwarderService* serialWriterForwarderService;
 DiagnosticsService* diagnosticsService;
@@ -174,6 +176,15 @@ void setup() {
   delay(200);  // ESP32-S3: Delay after SerialService creation
   serialService->begin();
   Serial.println(F("[7/10] Serial service loaded OK"));
+
+  knownWritersService = new KnownWritersService(
+      server,
+      esp8266React->getFS(),
+      esp8266React->getSecurityManager()
+      );
+  knownWritersService->begin();
+  serialService->setKnownWritersService(knownWritersService);
+  Serial.println(F("[7/10] KnownWriters service loaded and wired OK"));
 
   serialWriterService = new SerialWriterService(
       server,

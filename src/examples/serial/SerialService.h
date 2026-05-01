@@ -10,6 +10,9 @@
 #include <SettingValue.h>
 #include <examples/serial/SerialState.h>
 
+// Forward declaration — full definition included in SerialService.cpp
+class KnownWritersService;
+
 #if FT_ENABLED(FT_BLE)
 #include <BlePubSub.h>
 #include <BLEServer.h>
@@ -47,12 +50,19 @@ class SerialService : public StatefulService<SerialState> {
   void begin();
   void loop();  // Must be called in main loop() to read serial
 
+  // Wires the KnownWriters tracking service so scale-line broadcasts update writer timestamps.
+  // NOTE: WS connect/disconnect auto-registration requires a framework callback not currently
+  // exposed by WebSocketTxRx — call onWriterConnected/onWriterDisconnected manually or extend
+  // the framework in a future task (DONE_WITH_CONCERNS: Task 3, Plan 2).
+  void setKnownWritersService(KnownWritersService* svc) { _knownWriters = svc; }
+
 #if FT_ENABLED(FT_BLE)
   void setBleServer(BLEServer* bleServer) { _bleServer = bleServer; }
   void configureBle();
 #endif
 
  private:
+  KnownWritersService* _knownWriters = nullptr;
   HttpEndpoint<SerialState> _httpEndpoint;
   FSPersistence<SerialState> _fsPersistence;
   MqttPubSub<SerialState> _mqttPubSub;
