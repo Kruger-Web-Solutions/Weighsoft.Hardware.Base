@@ -8,6 +8,7 @@ import SerialConfig from './SerialConfig';
 import SerialRest from './SerialRest';
 import SerialWebSocket from './SerialWebSocket';
 import SerialBle from './SerialBle';
+import Writers from './Writers';
 
 const SerialReader: FC = () => {
   const { routerTab } = useRouterTab();
@@ -19,6 +20,7 @@ const SerialReader: FC = () => {
         <Tab value="rest" label="REST View" />
         <Tab value="stream" label="Live Stream" />
         <Tab value="ble" label="BLE Stream" />
+        <Tab value="writers" label="Writers" />
       </RouterTabs>
       <Routes>
         <Route path="information" element={<SerialInfoWithMode />} />
@@ -26,6 +28,7 @@ const SerialReader: FC = () => {
         <Route path="rest" element={<SerialRest />} />
         <Route path="stream" element={<SerialWebSocket />} />
         <Route path="ble" element={<SerialBle />} />
+        <Route path="writers" element={<Writers />} />
         <Route path="/*" element={<Navigate replace to="information" />} />
       </Routes>
     </>
