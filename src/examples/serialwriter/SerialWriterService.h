@@ -74,8 +74,8 @@ class SerialWriterService : public StatefulService<SerialWriterState> {
 
   // Helpers
   void applySerialConfig();
-  uint32_t serialMode() const;       // databits/parity/stopbits → ESP32 SERIAL_* constant
-  String   lineEndingChars() const;  // returns "" / "\r" / "\n" / "\r\n"
+  uint32_t serialMode();       // databits/parity/stopbits → ESP32 SERIAL_* constant
+  String   lineEndingChars();  // returns "" / "\r" / "\n" / "\r\n"
   void     onConfigUpdated();
   void     broadcastTxEvent(const String& data, TxSource source);
 };

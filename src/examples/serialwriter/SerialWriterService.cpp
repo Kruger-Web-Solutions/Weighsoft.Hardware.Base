@@ -150,7 +150,7 @@ void SerialWriterService::applySerialConfig() {
 #endif
 }
 
-uint32_t SerialWriterService::serialMode() const {
+uint32_t SerialWriterService::serialMode() {
 #ifdef ESP32
   uint8_t d = 8, p = 0, s = 1;
   read([&](const SerialWriterState& st) {
@@ -176,7 +176,7 @@ uint32_t SerialWriterService::serialMode() const {
 #endif
 }
 
-String SerialWriterService::lineEndingChars() const {
+String SerialWriterService::lineEndingChars() {
   String result = "";
   read([&](const SerialWriterState& s) {
     switch (s.lineEnding) {
