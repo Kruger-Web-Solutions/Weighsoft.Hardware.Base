@@ -6,7 +6,7 @@ import SerialInfo from './SerialInfo';
 const SerialInfoWithMode: FC = () => {
   return (
     <Box>
-      <UartModeSwitcher currentMode="live" />
+      <UartModeSwitcher currentMode="reader" />
       <SerialInfo />
     </Box>
   );
