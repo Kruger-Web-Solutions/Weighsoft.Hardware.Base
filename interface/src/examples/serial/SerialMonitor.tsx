@@ -1,37 +1,24 @@
-import React, { FC } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
-import { Tab } from '@mui/material';
-import { RouterTabs, useRouterTab, useLayoutTitle } from '../../components';
-
-import SerialInfoWithMode from './SerialInfoWithMode';
-import SerialConfig from './SerialConfig';
-import SerialRest from './SerialRest';
-import SerialWebSocket from './SerialWebSocket';
-import SerialBle from './SerialBle';
+import React, { FC, useEffect, useState } from 'react';
+import { Box, CircularProgress } from '@mui/material';
+import { useLayoutTitle } from '../../components';
+import { readUartMode } from '../../api/uartMode';
+import { UartMode } from '../../types/uartMode';
+import SerialReader from './SerialReader';
+import SerialWriter from '../serialwriter/SerialWriter';
 
 const SerialMonitor: FC = () => {
-  useLayoutTitle("Serial");
-  const { routerTab } = useRouterTab();
+  useLayoutTitle('Serial');
+  const [mode, setMode] = useState<UartMode | null>(null);
 
-  return (
-    <>
-      <RouterTabs value={routerTab}>
-        <Tab value="information" label="Information" />
-        <Tab value="configuration" label="Configuration" />
-        <Tab value="rest" label="REST View" />
-        <Tab value="stream" label="Live Stream" />
-        <Tab value="ble" label="BLE Stream" />
-      </RouterTabs>
-      <Routes>
-        <Route path="information" element={<SerialInfoWithMode />} />
-        <Route path="configuration" element={<SerialConfig />} />
-        <Route path="rest" element={<SerialRest />} />
-        <Route path="stream" element={<SerialWebSocket />} />
-        <Route path="ble" element={<SerialBle />} />
-        <Route path="/*" element={<Navigate replace to="information" />} />
-      </Routes>
-    </>
-  );
+  useEffect(() => {
+    readUartMode().then((res) => setMode(res.data.mode)).catch(() => setMode('reader'));
+  }, []);
+
+  if (mode === null) return <Box p={3}><CircularProgress size={24} /></Box>;
+
+  if (mode === 'writer') return <SerialWriter />;
+  if (mode === 'diagnostics') return <Box p={3}>Diagnostics mode is active. Open the Diagnostics top-level menu to run hardware tests.</Box>;
+  return <SerialReader />;  // 'reader' OR '' (NEW) → render reader screens; the mode switcher inside surfaces the NEW prompt
 };
 
 export default SerialMonitor;
