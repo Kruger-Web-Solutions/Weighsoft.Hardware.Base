@@ -17,7 +17,6 @@ const SerialMonitor: FC = () => {
   if (mode === null) return <Box p={3}><CircularProgress size={24} /></Box>;
 
   if (mode === 'writer') return <SerialWriter />;
-  if (mode === 'diagnostics') return <Box p={3}>Diagnostics mode is active. Open the Diagnostics top-level menu to run hardware tests.</Box>;
   return <SerialReader />;  // 'reader' OR '' (NEW) → render reader screens; the mode switcher inside surfaces the NEW prompt
 };
 

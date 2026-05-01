@@ -5,7 +5,6 @@ import {
 } from '@mui/material';
 import MonitorIcon from '@mui/icons-material/Monitor';
 import SendIcon from '@mui/icons-material/Send';
-import BuildIcon from '@mui/icons-material/Build';
 import { useRest } from '../utils';
 import { readUartMode, updateUartMode } from '../api/uartMode';
 import { UartMode, UartModeData } from '../types/uartMode';
@@ -16,8 +15,7 @@ interface UartModeSwitcherProps {
 
 const labels: Record<Exclude<UartMode, ''>, string> = {
   reader: 'Reader',
-  writer: 'Writer',
-  diagnostics: 'Diagnostics'
+  writer: 'Writer'
 };
 
 const UartModeSwitcher: React.FC<UartModeSwitcherProps> = ({ currentMode }) => {
@@ -54,7 +52,6 @@ const UartModeSwitcher: React.FC<UartModeSwitcherProps> = ({ currentMode }) => {
         <ToggleButtonGroup value={active} exclusive onChange={onChange} aria-label="UART mode" disabled={saving} fullWidth>
           <ToggleButton value="reader" aria-label="reader"><MonitorIcon sx={{ mr: 1 }} />Reader</ToggleButton>
           <ToggleButton value="writer" aria-label="writer"><SendIcon sx={{ mr: 1 }} />Writer</ToggleButton>
-          <ToggleButton value="diagnostics" aria-label="diagnostics"><BuildIcon sx={{ mr: 1 }} />Diagnostics</ToggleButton>
         </ToggleButtonGroup>
         {saving && <CircularProgress size={24} />}
       </Box>

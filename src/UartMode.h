@@ -8,13 +8,12 @@
 enum class UartModeType {
   READER,        // SerialService — reads from a physical scale (was LIVE_MONITORING)
   WRITER,        // SerialWriterService — writes to a physical serial port
-  DIAGNOSTICS    // DiagnosticsService — hardware tests
 };
 
 class UartModeState {
  public:
   // Empty modeStr ("") represents the NEW state — device hasn't been told what it is yet.
-  // When configured, modeStr is one of: "reader", "writer", "diagnostics".
+  // When configured, modeStr is one of: "reader", "writer".
   String modeStr;
 
   UartModeState() : modeStr("") {}
@@ -22,10 +21,8 @@ class UartModeState {
   bool isConfigured() const { return modeStr.length() > 0; }
   bool isReader() const { return modeStr == "reader"; }
   bool isWriter() const { return modeStr == "writer"; }
-  bool isDiagnostics() const { return modeStr == "diagnostics"; }
   UartModeType type() const {
     if (modeStr == "writer") return UartModeType::WRITER;
-    if (modeStr == "diagnostics") return UartModeType::DIAGNOSTICS;
     return UartModeType::READER;  // default for empty/NEW or "reader"
   }
 
@@ -39,9 +36,11 @@ class UartModeState {
 
       // Migration: legacy "live" → "reader"
       if (incoming == "live") incoming = "reader";
+      // Migration: legacy "diagnostics" → "reader"
+      if (incoming == "diagnostics") incoming = "reader";
 
       // Validate
-      if (incoming != "" && incoming != "reader" && incoming != "writer" && incoming != "diagnostics") {
+      if (incoming != "" && incoming != "reader" && incoming != "writer") {
         return StateUpdateResult::ERROR;
       }
 

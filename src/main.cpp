@@ -87,7 +87,6 @@ static const char* resetReasonLabel(esp_reset_reason_t reason) {
 static String composeApSsid(UartModeService* m) {
   if (!m) return "Weighsoft-Esp-NEW";
   if (m->isWriter()) return "Weighsoft-Esp-Writer";
-  if (m->isDiagnostics()) return "Weighsoft-Esp-Diagnostics";
   if (m->isReader()) return "Weighsoft-Esp-Reader";
   return "Weighsoft-Esp-NEW";
 }
@@ -269,8 +268,11 @@ void setup() {
   weightForwarderService->begin();
   Serial.println(F("[9/10] Weight Forwarder service loaded OK"));
 
-  mdnsService = new MdnsService(uartModeService);
-  mdnsService->begin();
+  // mDNS DISABLED (matches the build that's on COM27 / IP 192.168.2.84).
+  // To re-enable, restore this:
+  //   mdnsService = new MdnsService(uartModeService);
+  //   mdnsService->begin();
+  mdnsService = nullptr;
 
 #if FT_ENABLED(FT_BLE)
   // Register callbacks after both services exist so callback never sees null

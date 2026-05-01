@@ -3,7 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { Tab } from '@mui/material';
 import { RouterTabs, useRouterTab, useLayoutTitle } from '../../components';
 
-import DiagnosticsInfoWithMode from './DiagnosticsInfoWithMode';
+import DiagnosticsInfo from './DiagnosticsInfo';
 import LoopbackTest from './LoopbackTest';
 import BaudDetector from './BaudDetector';
 import SignalQuality from './SignalQuality';
@@ -21,7 +21,7 @@ const Diagnostics: FC = () => {
         <Tab value="signal" label="Signal Quality" />
       </RouterTabs>
       <Routes>
-        <Route path="info" element={<DiagnosticsInfoWithMode />} />
+        <Route path="info" element={<DiagnosticsInfo />} />
         <Route path="loopback" element={<LoopbackTest />} />
         <Route path="baud" element={<BaudDetector />} />
         <Route path="signal" element={<SignalQuality />} />

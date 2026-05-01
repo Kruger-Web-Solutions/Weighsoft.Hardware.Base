@@ -30,7 +30,6 @@ class UartModeService : public StatefulService<UartModeState> {
 
   bool isReader() const { return _state.isReader(); }
   bool isWriter() const { return _state.isWriter(); }
-  bool isDiagnostics() const { return _state.isDiagnostics(); }
   bool isConfigured() const { return _state.isConfigured(); }
 
  private:

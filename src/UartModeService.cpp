@@ -93,10 +93,6 @@ void UartModeService::applyMode() {
     if (_forwarderService) {
       _forwarderService->start();
     }
-  } else if (_state.isDiagnostics()) {
-    Serial.println(F("[UartMode] Switching to DIAGNOSTICS mode"));
-    // DiagnosticsService manages its own Serial1 start when tests are triggered —
-    // no explicit resume call needed here (preserved from existing pattern).
   } else {
     // READER mode and NEW (unconfigured) state both default to SerialService.
     Serial.printf("[UartMode] Switching to READER mode (modeStr=\"%s\")\n", _state.modeStr.c_str());

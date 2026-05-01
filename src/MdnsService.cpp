@@ -57,9 +57,8 @@ void MdnsService::applyServiceTxt() {
 
 String MdnsService::currentMode() const {
   if (!_uartModeService) return "new";
-  if (_uartModeService->isReader()) return "reader";
   if (_uartModeService->isWriter()) return "writer";
-  if (_uartModeService->isDiagnostics()) return "diagnostics";
+  if (_uartModeService->isReader()) return "reader";
   return "new";
 }
 
