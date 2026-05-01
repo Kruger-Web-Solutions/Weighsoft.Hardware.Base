@@ -1,10 +1,29 @@
 import React, { FC } from 'react';
-import { Typography, List, ListItem, ListItemText, Link } from '@mui/material';
+import { Typography, List, ListItem, ListItemText, Link, Alert } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
 import { SectionContent } from '../../components';
+import { readKnownWriters } from '../../api/knownWriters';
 
-const SerialInfo: FC = () => (
+const SerialInfo: FC = () => {
+  const [connectedCount, setConnectedCount] = React.useState<number | null>(null);
+  React.useEffect(() => {
+    const tick = () => readKnownWriters()
+      .then((r) => setConnectedCount(r.data.writers.filter((w) => w.online).length))
+      .catch(() => setConnectedCount(null));
+    tick();
+    const id = setInterval(tick, 5000);
+    return () => clearInterval(id);
+  }, []);
+
+  return (
   <SectionContent title="Serial" titleGutter>
+      {connectedCount !== null && connectedCount > 0 && (
+        <Alert severity="success" sx={{ mb: 2 }}>
+          <Typography variant="body2">
+            <strong>{connectedCount}</strong> Writer{connectedCount === 1 ? '' : 's'} currently connected.
+          </Typography>
+        </Alert>
+      )}
     <Typography variant="body1" paragraph>
       This service monitors Serial1 (GPIO18 RX / GPIO17 TX on ESP32-S3) and streams the data
       across all communication channels in real-time. You can configure baud rate,
@@ -89,6 +108,7 @@ const SerialInfo: FC = () => (
       </ListItem>
     </List>
   </SectionContent>
-);
+  );
+};
 
 export default SerialInfo;
