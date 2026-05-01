@@ -1,4 +1,5 @@
 import React, { FC, useEffect } from 'react';
+import { useSnackbar } from 'notistack';
 import {
   Card,
   CardContent,
@@ -16,18 +17,23 @@ import {
 } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
 import { SectionContent, FormLoader, ButtonRow } from '../../components';
-import { useRest } from '../../utils';
+import { useRest, extractErrorMessage } from '../../utils';
 import { readSerialWriter, updateSerialWriter, readWriterSource, updateWriterSource } from '../../api/serialWriter';
 import { SerialWriterData, SerialWriterForwarderData } from '../../types/serialWriter';
 
 const BAUDRATES = [1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200, 230400];
 
 const WriterSettings: FC = () => {
+  const { enqueueSnackbar } = useSnackbar();
   const { data, loadData, saveData, saving, setData, errorMessage } = useRest<SerialWriterData>({ read: readSerialWriter, update: updateSerialWriter });
   const [src, setSrc] = React.useState<SerialWriterForwarderData | null>(null);
   const [savingSrc, setSavingSrc] = React.useState(false);
 
-  useEffect(() => { readWriterSource().then((r) => setSrc(r.data)).catch(() => {}); }, []);
+  const refreshSrc = React.useCallback(() => {
+    readWriterSource().then((r) => setSrc(r.data)).catch(() => {});
+  }, []);
+
+  useEffect(() => { refreshSrc(); }, [refreshSrc]);
 
   if (!data) return <SectionContent title="Settings" titleGutter><FormLoader onRetry={loadData} errorMessage={errorMessage} /></SectionContent>;
 
@@ -40,7 +46,24 @@ const WriterSettings: FC = () => {
   const saveSrc = async () => {
     if (!src) return;
     setSavingSrc(true);
-    try { await updateWriterSource(src); } finally { setSavingSrc(false); }
+    try {
+      // Send only the persisted fields; leave runtime fields out of the body
+      // so the backend update() doesn't have to ignore stray keys.
+      await updateWriterSource({
+        source_url: src.source_url,
+        connection_method: src.connection_method,
+        auto_reconnect: src.auto_reconnect,
+        enabled: src.enabled,
+      });
+      enqueueSnackbar("Source Reader saved", { variant: 'success' });
+      // Re-read so the UI reflects what's persisted on the device, including any
+      // server-side normalization (e.g. method clamping).
+      refreshSrc();
+    } catch (error: any) {
+      enqueueSnackbar(extractErrorMessage(error, "Failed to save Source Reader"), { variant: 'error' });
+    } finally {
+      setSavingSrc(false);
+    }
   };
 
   return (
