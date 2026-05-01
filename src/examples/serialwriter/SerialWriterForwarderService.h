@@ -38,11 +38,15 @@ class SerialWriterForwarderService : public StatefulService<SerialWriterForwarde
   unsigned long _nextRetryMs = 0;
   uint16_t      _backoffMs   = 1000;  // 1s, 2s, 4s, ..., capped at 30s
 
+  unsigned long _lastAnnounceMs = 0;
+  String        _announceUrl;   // e.g. "http://192.168.2.50/rest/writers/announce"
+
   void onConfigChanged();
   void connectWs();
   void disconnectWs();
   void onWsEvent(WStype_t type, uint8_t* payload, size_t length);
   void scheduleRetry();
+  void announce();
 };
 
 #endif

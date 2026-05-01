@@ -33,6 +33,11 @@ void SerialWriterForwarderService::loop() {
   if (!_wsClient.isConnected() && millis() >= _nextRetryMs) {
     connectWs();
   }
+
+  if (_wsClient.isConnected() && (millis() - _lastAnnounceMs) > 10000UL) {
+    announce();
+    _lastAnnounceMs = millis();
+  }
 }
 
 void SerialWriterForwarderService::start() {
@@ -93,6 +98,8 @@ void SerialWriterForwarderService::connectWs() {
 
   String fullPath = path + "?role=writer&id=" + SettingValue::getUniqueId();
 
+  _announceUrl = String("http://") + host + ":" + String(port) + "/rest/writers/announce";
+
   _wsClient.begin(host, port, fullPath);
   _wsClient.onEvent([this](WStype_t type, uint8_t* payload, size_t length) {
     onWsEvent(type, payload, length);
@@ -118,6 +125,8 @@ void SerialWriterForwarderService::onWsEvent(WStype_t type, uint8_t* payload, si
         return StateUpdateResult::CHANGED;
       }, "fwd-connect");
       _backoffMs = 1000;
+      announce();
+      _lastAnnounceMs = millis();
       break;
 
     case WStype_DISCONNECTED:
@@ -157,4 +166,25 @@ void SerialWriterForwarderService::scheduleRetry() {
     s.reconnectAttempts++;
     return StateUpdateResult::CHANGED;
   }, "fwd-retry");
+}
+
+void SerialWriterForwarderService::announce() {
+  if (_announceUrl.length() == 0) return;
+
+  String id   = SettingValue::getUniqueId();
+  String name;
+  if (_writerService) {
+    _writerService->read([&](const SerialWriterState& s) {
+      name = s.friendlyName;
+    });
+  }
+  if (id.length() == 0) return;
+
+  HTTPClient http;
+  http.begin(_announceUrl);
+  http.addHeader("Content-Type", "application/json");
+  String body = String("{\"id\":\"") + id + "\",\"name\":\"" + name + "\"}";
+  int status = http.POST(body);
+  http.end();
+  (void)status;  // errors are silently ignored; next heartbeat will retry
 }
