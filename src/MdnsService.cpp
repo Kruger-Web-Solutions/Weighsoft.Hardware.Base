@@ -29,16 +29,16 @@ void MdnsService::loop() {
   bool apReady = WiFi.softAPIP() != IPAddress(0, 0, 0, 0);
   if (!staReady && !apReady) return;
 
-  String hostname = String("weighsoft-") + currentId();
-  if (!MDNS.begin(hostname.c_str())) {
-    Serial.printf("[mDNS] begin(%s) failed; will retry\n", hostname.c_str());
-    return;
-  }
+  // IMPORTANT: ArduinoOTA (started by the framework's OTASettingsService) already
+  // calls MDNS.begin() internally with its own hostname. Calling MDNS.begin() a
+  // second time here would tear down the existing responder and conflict with
+  // the WiFi scan path. Instead, we just add our service to the existing
+  // mDNS responder.
   MDNS.addService(MDNS_SERVICE_NAME, MDNS_SERVICE_PROTO, MDNS_SERVICE_PORT);
   applyServiceTxt();
   _started = true;
-  Serial.printf("[mDNS] announced %s.local with service %s.%s\n",
-                hostname.c_str(), MDNS_SERVICE_NAME, MDNS_SERVICE_PROTO);
+  Serial.printf("[mDNS] added service %s.%s on port %d (using existing responder)\n",
+                MDNS_SERVICE_NAME, MDNS_SERVICE_PROTO, MDNS_SERVICE_PORT);
 }
 
 void MdnsService::refresh() {
