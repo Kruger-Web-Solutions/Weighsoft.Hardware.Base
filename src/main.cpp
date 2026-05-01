@@ -278,6 +278,7 @@ void loop() {
 
   // read serial data
   serialService->loop();
+  if (knownWritersService) knownWritersService->loop();
 
   // write serial data
   serialWriterService->loop();

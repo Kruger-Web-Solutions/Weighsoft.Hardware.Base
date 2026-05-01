@@ -18,6 +18,7 @@ class KnownWritersService : public StatefulService<KnownWritersState> {
   void onWriterDisconnected(const String& id);
   void recordBroadcastToOnlineWriters(const String& message);
   size_t connectedCount();
+  void loop();
 
  private:
   HttpEndpoint<KnownWritersState>  _httpEndpoint;
@@ -25,7 +26,10 @@ class KnownWritersService : public StatefulService<KnownWritersState> {
   AsyncWebServer*                  _server;
   SecurityManager*                 _securityManager;
 
+  unsigned long _lastStaleCheckMs = 0;
+
   void registerForgetEndpoint();
+  void registerAnnounceEndpoint();
   void persistAsync();
 };
 

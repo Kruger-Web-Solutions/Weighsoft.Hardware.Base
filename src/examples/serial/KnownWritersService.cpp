@@ -23,6 +23,7 @@ KnownWritersService::KnownWritersService(AsyncWebServer* server,
 void KnownWritersService::begin() {
   _fsPersistence.readFromFS();
   registerForgetEndpoint();
+  registerAnnounceEndpoint();
 }
 
 void KnownWritersService::onWriterConnected(const String& id, const String& name, const String& ip) {
@@ -69,6 +70,57 @@ size_t KnownWritersService::connectedCount() {
 
 void KnownWritersService::persistAsync() {
   _fsPersistence.writeToFS();
+}
+
+void KnownWritersService::loop() {
+  unsigned long now = millis();
+  if (now - _lastStaleCheckMs < 5000) return;  // check every 5 seconds
+  _lastStaleCheckMs = now;
+
+  bool anyChanged = false;
+  update([&](KnownWritersState& s) {
+    for (auto& w : s.writers) {
+      if (w.online && (now - w.lastSeenAt) > 30000UL) {
+        w.online = false;
+        anyChanged = true;
+      }
+    }
+    return anyChanged ? StateUpdateResult::CHANGED : StateUpdateResult::UNCHANGED;
+  }, "writer-stale-check");
+  if (anyChanged) persistAsync();
+}
+
+void KnownWritersService::registerAnnounceEndpoint() {
+  // POST /rest/writers/announce
+  // Body: { "id": "hw-id", "name": "friendly-name" }
+  // Registers/refreshes the writer in KnownWritersService.
+  // Auth: intentionally open (private network v1) — mirrors the pattern in
+  // SerialWriterService::registerSendEndpoint() which also uses no auth wrapper.
+  _server->on(
+      "/rest/writers/announce",
+      HTTP_POST,
+      [](AsyncWebServerRequest* req) {},
+      nullptr,
+      [this](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
+        StaticJsonDocument<256> doc;
+        if (deserializeJson(doc, data, len)) {
+          req->send(400, "application/json", "{\"error\":\"invalid json\"}");
+          return;
+        }
+        if (!doc.is<JsonObject>()) {
+          req->send(400, "application/json", "{\"error\":\"object expected\"}");
+          return;
+        }
+        String id   = doc["id"]   | "";
+        String name = doc["name"] | "";
+        if (id.length() == 0) {
+          req->send(400, "application/json", "{\"error\":\"id required\"}");
+          return;
+        }
+        String ip = req->client()->remoteIP().toString();
+        onWriterConnected(id, name, ip);
+        req->send(200, "application/json", "{\"ok\":true}");
+      });
 }
 
 void KnownWritersService::registerForgetEndpoint() {
