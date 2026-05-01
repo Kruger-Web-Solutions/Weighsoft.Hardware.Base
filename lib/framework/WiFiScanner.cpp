@@ -14,7 +14,11 @@ WiFiScanner::WiFiScanner(AsyncWebServer* server, SecurityManager* securityManage
 void WiFiScanner::scanNetworks(AsyncWebServerRequest* request) {
   if (WiFi.scanComplete() != -1) {
     WiFi.scanDelete();
-    WiFi.scanNetworks(true);
+    // 300 ms per channel × ~13 channels ≈ 4 s. Active scan (passive=false)
+    // with hidden-network reveal. Longer dwell improves reliability on
+    // ESP32 in AP+STA mode where the radio is shared with STA traffic.
+    Serial.println(F("[WiFi] Scan started (300ms/chan, ~4s total)"));
+    WiFi.scanNetworks(true /*async*/, true /*show_hidden*/, false /*passive*/, 300 /*max_ms_per_chan*/);
   }
   request->send(202);
 }
