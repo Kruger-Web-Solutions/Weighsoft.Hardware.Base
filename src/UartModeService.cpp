@@ -1,6 +1,8 @@
 #include "UartModeService.h"
 #include <examples/serial/SerialService.h>
 #include <examples/diagnostics/DiagnosticsService.h>
+#include <examples/serialwriter/SerialWriterService.h>
+#include <examples/serialwriter/SerialWriterForwarderService.h>
 
 UartModeService::UartModeService(AsyncWebServer* server,
                                  FS* fs,
@@ -25,9 +27,6 @@ UartModeService::UartModeService(AsyncWebServer* server,
                securityManager,
                AuthenticationPredicates::IS_AUTHENTICATED)
 {
-  _serialService = nullptr;
-  _diagnosticsService = nullptr;
-  
   // Register update handler for mode changes
   addUpdateHandler([this](const String& originId) {
     if (originId != "init") {
@@ -37,25 +36,25 @@ UartModeService::UartModeService(AsyncWebServer* server,
 }
 
 void UartModeService::begin() {
-  // Load persisted mode from filesystem
-  // If file doesn't exist or is invalid, mode will already be initialized to LIVE_MONITORING by constructor
+  // Load persisted mode from filesystem.
+  // If the file doesn't exist or is invalid, modeStr will stay "" (NEW state).
   _fsPersistence.readFromFS();
-  
-  // Validate loaded mode is within valid range (defense against corrupted config)
-  if (_state.mode > (uint8_t)UartModeType::DIAGNOSTICS) {
-    Serial.println(F("[UartMode] WARNING: Invalid mode in config, defaulting to LIVE_MONITORING"));
-    _state.mode = (uint8_t)UartModeType::LIVE_MONITORING;
-    _fsPersistence.writeToFS();  // Persist corrected value
-  }
-  
-  const char* modeName = isLiveMode() ? "LIVE MONITORING" : "DIAGNOSTICS";
-  Serial.printf("[UartMode] Loaded mode: %s\n", modeName);
-  
+
+  Serial.printf("[UartMode] Loaded mode: \"%s\"\n", _state.modeStr.c_str());
+
   // Mode will be applied in main.cpp after all services are initialized
 }
 
 void UartModeService::setSerialService(SerialService* serialService) {
   _serialService = serialService;
+}
+
+void UartModeService::setWriterService(SerialWriterService* writerService) {
+  _writerService = writerService;
+}
+
+void UartModeService::setForwarderService(SerialWriterForwarderService* forwarderService) {
+  _forwarderService = forwarderService;
 }
 
 void UartModeService::setDiagnosticsService(DiagnosticsService* diagnosticsService) {
@@ -65,25 +64,44 @@ void UartModeService::setDiagnosticsService(DiagnosticsService* diagnosticsServi
 void UartModeService::onModeChanged() {
   Serial.println(F("[UartMode] Mode change requested - applying new mode"));
   applyMode();
-  
+
   // Persist mode change
   _fsPersistence.writeToFS();
 }
 
 void UartModeService::applyMode() {
-  if (!_serialService || !_diagnosticsService) {
-    Serial.println(F("[UartMode] WARNING: Services not registered yet"));
-    return;
-  }
-  
-  if (isLiveMode()) {
-    Serial.println(F("[UartMode] Switching to LIVE MONITORING mode"));
-    // Stop diagnostics, start serial
-    _diagnosticsService->stopAllTests();
-    _serialService->resumeSerial();
-  } else {
-    Serial.println(F("[UartMode] Switching to DIAGNOSTICS mode"));
-    // Stop serial, diagnostics will start Serial1 when needed
+  // Suspend ALL services first so Serial1 is always released before a new owner claims it.
+  if (_serialService) {
     _serialService->suspendSerial();
+  }
+  if (_writerService) {
+    _writerService->suspendWriter();
+  }
+  if (_forwarderService) {
+    _forwarderService->stop();
+  }
+  if (_diagnosticsService) {
+    _diagnosticsService->stopAllTests();
+  }
+
+  // Resume the active mode's owner.
+  if (_state.isWriter()) {
+    Serial.println(F("[UartMode] Switching to WRITER mode"));
+    if (_writerService) {
+      _writerService->resumeWriter();
+    }
+    if (_forwarderService) {
+      _forwarderService->start();
+    }
+  } else if (_state.isDiagnostics()) {
+    Serial.println(F("[UartMode] Switching to DIAGNOSTICS mode"));
+    // DiagnosticsService manages its own Serial1 start when tests are triggered —
+    // no explicit resume call needed here (preserved from existing pattern).
+  } else {
+    // READER mode and NEW (unconfigured) state both default to SerialService.
+    Serial.printf("[UartMode] Switching to READER mode (modeStr=\"%s\")\n", _state.modeStr.c_str());
+    if (_serialService) {
+      _serialService->resumeSerial();
+    }
   }
 }

@@ -3,39 +3,50 @@
 
 #include <StatefulService.h>
 
-// UART Mode: controls which service owns Serial1 (GPIO18 RX / GPIO17 TX on ESP32 targets)
-// Only one service can use Serial1 at a time
+// UART Mode: which service owns Serial1 (GPIO18 RX / GPIO17 TX) on ESP32 targets.
+// Only one service can use Serial1 at a time.
 enum class UartModeType {
-  LIVE_MONITORING,  // SerialService active (scale monitoring)
-  DIAGNOSTICS       // DiagnosticsService active (hardware tests)
+  READER,        // SerialService — reads from a physical scale (was LIVE_MONITORING)
+  WRITER,        // SerialWriterService — writes to a physical serial port
+  DIAGNOSTICS    // DiagnosticsService — hardware tests
 };
 
 class UartModeState {
  public:
-  uint8_t mode;  // 0=LIVE_MONITORING, 1=DIAGNOSTICS
+  // Empty modeStr ("") represents the NEW state — device hasn't been told what it is yet.
+  // When configured, modeStr is one of: "reader", "writer", "diagnostics".
+  String modeStr;
 
-  // Constructor: initialize to LIVE_MONITORING by default
-  UartModeState() : mode((uint8_t)UartModeType::LIVE_MONITORING) {}
+  UartModeState() : modeStr("") {}
+
+  bool isConfigured() const { return modeStr.length() > 0; }
+  bool isReader() const { return modeStr == "reader"; }
+  bool isWriter() const { return modeStr == "writer"; }
+  bool isDiagnostics() const { return modeStr == "diagnostics"; }
+  UartModeType type() const {
+    if (modeStr == "writer") return UartModeType::WRITER;
+    if (modeStr == "diagnostics") return UartModeType::DIAGNOSTICS;
+    return UartModeType::READER;  // default for empty/NEW or "reader"
+  }
 
   static void read(UartModeState& state, JsonObject& root) {
-    root["mode"] = state.mode == (uint8_t)UartModeType::LIVE_MONITORING ? "live" : "diagnostics";
+    root["mode"] = state.modeStr;  // "" means NEW
   }
 
   static StateUpdateResult update(JsonObject& root, UartModeState& state) {
     if (root.containsKey("mode")) {
-      String modeStr = root["mode"].as<String>();
-      uint8_t newMode;
-      
-      if (modeStr == "live") {
-        newMode = (uint8_t)UartModeType::LIVE_MONITORING;
-      } else if (modeStr == "diagnostics") {
-        newMode = (uint8_t)UartModeType::DIAGNOSTICS;
-      } else {
+      String incoming = root["mode"].as<String>();
+
+      // Migration: legacy "live" → "reader"
+      if (incoming == "live") incoming = "reader";
+
+      // Validate
+      if (incoming != "" && incoming != "reader" && incoming != "writer" && incoming != "diagnostics") {
         return StateUpdateResult::ERROR;
       }
-      
-      if (newMode != state.mode) {
-        state.mode = newMode;
+
+      if (incoming != state.modeStr) {
+        state.modeStr = incoming;
         return StateUpdateResult::CHANGED;
       }
     }
