@@ -31,20 +31,26 @@ void SerialWriterForwarderService::begin() {
 
 void SerialWriterForwarderService::loop() {
   if (!_running) return;
-  _wsClient.loop();
 
-  if (!_wsClient.isConnected() && millis() >= _nextRetryMs) {
-    connectWs();
+  if (_activeConnectionMethod == SERIALW_FWD_METHOD_WS) {
+    _wsClient.loop();
+    if (!_wsClient.isConnected() && millis() >= _nextRetryMs) {
+      connectReader();
+    }
   }
 
-  if (_wsClient.isConnected() && (millis() - _lastAnnounceMs) > 10000UL) {
-    announce();
-    _lastAnnounceMs = millis();
-  }
-
-  if (_wsClient.isConnected() && (millis() - _lastPollMs) > 1000UL) {
+  // Polling works without WebSocket (HTTP mode, or WS stalled) so scale lines still flow.
+  if (_serialRestUrl.length() > 0 && (millis() - _lastPollMs) > 1000UL) {
     pollReaderRest();
     _lastPollMs = millis();
+  }
+
+  if (_announceUrl.length() > 0 && (millis() - _lastAnnounceMs) > 10000UL) {
+    const bool ready = _activeConnectionMethod == SERIALW_FWD_METHOD_HTTP || _wsClient.isConnected();
+    if (ready) {
+      announce();
+      _lastAnnounceMs = millis();
+    }
   }
 }
 
@@ -52,14 +58,18 @@ void SerialWriterForwarderService::start() {
   bool shouldRun = false;
   read([&](const SerialWriterForwarderState& s) {
     shouldRun = s.enabled && s.sourceUrl.length() > 0;
+    _activeConnectionMethod = s.connectionMethod;
   });
   if (!shouldRun) {
     _running = false;
+    _wsClient.disconnect();
+    _serialRestUrl = "";
+    _announceUrl = "";
     return;
   }
   _running = true;
   _backoffMs = 1000;
-  connectWs();
+  connectReader();
 }
 
 void SerialWriterForwarderService::stop() {
@@ -75,31 +85,103 @@ void SerialWriterForwarderService::onConfigChanged() {
   start();
 }
 
-void SerialWriterForwarderService::connectWs() {
+void SerialWriterForwarderService::connectReader() {
   String url;
-  uint8_t method = SERIALW_FWD_METHOD_WS;
-  read([&](const SerialWriterForwarderState& s) { url = s.sourceUrl; method = s.connectionMethod; });
+  read([&](const SerialWriterForwarderState& s) {
+    url = s.sourceUrl;
+    _activeConnectionMethod = s.connectionMethod;
+  });
 
-  if (method != SERIALW_FWD_METHOD_WS) {
+  // Older UI saved ws:// URLs even when "HTTP polling" was selected; use WebSocket in that case.
+  if (_activeConnectionMethod == SERIALW_FWD_METHOD_HTTP && (url.startsWith("ws://") || url.startsWith("wss://"))) {
+    _activeConnectionMethod = SERIALW_FWD_METHOD_WS;
+  }
+
+  if (_activeConnectionMethod == SERIALW_FWD_METHOD_HTTP) {
+    _wsClient.disconnect();
+    String u = url;
+    u.trim();
+    if (u.length() == 0) {
+      return;
+    }
+    if (!u.startsWith("http://") && !u.startsWith("https://")) {
+      u = "http://" + u;
+    }
+    bool isTls = u.startsWith("https://");
+    if (isTls) {
+      update([&](SerialWriterForwarderState& s) {
+        s.connected = false;
+        s.lastError = "https Reader URL is not supported on device; use http:// or WebSocket";
+        return StateUpdateResult::CHANGED;
+      }, "fwd-error");
+      _announceUrl = "";
+      _serialRestUrl = "";
+      return;
+    }
+
+    String rest = u.substring(7);
+    int slash = rest.indexOf('/');
+    String hostPort = slash >= 0 ? rest.substring(0, slash) : rest;
+    String path = "/rest/serial";
+    if (slash >= 0) {
+      path = rest.substring(slash);
+    }
+    if (path.length() == 0 || path == "/") {
+      path = "/rest/serial";
+    }
+
+    String host;
+    uint16_t port = 80;
+    int colon = hostPort.indexOf(':');
+    if (colon >= 0) {
+      host = hostPort.substring(0, colon);
+      port = (uint16_t)hostPort.substring(colon + 1).toInt();
+    } else {
+      host = hostPort;
+    }
+
+    _readerAccessToken = fetchReaderAccessToken(host, port);
+    _announceUrl = String("http://") + host + ":" + String(port) + "/rest/writers";
+    _serialRestUrl = String("http://") + host + ":" + String(port) + path;
+
+    update([](SerialWriterForwarderState& s) {
+      s.lastError = "";
+      return StateUpdateResult::CHANGED;
+    }, "fwd-http-ready");
+    return;
+  }
+
+  // WebSocket (default)
+  if (url.startsWith("http://") || url.startsWith("https://")) {
     update([&](SerialWriterForwarderState& s) {
-      s.lastError = "HTTP polling not implemented in v1";
+      s.lastError = "Use WebSocket URL (ws://...) or switch to HTTP polling for http:// Reader address";
       return StateUpdateResult::CHANGED;
     }, "fwd-error");
     return;
   }
 
-  // Strip "ws://" prefix and split host:port + path.
+  _wsClient.disconnect();
+
   String host;
   uint16_t port = 80;
   String path = "/ws/serial";
-  if (url.startsWith("ws://")) url = url.substring(5);
+  if (url.startsWith("ws://")) {
+    url = url.substring(5);
+  } else if (url.startsWith("wss://")) {
+    update([&](SerialWriterForwarderState& s) {
+      s.lastError = "wss:// is not supported on the Writer device";
+      return StateUpdateResult::CHANGED;
+    }, "fwd-error");
+    return;
+  }
+
   int slash = url.indexOf('/');
   String hostPort = slash >= 0 ? url.substring(0, slash) : url;
   if (slash >= 0) path = url.substring(slash);
   int colon = hostPort.indexOf(':');
   if (colon >= 0) {
     host = hostPort.substring(0, colon);
-    port = hostPort.substring(colon + 1).toInt();
+    port = (uint16_t)hostPort.substring(colon + 1).toInt();
   } else {
     host = hostPort;
   }
@@ -169,7 +251,7 @@ void SerialWriterForwarderService::onWsEvent(WStype_t type, uint8_t* payload, si
 
     case WStype_TEXT: {
       String line((const char*)payload, length);
-      StaticJsonDocument<512> doc;
+      StaticJsonDocument<1024> doc;
       if (deserializeJson(doc, line) == DeserializationError::Ok) {
         JsonObject payload = doc["payload"].is<JsonObject>() ? doc["payload"].as<JsonObject>() : doc.as<JsonObject>();
         String lastLine = payload["last_line"] | "";
@@ -238,7 +320,12 @@ void SerialWriterForwarderService::pollReaderRest() {
   if (status != 200) {
     http.end();
     update([&](SerialWriterForwarderState& s) {
-      s.lastError = String("Reader REST poll failed (HTTP ") + String(status) + ")";
+      if (_activeConnectionMethod == SERIALW_FWD_METHOD_HTTP) {
+        s.connected = false;
+      }
+      if (_activeConnectionMethod == SERIALW_FWD_METHOD_HTTP || !_wsClient.isConnected()) {
+        s.lastError = String("Reader REST poll failed (HTTP ") + String(status) + ")";
+      }
       return StateUpdateResult::CHANGED;
     }, "fwd-error");
     return;
@@ -247,13 +334,32 @@ void SerialWriterForwarderService::pollReaderRest() {
   String body = http.getString();
   http.end();
 
-  StaticJsonDocument<512> doc;
+  StaticJsonDocument<1024> doc;
   if (deserializeJson(doc, body) != DeserializationError::Ok) {
-    update([](SerialWriterForwarderState& s) {
-      s.lastError = "Reader REST poll returned invalid JSON";
+    update([&](SerialWriterForwarderState& s) {
+      if (_activeConnectionMethod == SERIALW_FWD_METHOD_HTTP) {
+        s.connected = false;
+      }
+      if (_activeConnectionMethod == SERIALW_FWD_METHOD_HTTP || !_wsClient.isConnected()) {
+        s.lastError = "Reader REST poll returned invalid JSON";
+      }
       return StateUpdateResult::CHANGED;
     }, "fwd-error");
     return;
+  }
+
+  if (_activeConnectionMethod == SERIALW_FWD_METHOD_HTTP) {
+    bool needMark = false;
+    read([&](const SerialWriterForwarderState& s) {
+      needMark = !s.connected || s.lastError.length() > 0;
+    });
+    if (needMark) {
+      update([&](SerialWriterForwarderState& s) {
+        s.connected = true;
+        s.lastError = "";
+        return StateUpdateResult::CHANGED;
+      }, "fwd-poll-ok");
+    }
   }
 
   String lastLine = doc["last_line"] | "";

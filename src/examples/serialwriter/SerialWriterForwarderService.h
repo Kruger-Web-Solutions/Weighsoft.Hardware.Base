@@ -45,8 +45,10 @@ class SerialWriterForwarderService : public StatefulService<SerialWriterForwarde
   String        _serialRestUrl;
 
   void onConfigChanged();
-  void connectWs();
+  void connectReader();
   void disconnectWs();
+  uint8_t _activeConnectionMethod = SERIALW_FWD_METHOD_WS;
+
   void onWsEvent(WStype_t type, uint8_t* payload, size_t length);
   void scheduleRetry();
   void announce();

@@ -26,7 +26,7 @@ import { readSerialWriter, updateSerialWriter, readWriterSource, updateWriterSou
 import { SerialWriterData, SerialWriterForwarderData } from '../../types/serialWriter';
 import {
   connectionMethodLabel,
-  normalizeReaderSourceUrl,
+  normalizeReaderSourceUrlForPersistence,
   readerConnectionState,
   readerHostFromSourceUrl,
 } from './serialWriterSource';
@@ -88,7 +88,10 @@ const WriterSettings: FC = () => {
     try {
       // Send only the persisted fields; leave runtime fields out of the body
       // so the backend update() doesn't have to ignore stray keys.
-      const normalizedSourceUrl = normalizeReaderSourceUrl(src.source_url);
+      const normalizedSourceUrl = normalizeReaderSourceUrlForPersistence(
+        src.source_url,
+        src.connection_method as 0 | 1,
+      );
       const response = await updateWriterSource({
         source_url: normalizedSourceUrl,
         connection_method: src.connection_method,

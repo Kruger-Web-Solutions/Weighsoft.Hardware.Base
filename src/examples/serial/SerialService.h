@@ -63,7 +63,9 @@ class SerialService : public StatefulService<SerialState> {
 
  private:
   KnownWritersService* _knownWriters = nullptr;
-  HttpEndpoint<SerialState> _httpEndpoint;
+  // GET is open for device-to-device reads (Writer poll); POST stays authenticated.
+  HttpGetEndpoint<SerialState>    _httpGetEndpoint;
+  HttpPostEndpoint<SerialState>  _httpPostEndpoint;
   FSPersistence<SerialState> _fsPersistence;
   MqttPubSub<SerialState> _mqttPubSub;
   WebSocketTxRx<SerialState> _webSocket;

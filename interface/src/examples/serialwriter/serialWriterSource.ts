@@ -34,6 +34,32 @@ export const normalizeReaderSourceUrl = (value: string): string => {
   return trimmed;
 };
 
+/** Persisted URL must match connection_method: HTTP mode keeps http(s) and defaults path to /rest/serial. */
+export const normalizeReaderSourceUrlForPersistence = (value: string, connectionMethod: 0 | 1): string => {
+  if (connectionMethod === 1) {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return '';
+    }
+    const withScheme = /^[a-z]+:\/\//i.test(trimmed) ? trimmed : `http://${trimmed}`;
+    try {
+      const url = new URL(withScheme);
+      if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+        url.protocol = 'http:';
+      }
+      if (!url.pathname || url.pathname === '/') {
+        url.pathname = '/rest/serial';
+      }
+      url.search = '';
+      url.hash = '';
+      return url.toString().replace(/\/$/, '');
+    } catch (_) {
+      return trimmed;
+    }
+  }
+  return normalizeReaderSourceUrl(value);
+};
+
 export const readerHostFromSourceUrl = (value: string): string => {
   if (!value) {
     return '';
