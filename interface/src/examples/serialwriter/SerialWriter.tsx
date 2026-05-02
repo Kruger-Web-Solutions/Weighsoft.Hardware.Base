@@ -9,12 +9,14 @@ import SendMessage from './SendMessage';
 import SendViaWeb from './SendViaWeb';
 import WriterLiveStream from './WriterLiveStream';
 import WriterMqtt from './WriterMqtt';
+import ReaderConnectionBanner from './ReaderConnectionBanner';
 
 const SerialWriter: FC = () => {
   const { routerTab } = useRouterTab();
   return (
     <Box>
       <UartModeSwitcher currentMode="writer" />
+      <ReaderConnectionBanner />
       <RouterTabs value={routerTab}>
         <Tab value="status"        label="Status" />
         <Tab value="settings"      label="Settings" />

@@ -1,6 +1,8 @@
 import React, { FC, useEffect, useRef, useState } from 'react';
 import { Box, Card, CardContent, Chip, Button, Typography, Alert, TextField } from '@mui/material';
 import { SectionContent } from '../../components';
+import { ACCESS_TOKEN } from '../../api/endpoints';
+import { sendWriterMessage } from '../../api/serialWriter';
 
 interface TxEvent { ts: number; source: string; data: string; bytes: number; }
 
@@ -28,7 +30,9 @@ const WriterLiveStream: FC = () => {
 
   useEffect(() => {
     const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const ws = new WebSocket(`${proto}//${window.location.host}/ws/serialWriter`);
+    const accessToken = localStorage.getItem(ACCESS_TOKEN);
+    const tokenQuery = accessToken ? `?${ACCESS_TOKEN}=${encodeURIComponent(accessToken)}` : '';
+    const ws = new WebSocket(`${proto}//${window.location.host}/ws/serialWriter${tokenQuery}`);
     wsRef.current = ws;
     ws.onopen = () => setConnected(true);
     ws.onclose = () => setConnected(false);
@@ -65,12 +69,8 @@ const WriterLiveStream: FC = () => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
     const text = outgoing.trim();
     if (text.length === 0) return;
-    // Send via the REST endpoint — simpler than WS inbound auth for v1
-    fetch('/rest/serialWriter/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ data: text }),
-    }).catch(() => {});
+    // Send via the REST endpoint — simpler than WS inbound auth for v1.
+    sendWriterMessage(text).catch(() => {});
     setOutgoing('');
   };
 

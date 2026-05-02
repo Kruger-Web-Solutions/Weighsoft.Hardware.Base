@@ -63,7 +63,7 @@ SerialService::SerialService(AsyncWebServer* server,
                server,
                SERIAL_SOCKET_PATH,
                securityManager,
-               AuthenticationPredicates::IS_AUTHENTICATED),
+               AuthenticationPredicates::NONE_REQUIRED),
     _mqttClient(mqttClient)
 #if FT_ENABLED(FT_BLE)
     ,_blePubSub(SerialState::read, SerialState::update, this, bleServer),

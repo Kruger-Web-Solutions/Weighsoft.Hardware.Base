@@ -64,6 +64,7 @@ This documentation provides comprehensive architecture, design patterns, API ref
 | [DEVICE-TEMPLATE-GUIDE.md](DEVICE-TEMPLATE-GUIDE.md) | Quick start checklist for new device projects |
 | [LED-EXAMPLE.md](LED-EXAMPLE.md) | LED control example - template for controllable devices |
 | [DIAGNOSTICS-EXAMPLE.md](DIAGNOSTICS-EXAMPLE.md) | UART diagnostics example with loopback and baud detection |
+| [READER-WRITER-SETUP.md](READER-WRITER-SETUP.md) | Operator checklist for connecting a Reader to a Writer |
 | [WEIGHT-FORWARDER-LESSONS.md](WEIGHT-FORWARDER-LESSONS.md) | Multi-protocol weight forwarding patterns (WebSocket, SSE, UDP, MQTT) |
 
 Integration-specific documents such as serial, display, or weighing guides are maintained on their matching branches rather than on `master`.

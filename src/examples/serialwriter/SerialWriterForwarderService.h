@@ -40,6 +40,9 @@ class SerialWriterForwarderService : public StatefulService<SerialWriterForwarde
 
   unsigned long _lastAnnounceMs = 0;
   String        _announceUrl;   // e.g. "http://192.168.2.50/rest/writers/announce"
+  String        _readerAccessToken;
+  unsigned long _lastPollMs = 0;
+  String        _serialRestUrl;
 
   void onConfigChanged();
   void connectWs();
@@ -47,6 +50,8 @@ class SerialWriterForwarderService : public StatefulService<SerialWriterForwarde
   void onWsEvent(WStype_t type, uint8_t* payload, size_t length);
   void scheduleRetry();
   void announce();
+  void pollReaderRest();
+  String fetchReaderAccessToken(const String& host, uint16_t port);
 };
 
 #endif

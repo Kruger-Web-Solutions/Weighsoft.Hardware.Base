@@ -94,6 +94,13 @@ class KnownWritersState {
   }
 
   static StateUpdateResult update(JsonObject& root, KnownWritersState& state) {
+    String id = root["id"] | "";
+    if (id.length() > 0) {
+      String name = root["name"] | "";
+      String ip = root["ip"] | "";
+      state.upsert(id, name, ip, millis());
+      return StateUpdateResult::CHANGED;
+    }
     return StateUpdateResult::UNCHANGED;
   }
 
