@@ -1,4 +1,5 @@
-import React, { FC, useEffect } from 'react';
+import React, { FC, useEffect, useRef } from 'react';
+import { useSnackbar } from 'notistack';
 import { Box, Button, Card, CardContent, Chip, Divider, TextField, Typography, Alert } from '@mui/material';
 import SettingsIcon from '@mui/icons-material/Settings';
 import { Link as RouterLink } from 'react-router-dom';
@@ -30,12 +31,18 @@ const formatObservedAgo = (observedAt: number | null): string => {
 };
 
 const WriterStatus: FC = () => {
+  const { enqueueSnackbar } = useSnackbar();
   const { data, loadData, saveData, saving, setData, errorMessage } = useRest<SerialWriterData>({
     read: readSerialWriter,
     update: updateSerialWriter,
   });
   const [forwarder, setForwarder] = React.useState<SerialWriterForwarderData | null>(null);
   const [lastReceivedAt, setLastReceivedAt] = React.useState<number | null>(null);
+
+  // Phase B: track connected state across polls so we can fire snackbars on
+  // online↔offline transitions. The persistent Alert in the existing card
+  // already serves as the "still offline" banner.
+  const previousConnectedRef = useRef<boolean | null>(null);
 
   useEffect(() => {
     const tick = () => readWriterSource().then((r) => {
@@ -50,6 +57,27 @@ const WriterStatus: FC = () => {
     const id = setInterval(tick, 2000);
     return () => clearInterval(id);
   }, []);
+
+  // Watch for source-Reader connect/disconnect transitions and notify.
+  useEffect(() => {
+    if (!forwarder || !forwarder.enabled) {
+      // Not relevant when source Reader is disabled or not yet loaded.
+      previousConnectedRef.current = null;
+      return;
+    }
+    const isConnected = !!forwarder.connected;
+    const wasConnected = previousConnectedRef.current;
+    previousConnectedRef.current = isConnected;
+
+    // First sight (just enabled) — record state but don't toast.
+    if (wasConnected === null) return;
+
+    if (wasConnected && !isConnected) {
+      enqueueSnackbar('Source Reader disconnected — auto-reconnecting', { variant: 'warning' });
+    } else if (!wasConnected && isConnected) {
+      enqueueSnackbar('Source Reader reconnected', { variant: 'success' });
+    }
+  }, [forwarder, enqueueSnackbar]);
 
   if (!data) {
     return (
