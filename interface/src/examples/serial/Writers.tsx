@@ -6,14 +6,16 @@ import { SectionContent } from '../../components';
 import { readKnownWriters, forgetWriter } from '../../api/knownWriters';
 import { KnownWriter } from '../../types/knownWriters';
 
-const formatRelative = (ts: number): string => {
-  if (!ts) return '—';
-  const elapsed = Math.floor((Date.now() - ts) / 1000);
-  if (elapsed < 5) return 'just now';
-  if (elapsed < 60) return `${elapsed}s ago`;
-  if (elapsed < 3600) return `${Math.floor(elapsed / 60)}m ago`;
-  if (elapsed < 86400) return `${Math.floor(elapsed / 3600)}h ago`;
-  return `${Math.floor(elapsed / 86400)}d ago`;
+// Format an elapsed-since-now value (milliseconds) into a short relative phrase.
+// 0 means the event never happened in the current device session.
+const formatElapsed = (msAgo: number): string => {
+  if (!msAgo) return 'never';
+  const sec = Math.floor(msAgo / 1000);
+  if (sec < 5) return 'just now';
+  if (sec < 60) return `${sec}s ago`;
+  if (sec < 3600) return `${Math.floor(sec / 60)}m ago`;
+  if (sec < 86400) return `${Math.floor(sec / 3600)}h ago`;
+  return `${Math.floor(sec / 86400)}d ago`;
 };
 
 const Writers: FC = () => {
@@ -75,7 +77,11 @@ const Writers: FC = () => {
                     <Typography variant="caption" color="text.secondary">{w.ip}</Typography>
                   </Box>
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                    Last seen {formatRelative(w.last_seen_at)} &middot; last message {formatRelative(w.last_message_at)}
+                    {w.online ? (
+                      <>Connected now &middot; last message {formatElapsed(w.last_message_ms_ago)}</>
+                    ) : (
+                      <>Last seen {formatElapsed(w.last_seen_ms_ago)} &middot; last message {formatElapsed(w.last_message_ms_ago)}</>
+                    )}
                   </Typography>
                   <Typography variant="body2" sx={{ fontFamily: 'monospace', mt: 0.5, wordBreak: 'break-all' }}>
                     {w.last_message || '(no messages received yet)'}

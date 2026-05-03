@@ -79,17 +79,22 @@ class KnownWritersState {
   }
 
   static void read(KnownWritersState& state, JsonObject& root) {
+    // Compute elapsed milliseconds at read time. The internal `*At` fields are
+    // millis() (uptime) values, which are meaningless to a browser that uses
+    // Date.now() (Unix epoch). Sending elapsed-since avoids that mismatch.
+    // 0 = "never happened" (no event recorded yet this boot).
+    const unsigned long now = millis();
     JsonArray arr = root.createNestedArray("writers");
     for (const auto& w : state.writers) {
       JsonObject o = arr.createNestedObject();
-      o["id"]              = w.id;
-      o["friendly_name"]   = w.friendlyName;
-      o["ip"]              = w.ip;
-      o["first_seen_at"]   = w.firstSeenAt;
-      o["last_seen_at"]    = w.lastSeenAt;
-      o["last_message_at"] = w.lastMessageAt;
-      o["last_message"]    = w.lastMessage;
-      o["online"]          = w.online;
+      o["id"]                   = w.id;
+      o["friendly_name"]        = w.friendlyName;
+      o["ip"]                   = w.ip;
+      o["first_seen_ms_ago"]    = w.firstSeenAt   ? (unsigned long)(now - w.firstSeenAt)   : 0UL;
+      o["last_seen_ms_ago"]     = w.lastSeenAt    ? (unsigned long)(now - w.lastSeenAt)    : 0UL;
+      o["last_message_ms_ago"]  = w.lastMessageAt ? (unsigned long)(now - w.lastMessageAt) : 0UL;
+      o["last_message"]         = w.lastMessage;
+      o["online"]               = w.online;
     }
   }
 
@@ -126,9 +131,12 @@ class KnownWritersState {
       w.id              = o["id"]              | "";
       w.friendlyName    = o["friendly_name"]   | "";
       w.ip              = o["ip"]              | "";
-      w.firstSeenAt     = o["first_seen_at"]   | 0UL;
-      w.lastSeenAt      = o["last_seen_at"]    | 0UL;
-      w.lastMessageAt   = o["last_message_at"] | 0UL;
+      // Persisted *At values are millis() from a previous uptime — meaningless
+      // now that the device has rebooted. Reset to 0 ("never seen this boot");
+      // they'll be re-stamped if/when the writer reconnects.
+      w.firstSeenAt     = 0UL;
+      w.lastSeenAt      = 0UL;
+      w.lastMessageAt   = 0UL;
       w.lastMessage     = o["last_message"]    | "";
       w.online          = false;  // always start offline on boot
       if (w.id.length() > 0) state.writers.push_back(w);
