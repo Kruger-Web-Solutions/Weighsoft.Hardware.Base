@@ -9,6 +9,7 @@
 #include "VersionService.h"
 #include "UartModeService.h"
 #include "MdnsService.h"
+#include "MdnsBrowser.h"
 #include "WatchdogService.h"
 #include "version.h"
 
@@ -120,6 +121,7 @@ VersionService* versionService;
 UartModeService* uartModeService;
 WeightForwarderService* weightForwarderService;
 MdnsService* mdnsService;
+MdnsBrowser* mdnsBrowser;
 WatchdogService* watchdogService;
 
 void setup() {
@@ -270,11 +272,16 @@ void setup() {
   weightForwarderService->begin();
   Serial.println(F("[9/10] Weight Forwarder service loaded OK"));
 
-  // mDNS DISABLED (matches the build that's on COM27 / IP 192.168.2.84).
-  // To re-enable, restore this:
-  //   mdnsService = new MdnsService(uartModeService);
-  //   mdnsService->begin();
-  mdnsService = nullptr;
+  // mDNS announcement — defers MDNS.begin() until WiFi is up, then adds the
+  // _weighsoft._tcp service to the responder ArduinoOTA already started.
+  // The coexistence fix in commit 0f91835 prevents the WiFi-scan conflict.
+  mdnsService = new MdnsService(uartModeService);
+  mdnsService->begin();
+
+  // mDNS browser — periodic 30s scan for `_weighsoft._tcp` peers. Populates
+  // /rest/discovered with the current cached list (90s TTL).
+  mdnsBrowser = new MdnsBrowser(server, esp8266React->getSecurityManager());
+  mdnsBrowser->begin();
 
   // App-level watchdog: 4-min grace from boot, restarts the chip after 4 min
   // of continuous unhealthy state (no STA + no AP client, or low heap). The
@@ -345,6 +352,9 @@ void loop() {
 
   // mDNS announcement (deferred start — runs only once the network is up)
   if (mdnsService) mdnsService->loop();
+
+  // mDNS browser — 30s periodic scan, 90s entry TTL.
+  if (mdnsBrowser) mdnsBrowser->loop();
 
   // App-level watchdog: cheap 30s health check, restarts chip if stuck >4min.
   if (watchdogService) watchdogService->loop();
