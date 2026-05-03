@@ -3,6 +3,7 @@
 #include <ArduinoJson.h>
 #include <WiFi.h>
 #include <esp_system.h>
+#include <esp_task_wdt.h>
 
 // === Tunables =============================================================
 //
@@ -31,6 +32,20 @@ void WatchdogService::begin() {
   readPreviousReason();
   registerStatusEndpoint();
 
+  // Subscribe the current task (Arduino's loopTask) to the IDF task watchdog.
+  // The IDF WDT is already configured at CONFIG_ESP_TASK_WDT_TIMEOUT_S=10 in
+  // platformio.ini for esp32s3, but by default only the IDLE tasks are
+  // watched. By adding our task we get a hard auto-reset if the main loop
+  // hangs for >10s — protecting against the kind of mDNS/blocking-call
+  // hang that previously left the chip wedged with the network alive but
+  // SerialService frozen and no way to OTA-recover.
+  esp_err_t err = esp_task_wdt_add(NULL);
+  if (err == ESP_OK) {
+    Serial.println(F("[WD] loopTask subscribed to IDF task WDT (10s timeout)"));
+  } else {
+    Serial.printf("[WD] esp_task_wdt_add failed: 0x%x — main-loop hang protection inactive\n", err);
+  }
+
   Serial.printf("[WD] WatchdogService started — grace=%lus, unhealthy_limit=%lus, check_interval=%lus, heap_floor=%uB\n",
                 GRACE_MS / 1000UL,
                 UNHEALTHY_LIMIT / 1000UL,
@@ -46,6 +61,11 @@ void WatchdogService::begin() {
 }
 
 void WatchdogService::loop() {
+  // Feed the IDF task watchdog on every loop iteration. If the main loop
+  // hangs (e.g. an mDNS query that never returns), this stops being called
+  // and the IDF WDT panics the chip after CONFIG_ESP_TASK_WDT_TIMEOUT_S.
+  esp_task_wdt_reset();
+
   unsigned long now = millis();
 
   // Throttle: only run the actual checks every CHECK_INTERVAL_MS, except on
