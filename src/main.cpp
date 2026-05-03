@@ -278,10 +278,17 @@ void setup() {
   mdnsService = new MdnsService(uartModeService);
   mdnsService->begin();
 
-  // mDNS browser — periodic 30s scan for `_weighsoft._tcp` peers. Populates
-  // /rest/discovered with the current cached list (90s TTL).
-  mdnsBrowser = new MdnsBrowser(server, esp8266React->getSecurityManager());
-  mdnsBrowser->begin();
+  // mDNS browser — DISABLED. The MDNS.queryService() call inside scan() hangs
+  // the Arduino main loop indefinitely on this ESP32-S3 setup, freezing
+  // SerialService and other periodic services. Web server keeps responding
+  // (different task) so it looks alive in the UI but no data flows.
+  // /rest/discovered is still served (returns empty list) so the pickup UI
+  // doesn't break; we just don't actively browse.
+  // TODO: replace with non-blocking mDNS browse via ESP-IDF mdns_query_async,
+  // or run the scan on a separate FreeRTOS task.
+  // mdnsBrowser = new MdnsBrowser(server, esp8266React->getSecurityManager());
+  // mdnsBrowser->begin();
+  mdnsBrowser = nullptr;
 
   // App-level watchdog: 4-min grace from boot, restarts the chip after 4 min
   // of continuous unhealthy state (no STA + no AP client, or low heap). The
