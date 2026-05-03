@@ -325,6 +325,8 @@ The Writer mode services live in a new directory: `src/examples/serialwriter/`.
 
 ## 10. Reliability and edge cases
 
+See `2026-05-03-resilience-and-discovery-overview.md` for the full as-built description of the watchdog, disconnect notifications, and discovery state.
+
 | Scenario | Behaviour |
 |---|---|
 | WiFi blip (Writer side) | Auto-reconnect to source Reader with backoff. |
@@ -335,6 +337,12 @@ The Writer mode services live in a new directory: `src/examples/serialwriter/`.
 | A `?role=writer` query missing from a connecting WebSocket | Connection still allowed; treated as a generic listener (e.g. a browser viewing Live Stream). Not added to Writers list. |
 | Writers list reaches 32 entries | Oldest *offline* entry is auto-removed. Online Writers are never auto-pruned. |
 | Old config with `"live"` mode loaded | Migrated to `"reader"` on first read; saved back on next change. |
+| Device stuck off-network for 4+ minutes | App-level `WatchdogService` restarts the chip — but never more than once every 4 minutes (anti-death-loop grace). |
+| Device free heap drops below 30 KB | Same watchdog restart trigger; reason persisted as `low_heap`. |
+| Main loop frozen (blocking call) | IDF task watchdog (10 s, with `loopTask` subscribed) panics the chip — recovers in ≤10 s. |
+| User actively logged into the device's hotspot | Counts as healthy in the watchdog → no surprise restart while the user is mid-setup. |
+| Writer or source Reader goes offline | Dashboard fires a snackbar immediately; banner appears if it stays offline for ≥15 s; green confirmation toast on reconnect. |
+| mDNS browse hangs main loop *(historical — `.60` wedge)* | `MdnsBrowser` currently disabled (`mdnsBrowser = nullptr;`); IDF task WDT now catches any future similar hang. |
 
 ---
 
