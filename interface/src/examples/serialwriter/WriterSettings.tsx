@@ -20,10 +20,13 @@ import {
 } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
 import CableIcon from '@mui/icons-material/Cable';
+import RadarIcon from '@mui/icons-material/Radar';
 import { SectionContent, FormLoader, ButtonRow } from '../../components';
 import { useRest, extractErrorMessage } from '../../utils';
 import { readSerialWriter, updateSerialWriter, readWriterSource, updateWriterSource } from '../../api/serialWriter';
+import { readDiscovered } from '../../api/discovered';
 import { SerialWriterData, SerialWriterForwarderData } from '../../types/serialWriter';
+import { DiscoveredDevice } from '../../types/discovered';
 import {
   connectionMethodLabel,
   normalizeReaderSourceUrlForPersistence,
@@ -52,6 +55,19 @@ const WriterSettings: FC = () => {
   }, []);
 
   useEffect(() => { refreshSrc(); }, [refreshSrc]);
+
+  // Phase D: poll the device's mDNS-browser cache for nearby Readers so the
+  // user can pick one from a dropdown instead of typing IPs.
+  const [discoveredReaders, setDiscoveredReaders] = React.useState<DiscoveredDevice[]>([]);
+  useEffect(() => {
+    const tick = () =>
+      readDiscovered()
+        .then((r) => setDiscoveredReaders((r.data.devices || []).filter((d) => d.mode === 'reader')))
+        .catch(() => {});
+    tick();
+    const id = setInterval(tick, 10000);
+    return () => clearInterval(id);
+  }, []);
 
   if (!data) {
     return (
@@ -154,6 +170,29 @@ const WriterSettings: FC = () => {
                 {readerHost && <Chip variant="outlined" label={readerHost} />}
                 <Chip variant="outlined" label={connectionMethodLabel(src.connection_method)} />
               </Box>
+              {discoveredReaders.length > 0 && (
+                <Box sx={{ mb: 2 }}>
+                  <TextField
+                    select
+                    fullWidth
+                    label="Pick a Reader nearby"
+                    value=""
+                    SelectProps={{ displayEmpty: true, IconComponent: RadarIcon }}
+                    onChange={(e) => {
+                      const ip = e.target.value as string;
+                      if (ip) setSrcField('source_url')(`http://${ip}/`);
+                    }}
+                    helperText={`${discoveredReaders.length} Reader${discoveredReaders.length === 1 ? '' : 's'} found via mDNS. Picking one fills the address below.`}
+                  >
+                    <MenuItem value=""><em>Type the address manually below</em></MenuItem>
+                    {discoveredReaders.map((d) => (
+                      <MenuItem key={d.id || d.ip} value={d.ip}>
+                        {d.name || d.hostname || d.ip} &nbsp;<small style={{ color: '#888' }}>({d.ip})</small>
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                </Box>
+              )}
               <TextField
                 fullWidth
                 label="Reader web address"

@@ -3,9 +3,12 @@ import { useSnackbar } from 'notistack';
 import { Box, Card, CardContent, Typography, Alert, Chip, Button, IconButton, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import RadarIcon from '@mui/icons-material/Radar';
 import { SectionContent } from '../../components';
 import { readKnownWriters, forgetWriter } from '../../api/knownWriters';
 import { KnownWriter } from '../../types/knownWriters';
+import { readDiscovered } from '../../api/discovered';
+import { DiscoveredDevice } from '../../types/discovered';
 
 // Phase B disconnect-notification rules:
 // - Snackbar fires once per online↔offline transition.
@@ -29,6 +32,7 @@ const formatElapsed = (msAgo: number): string => {
 const Writers: FC = () => {
   const { enqueueSnackbar } = useSnackbar();
   const [writers, setWriters] = useState<KnownWriter[] | null>(null);
+  const [discovered, setDiscovered] = useState<DiscoveredDevice[]>([]);
   const [hostIp, setHostIp] = useState<string>('');
   const [pendingForget, setPendingForget] = useState<KnownWriter | null>(null);
 
@@ -43,6 +47,15 @@ const Writers: FC = () => {
     const tick = () => readKnownWriters().then((r) => setWriters(r.data.writers)).catch(() => {});
     tick();
     const id = setInterval(tick, 2000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Poll discovered peers separately — slower (every 10s) since the device
+  // only scans every 30s anyway.
+  useEffect(() => {
+    const tick = () => readDiscovered().then((r) => setDiscovered(r.data.devices || [])).catch(() => {});
+    tick();
+    const id = setInterval(tick, 10000);
     return () => clearInterval(id);
   }, []);
 
@@ -134,6 +147,38 @@ const Writers: FC = () => {
             <><strong>{bannerWriters.length} writers</strong> have been offline for a while &mdash; the devices will keep trying to reconnect.</>
           )}
         </Alert>
+      )}
+
+      {/* Discovered nearby — devices broadcasting _weighsoft._tcp.local that
+          haven't connected to this Reader yet (or that aren't Writers). */}
+      {discovered.filter((d) => d.mode === 'writer' && !writers?.some((w) => w.id === d.id)).length > 0 && (
+        <Card sx={{ mb: 2 }}>
+          <CardContent>
+            <Box display="flex" alignItems="center" gap={1} mb={1}>
+              <RadarIcon fontSize="small" color="action" />
+              <Typography variant="subtitle1">Discovered nearby</Typography>
+              <Chip size="small" label={discovered.filter((d) => d.mode === 'writer' && !writers?.some((w) => w.id === d.id)).length} />
+            </Box>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+              These Writers are visible on the network but haven't connected here yet. To connect one,
+              open its UI, go to <strong>Serial &rarr; Settings</strong>, and paste this Reader's address: <code>{hostIp}</code>.
+            </Typography>
+            {discovered
+              .filter((d) => d.mode === 'writer' && !writers?.some((w) => w.id === d.id))
+              .map((d) => (
+                <Box key={d.id || d.ip} display="flex" alignItems="center" gap={1} py={0.5}>
+                  <Chip size="small" variant="outlined" label="writer" />
+                  <Typography variant="body2"><strong>{d.name || d.hostname || '(unnamed)'}</strong></Typography>
+                  <Typography variant="caption" color="text.secondary">{d.ip}</Typography>
+                  <Tooltip title="Open this device's UI in a new tab">
+                    <Button size="small" component="a" href={`http://${d.ip}/`} target="_blank" rel="noreferrer">
+                      Open
+                    </Button>
+                  </Tooltip>
+                </Box>
+              ))}
+          </CardContent>
+        </Card>
       )}
 
       {!writers ? (
