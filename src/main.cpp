@@ -9,6 +9,7 @@
 #include "VersionService.h"
 #include "UartModeService.h"
 #include "MdnsService.h"
+#include "WatchdogService.h"
 #include "version.h"
 
 #ifdef ESP32
@@ -119,6 +120,7 @@ VersionService* versionService;
 UartModeService* uartModeService;
 WeightForwarderService* weightForwarderService;
 MdnsService* mdnsService;
+WatchdogService* watchdogService;
 
 void setup() {
   // start serial and filesystem
@@ -274,6 +276,17 @@ void setup() {
   //   mdnsService->begin();
   mdnsService = nullptr;
 
+  // App-level watchdog: 4-min grace from boot, restarts the chip after 4 min
+  // of continuous unhealthy state (no STA + no AP client, or low heap). The
+  // grace + the 4-min unhealthy limit together guarantee at most one restart
+  // per ~4 minutes — anti-death-loop.
+  watchdogService = new WatchdogService(
+      server,
+      esp8266React->getFS(),
+      esp8266React->getSecurityManager()
+      );
+  watchdogService->begin();
+
 #if FT_ENABLED(FT_BLE)
   // Register callbacks after both services exist so callback never sees null
   esp8266React->getBleSettingsService()->onBleServerStarted(
@@ -332,6 +345,9 @@ void loop() {
 
   // mDNS announcement (deferred start — runs only once the network is up)
   if (mdnsService) mdnsService->loop();
+
+  // App-level watchdog: cheap 30s health check, restarts chip if stuck >4min.
+  if (watchdogService) watchdogService->loop();
 
 #ifdef ESP32
   {
