@@ -69,6 +69,8 @@ void SerialWriterForwarderService::start() {
   }
   _running = true;
   _backoffMs = 1000;
+  _readerPollFailures = 0;
+  _lastReaderOkMs = 0;
   connectReader();
 }
 
@@ -221,6 +223,7 @@ void SerialWriterForwarderService::disconnectWs() {
 void SerialWriterForwarderService::onWsEvent(WStype_t type, uint8_t* payload, size_t length) {
   switch (type) {
     case WStype_CONNECTED:
+      markReaderOk();
       update([](SerialWriterForwarderState& s) {
         s.connected = true;
         s.lastError = "";
@@ -256,6 +259,7 @@ void SerialWriterForwarderService::onWsEvent(WStype_t type, uint8_t* payload, si
         JsonObject payload = doc["payload"].is<JsonObject>() ? doc["payload"].as<JsonObject>() : doc.as<JsonObject>();
         String lastLine = payload["last_line"] | "";
         if (lastLine.length() > 0 && _writerService) {
+          markReaderOk();
           _writerService->transmit(lastLine, TxSource::READER);
           update([&](SerialWriterForwarderState& s) {
             s.lastReceived = lastLine;
@@ -296,6 +300,7 @@ void SerialWriterForwarderService::announce() {
 
   HTTPClient http;
   http.begin(_announceUrl);
+  http.setTimeout(1500);
   http.addHeader("Content-Type", "application/json");
   if (_readerAccessToken.length() > 0) {
     http.addHeader("Authorization", "Bearer " + _readerAccessToken);
@@ -312,6 +317,7 @@ void SerialWriterForwarderService::pollReaderRest() {
 
   HTTPClient http;
   http.begin(_serialRestUrl);
+  http.setTimeout(1500);
   if (_readerAccessToken.length() > 0) {
     http.addHeader("Authorization", "Bearer " + _readerAccessToken);
   }
@@ -319,15 +325,7 @@ void SerialWriterForwarderService::pollReaderRest() {
   int status = http.GET();
   if (status != 200) {
     http.end();
-    update([&](SerialWriterForwarderState& s) {
-      if (_activeConnectionMethod == SERIALW_FWD_METHOD_HTTP) {
-        s.connected = false;
-      }
-      if (_activeConnectionMethod == SERIALW_FWD_METHOD_HTTP || !_wsClient.isConnected()) {
-        s.lastError = String("Reader REST poll failed (HTTP ") + String(status) + ")";
-      }
-      return StateUpdateResult::CHANGED;
-    }, "fwd-error");
+    handleReaderPollFailure(String("Reader REST poll failed (HTTP ") + String(status) + ")");
     return;
   }
 
@@ -336,17 +334,11 @@ void SerialWriterForwarderService::pollReaderRest() {
 
   StaticJsonDocument<1024> doc;
   if (deserializeJson(doc, body) != DeserializationError::Ok) {
-    update([&](SerialWriterForwarderState& s) {
-      if (_activeConnectionMethod == SERIALW_FWD_METHOD_HTTP) {
-        s.connected = false;
-      }
-      if (_activeConnectionMethod == SERIALW_FWD_METHOD_HTTP || !_wsClient.isConnected()) {
-        s.lastError = "Reader REST poll returned invalid JSON";
-      }
-      return StateUpdateResult::CHANGED;
-    }, "fwd-error");
+    handleReaderPollFailure("Reader REST poll returned invalid JSON");
     return;
   }
+
+  markReaderOk();
 
   if (_activeConnectionMethod == SERIALW_FWD_METHOD_HTTP) {
     bool needMark = false;
@@ -380,10 +372,44 @@ void SerialWriterForwarderService::pollReaderRest() {
   }, "fwd-rx");
 }
 
+void SerialWriterForwarderService::markReaderOk() {
+  _readerPollFailures = 0;
+  _lastReaderOkMs = millis();
+}
+
+void SerialWriterForwarderService::handleReaderPollFailure(const String& message) {
+  if (_readerPollFailures < 255) {
+    _readerPollFailures++;
+  }
+
+  const bool wsMode = _activeConnectionMethod == SERIALW_FWD_METHOD_WS;
+  const bool wsStale = wsMode && (_readerPollFailures >= 3);
+  const bool shouldShowError = _activeConnectionMethod == SERIALW_FWD_METHOD_HTTP || !_wsClient.isConnected() || wsStale;
+
+  update([&](SerialWriterForwarderState& s) {
+    if (_activeConnectionMethod == SERIALW_FWD_METHOD_HTTP || wsStale) {
+      s.connected = false;
+    }
+    if (shouldShowError) {
+      s.lastError = message;
+    }
+    return StateUpdateResult::CHANGED;
+  }, "fwd-error");
+
+  if (wsStale) {
+    _wsClient.disconnect();
+    _nextRetryMs = millis() + 1000UL;
+    if (_backoffMs < 1000) {
+      _backoffMs = 1000;
+    }
+  }
+}
+
 String SerialWriterForwarderService::fetchReaderAccessToken(const String& host, uint16_t port) {
   HTTPClient http;
   String url = String("http://") + host + ":" + String(port) + "/rest/signIn";
   http.begin(url);
+  http.setTimeout(1500);
   http.addHeader("Content-Type", "application/json");
 
   int status = http.POST("{\"username\":\"admin\",\"password\":\"admin\"}");

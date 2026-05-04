@@ -43,6 +43,8 @@ class SerialWriterForwarderService : public StatefulService<SerialWriterForwarde
   String        _readerAccessToken;
   unsigned long _lastPollMs = 0;
   String        _serialRestUrl;
+  uint8_t       _readerPollFailures = 0;
+  unsigned long _lastReaderOkMs = 0;
 
   void onConfigChanged();
   void connectReader();
@@ -53,6 +55,8 @@ class SerialWriterForwarderService : public StatefulService<SerialWriterForwarde
   void scheduleRetry();
   void announce();
   void pollReaderRest();
+  void markReaderOk();
+  void handleReaderPollFailure(const String& message);
   String fetchReaderAccessToken(const String& host, uint16_t port);
 };
 

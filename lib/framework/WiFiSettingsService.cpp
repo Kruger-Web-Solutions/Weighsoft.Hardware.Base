@@ -1,5 +1,9 @@
 #include <WiFiSettingsService.h>
 
+#ifdef ESP32
+#include <esp_wifi.h>
+#endif
+
 WiFiSettingsService::WiFiSettingsService(AsyncWebServer* server, FS* fs, SecurityManager* securityManager) :
     _httpEndpoint(WiFiSettings::read, WiFiSettings::update, this, server, WIFI_SETTINGS_SERVICE_PATH, securityManager),
     _fsPersistence(WiFiSettings::read, WiFiSettings::update, this, fs, WIFI_SETTINGS_FILE),
@@ -81,6 +85,13 @@ void WiFiSettingsService::manageSTA() {
     }
     Serial.printf("[WiFi] Connecting to WiFi (attempt %u, next retry in %lus).\n",
                   _reconnectAttempts, _reconnectDelay / 1000);
+#ifdef ESP32
+    WiFi.setHostname(_state.hostname.c_str());
+    // The ESP32/ESP32-S3 radio is 2.4 GHz only. Keep modem sleep disabled for
+    // both DHCP and static-IP devices so REST/WebSocket traffic does not stall.
+    WiFi.setSleep(false);
+    esp_wifi_set_ps(WIFI_PS_NONE);
+#endif
     if (_state.staticIPConfig) {
       // configure for static IP
       WiFi.config(_state.localIP, _state.gatewayIP, _state.subnetMask, _state.dnsIP1, _state.dnsIP2);
@@ -88,9 +99,6 @@ void WiFiSettingsService::manageSTA() {
       // configure for DHCP
 #ifdef ESP32
       WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE);
-      WiFi.setHostname(_state.hostname.c_str());
-      // Improves STA stability on many routers (ESP32/S3 default modem sleep can delay or drop traffic).
-      WiFi.setSleep(false);
 #elif defined(ESP8266)
       WiFi.config(INADDR_ANY, INADDR_ANY, INADDR_ANY);
       WiFi.hostname(_state.hostname);
