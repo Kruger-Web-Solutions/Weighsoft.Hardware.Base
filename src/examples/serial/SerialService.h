@@ -93,9 +93,11 @@ class SerialService : public StatefulService<SerialState> {
 
   std::deque<String> _rxCompleteLineQueue;
   unsigned long _lastRxLinePublishMs{0};
+  unsigned long _lastWebSocketCleanupMs{0};
 
   void enqueueCompletedLine(const String& line);
   void drainRxLineQueue();
+  void cleanupWebSocketClients();
 
   void configureMqtt();
   void readSerial();       // Called from loop()

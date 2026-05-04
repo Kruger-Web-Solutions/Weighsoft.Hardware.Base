@@ -2,6 +2,18 @@
 #include <examples/serialwriter/SerialWriterService.h>
 #include <WiFi.h>
 
+#ifndef SERIALW_FWD_REST_POLL_INTERVAL_MS
+#define SERIALW_FWD_REST_POLL_INTERVAL_MS 1000
+#endif
+
+#ifndef SERIALW_FWD_WS_BACKUP_POLL_INTERVAL_MS
+#define SERIALW_FWD_WS_BACKUP_POLL_INTERVAL_MS 3000
+#endif
+
+#ifndef SERIALW_FWD_WS_STALE_MS
+#define SERIALW_FWD_WS_STALE_MS 5000
+#endif
+
 SerialWriterForwarderService::SerialWriterForwarderService(AsyncWebServer* server,
                                                            FS* fs,
                                                            SecurityManager* securityManager,
@@ -32,24 +44,35 @@ void SerialWriterForwarderService::begin() {
 void SerialWriterForwarderService::loop() {
   if (!_running) return;
 
+  const unsigned long now = millis();
+
   if (_activeConnectionMethod == SERIALW_FWD_METHOD_WS) {
     _wsClient.loop();
-    if (!_wsClient.isConnected() && millis() >= _nextRetryMs) {
+    if (!_wsClient.isConnected() && now >= _nextRetryMs) {
       connectReader();
     }
   }
 
-  // Polling works without WebSocket (HTTP mode, or WS stalled) so scale lines still flow.
-  if (_serialRestUrl.length() > 0 && (millis() - _lastPollMs) > 1000UL) {
+  // In WS mode this is only a backup health check; continuous REST polling from every
+  // writer adds needless load to the reader when several writers are connected.
+  bool shouldPollRest = _serialRestUrl.length() > 0;
+  unsigned long pollInterval = SERIALW_FWD_REST_POLL_INTERVAL_MS;
+  if (_activeConnectionMethod == SERIALW_FWD_METHOD_WS) {
+    const bool wsRecentlyOk =
+        _lastReaderOkMs > 0 && (unsigned long)(now - _lastReaderOkMs) < (unsigned long)SERIALW_FWD_WS_STALE_MS;
+    shouldPollRest = shouldPollRest && (!_wsClient.isConnected() || !wsRecentlyOk);
+    pollInterval = SERIALW_FWD_WS_BACKUP_POLL_INTERVAL_MS;
+  }
+  if (shouldPollRest && (unsigned long)(now - _lastPollMs) > pollInterval) {
     pollReaderRest();
-    _lastPollMs = millis();
+    _lastPollMs = now;
   }
 
-  if (_announceUrl.length() > 0 && (millis() - _lastAnnounceMs) > 10000UL) {
+  if (_announceUrl.length() > 0 && (unsigned long)(now - _lastAnnounceMs) > 10000UL) {
     const bool ready = _activeConnectionMethod == SERIALW_FWD_METHOD_HTTP || _wsClient.isConnected();
     if (ready) {
       announce();
-      _lastAnnounceMs = millis();
+      _lastAnnounceMs = now;
     }
   }
 }
@@ -198,6 +221,7 @@ void SerialWriterForwarderService::connectReader() {
   _serialRestUrl = String("http://") + host + ":" + String(port) + "/rest/serial";
 
   _wsClient.begin(host, port, fullPath);
+  _wsClient.enableHeartbeat(15000, 3000, 2);
   _wsClient.onEvent([this](WStype_t type, uint8_t* payload, size_t length) {
     onWsEvent(type, payload, length);
   });

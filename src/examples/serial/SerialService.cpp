@@ -13,6 +13,10 @@ namespace {
 #define SERIAL_HW_MIN_BROADCAST_INTERVAL_MS 50
 #endif
 
+#ifndef SERIAL_WS_CLEANUP_INTERVAL_MS
+#define SERIAL_WS_CLEANUP_INTERVAL_MS 5000
+#endif
+
 bool shouldPublishSerialHwLine(const SerialState& st, const String& line) {
   if (line.length() == 0) {
     return false;
@@ -146,6 +150,7 @@ void SerialService::begin() {
   _serialStarted = false;
   _rxCompleteLineQueue.clear();
   _lastRxLinePublishMs = 0;
+  _lastWebSocketCleanupMs = 0;
 
   // Start Serial1 with loaded config
   Serial.println(F("[Serial] Initializing Serial1..."));
@@ -158,6 +163,8 @@ void SerialService::begin() {
 #endif
 
 void SerialService::loop() {
+  cleanupWebSocketClients();
+
   // Snapshot for REST (debug): classify empty last_line without USB serial monitor
   _state.dbgSuspended = _suspended ? 1 : 0;
   _state.dbgSerialStarted = _serialStarted ? 1 : 0;
@@ -247,6 +254,16 @@ void SerialService::loop() {
     debugBuffer = "";
     lastDebug = millis();
   }
+}
+
+void SerialService::cleanupWebSocketClients() {
+  const unsigned long now = millis();
+  if (_lastWebSocketCleanupMs != 0U &&
+      (unsigned long)(now - _lastWebSocketCleanupMs) < (unsigned long)SERIAL_WS_CLEANUP_INTERVAL_MS) {
+    return;
+  }
+  _webSocket.cleanupClients();
+  _lastWebSocketCleanupMs = now;
 }
 
 void SerialService::onConfigUpdated() {
