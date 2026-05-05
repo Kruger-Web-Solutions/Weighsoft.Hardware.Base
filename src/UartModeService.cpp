@@ -27,6 +27,8 @@ UartModeService::UartModeService(AsyncWebServer* server,
                securityManager,
                AuthenticationPredicates::IS_AUTHENTICATED)
 {
+  _fsPersistence.disableUpdateHandler();
+
   // Register update handler for mode changes
   addUpdateHandler([this](const String& originId) {
     if (originId != "init") {
@@ -63,10 +65,13 @@ void UartModeService::setDiagnosticsService(DiagnosticsService* diagnosticsServi
 
 void UartModeService::onModeChanged() {
   Serial.println(F("[UartMode] Mode change requested - applying new mode"));
-  applyMode();
 
-  // Persist mode change
-  _fsPersistence.writeToFS();
+  // Save before starting/stopping network services so a reset during mode
+  // application does not fall back to the default reader state.
+  bool saved = _fsPersistence.writeToFS();
+  Serial.printf("[UartMode] Mode persisted: %s\n", saved ? "SUCCESS" : "FAILED");
+
+  applyMode();
 }
 
 void UartModeService::applyMode() {

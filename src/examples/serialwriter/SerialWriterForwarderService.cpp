@@ -31,6 +31,9 @@ SerialWriterForwarderService::SerialWriterForwarderService(AsyncWebServer* serve
                    fs,
                    SERIALW_FWD_CONFIG_FILE),
     _writerService(writerService) {
+  // Runtime connection fields change on every reconnect/receive cycle. Keep
+  // those in RAM and persist only user-supplied forwarding configuration.
+  _fsPersistence.disableUpdateHandler();
   addUpdateHandler([this](const String& origin) {
     if (!origin.startsWith("fwd-")) onConfigChanged();
   }, false);
@@ -46,11 +49,24 @@ void SerialWriterForwarderService::loop() {
 
   const unsigned long now = millis();
 
+  if (WiFi.status() != WL_CONNECTED) {
+    if (now >= _nextRetryMs) {
+      _nextRetryMs = now + 1000UL;
+    }
+    return;
+  }
+
   if (_activeConnectionMethod == SERIALW_FWD_METHOD_WS) {
     _wsClient.loop();
     if (!_wsClient.isConnected() && now >= _nextRetryMs) {
+      yield();
       connectReader();
+      yield();
     }
+  } else if (_serialRestUrl.length() == 0 && now >= _nextRetryMs) {
+    yield();
+    connectReader();
+    yield();
   }
 
   // In WS mode this is only a backup health check; continuous REST polling from every
@@ -94,7 +110,9 @@ void SerialWriterForwarderService::start() {
   _backoffMs = 1000;
   _readerPollFailures = 0;
   _lastReaderOkMs = 0;
-  connectReader();
+  _announceUrl = "";
+  _serialRestUrl = "";
+  _nextRetryMs = millis() + 1000UL;
 }
 
 void SerialWriterForwarderService::stop() {
@@ -116,6 +134,16 @@ void SerialWriterForwarderService::connectReader() {
     url = s.sourceUrl;
     _activeConnectionMethod = s.connectionMethod;
   });
+
+  if (WiFi.status() != WL_CONNECTED) {
+    update([](SerialWriterForwarderState& s) {
+      s.connected = false;
+      s.lastError = "WiFi is not connected";
+      return StateUpdateResult::CHANGED;
+    }, "fwd-wifi");
+    scheduleRetry();
+    return;
+  }
 
   // Older UI saved ws:// URLs even when "HTTP polling" was selected; use WebSocket in that case.
   if (_activeConnectionMethod == SERIALW_FWD_METHOD_HTTP && (url.startsWith("ws://") || url.startsWith("wss://"))) {
@@ -165,7 +193,11 @@ void SerialWriterForwarderService::connectReader() {
       host = hostPort;
     }
 
-    _readerAccessToken = fetchReaderAccessToken(host, port);
+    String accessToken = fetchReaderAccessToken(host, port);
+    if (accessToken.length() > 0) {
+      _readerAccessToken = accessToken;
+    }
+
     _announceUrl = String("http://") + host + ":" + String(port) + "/rest/writers";
     _serialRestUrl = String("http://") + host + ":" + String(port) + path;
 
@@ -212,7 +244,11 @@ void SerialWriterForwarderService::connectReader() {
   }
 
   String fullPath = path + "?role=writer&id=" + SettingValue::getUniqueId();
-  _readerAccessToken = fetchReaderAccessToken(host, port);
+  String accessToken = fetchReaderAccessToken(host, port);
+  if (accessToken.length() > 0) {
+    _readerAccessToken = accessToken;
+  }
+
   if (_readerAccessToken.length() > 0) {
     fullPath += "&access_token=" + _readerAccessToken;
   }
@@ -225,15 +261,8 @@ void SerialWriterForwarderService::connectReader() {
   _wsClient.onEvent([this](WStype_t type, uint8_t* payload, size_t length) {
     onWsEvent(type, payload, length);
   });
-  _wsClient.setReconnectInterval(0);  // we manage backoff ourselves
 
-  unsigned long retryDelay = _backoffMs;
-  _nextRetryMs = millis() + retryDelay;
-  _backoffMs = _backoffMs >= 30000 ? 30000 : _backoffMs * 2;
-  update([](SerialWriterForwarderState& s) {
-    s.reconnectAttempts++;
-    return StateUpdateResult::CHANGED;
-  }, "fwd-retry");
+  scheduleRetry();
 }
 
 void SerialWriterForwarderService::disconnectWs() {
@@ -301,9 +330,10 @@ void SerialWriterForwarderService::onWsEvent(WStype_t type, uint8_t* payload, si
 }
 
 void SerialWriterForwarderService::scheduleRetry() {
-  _nextRetryMs = millis() + _backoffMs;
+  unsigned long retryDelay = _backoffMs;
+  _nextRetryMs = millis() + retryDelay;
+  _wsClient.setReconnectInterval(retryDelay);
   _backoffMs = _backoffMs >= 30000 ? 30000 : _backoffMs * 2;
-  _wsClient.setReconnectInterval(_backoffMs);
   update([](SerialWriterForwarderState& s) {
     s.reconnectAttempts++;
     return StateUpdateResult::CHANGED;
@@ -433,16 +463,13 @@ String SerialWriterForwarderService::fetchReaderAccessToken(const String& host, 
   HTTPClient http;
   String url = String("http://") + host + ":" + String(port) + "/rest/signIn";
   http.begin(url);
-  http.setTimeout(1500);
+  http.setTimeout(3000);
   http.addHeader("Content-Type", "application/json");
 
   int status = http.POST("{\"username\":\"admin\",\"password\":\"admin\"}");
   if (status != 200) {
     http.end();
-    update([&](SerialWriterForwarderState& s) {
-      s.lastError = String("Reader sign-in failed (HTTP ") + String(status) + ")";
-      return StateUpdateResult::CHANGED;
-    }, "fwd-auth");
+    Serial.printf("[SerialWriterForwarder] Reader sign-in skipped/failed (HTTP %d); continuing without token\n", status);
     return "";
   }
 
@@ -451,10 +478,7 @@ String SerialWriterForwarderService::fetchReaderAccessToken(const String& host, 
 
   StaticJsonDocument<512> doc;
   if (deserializeJson(doc, payload) != DeserializationError::Ok) {
-    update([](SerialWriterForwarderState& s) {
-      s.lastError = "Reader sign-in returned invalid JSON";
-      return StateUpdateResult::CHANGED;
-    }, "fwd-auth");
+    Serial.println(F("[SerialWriterForwarder] Reader sign-in returned invalid JSON; continuing without token"));
     return "";
   }
 

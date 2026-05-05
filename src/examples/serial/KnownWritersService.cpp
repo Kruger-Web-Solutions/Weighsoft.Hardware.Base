@@ -18,7 +18,11 @@ KnownWritersService::KnownWritersService(AsyncWebServer* server,
                    fs,
                    KNOWN_WRITERS_CONFIG_FILE),
     _server(server),
-    _securityManager(securityManager) {}
+    _securityManager(securityManager) {
+  // Writer broadcast timestamps can change with every serial line. Persist only
+  // explicit writer list changes so multiple writers do not hammer LittleFS.
+  _fsPersistence.disableUpdateHandler();
+}
 
 void KnownWritersService::begin() {
   _fsPersistence.readFromFS();
