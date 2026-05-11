@@ -4,6 +4,7 @@
 #include <WiFi.h>
 #include <esp_system.h>
 #include <esp_task_wdt.h>
+#include <examples/serialwriter/SerialWriterService.h>
 
 // === Tunables =============================================================
 //
@@ -78,10 +79,12 @@ void WatchdogService::loop() {
 
   if (healthy) {
     _lastHealthyMs = now;
-    Serial.printf("[WD] healthy (heap=%u, sta=%s, ap_clients=%u)\n",
-                  ESP.getFreeHeap(),
-                  WiFi.status() == WL_CONNECTED ? "up" : "down",
-                  (unsigned)WiFi.softAPgetStationNum());
+    if (!g_usbOutputActive) {
+      Serial.printf("[WD] healthy (heap=%u, sta=%s, ap_clients=%u)\n",
+                    ESP.getFreeHeap(),
+                    WiFi.status() == WL_CONNECTED ? "up" : "down",
+                    (unsigned)WiFi.softAPgetStationNum());
+    }
     return;
   }
 
@@ -89,15 +92,19 @@ void WatchdogService::loop() {
   unsigned long sinceHealthy = now - _lastHealthyMs;
 
   if (sinceBoot < GRACE_MS) {
-    Serial.printf("[WD] unhealthy but in grace period (%lus left)\n",
-                  (GRACE_MS - sinceBoot) / 1000UL);
+    if (!g_usbOutputActive) {
+      Serial.printf("[WD] unhealthy but in grace period (%lus left)\n",
+                    (GRACE_MS - sinceBoot) / 1000UL);
+    }
     return;
   }
 
   if (sinceHealthy < UNHEALTHY_LIMIT) {
-    Serial.printf("[WD] unhealthy for %lus (limit %lus)\n",
-                  sinceHealthy / 1000UL,
-                  UNHEALTHY_LIMIT / 1000UL);
+    if (!g_usbOutputActive) {
+      Serial.printf("[WD] unhealthy for %lus (limit %lus)\n",
+                    sinceHealthy / 1000UL,
+                    UNHEALTHY_LIMIT / 1000UL);
+    }
     return;
   }
 

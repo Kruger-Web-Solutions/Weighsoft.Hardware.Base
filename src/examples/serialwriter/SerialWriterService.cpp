@@ -2,7 +2,10 @@
 
 #ifdef ESP32
 #include <HardwareSerial.h>
+#include <esp_log.h>
 #endif
+
+bool g_usbOutputActive = false;
 
 SerialWriterService::SerialWriterService(AsyncWebServer* server,
                                          FS* fs,
@@ -136,13 +139,39 @@ void SerialWriterService::applySerialConfig() {
 #ifdef ESP32
   read([&](const SerialWriterState& s) { _outputPort = s.outputPort; });
 
+  uint32_t baud = 0;
+  read([&](const SerialWriterState& s) { baud = s.baudrate; });
+  if (baud < SERIALW_MIN_BAUDRATE || baud > SERIALW_MAX_BAUDRATE) {
+    baud = SERIALW_DEFAULT_BAUDRATE;
+  }
+  uint32_t mode = serialMode();
+
   if (_outputPort == SERIALW_OUTPUT_USB) {
     if (_serialStarted) {
       SERIALW_UART1_PORT.end();
     }
+    Serial.printf("[SerialWriter] Switching to USB Serial: %lu baud — debug logs OFF\n", (unsigned long)baud);
+    Serial.flush();
+    delay(50);
+    Serial.end();
+    Serial.begin(baud, mode);
+    delay(50);
+    Serial.setDebugOutput(false);
+    esp_log_level_set("*", ESP_LOG_NONE);
+    g_usbOutputActive = true;
     _serialStarted = true;
-    Serial.println(F("[SerialWriter] Output port set to USB Serial (data mixed with debug logs)"));
     return;
+  }
+
+  // GPIO pin mode — restore debug output if we were in USB mode
+  if (g_usbOutputActive) {
+    g_usbOutputActive = false;
+    Serial.end();
+    Serial.begin(115200);
+    delay(50);
+    Serial.setDebugOutput(true);
+    esp_log_level_set("*", ESP_LOG_VERBOSE);
+    Serial.println(F("[SerialWriter] Debug logs restored (back to GPIO output)"));
   }
 
   if (_serialStarted) {
@@ -150,13 +179,6 @@ void SerialWriterService::applySerialConfig() {
     Serial.println(F("[SerialWriter] Stopping Serial1 for reconfiguration..."));
   }
 
-  uint32_t baud = 0;
-  read([&](const SerialWriterState& s) { baud = s.baudrate; });
-  if (baud < SERIALW_MIN_BAUDRATE || baud > SERIALW_MAX_BAUDRATE) {
-    baud = SERIALW_DEFAULT_BAUDRATE;
-  }
-
-  uint32_t mode = serialMode();
   SERIALW_UART1_PORT.begin(baud, mode, SERIALW_RX_PIN, SERIALW_TX_PIN);
   delay(100);
   _serialStarted = true;
@@ -206,10 +228,14 @@ String SerialWriterService::lineEndingChars() {
 }
 
 void SerialWriterService::onConfigUpdated() {
-  Serial.printf("[SerialWriter] Config updated - baud=%lu\n",
-                (unsigned long)_state.baudrate);
+  if (!g_usbOutputActive) {
+    Serial.printf("[SerialWriter] Config updated - baud=%lu\n",
+                  (unsigned long)_state.baudrate);
+  }
   bool saved = _fsPersistence.writeToFS();
-  Serial.printf("[SerialWriter] Config persisted: %s\n", saved ? "SUCCESS" : "FAILED");
+  if (!g_usbOutputActive) {
+    Serial.printf("[SerialWriter] Config persisted: %s\n", saved ? "SUCCESS" : "FAILED");
+  }
   if (!_suspended) applySerialConfig();
   configureMqttSubscription();
 }

@@ -374,14 +374,13 @@ void loop() {
       heapLogMs = now;
     } else if ((unsigned long)(now - heapLogMs) >= 60000UL) {
       heapLogMs = now;
-      Serial.printf("[Heap] free=%u min_free=%u max_alloc_heap=%u\n",
-                    (unsigned)ESP.getFreeHeap(),
-                    (unsigned)ESP.getMinFreeHeap(),
-                    (unsigned)ESP.getMaxAllocHeap());
-      // Pair the heap log with a WiFi snapshot so the COM port stream
-      // tells you both "is the chip healthy?" and "is it on the network?"
-      // in one timestamp. Same 60 s cadence — cheap, just reads accessors.
-      logWifiSnapshot("WiFi");
+      if (!g_usbOutputActive) {
+        Serial.printf("[Heap] free=%u min_free=%u max_alloc_heap=%u\n",
+                      (unsigned)ESP.getFreeHeap(),
+                      (unsigned)ESP.getMinFreeHeap(),
+                      (unsigned)ESP.getMaxAllocHeap());
+        logWifiSnapshot("WiFi");
+      }
     }
   }
   // Let IDLE/Wi‑Fi stack run between heavy loop iterations (stability under load).

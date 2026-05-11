@@ -10,6 +10,8 @@
 #include <SettingValue.h>
 #include <examples/serialwriter/SerialWriterState.h>
 
+extern bool g_usbOutputActive;
+
 #define SERIALW_ENDPOINT_PATH    "/rest/serialWriter"
 #define SERIALW_SOCKET_PATH      "/ws/serialWriter"
 #define SERIALW_CONFIG_FILE      "/config/serialWriterConfig.json"
