@@ -9,6 +9,7 @@ export interface SerialWriterData {
   stop_bits: number;
   parity: number;
   line_ending: LineEnding;
+  output_port: 0 | 1;  // 0=Serial1 (GPIO pins), 1=USB Serial
   friendly_name: string;
   mqtt_subscribe_topic: string;
   mqtt_status_topic: string;

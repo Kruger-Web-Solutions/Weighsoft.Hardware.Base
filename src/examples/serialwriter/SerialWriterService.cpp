@@ -76,10 +76,14 @@ void SerialWriterService::loop() {
   // Reserved for periodic work (status heartbeat, etc.). No-op for v1.
 }
 
+HardwareSerial& SerialWriterService::outputSerial() {
+  return _outputPort == SERIALW_OUTPUT_USB ? Serial : SERIALW_UART1_PORT;
+}
+
 void SerialWriterService::suspendWriter() {
   if (_suspended) return;
-  if (_serialStarted) {
-    SERIALW_PORT.end();
+  if (_serialStarted && _outputPort != SERIALW_OUTPUT_USB) {
+    SERIALW_UART1_PORT.end();
     _serialStarted = false;
     Serial.println(F("[SerialWriter] Serial1 stopped (suspended)"));
   }
@@ -106,9 +110,10 @@ size_t SerialWriterService::transmit(const String& data, TxSource source) {
   if (_suspended || !_serialStarted) return 0;
   if (data.length() == 0) return 0;
 
-  size_t written = SERIALW_PORT.print(data);
+  HardwareSerial& port = outputSerial();
+  size_t written = port.print(data);
   String le = lineEndingChars();
-  if (le.length() > 0) written += SERIALW_PORT.print(le);
+  if (le.length() > 0) written += port.print(le);
 
   String composed = data + le;
   update([&](SerialWriterState& s) {
@@ -129,8 +134,19 @@ size_t SerialWriterService::transmit(const String& data, TxSource source) {
 
 void SerialWriterService::applySerialConfig() {
 #ifdef ESP32
+  read([&](const SerialWriterState& s) { _outputPort = s.outputPort; });
+
+  if (_outputPort == SERIALW_OUTPUT_USB) {
+    if (_serialStarted) {
+      SERIALW_UART1_PORT.end();
+    }
+    _serialStarted = true;
+    Serial.println(F("[SerialWriter] Output port set to USB Serial (data mixed with debug logs)"));
+    return;
+  }
+
   if (_serialStarted) {
-    SERIALW_PORT.end();
+    SERIALW_UART1_PORT.end();
     Serial.println(F("[SerialWriter] Stopping Serial1 for reconfiguration..."));
   }
 
@@ -141,8 +157,8 @@ void SerialWriterService::applySerialConfig() {
   }
 
   uint32_t mode = serialMode();
-  SERIALW_PORT.begin(baud, mode, SERIALW_RX_PIN, SERIALW_TX_PIN);
-  delay(100);  // Allow hardware to stabilize
+  SERIALW_UART1_PORT.begin(baud, mode, SERIALW_RX_PIN, SERIALW_TX_PIN);
+  delay(100);
   _serialStarted = true;
 
   Serial.printf("[SerialWriter] Serial1 started: %lu baud, RX=GPIO%d, TX=GPIO%d\n",

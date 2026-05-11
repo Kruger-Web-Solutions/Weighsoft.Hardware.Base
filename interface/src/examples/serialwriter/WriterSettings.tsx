@@ -20,6 +20,7 @@ import {
 } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
 import CableIcon from '@mui/icons-material/Cable';
+import UsbIcon from '@mui/icons-material/Usb';
 import RadarIcon from '@mui/icons-material/Radar';
 import { SectionContent, FormLoader, ButtonRow } from '../../components';
 import { useRest, extractErrorMessage } from '../../utils';
@@ -246,7 +247,27 @@ const WriterSettings: FC = () => {
 
       <Card>
         <CardContent>
-          <Typography variant="h6" gutterBottom>Serial port</Typography>
+          <Typography variant="h6" gutterBottom>Serial Output</Typography>
+
+          <FormControl component="fieldset" sx={{ mb: 2 }}>
+            <FormLabel>Output port</FormLabel>
+            <RadioGroup
+              row
+              value={String(data.output_port)}
+              onChange={(e) => setField('output_port')(Number(e.target.value) as 0 | 1)}
+            >
+              <FormControlLabel value="0" control={<Radio />} label="GPIO pins (Serial1 TX/RX)" />
+              <FormControlLabel value="1" control={<Radio />} label={<><UsbIcon fontSize="small" sx={{ mr: 0.5, verticalAlign: 'middle' }} />USB Serial</>} />
+            </RadioGroup>
+          </FormControl>
+
+          {data.output_port === 1 && (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              Scale data will be sent over the USB port (same as debug logs).
+              Baud rate and data bits settings below only apply when using GPIO pins.
+            </Alert>
+          )}
+
           <TextField
             select
             fullWidth

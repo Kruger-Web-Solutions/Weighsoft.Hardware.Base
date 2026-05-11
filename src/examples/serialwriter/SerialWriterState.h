@@ -13,6 +13,9 @@
 #define SERIALW_LE_LF   2
 #define SERIALW_LE_CRLF 3
 
+#define SERIALW_OUTPUT_SERIAL1  0   // Hardware UART1 (GPIO TX/RX pins)
+#define SERIALW_OUTPUT_USB      1   // USB Serial (Serial0 / debug console)
+
 class SerialWriterState {
  public:
   // Persisted configuration
@@ -21,6 +24,7 @@ class SerialWriterState {
   uint8_t  stopbits;       // 1 or 2
   uint8_t  parity;         // 0=None,1=Even,2=Odd
   uint8_t  lineEnding;     // 0=None,1=CR,2=LF,3=CRLF
+  uint8_t  outputPort;     // 0=Serial1 (GPIO pins), 1=USB Serial (debug console)
   String   friendlyName;   // user-set device name shown on Reader's Writers tab
   String   mqttSubscribeTopic;
   String   mqttStatusTopic;
@@ -40,6 +44,7 @@ class SerialWriterState {
         stopbits(1),
         parity(0),
         lineEnding(SERIALW_LE_CRLF),
+        outputPort(SERIALW_OUTPUT_SERIAL1),
         friendlyName(""),
         mqttSubscribeTopic(""),
         mqttStatusTopic(""),
@@ -51,6 +56,7 @@ class SerialWriterState {
     root["stop_bits"]            = state.stopbits;
     root["parity"]               = state.parity;
     root["line_ending"]          = state.lineEnding;
+    root["output_port"]          = state.outputPort;
     root["friendly_name"]        = state.friendlyName;
     root["mqtt_subscribe_topic"] = state.mqttSubscribeTopic;
     root["mqtt_status_topic"]    = state.mqttStatusTopic;
@@ -71,6 +77,7 @@ class SerialWriterState {
     root["stop_bits"]            = state.stopbits;
     root["parity"]               = state.parity;
     root["line_ending"]          = state.lineEnding;
+    root["output_port"]          = state.outputPort;
     root["friendly_name"]        = state.friendlyName;
     root["mqtt_subscribe_topic"] = state.mqttSubscribeTopic;
     root["mqtt_status_topic"]    = state.mqttStatusTopic;
@@ -83,6 +90,7 @@ class SerialWriterState {
     state.stopbits           = root["stop_bits"]            | (uint8_t)1;
     state.parity             = root["parity"]               | (uint8_t)0;
     state.lineEnding         = root["line_ending"]          | (uint8_t)SERIALW_LE_CRLF;
+    state.outputPort         = root["output_port"]          | (uint8_t)SERIALW_OUTPUT_SERIAL1;
     state.friendlyName       = root["friendly_name"]        | "";
     state.mqttSubscribeTopic = root["mqtt_subscribe_topic"] | "";
     state.mqttStatusTopic    = root["mqtt_status_topic"]    | "";
@@ -93,6 +101,7 @@ class SerialWriterState {
     if (state.stopbits < 1 || state.stopbits > 2) state.stopbits = 1;
     if (state.parity > 2) state.parity = 0;
     if (state.lineEnding > SERIALW_LE_CRLF) state.lineEnding = SERIALW_LE_CRLF;
+    if (state.outputPort > SERIALW_OUTPUT_USB) state.outputPort = SERIALW_OUTPUT_SERIAL1;
     return StateUpdateResult::CHANGED;
   }
 
@@ -119,6 +128,10 @@ class SerialWriterState {
     if (root.containsKey("line_ending")) {
       uint8_t v = root["line_ending"];
       if (v <= SERIALW_LE_CRLF && v != state.lineEnding) { state.lineEnding = v; changed(); }
+    }
+    if (root.containsKey("output_port")) {
+      uint8_t v = root["output_port"];
+      if (v <= SERIALW_OUTPUT_USB && v != state.outputPort) { state.outputPort = v; changed(); }
     }
     if (root.containsKey("friendly_name")) {
       String v = root["friendly_name"].as<String>();

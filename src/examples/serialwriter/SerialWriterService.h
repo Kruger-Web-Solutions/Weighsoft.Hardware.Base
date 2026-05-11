@@ -14,7 +14,7 @@
 #define SERIALW_SOCKET_PATH      "/ws/serialWriter"
 #define SERIALW_CONFIG_FILE      "/config/serialWriterConfig.json"
 
-#define SERIALW_PORT             Serial1
+#define SERIALW_UART1_PORT       Serial1
 #define SERIALW_RX_PIN           18
 #define SERIALW_TX_PIN           17
 
@@ -61,6 +61,9 @@ class SerialWriterService : public StatefulService<SerialWriterState> {
 
   bool _serialStarted = false;
   bool _suspended     = true;  // start suspended; UartModeService activates us only when in Writer mode
+  uint8_t _outputPort = SERIALW_OUTPUT_SERIAL1;
+
+  HardwareSerial& outputSerial();  // returns Serial or Serial1 based on _outputPort
 
   // Inbound REST endpoint for { "data": "..." }
   void registerSendEndpoint();
