@@ -34,4 +34,4 @@ jobs:
         python -m pip install --upgrade pip
         pip install --upgrade platformio
     - name: Run PlatformIO
-      run: pio run -e esp12e -e esp32s3
+      run: pio run -e esp12e -e esp32s3 -e nodemcu_esp32
