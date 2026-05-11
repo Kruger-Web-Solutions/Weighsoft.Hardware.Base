@@ -411,12 +411,6 @@ void SerialWriterForwarderService::pollReaderRest() {
   String lastLine = doc["last_line"] | "";
   if (lastLine.length() == 0) return;
 
-  bool duplicate = false;
-  read([&](const SerialWriterForwarderState& s) {
-    duplicate = s.lastReceived == lastLine;
-  });
-  if (duplicate) return;
-
   _writerService->transmit(lastLine, TxSource::READER);
   update([&](SerialWriterForwarderState& s) {
     s.lastReceived = lastLine;
