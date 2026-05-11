@@ -211,8 +211,8 @@ void SerialService::loop() {
       }
     }
 
-    // Line assembly (accepts both \r and \n as terminators)
-    if (c == '\n' || c == '\r') {
+    // Line assembly (accepts \r, \n, and \0 as terminators)
+    if (c == '\n' || c == '\r' || c == '\0') {
       if (_lineBuffer.length() > 0) {
         if (shouldPublishSerialHwLine(_state, _lineBuffer)) {
           enqueueCompletedLine(_lineBuffer);
