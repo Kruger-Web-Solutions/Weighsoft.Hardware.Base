@@ -65,7 +65,18 @@ class SerialWriterService : public StatefulService<SerialWriterState> {
   bool _suspended     = true;  // start suspended; UartModeService activates us only when in Writer mode
   uint8_t _outputPort = SERIALW_OUTPUT_SERIAL1;
 
+  // Transmit-rate throttle: keep only the latest pending payload and flush it from loop()
+  // at the user-configured cadence. _pendingTxSource records who fed the latest line so
+  // throttled output still attributes correctly in state broadcasts.
+  String        _pendingTx;
+  TxSource      _pendingTxSource = TxSource::NONE;
+  bool          _pendingTxValid  = false;
+  unsigned long _lastTxMs        = 0;
+
   HardwareSerial& outputSerial();  // returns Serial or Serial1 based on _outputPort
+
+  // Internal: actual write to the serial port + state update. Bypasses throttling.
+  size_t doTransmit(const String& data, TxSource source);
 
   // Inbound REST endpoint for { "data": "..." }
   void registerSendEndpoint();

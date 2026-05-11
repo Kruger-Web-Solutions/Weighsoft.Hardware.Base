@@ -9,6 +9,8 @@ export interface SerialData {
   stop_bits: number;
   parity: number;
   regex_pattern: string;
+  /** Throttle interval (ms) for WS/REST broadcasts. 0 = publish every received line. */
+  publish_interval_ms: number;
   /** Firmware-only: UART snapshot from last SerialService::loop (not persisted). */
   dbg_uart_rx_avail?: number;
   dbg_suspended?: number;
@@ -23,4 +25,5 @@ export interface SerialConfigUpdate {
   stop_bits: number;
   parity: number;
   regex_pattern: string;
+  publish_interval_ms: number;
 }

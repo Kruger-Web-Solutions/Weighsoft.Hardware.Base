@@ -146,6 +146,23 @@ const SerialConfig: FC = () => {
         />
 
         <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
+          Publish Rate
+        </Typography>
+        <TextField
+          fullWidth
+          type="number"
+          label="Publish interval (ms)"
+          value={data.publish_interval_ms ?? 0}
+          onChange={(e) => {
+            const v = Math.max(0, Math.min(60000, Number(e.target.value) || 0));
+            setField('publish_interval_ms')(v);
+          }}
+          disabled={saving}
+          inputProps={{ min: 0, max: 60000, step: 100 }}
+          helperText="Throttle how often weight readings are pushed to WebSocket, REST, and Writers. 0 = publish every line as it arrives. e.g. 1000 = at most one update per second."
+        />
+
+        <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
           Current Data Preview
         </Typography>
         <Box sx={{ bgcolor: 'background.paper', p: 2, borderRadius: 1 }}>

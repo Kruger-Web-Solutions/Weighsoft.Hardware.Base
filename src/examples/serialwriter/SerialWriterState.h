@@ -16,6 +16,10 @@
 #define SERIALW_OUTPUT_SERIAL1  0   // Hardware UART1 (GPIO TX/RX pins)
 #define SERIALW_OUTPUT_USB      1   // USB Serial (Serial0 / debug console)
 
+// Transmit interval bounds: 0 means "transmit each received line immediately",
+// >0 throttles serial output to at most one frame per N ms (latest data wins).
+#define SERIALW_TRANSMIT_INTERVAL_MAX_MS 60000
+
 class SerialWriterState {
  public:
   // Persisted configuration
@@ -25,6 +29,7 @@ class SerialWriterState {
   uint8_t  parity;         // 0=None,1=Even,2=Odd
   uint8_t  lineEnding;     // 0=None,1=CR,2=LF,3=CRLF
   uint8_t  outputPort;     // 0=Serial1 (GPIO pins), 1=USB Serial (debug console)
+  uint16_t transmitIntervalMs = 0;  // 0=transmit every received line; >0=throttle output to once per N ms (latest data wins)
   String   friendlyName;   // user-set device name shown on Reader's Writers tab
   String   mqttSubscribeTopic;
   String   mqttStatusTopic;
@@ -57,6 +62,7 @@ class SerialWriterState {
     root["parity"]               = state.parity;
     root["line_ending"]          = state.lineEnding;
     root["output_port"]          = state.outputPort;
+    root["transmit_interval_ms"] = state.transmitIntervalMs;
     root["friendly_name"]        = state.friendlyName;
     root["mqtt_subscribe_topic"] = state.mqttSubscribeTopic;
     root["mqtt_status_topic"]    = state.mqttStatusTopic;
@@ -78,6 +84,7 @@ class SerialWriterState {
     root["parity"]               = state.parity;
     root["line_ending"]          = state.lineEnding;
     root["output_port"]          = state.outputPort;
+    root["transmit_interval_ms"] = state.transmitIntervalMs;
     root["friendly_name"]        = state.friendlyName;
     root["mqtt_subscribe_topic"] = state.mqttSubscribeTopic;
     root["mqtt_status_topic"]    = state.mqttStatusTopic;
@@ -91,6 +98,7 @@ class SerialWriterState {
     state.parity             = root["parity"]               | (uint8_t)0;
     state.lineEnding         = root["line_ending"]          | (uint8_t)SERIALW_LE_CRLF;
     state.outputPort         = root["output_port"]          | (uint8_t)SERIALW_OUTPUT_SERIAL1;
+    uint32_t txInterval      = root["transmit_interval_ms"] | (uint32_t)0;
     state.friendlyName       = root["friendly_name"]        | "";
     state.mqttSubscribeTopic = root["mqtt_subscribe_topic"] | "";
     state.mqttStatusTopic    = root["mqtt_status_topic"]    | "";
@@ -102,6 +110,8 @@ class SerialWriterState {
     if (state.parity > 2) state.parity = 0;
     if (state.lineEnding > SERIALW_LE_CRLF) state.lineEnding = SERIALW_LE_CRLF;
     if (state.outputPort > SERIALW_OUTPUT_USB) state.outputPort = SERIALW_OUTPUT_SERIAL1;
+    if (txInterval > SERIALW_TRANSMIT_INTERVAL_MAX_MS) txInterval = SERIALW_TRANSMIT_INTERVAL_MAX_MS;
+    state.transmitIntervalMs = (uint16_t)txInterval;
     return StateUpdateResult::CHANGED;
   }
 
@@ -132,6 +142,11 @@ class SerialWriterState {
     if (root.containsKey("output_port")) {
       uint8_t v = root["output_port"];
       if (v <= SERIALW_OUTPUT_USB && v != state.outputPort) { state.outputPort = v; changed(); }
+    }
+    if (root.containsKey("transmit_interval_ms")) {
+      uint32_t v = root["transmit_interval_ms"];
+      if (v > SERIALW_TRANSMIT_INTERVAL_MAX_MS) v = SERIALW_TRANSMIT_INTERVAL_MAX_MS;
+      if ((uint16_t)v != state.transmitIntervalMs) { state.transmitIntervalMs = (uint16_t)v; changed(); }
     }
     if (root.containsKey("friendly_name")) {
       String v = root["friendly_name"].as<String>();

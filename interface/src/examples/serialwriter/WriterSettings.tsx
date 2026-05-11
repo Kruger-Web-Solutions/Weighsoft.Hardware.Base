@@ -309,12 +309,27 @@ const WriterSettings: FC = () => {
             label="Line ending"
             value={data.line_ending}
             onChange={(e) => setField('line_ending')(Number(e.target.value) as any)}
+            sx={{ mb: 2 }}
           >
             <MenuItem value={0}>None</MenuItem>
             <MenuItem value={1}>{'CR (\\r)'}</MenuItem>
             <MenuItem value={2}>{'LF (\\n)'}</MenuItem>
             <MenuItem value={3}>{'CRLF (\\r\\n)'}</MenuItem>
           </TextField>
+
+          <TextField
+            fullWidth
+            type="number"
+            label="Transmit interval (ms)"
+            value={data.transmit_interval_ms ?? 0}
+            onChange={(e) => {
+              const v = Math.max(0, Math.min(60000, Number(e.target.value) || 0));
+              setField('transmit_interval_ms')(v);
+            }}
+            disabled={saving}
+            inputProps={{ min: 0, max: 60000, step: 100 }}
+            helperText="Throttle how often data is written to the serial output. 0 = transmit every received line. e.g. 1000 = at most one frame per second (latest data wins)."
+          />
 
           <ButtonRow mt={2}>
             <Button startIcon={<SaveIcon />} variant="contained" disabled={saving} onClick={saveData}>Save serial port</Button>

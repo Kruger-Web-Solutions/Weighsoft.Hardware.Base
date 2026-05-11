@@ -117,9 +117,21 @@ void SerialService::drainRxLineQueue() {
     return;
   }
   const unsigned long now = millis();
+  // Hard-rate cap to protect WS/REST broadcast pipeline from line floods.
   const unsigned long minGap = 1000UL / (unsigned long)SERIAL_MAX_COMPLETE_LINES_PER_SEC;
-  if (_lastRxLinePublishMs != 0U && (unsigned long)(now - _lastRxLinePublishMs) < minGap) {
+  // User-configurable interval: 0 disables throttling beyond the hard cap; otherwise
+  // broadcasts happen at most once per publishIntervalMs (keep latest line, drop older).
+  const unsigned long userGap = (unsigned long)_state.publishIntervalMs;
+  const unsigned long effectiveGap = userGap > minGap ? userGap : minGap;
+  if (_lastRxLinePublishMs != 0U && (unsigned long)(now - _lastRxLinePublishMs) < effectiveGap) {
     return;
+  }
+  // If user has set an interval, drop older queued lines and only publish the newest
+  // so the channel reflects current weight (not stale buffered readings).
+  if (userGap > 0) {
+    while (_rxCompleteLineQueue.size() > 1) {
+      _rxCompleteLineQueue.pop_front();
+    }
   }
   const String line = _rxCompleteLineQueue.front();
   _rxCompleteLineQueue.pop_front();

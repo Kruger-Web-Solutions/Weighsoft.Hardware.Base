@@ -76,7 +76,25 @@ void SerialWriterService::begin() {
 }
 
 void SerialWriterService::loop() {
-  // Reserved for periodic work (status heartbeat, etc.). No-op for v1.
+  // Drain the throttled-transmit buffer when the user-configured interval has elapsed.
+  // When transmitIntervalMs is 0 we never enter this path because transmit() sends
+  // synchronously in that mode; we still tick here so suspend/resume doesn't strand
+  // any pending payload across a config change.
+  if (!_pendingTxValid || _suspended || !_serialStarted) return;
+
+  uint16_t interval = 0;
+  read([&](const SerialWriterState& s) { interval = s.transmitIntervalMs; });
+  if (interval == 0) {
+    doTransmit(_pendingTx, _pendingTxSource);
+    _pendingTxValid = false;
+    return;
+  }
+
+  const unsigned long now = millis();
+  if (_lastTxMs != 0 && (unsigned long)(now - _lastTxMs) < (unsigned long)interval) return;
+
+  doTransmit(_pendingTx, _pendingTxSource);
+  _pendingTxValid = false;
 }
 
 HardwareSerial& SerialWriterService::outputSerial() {
@@ -113,12 +131,34 @@ size_t SerialWriterService::transmit(const String& data, TxSource source) {
   if (_suspended || !_serialStarted) return 0;
   if (data.length() == 0) return 0;
 
+  uint16_t interval = 0;
+  read([&](const SerialWriterState& s) { interval = s.transmitIntervalMs; });
+
+  if (interval == 0) {
+    return doTransmit(data, source);
+  }
+
+  // Throttle path: keep only the newest line; loop() flushes when the interval elapses.
+  const unsigned long now = millis();
+  const bool intervalElapsed = _lastTxMs == 0 || (unsigned long)(now - _lastTxMs) >= (unsigned long)interval;
+  if (intervalElapsed && !_pendingTxValid) {
+    return doTransmit(data, source);
+  }
+
+  _pendingTx = data;
+  _pendingTxSource = source;
+  _pendingTxValid = true;
+  return 0;
+}
+
+size_t SerialWriterService::doTransmit(const String& data, TxSource source) {
   HardwareSerial& port = outputSerial();
   size_t written = port.print(data);
   String le = lineEndingChars();
   if (le.length() > 0) written += port.print(le);
 
   String composed = data + le;
+  _lastTxMs = millis();
   update([&](SerialWriterState& s) {
     s.lastSent = composed;
     s.lastSentAt = millis();
@@ -127,10 +167,6 @@ size_t SerialWriterService::transmit(const String& data, TxSource source) {
     return StateUpdateResult::CHANGED;
   }, "tx");
 
-  // broadcastTxEvent is called after the update above. The WebSocketTxRx _webSocket
-  // already broadcasts the full state to all clients whenever update() fires with CHANGED,
-  // which carries lastSent, lastSentSource, and bytesSentTotal. For v1 this is sufficient;
-  // broadcastTxEvent adds nothing extra.
   broadcastTxEvent(composed, source);
   return written;
 }

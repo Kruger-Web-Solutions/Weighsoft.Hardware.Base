@@ -7,11 +7,14 @@
 #endif
 
 #ifndef SERIALW_FWD_WS_BACKUP_POLL_INTERVAL_MS
-#define SERIALW_FWD_WS_BACKUP_POLL_INTERVAL_MS 3000
+#define SERIALW_FWD_WS_BACKUP_POLL_INTERVAL_MS 5000
 #endif
 
+// Time without WS traffic before backup REST polling kicks in. Increased from 5s to 20s
+// because slow scales emit lines every ~5s and any minor jitter previously triggered
+// backup polling, which under load could cause unnecessary WS reconnect cycles.
 #ifndef SERIALW_FWD_WS_STALE_MS
-#define SERIALW_FWD_WS_STALE_MS 5000
+#define SERIALW_FWD_WS_STALE_MS 20000
 #endif
 
 SerialWriterForwarderService::SerialWriterForwarderService(AsyncWebServer* server,
@@ -257,7 +260,10 @@ void SerialWriterForwarderService::connectReader() {
   _serialRestUrl = String("http://") + host + ":" + String(port) + "/rest/serial";
 
   _wsClient.begin(host, port, fullPath);
-  _wsClient.enableHeartbeat(15000, 3000, 2);
+  // No heartbeat: actual data lines from the Reader (~every 5s) act as natural
+  // keepalive. Earlier heartbeat config (15s ping, 3s pong timeout, 2 misses) caused
+  // repeated disconnect/reconnect cycles when the Reader's async server was busy
+  // serving REST or other WS clients and missed the pong window.
   _wsClient.onEvent([this](WStype_t type, uint8_t* payload, size_t length) {
     onWsEvent(type, payload, length);
   });
@@ -430,12 +436,16 @@ void SerialWriterForwarderService::handleReaderPollFailure(const String& message
     _readerPollFailures++;
   }
 
+  // In WS mode, REST polling is only a backup health check. If WS is connected, do NOT
+  // force a WS disconnect or flip connected=false just because backup polling failed —
+  // this previously caused gratuitous reconnect cycles when the Reader was briefly slow
+  // to answer HTTP. Only surface a poll error to the UI if WS is also down.
   const bool wsMode = _activeConnectionMethod == SERIALW_FWD_METHOD_WS;
-  const bool wsStale = wsMode && (_readerPollFailures >= 3);
-  const bool shouldShowError = _activeConnectionMethod == SERIALW_FWD_METHOD_HTTP || !_wsClient.isConnected() || wsStale;
+  const bool wsDown = wsMode && !_wsClient.isConnected();
+  const bool shouldShowError = !wsMode || wsDown;
 
   update([&](SerialWriterForwarderState& s) {
-    if (_activeConnectionMethod == SERIALW_FWD_METHOD_HTTP || wsStale) {
+    if (!wsMode || wsDown) {
       s.connected = false;
     }
     if (shouldShowError) {
@@ -443,14 +453,6 @@ void SerialWriterForwarderService::handleReaderPollFailure(const String& message
     }
     return StateUpdateResult::CHANGED;
   }, "fwd-error");
-
-  if (wsStale) {
-    _wsClient.disconnect();
-    _nextRetryMs = millis() + 1000UL;
-    if (_backoffMs < 1000) {
-      _backoffMs = 1000;
-    }
-  }
 }
 
 String SerialWriterForwarderService::fetchReaderAccessToken(const String& host, uint16_t port) {

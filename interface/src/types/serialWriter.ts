@@ -10,6 +10,8 @@ export interface SerialWriterData {
   parity: number;
   line_ending: LineEnding;
   output_port: 0 | 1;  // 0=Serial1 (GPIO pins), 1=USB Serial
+  /** Throttle interval (ms) for outbound serial writes. 0 = transmit every received line. */
+  transmit_interval_ms: number;
   friendly_name: string;
   mqtt_subscribe_topic: string;
   mqtt_status_topic: string;
