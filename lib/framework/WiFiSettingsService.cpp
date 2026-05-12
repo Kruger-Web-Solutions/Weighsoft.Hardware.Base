@@ -82,54 +82,46 @@ void WiFiSettingsService::loop() {
 }
 
 void WiFiSettingsService::manageSTA() {
-  // Abort if already connected, or if we have no SSID
   if (WiFi.isConnected() || _state.ssid.length() == 0) {
     if (WiFi.isConnected()) {
-      // Connected successfully - reset backoff
       _reconnectDelay = WIFI_RECONNECT_IMMEDIATE_DELAY;
       _reconnectAttempts = 0;
     }
     return;
   }
-  // Connect or reconnect as required
-  if ((WiFi.getMode() & WIFI_STA) == 0) {
-    _reconnectAttempts++;
-    // Exponential backoff: 2s → 4s → 8s → 16s → 30s cap
-    if (_reconnectAttempts > 1) {
-      _reconnectDelay = min((unsigned long)(WIFI_RECONNECT_IMMEDIATE_DELAY << (_reconnectAttempts - 1)),
-                            (unsigned long)WIFI_RECONNECTION_DELAY);
-    }
-    Serial.printf("[WiFi] Connecting to WiFi (attempt %u, next retry in %lus).\n",
-                  _reconnectAttempts, _reconnectDelay / 1000);
-#ifdef ESP32
-    WiFi.setHostname(_state.hostname.c_str());
-    // The ESP32/ESP32-S3 radio is 2.4 GHz only. Keep modem sleep disabled for
-    // both DHCP and static-IP devices so REST/WebSocket traffic does not stall.
-    WiFi.setSleep(false);
-    esp_wifi_set_ps(WIFI_PS_NONE);
-#endif
-    if (_state.staticIPConfig) {
-      // configure for static IP
-      WiFi.config(_state.localIP, _state.gatewayIP, _state.subnetMask, _state.dnsIP1, _state.dnsIP2);
-    } else {
-      // configure for DHCP
-#ifdef ESP32
-      WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE);
-#elif defined(ESP8266)
-      WiFi.config(INADDR_ANY, INADDR_ANY, INADDR_ANY);
-      WiFi.hostname(_state.hostname);
-#endif
-    }
-    // attempt to connect to the network
-    WiFi.begin(_state.ssid.c_str(), _state.password.c_str());
+
+  _reconnectAttempts++;
+  if (_reconnectAttempts > 1) {
+    _reconnectDelay = min((unsigned long)(WIFI_RECONNECT_IMMEDIATE_DELAY << (_reconnectAttempts - 1)),
+                          (unsigned long)WIFI_RECONNECTION_DELAY);
   }
+  Serial.printf("[WiFi] Connecting to WiFi \"%s\" (attempt %u, next retry in %lus).\n",
+                _state.ssid.c_str(), _reconnectAttempts, _reconnectDelay / 1000);
+
+#ifdef ESP32
+  WiFi.setHostname(_state.hostname.c_str());
+  WiFi.setSleep(false);
+  esp_wifi_set_ps(WIFI_PS_NONE);
+#endif
+  if (_state.staticIPConfig) {
+    WiFi.config(_state.localIP, _state.gatewayIP, _state.subnetMask, _state.dnsIP1, _state.dnsIP2);
+  } else {
+#ifdef ESP32
+    WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE);
+#elif defined(ESP8266)
+    WiFi.config(INADDR_ANY, INADDR_ANY, INADDR_ANY);
+    WiFi.hostname(_state.hostname);
+#endif
+  }
+  WiFi.begin(_state.ssid.c_str(), _state.password.c_str());
 }
 
 #ifdef ESP32
 void WiFiSettingsService::onStationModeDisconnected(WiFiEvent_t event, WiFiEventInfo_t info) {
-  // Do not call WiFi.disconnect(true) (full STA de-init) while a scan is running — it
-  // tears down the STA stack mid-scan and the scan completes with zero results.
   if (g_wifiScanInProgress) {
+    return;
+  }
+  if (_stopping) {
     return;
   }
   WiFi.disconnect(true);
