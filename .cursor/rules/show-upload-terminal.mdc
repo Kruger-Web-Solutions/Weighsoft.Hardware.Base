@@ -1,0 +1,32 @@
+---
+description: Always open the terminal output for firmware uploads so the user can watch progress
+alwaysApply: true
+---
+
+# Show Upload Terminal
+
+When running PlatformIO firmware uploads (`pio run -t upload`, `esptool`, or OTA), **always** open the terminal file in the editor so the user can watch the build and upload progress in real time.
+
+## Required Steps
+
+After starting a build/upload command:
+
+1. Use the `open_resource` MCP tool to open the terminal output file in the editor
+2. Do this immediately after the command starts — don't wait for it to finish
+
+## Example
+
+```
+# 1. Start the upload
+Shell: python -m platformio run -e firebeetle32 -t upload
+
+# 2. Immediately open the terminal file so the user can watch
+MCP open_resource: file://<terminal_output_file_path>
+```
+
+## When This Applies
+
+- Any `platformio run -t upload` command
+- Any `esptool` flash or erase command
+- Any OTA upload via `espota.py`
+- Any long-running build (`platformio run`) without upload
