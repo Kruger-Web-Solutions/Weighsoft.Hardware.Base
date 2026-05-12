@@ -1,4 +1,5 @@
 #include <WiFiSettingsService.h>
+#include <WiFiScanner.h>  // for g_wifiScanInProgress / g_wifiScanInProgressUntilMs
 
 #ifdef ESP32
 #include <esp_wifi.h>
@@ -59,6 +60,21 @@ void WiFiSettingsService::reconfigureWiFiConnection() {
 
 void WiFiSettingsService::loop() {
   unsigned long currentMillis = millis();
+
+  // While a WiFi scan is in progress, avoid kicking off STA reconnect attempts — the
+  // shared 2.4 GHz radio cannot serve a STA association attempt and a scan at the same
+  // time, and doing so blanks the scan result and frequently resets the AP-served
+  // captive-portal HTTP connection mid-response. The guard auto-expires after
+  // WIFI_SCAN_GUARD_MS so a stuck scan can't permanently disable reconnects.
+  if (g_wifiScanInProgress) {
+    if (g_wifiScanInProgressUntilMs != 0 &&
+        (long)(currentMillis - g_wifiScanInProgressUntilMs) >= 0) {
+      g_wifiScanInProgress = false;
+    } else {
+      return;
+    }
+  }
+
   if (!_lastConnectionAttempt || (unsigned long)(currentMillis - _lastConnectionAttempt) >= _reconnectDelay) {
     _lastConnectionAttempt = currentMillis;
     manageSTA();
@@ -111,6 +127,11 @@ void WiFiSettingsService::manageSTA() {
 
 #ifdef ESP32
 void WiFiSettingsService::onStationModeDisconnected(WiFiEvent_t event, WiFiEventInfo_t info) {
+  // Do not call WiFi.disconnect(true) (full STA de-init) while a scan is running — it
+  // tears down the STA stack mid-scan and the scan completes with zero results.
+  if (g_wifiScanInProgress) {
+    return;
+  }
   WiFi.disconnect(true);
 }
 void WiFiSettingsService::onStationModeStop(WiFiEvent_t event, WiFiEventInfo_t info) {
@@ -121,8 +142,10 @@ void WiFiSettingsService::onStationModeStop(WiFiEvent_t event, WiFiEventInfo_t i
     // Unintentional disconnect (signal loss, AP reboot etc) - reconnect immediately
     Serial.println(F("[WiFi] Unexpected disconnect - scheduling immediate reconnect."));
   }
-  // Always trigger immediate reconnect attempt on next loop tick
-  _lastConnectionAttempt = 0;
+  // Always trigger immediate reconnect attempt on next loop tick, unless we are mid-scan.
+  if (!g_wifiScanInProgress) {
+    _lastConnectionAttempt = 0;
+  }
 }
 #elif defined(ESP8266)
 void WiFiSettingsService::onStationModeDisconnected(const WiFiEventStationModeDisconnected& event) {

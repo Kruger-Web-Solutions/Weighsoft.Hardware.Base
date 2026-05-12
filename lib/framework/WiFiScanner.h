@@ -19,6 +19,13 @@
 
 #define MAX_WIFI_SCANNER_SIZE 1024
 
+// Global flag set by WiFiScanner while a scan is in progress. WiFiSettingsService::manageSTA()
+// checks this and skips reconnect attempts so the STA reconnect cycle does not interrupt
+// the shared 2.4 GHz radio mid-scan (a common cause of empty network lists and dropped
+// HTTP responses when the saved STA SSID is not reachable).
+extern volatile bool g_wifiScanInProgress;
+extern unsigned long g_wifiScanInProgressUntilMs;
+
 class WiFiScanner {
  public:
   WiFiScanner(AsyncWebServer* server, SecurityManager* securityManager);
