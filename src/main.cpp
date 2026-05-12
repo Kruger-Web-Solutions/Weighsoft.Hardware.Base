@@ -8,6 +8,7 @@
 #include <examples/weightforwarder/WeightForwarderService.h>
 #include "VersionService.h"
 #include "UartModeService.h"
+#include "BoardDisplayService.h"
 #include "MdnsService.h"
 #include "MdnsBrowser.h"
 #include "WatchdogService.h"
@@ -123,6 +124,7 @@ WeightForwarderService* weightForwarderService;
 MdnsService* mdnsService;
 MdnsBrowser* mdnsBrowser;
 WatchdogService* watchdogService;
+BoardDisplayService* boardDisplayService;
 
 void setup() {
   // start serial and filesystem
@@ -252,6 +254,14 @@ void setup() {
   uartModeService->applyMode();
   Serial.println(F("[8/10] Persisted UART mode applied"));
 
+  boardDisplayService = new BoardDisplayService(
+      serialService,
+      serialWriterService,
+      serialWriterForwarderService,
+      uartModeService
+      );
+  boardDisplayService->begin();
+
   // Sync AP SSID to the current UART mode at boot
   syncApSsidToMode(esp8266React->getAPSettingsService(), uartModeService);
 
@@ -356,6 +366,10 @@ void loop() {
 
   // process weight forwarding
   weightForwarderService->loop();
+
+  if (boardDisplayService) {
+    boardDisplayService->loop();
+  }
 
   // mDNS announcement (deferred start — runs only once the network is up)
   if (mdnsService) mdnsService->loop();

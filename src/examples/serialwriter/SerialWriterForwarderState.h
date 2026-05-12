@@ -18,6 +18,7 @@ class SerialWriterForwarderState {
   bool          connected = false;
   unsigned long lastReceivedAt = 0;
   String        lastReceived;
+  String        lastWeight;
   uint16_t      reconnectAttempts = 0;
   String        lastError;
 
@@ -35,6 +36,7 @@ class SerialWriterForwarderState {
     root["connected"]          = state.connected;
     root["last_received_at"]   = state.lastReceivedAt;
     root["last_received"]      = state.lastReceived;
+    root["last_weight"]        = state.lastWeight;
     root["reconnect_attempts"] = state.reconnectAttempts;
     root["last_error"]         = state.lastError;
   }

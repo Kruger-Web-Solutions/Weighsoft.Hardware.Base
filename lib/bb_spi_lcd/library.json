@@ -1,0 +1,11 @@
+{
+  "name": "bb_spi_lcd",
+  "version": "2.9.9-local",
+  "build": {
+    "srcFilter": [
+      "+<Group5.cpp>",
+      "+<bb_parallel_stub.cpp>",
+      "+<bb_spi_lcd.cpp>"
+    ]
+  }
+}

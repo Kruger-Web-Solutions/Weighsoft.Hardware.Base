@@ -317,11 +317,13 @@ void SerialWriterForwarderService::onWsEvent(WStype_t type, uint8_t* payload, si
       if (deserializeJson(doc, line) == DeserializationError::Ok) {
         JsonObject payload = doc["payload"].is<JsonObject>() ? doc["payload"].as<JsonObject>() : doc.as<JsonObject>();
         String lastLine = payload["last_line"] | "";
+        String lastWeight = payload["weight"] | "";
         if (lastLine.length() > 0 && _writerService) {
           markReaderOk();
           _writerService->transmit(lastLine, TxSource::READER);
           update([&](SerialWriterForwarderState& s) {
             s.lastReceived = lastLine;
+            s.lastWeight = lastWeight;
             s.lastReceivedAt = millis();
             return StateUpdateResult::CHANGED;
           }, "fwd-rx");
@@ -415,11 +417,13 @@ void SerialWriterForwarderService::pollReaderRest() {
   }
 
   String lastLine = doc["last_line"] | "";
+  String lastWeight = doc["weight"] | "";
   if (lastLine.length() == 0) return;
 
   _writerService->transmit(lastLine, TxSource::READER);
   update([&](SerialWriterForwarderState& s) {
     s.lastReceived = lastLine;
+    s.lastWeight = lastWeight;
     s.lastReceivedAt = millis();
     s.lastError = "";
     return StateUpdateResult::CHANGED;

@@ -37,6 +37,8 @@ constexpr uint16_t BIG_WEIGHT_GLYPH_WIDTH = 34;
 constexpr uint16_t BIG_WEIGHT_DOT_WIDTH = 10;
 constexpr uint16_t BIG_WEIGHT_GLYPH_GAP = 4;
 constexpr uint16_t BIG_WEIGHT_SEGMENT_THICKNESS = 6;
+constexpr uint16_t TEXT_LINE_HEIGHT_8 = 10;
+constexpr uint16_t TEXT_LINE_HEIGHT_6 = 8;
 
 BB_SPI_LCD g_tft;
 
@@ -206,6 +208,32 @@ void drawRightAlignedText(const String& text, int rightX, int y) {
   g_tft.setCursor(drawX, y);
   g_tft.print(text);
 }
+
+String displayWeightText(const String& safeWeight) {
+  return safeWeight.length() > 0 ? safeWeight : String("WAITING");
+}
+
+void drawWeightValue(const String& weightText, int areaX, int areaY, int areaW, int areaH, uint16_t color) {
+  g_tft.setTextColor(color, TFT_BLACK);
+  if (weightText.length() > 0 && canRenderBigWeight(weightText)) {
+    drawBigWeight(weightText, areaX, areaY, areaW, areaH, color);
+    return;
+  }
+
+  g_tft.setFont(FONT_16x32);
+  BB_RECT weightBounds = {0, 0, 0, 0};
+  g_tft.getStringBox(weightText, &weightBounds);
+  const int drawX = areaX + ((areaW - weightBounds.w) / 2);
+  const int drawY = areaY + ((areaH - weightBounds.h) / 2);
+  g_tft.setCursor(drawX < areaX ? areaX : drawX, drawY < areaY ? areaY : drawY);
+  g_tft.print(weightText);
+}
+
+void clearTextLine(uint16_t screenWidth, int y, uint16_t height) {
+  const int clearY = y > 1 ? y - 1 : 0;
+  const int clearHeight = (int)height + 2;
+  g_tft.fillRect(SCREEN_MARGIN, clearY, (int)screenWidth - (SCREEN_MARGIN * 2), clearHeight, TFT_BLACK);
+}
 }  // namespace
 #endif
 
@@ -217,6 +245,11 @@ BoardDisplayService::BoardDisplayService(SerialService* serialService,
       _serialWriterService(serialWriterService),
       _serialWriterForwarderService(serialWriterForwarderService),
       _uartModeService(uartModeService),
+      _lastModeText(""),
+      _lastWeightText(""),
+      _lastWifiText(""),
+      _lastDetailText(""),
+      _lastTouchText(""),
       _lastRenderMs(0),
       _lastTouchPollMs(0),
       _touchReady(false),
@@ -236,6 +269,11 @@ void BoardDisplayService::begin() {
   g_tft.fillScreen(TFT_BLACK);
   g_tft.setWordwrap(false);
   _chromeDrawn = false;
+  _lastModeText = "";
+  _lastWeightText = "";
+  _lastWifiText = "";
+  _lastDetailText = "";
+  _lastTouchText = "";
   _touchReady = (g_tft.rtInit() == BB_ERROR_SUCCESS);
 
   Serial.printf("[DisplayBoard] TFT initialized (%s, rot=%d, size=%ux%u, SCK=%d MOSI=%d MISO=%d CS=%d DC=%d BL=%d)\n",
@@ -384,47 +422,28 @@ void BoardDisplayService::render(bool force) {
   const int weightAreaY = WEIGHT_TOP;
   const int weightAreaW = (int)screenWidth - (SCREEN_MARGIN * 2);
   const int weightAreaH = (int)statusTop - WEIGHT_TOP - 6;
-  String touchSummary = "Touch ready";
-
-  if (_touchReady && _touchPressed) {
-    touchSummary = "Touch active";
-  } else if (_touchReady) {
-    touchSummary = "Touch idle";
-  } else {
-    touchSummary = "Touch offline";
-  }
+  const String weightText = displayWeightText(safeWeight);
+  const String wifiText = staConnected ? String("WiFi ") + staIp
+                                       : apActive ? String("AP ") + apIp
+                                                  : String("Waiting for WiFi");
+  const String detailText = safeLine.length() > 0 ? safeLine : safeStatus;
+  const String touchSummary = _touchReady ? String("Touch ready") : String("Touch offline");
   const String safeTouch = sanitizeForDisplay(touchSummary, 28);
 
-  String signature;
-  signature.reserve(196);
-  signature += safeWeight;
-  signature += '|';
-  signature += safeLine;
-  signature += '|';
-  signature += safeMode;
-  signature += '|';
-  signature += wifiModeShort(wifiMode);
-  signature += '|';
-  signature += staConnected ? staIp : apIp;
-  signature += '|';
-  signature += model.serialSuspended ? '1' : '0';
-  signature += '|';
-  signature += model.serialStarted ? '1' : '0';
-  signature += '|';
-  signature += String(model.timestamp);
-  signature += '|';
-  signature += safeStatus;
-  signature += '|';
-  signature += safeTouch;
+  const bool chromeNeedsRedraw = force || !_chromeDrawn;
+  const bool modeChanged = chromeNeedsRedraw || safeMode != _lastModeText;
+  const bool weightChanged = chromeNeedsRedraw || weightText != _lastWeightText;
+  const bool wifiChanged = chromeNeedsRedraw || wifiText != _lastWifiText;
+  const bool detailChanged = chromeNeedsRedraw || detailText != _lastDetailText;
+  const bool touchChanged = chromeNeedsRedraw || safeTouch != _lastTouchText;
 
-  if (!force && signature == _lastSignature) {
+  if (!modeChanged && !weightChanged && !wifiChanged && !detailChanged && !touchChanged) {
     _lastRenderMs = millis();
     return;
   }
-  _lastSignature = signature;
   _lastRenderMs = millis();
 
-  if (force || !_chromeDrawn) {
+  if (chromeNeedsRedraw) {
     g_tft.fillScreen(TFT_BLACK);
     g_tft.drawRect(0, 0, screenWidth, screenHeight, TFT_ORANGE);
     g_tft.drawLine(0, HEADER_HEIGHT, screenWidth - 1, HEADER_HEIGHT, TFT_ORANGE);
@@ -439,59 +458,60 @@ void BoardDisplayService::render(bool force) {
     g_tft.setFont(FONT_12x16);
     g_tft.setCursor(SCREEN_MARGIN, 48);
     g_tft.print("Scale Display");
+
+    g_tft.setTextColor(TFT_GREY, TFT_BLACK);
+    g_tft.setFont(FONT_6x8);
+    g_tft.setCursor(SCREEN_MARGIN, footerTop);
+    g_tft.print("ESP32-2432S028 / ");
+    g_tft.print(TFT_DRIVER_NAME);
+    g_tft.print(" / XPT2046");
     _chromeDrawn = true;
   }
 
-  g_tft.fillRect(screenWidth / 2, 6, (screenWidth / 2) - SCREEN_MARGIN, HEADER_HEIGHT - 12, TFT_BLACK);
-  g_tft.setTextColor(TFT_CYAN, TFT_BLACK);
-  g_tft.setFont(FONT_12x16);
-  drawRightAlignedText(safeMode, (int)screenWidth - SCREEN_MARGIN, 10);
-
-  g_tft.fillRect(weightAreaX, weightAreaY, weightAreaW, weightAreaH, TFT_BLACK);
-  g_tft.setTextColor(TFT_GREEN, TFT_BLACK);
-  if (safeWeight.length() > 0 && canRenderBigWeight(safeWeight)) {
-    drawBigWeight(safeWeight, weightAreaX, weightAreaY, weightAreaW, weightAreaH, TFT_GREEN);
-  } else {
-    g_tft.setFont(FONT_16x32);
-    BB_RECT weightBounds = {0, 0, 0, 0};
-    const String weightText = safeWeight.length() > 0 ? safeWeight : String("WAITING");
-    g_tft.getStringBox(weightText, &weightBounds);
-    const int drawX = weightAreaX + ((weightAreaW - weightBounds.w) / 2);
-    const int drawY = weightAreaY + ((weightAreaH - weightBounds.h) / 2);
-    g_tft.setCursor(drawX < weightAreaX ? weightAreaX : drawX, drawY < weightAreaY ? weightAreaY : drawY);
-    g_tft.print(weightText);
+  if (modeChanged) {
+    g_tft.fillRect(screenWidth / 2, 6, (screenWidth / 2) - SCREEN_MARGIN, HEADER_HEIGHT - 12, TFT_BLACK);
+    g_tft.setTextColor(TFT_CYAN, TFT_BLACK);
+    g_tft.setFont(FONT_12x16);
+    drawRightAlignedText(safeMode, (int)screenWidth - SCREEN_MARGIN, 10);
+    _lastModeText = safeMode;
   }
 
-  g_tft.fillRect(1, statusTop + 1, screenWidth - 2, screenHeight - statusTop - 2, TFT_BLACK);
-  g_tft.setTextColor(TFT_WHITE, TFT_BLACK);
-  g_tft.setFont(FONT_8x8);
-  g_tft.setCursor(SCREEN_MARGIN, statusTop + 10);
-  if (staConnected) {
-    g_tft.print("WiFi ");
-    g_tft.print(staIp);
-  } else if (apActive) {
-    g_tft.print("AP ");
-    g_tft.print(apIp);
-  } else {
-    g_tft.print("Waiting for WiFi");
+  if (weightChanged) {
+    if (chromeNeedsRedraw || _lastWeightText.length() == 0) {
+      g_tft.fillRect(weightAreaX, weightAreaY, weightAreaW, weightAreaH, TFT_BLACK);
+    } else {
+      drawWeightValue(_lastWeightText, weightAreaX, weightAreaY, weightAreaW, weightAreaH, TFT_BLACK);
+    }
+    drawWeightValue(weightText, weightAreaX, weightAreaY, weightAreaW, weightAreaH, TFT_GREEN);
+    _lastWeightText = weightText;
   }
 
-  g_tft.setCursor(SCREEN_MARGIN, statusTop + 22);
-  if (safeLine.length() > 0) {
-    g_tft.print(safeLine);
-  } else {
-    g_tft.print(safeStatus);
+  if (wifiChanged) {
+    g_tft.setTextColor(TFT_WHITE, TFT_BLACK);
+    g_tft.setFont(FONT_8x8);
+    clearTextLine(screenWidth, statusTop + 10, TEXT_LINE_HEIGHT_8);
+    g_tft.setCursor(SCREEN_MARGIN, statusTop + 10);
+    g_tft.print(wifiText);
+    _lastWifiText = wifiText;
   }
 
-  g_tft.setCursor(SCREEN_MARGIN, statusTop + 34);
-  g_tft.print(safeTouch);
+  if (detailChanged) {
+    g_tft.setTextColor(TFT_WHITE, TFT_BLACK);
+    g_tft.setFont(FONT_8x8);
+    clearTextLine(screenWidth, statusTop + 22, TEXT_LINE_HEIGHT_8);
+    g_tft.setCursor(SCREEN_MARGIN, statusTop + 22);
+    g_tft.print(detailText);
+    _lastDetailText = detailText;
+  }
 
-  g_tft.setTextColor(TFT_GREY, TFT_BLACK);
-  g_tft.setFont(FONT_6x8);
-  g_tft.setCursor(SCREEN_MARGIN, footerTop);
-  g_tft.print("ESP32-2432S028 / ");
-  g_tft.print(TFT_DRIVER_NAME);
-  g_tft.print(" / XPT2046");
+  if (touchChanged) {
+    g_tft.setTextColor(TFT_WHITE, TFT_BLACK);
+    g_tft.setFont(FONT_8x8);
+    clearTextLine(screenWidth, statusTop + 34, TEXT_LINE_HEIGHT_8);
+    g_tft.setCursor(SCREEN_MARGIN, statusTop + 34);
+    g_tft.print(safeTouch);
+    _lastTouchText = safeTouch;
+  }
 #else
   (void)force;
 #endif
