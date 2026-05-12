@@ -151,6 +151,12 @@ size_t SerialWriterService::transmit(const String& data, TxSource source) {
   return 0;
 }
 
+void SerialWriterService::clearPendingTx() {
+  _pendingTx = "";
+  _pendingTxSource = TxSource::NONE;
+  _pendingTxValid = false;
+}
+
 size_t SerialWriterService::doTransmit(const String& data, TxSource source) {
   HardwareSerial& port = outputSerial();
   size_t written = port.print(data);

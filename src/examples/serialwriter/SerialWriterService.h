@@ -47,6 +47,10 @@ class SerialWriterService : public StatefulService<SerialWriterState> {
   // Single funnel for ALL outbound paths. Returns number of bytes written (0 on failure).
   size_t transmit(const String& data, TxSource source);
 
+  // Discard any buffered (throttled) transmit data — called on WiFi recovery to avoid
+  // sending stale data that was queued before the connection dropped.
+  void clearPendingTx();
+
  private:
   HttpEndpoint<SerialWriterState>   _httpEndpoint;
   FSPersistence<SerialWriterState>  _fsPersistence;

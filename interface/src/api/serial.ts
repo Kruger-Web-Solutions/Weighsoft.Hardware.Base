@@ -16,6 +16,7 @@ export function updateSerialData(data: SerialData | SerialConfigUpdate): AxiosPr
     stop_bits: data.stop_bits ?? 1,
     parity: data.parity ?? 0,
     regex_pattern: data.regex_pattern ?? '',
+    publish_interval_ms: data.publish_interval_ms ?? 0,
   };
   return AXIOS.post(SERIAL_ENDPOINT, payload);
 }

@@ -34,12 +34,15 @@ SerialWriterForwarderService::SerialWriterForwarderService(AsyncWebServer* serve
                    fs,
                    SERIALW_FWD_CONFIG_FILE),
     _writerService(writerService) {
-  // Runtime connection fields change on every reconnect/receive cycle. Keep
-  // those in RAM and persist only user-supplied forwarding configuration.
   _fsPersistence.disableUpdateHandler();
   addUpdateHandler([this](const String& origin) {
     if (!origin.startsWith("fwd-")) onConfigChanged();
   }, false);
+
+#ifdef ESP32
+  WiFi.onEvent([this](WiFiEvent_t event, WiFiEventInfo_t info) { onWiFiGotIP(); },
+               WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_GOT_IP);
+#endif
 }
 
 void SerialWriterForwarderService::begin() {
@@ -52,11 +55,19 @@ void SerialWriterForwarderService::loop() {
 
   const unsigned long now = millis();
 
-  if (WiFi.status() != WL_CONNECTED) {
+  const bool wifiUp = WiFi.status() == WL_CONNECTED;
+  if (!wifiUp) {
+    _wifiWasConnected = false;
     if (now >= _nextRetryMs) {
       _nextRetryMs = now + 1000UL;
     }
     return;
+  }
+  if (!_wifiWasConnected) {
+    _wifiWasConnected = true;
+    _backoffMs = 1000;
+    _nextRetryMs = now;
+    _readerPollFailures = 0;
   }
 
   if (_activeConnectionMethod == SERIALW_FWD_METHOD_WS) {
@@ -277,6 +288,21 @@ void SerialWriterForwarderService::disconnectWs() {
     s.connected = false;
     return StateUpdateResult::CHANGED;
   }, "fwd-disconnect");
+}
+
+void SerialWriterForwarderService::onWiFiGotIP() {
+  if (!_running) return;
+  Serial.printf("[SerialWriterForwarder] WiFi reconnected (IP: %s) — resetting backoff for immediate Reader reconnect\n",
+                WiFi.localIP().toString().c_str());
+  _backoffMs = 1000;
+  _nextRetryMs = millis();
+  _readerPollFailures = 0;
+  _lastReaderOkMs = 0;
+  _lastAnnounceMs = 0;
+
+  if (_writerService) {
+    _writerService->clearPendingTx();
+  }
 }
 
 void SerialWriterForwarderService::onWsEvent(WStype_t type, uint8_t* payload, size_t length) {

@@ -3,6 +3,7 @@
 
 #include <WebSocketsClient.h>
 #include <HTTPClient.h>
+#include <WiFi.h>
 
 #include <HttpEndpoint.h>
 #include <FSPersistence.h>
@@ -49,7 +50,9 @@ class SerialWriterForwarderService : public StatefulService<SerialWriterForwarde
   void onConfigChanged();
   void connectReader();
   void disconnectWs();
+  void onWiFiGotIP();
   uint8_t _activeConnectionMethod = SERIALW_FWD_METHOD_WS;
+  bool _wifiWasConnected = false;
 
   void onWsEvent(WStype_t type, uint8_t* payload, size_t length);
   void scheduleRetry();
