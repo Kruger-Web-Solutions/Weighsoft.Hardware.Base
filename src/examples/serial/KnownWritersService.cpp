@@ -56,7 +56,6 @@ void KnownWritersService::recordBroadcastToOnlineWriters(const String& message) 
       if (w.online) {
         w.lastMessage = message;
         w.lastMessageAt = now;
-        w.lastSeenAt = now;
         changed = true;
       }
     }
