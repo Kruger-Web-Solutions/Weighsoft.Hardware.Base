@@ -6,6 +6,7 @@
 #include <examples/serialwriter/SerialWriterForwarderService.h>
 #include <examples/diagnostics/DiagnosticsService.h>
 #include <examples/weightforwarder/WeightForwarderService.h>
+#include <examples/remoteweight/RemoteWeightService.h>
 #include "VersionService.h"
 #include "UartModeService.h"
 #include "BoardDisplayService.h"
@@ -125,6 +126,9 @@ MdnsService* mdnsService;
 MdnsBrowser* mdnsBrowser;
 WatchdogService* watchdogService;
 BoardDisplayService* boardDisplayService;
+#if FT_ENABLED(FT_REMOTE_WEIGHT)
+RemoteWeightService* remoteWeightService;
+#endif
 
 void setup() {
   // start serial and filesystem
@@ -282,6 +286,21 @@ void setup() {
   weightForwarderService->begin();
   Serial.println(F("[9/10] Weight Forwarder service loaded OK"));
 
+#if FT_ENABLED(FT_REMOTE_WEIGHT)
+  // ESP-to-ESP weight receiver: accepts weight POSTs from a remote Forwarder
+  // at /rest/remoteWeight, pushes to /ws/remoteWeight, optionally echoes to
+  // USB and (with FT_TFT_WEIGHT_SCREEN) drives a TFT screen. Compiled in only
+  // on boards that set FT_REMOTE_WEIGHT (the S3 bridge + the TFT viewer envs).
+  Serial.println(F("[9/10] Initializing Remote Weight receiver..."));
+  remoteWeightService = new RemoteWeightService(
+      server,
+      esp8266React->getFS(),
+      esp8266React->getSecurityManager()
+      );
+  remoteWeightService->begin();
+  Serial.println(F("[9/10] Remote Weight receiver loaded OK"));
+#endif
+
   // mDNS announcement — defers MDNS.begin() until WiFi is up, then adds the
   // _weighsoft._tcp service to the responder ArduinoOTA already started.
   // The coexistence fix in commit 0f91835 prevents the WiFi-scan conflict.
@@ -366,6 +385,10 @@ void loop() {
 
   // process weight forwarding
   weightForwarderService->loop();
+
+#if FT_ENABLED(FT_REMOTE_WEIGHT)
+  if (remoteWeightService) remoteWeightService->loop();
+#endif
 
   if (boardDisplayService) {
     boardDisplayService->loop();
