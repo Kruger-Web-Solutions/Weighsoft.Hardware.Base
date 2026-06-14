@@ -8,6 +8,7 @@
 #include <examples/weightforwarder/WeightForwarderService.h>
 #include <examples/remoteweight/RemoteWeightService.h>
 #include <examples/tftdisplay/TftWeightDisplayService.h>
+#include <examples/lcddisplay/LcdDisplayService.h>
 #include "VersionService.h"
 #include "UartModeService.h"
 #include "BoardDisplayService.h"
@@ -132,6 +133,9 @@ RemoteWeightService* remoteWeightService;
 #endif
 #if FT_ENABLED(FT_TFT_WEIGHT_SCREEN)
 TftWeightDisplayService* tftWeightDisplayService;
+#endif
+#if FT_ENABLED(FT_DISPLAY_LCD)
+LcdDisplayService* lcdDisplayService;
 #endif
 
 void setup() {
@@ -345,6 +349,22 @@ void setup() {
       );
   watchdogService->begin();
 
+#if FT_ENABLED(FT_DISPLAY_LCD)
+  // Character-LCD device (16x2 I2C). Observe-only — never touches Serial1 or
+  // UartModeService. Compiled in only on boards that set FT_DISPLAY_LCD.
+  Serial.println(F("[10/10] Initializing LCD display service..."));
+  lcdDisplayService = new LcdDisplayService(
+      server,
+      esp8266React->getSecurityManager(),
+      esp8266React->getMqttClient()
+#if FT_ENABLED(FT_BLE)
+      ,nullptr  // BLE server configured via the callback below
+#endif
+      );
+  lcdDisplayService->begin();
+  Serial.println(F("[10/10] LCD display service loaded OK"));
+#endif
+
 #if FT_ENABLED(FT_BLE)
   // Register callbacks after both services exist so callback never sees null
   esp8266React->getBleSettingsService()->onBleServerStarted(
@@ -359,6 +379,12 @@ void setup() {
         serialService->setBleServer(bleServer);
         serialService->configureBle();
       }
+#if FT_ENABLED(FT_DISPLAY_LCD)
+      if (lcdDisplayService) {
+        lcdDisplayService->setBleServer(bleServer);
+        lcdDisplayService->configureBle();
+      }
+#endif
     }
   );
   Serial.println(F("[10/10] BLE callbacks registered OK"));
@@ -407,6 +433,10 @@ void loop() {
 
 #if FT_ENABLED(FT_TFT_WEIGHT_SCREEN)
   if (tftWeightDisplayService) tftWeightDisplayService->loop();
+#endif
+
+#if FT_ENABLED(FT_DISPLAY_LCD)
+  if (lcdDisplayService) lcdDisplayService->loop();
 #endif
 
   if (boardDisplayService) {
