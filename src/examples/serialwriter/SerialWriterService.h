@@ -77,7 +77,7 @@ class SerialWriterService : public StatefulService<SerialWriterState> {
   bool          _pendingTxValid  = false;
   unsigned long _lastTxMs        = 0;
 
-  HardwareSerial& outputSerial();  // returns Serial or Serial1 based on _outputPort
+  Stream& outputSerial();  // returns Serial (USB on S3) or Serial1 based on _outputPort; Stream& so USB-CDC Serial works
 
   // Internal: actual write to the serial port + state update. Bypasses throttling.
   size_t doTransmit(const String& data, TxSource source);

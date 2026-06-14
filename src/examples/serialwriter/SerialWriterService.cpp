@@ -97,8 +97,14 @@ void SerialWriterService::loop() {
   _pendingTxValid = false;
 }
 
-HardwareSerial& SerialWriterService::outputSerial() {
-  return _outputPort == SERIALW_OUTPUT_USB ? Serial : SERIALW_UART1_PORT;
+Stream& SerialWriterService::outputSerial() {
+  // Return Stream& (the shared base of HardwareSerial and the S3's USB-CDC
+  // Serial) so this compiles on both classic ESP32 (Serial == HardwareSerial)
+  // and the ESP32-S3 native-USB build (Serial == USB CDC, not a HardwareSerial).
+  if (_outputPort == SERIALW_OUTPUT_USB) {
+    return static_cast<Stream&>(Serial);
+  }
+  return static_cast<Stream&>(SERIALW_UART1_PORT);
 }
 
 void SerialWriterService::suspendWriter() {
@@ -158,7 +164,7 @@ void SerialWriterService::clearPendingTx() {
 }
 
 size_t SerialWriterService::doTransmit(const String& data, TxSource source) {
-  HardwareSerial& port = outputSerial();
+  Stream& port = outputSerial();
   size_t written = port.print(data);
   String le = lineEndingChars();
   if (le.length() > 0) written += port.print(le);
@@ -196,7 +202,14 @@ void SerialWriterService::applySerialConfig() {
     Serial.flush();
     delay(50);
     Serial.end();
+#if ARDUINO_USB_CDC_ON_BOOT
+    // On the ESP32-S3 native-USB build, `Serial` is USB CDC, whose begin()
+    // takes only a baud rate — USB has no UART framing, so the data-bits/
+    // parity/stop `mode` does not apply (and the 2-arg overload doesn't exist).
+    Serial.begin(baud);
+#else
     Serial.begin(baud, mode);
+#endif
     delay(50);
     Serial.setDebugOutput(false);
     esp_log_level_set("*", ESP_LOG_NONE);
