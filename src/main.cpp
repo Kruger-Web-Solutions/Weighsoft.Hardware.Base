@@ -7,6 +7,7 @@
 #include <examples/diagnostics/DiagnosticsService.h>
 #include <examples/weightforwarder/WeightForwarderService.h>
 #include <examples/remoteweight/RemoteWeightService.h>
+#include <examples/tftdisplay/TftWeightDisplayService.h>
 #include "VersionService.h"
 #include "UartModeService.h"
 #include "BoardDisplayService.h"
@@ -128,6 +129,9 @@ WatchdogService* watchdogService;
 BoardDisplayService* boardDisplayService;
 #if FT_ENABLED(FT_REMOTE_WEIGHT)
 RemoteWeightService* remoteWeightService;
+#endif
+#if FT_ENABLED(FT_TFT_WEIGHT_SCREEN)
+TftWeightDisplayService* tftWeightDisplayService;
 #endif
 
 void setup() {
@@ -299,6 +303,17 @@ void setup() {
       );
   remoteWeightService->begin();
   Serial.println(F("[9/10] Remote Weight receiver loaded OK"));
+
+#if FT_ENABLED(FT_TFT_WEIGHT_SCREEN)
+  // TFT weight screen — renders the received weight on an ILI9488/ILI9341
+  // panel. Reads from the RemoteWeightService above (hard dependency), so it is
+  // built here after the receiver is up. Observe-only: never touches Serial1 or
+  // UartModeService. The ~4s boot colour-test runs before server->begin().
+  Serial.println(F("[9/10] Initializing TFT weight screen..."));
+  tftWeightDisplayService = new TftWeightDisplayService(remoteWeightService);
+  tftWeightDisplayService->begin();
+  Serial.println(F("[9/10] TFT weight screen loaded OK"));
+#endif
 #endif
 
   // mDNS announcement — defers MDNS.begin() until WiFi is up, then adds the
@@ -388,6 +403,10 @@ void loop() {
 
 #if FT_ENABLED(FT_REMOTE_WEIGHT)
   if (remoteWeightService) remoteWeightService->loop();
+#endif
+
+#if FT_ENABLED(FT_TFT_WEIGHT_SCREEN)
+  if (tftWeightDisplayService) tftWeightDisplayService->loop();
 #endif
 
   if (boardDisplayService) {
