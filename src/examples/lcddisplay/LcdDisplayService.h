@@ -23,6 +23,10 @@
 #define LCD_DISPLAY_ENDPOINT_PATH "/rest/display"
 #define LCD_DISPLAY_SOCKET_PATH "/ws/display"
 
+// Coalesce a fast inbound serial-bridge stream to the most-recent line and
+// redraw the slow I2C LCD at most this often (ms), so it can't lag behind.
+#define LCD_BRIDGE_REDRAW_MS 120
+
 class LcdDisplayState {
  public:
   String line1;
@@ -152,6 +156,14 @@ class LcdDisplayService : public StatefulService<LcdDisplayState> {
   // Serial bridge - WebSocket client
   WebSocketsClient* _wsClient;
   String _currentMqttSub;
+
+  // Serial bridge: coalesce a fast inbound stream to the latest line (redrawn
+  // on a timer in loop() so the LCD stays current), and skip needless bridge
+  // reconnects when only data — not config — changed.
+  String _pendingBridgeLine;
+  volatile bool _bridgeLineDirty = false;
+  unsigned long _lastBridgeDrawMs = 0;
+  String _lastBridgeSig;
 
   // Inline MQTT configuration - single-layer pattern
   String _mqttBasePath;

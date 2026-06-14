@@ -114,6 +114,25 @@ void LcdDisplayService::loop() {
   if (_wsClient) {
     _wsClient->loop();
   }
+
+  // Coalesced serial-bridge redraw: apply ONLY the most-recent inbound line, at
+  // most every LCD_BRIDGE_REDRAW_MS. Intermediate lines from a fast stream are
+  // dropped, so the LCD shows the latest reading instead of lagging behind. The
+  // update() below drives onConfigUpdated() (LCD write + browser broadcast); the
+  // bridge is NOT reconnected because its config signature is unchanged.
+  if (_bridgeLineDirty && (millis() - _lastBridgeDrawMs) >= LCD_BRIDGE_REDRAW_MS) {
+    _bridgeLineDirty = false;
+    _lastBridgeDrawMs = millis();
+    String l1 = _pendingBridgeLine.substring(0, 16);
+    String l2 = _pendingBridgeLine.length() > 16 ? _pendingBridgeLine.substring(16, 32) : "";
+    while (l1.length() < 16) l1 += " ";
+    while (l2.length() < 16) l2 += " ";
+    update([&](LcdDisplayState& s) {
+      s.line1 = l1;
+      s.line2 = l2;
+      return StateUpdateResult::CHANGED;
+    }, "serial_bridge");
+  }
 }
 
 void LcdDisplayService::onConfigUpdated() {
@@ -197,32 +216,31 @@ void LcdDisplayService::configureBle() {
 // Serial bridge implementation
 
 void LcdDisplayService::onSerialDataReceived(const String& lastLine, const char* source) {
-  Serial.printf("[Display] Received from %s: %s\n", source, lastLine.c_str());
-  
-  // Split line across two rows if needed (16 chars per row)
-  _state.line1 = lastLine.substring(0, 16);
-  _state.line2 = lastLine.length() > 16 ? lastLine.substring(16, 32) : "";
-  
-  // Pad with spaces to clear previous content
-  while (_state.line1.length() < 16) _state.line1 += " ";
-  while (_state.line2.length() < 16) _state.line2 += " ";
-  
-  // Update LCD
-  if (_lcd != nullptr) {
-    _lcd->clear();
-    _lcd->setCursor(0, 0);
-    _lcd->print(_state.line1);
-    _lcd->setCursor(0, 1);
-    _lcd->print(_state.line2);
-  }
-  
-  // Broadcast state update to all channels
-  update([](LcdDisplayState& state) { return StateUpdateResult::CHANGED; }, "serial_bridge");
+  // Called per inbound bridge line — possibly very fast. Do NOT draw the slow
+  // I2C LCD or fire a state update here (that would also re-run the bridge
+  // connect logic per line). Just remember the most-recent line; loop()
+  // coalesces to this latest value and redraws at a bounded rate, so the LCD
+  // always shows the newest line and can never fall behind a fast stream.
+  (void)source;
+  _pendingBridgeLine = lastLine;
+  _bridgeLineDirty = true;
 }
 
 void LcdDisplayService::handleBridgeModeChange() {
   LcdDisplayState state = _state;
-  
+
+  // onConfigUpdated() runs on EVERY state update — including every coalesced
+  // bridge data line. Only tear down + rebuild the bridge when the bridge
+  // CONFIG actually changed (mode/ip/port/topic/uuids); otherwise a data
+  // stream would needlessly reconnect the bridge on every redraw.
+  String sig = state.bridgeMode + "|" + state.serialDeviceIP + "|" +
+               String(state.serialDevicePort) + "|" + state.serialMqttTopic + "|" +
+               state.serialBleServiceUuid + "|" + state.serialBleCharUuid;
+  if (sig == _lastBridgeSig) {
+    return;
+  }
+  _lastBridgeSig = sig;
+
   // Disconnect all bridges first
   disconnectWebSocketBridge();
   disconnectMqttBridge();
