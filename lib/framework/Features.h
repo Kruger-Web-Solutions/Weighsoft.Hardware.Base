@@ -43,5 +43,23 @@
 #endif
 #endif
 
+// --- Per-board display features (NewEspAllInOne) ---
+// All OFF by default; enabled per-board in that env's build_flags in platformio.ini.
+
+// ESP-to-ESP weight receiver (hard dependency of the TFT weight screen)
+#ifndef FT_REMOTE_WEIGHT
+#define FT_REMOTE_WEIGHT 0
+#endif
+
+// TFT weight screen (TFT_eSPI; ILI9488 / CYD ILI9341). Requires FT_REMOTE_WEIGHT.
+#ifndef FT_TFT_WEIGHT_SCREEN
+#define FT_TFT_WEIGHT_SCREEN 0
+#endif
+
+// Character-LCD device (16x2 I2C via LiquidCrystal_I2C)
+#ifndef FT_DISPLAY_LCD
+#define FT_DISPLAY_LCD 0
+#endif
+
 
 #endif
