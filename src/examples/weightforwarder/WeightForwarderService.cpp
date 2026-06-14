@@ -225,6 +225,10 @@ bool WeightForwarderService::fetchHttpAuthToken(const String& baseUrl) {
   String signInUrl = baseUrl + "/rest/signIn";
   HTTPClient http;
   http.begin(signInUrl);
+  // Bound a stalled connection so weight forwarding can't block the loop long
+  // enough to trip the 10s task watchdog (which would reboot the device).
+  http.setConnectTimeout(2000);
+  http.setTimeout(2000);
   http.addHeader("Content-Type", "application/json");
 
   DynamicJsonDocument reqDoc(256);
@@ -268,6 +272,8 @@ void WeightForwarderService::forwardViaHttp(const String& lastLine, const String
 
   HTTPClient http;
   http.begin(_state.targetUrl);
+  http.setConnectTimeout(2000);
+  http.setTimeout(2000);
   http.addHeader("Content-Type", "application/json");
 
   // Optional auth for protected endpoints (e.g. display device /rest/display)
@@ -303,6 +309,8 @@ void WeightForwarderService::forwardViaHttp(const String& lastLine, const String
     if (fetchHttpAuthToken(baseUrl)) {
       http.end();
       http.begin(_state.targetUrl);
+      http.setConnectTimeout(2000);
+      http.setTimeout(2000);
       http.addHeader("Content-Type", "application/json");
       http.addHeader("Authorization", "Bearer " + _httpAuthToken);
       code = http.POST(json);
