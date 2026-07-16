@@ -9,6 +9,7 @@ export const WEB_SOCKET_ROOT = calculateWebSocketRoot(WS_BASE_URL);
 export const SERIAL_SOCKET_PATH = `${WS_BASE_URL}serial`;
 export const DIAGNOSTICS_SOCKET_PATH = `${WS_BASE_URL}diagnostics`;
 export const UART_MODE_SOCKET_PATH = `${WS_BASE_URL}uartMode`;
+export const LCD_DISPLAY_SOCKET_PATH = WEB_SOCKET_ROOT + 'display';
 
 export const AXIOS = axios.create({
   baseURL: API_BASE_URL,
