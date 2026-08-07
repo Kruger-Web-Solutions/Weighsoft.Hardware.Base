@@ -372,7 +372,7 @@ const RelayBoardTwin3D: FC<RelayBoardTwin3DProps> = ({
                   </text>
                 </g>
                 <g
-                  className="hit"
+                  style={{ pointerEvents: 'none' }}
                   onMouseEnter={() => showTip('term')}
                   onMouseLeave={() => setTip(null)}
                 >
