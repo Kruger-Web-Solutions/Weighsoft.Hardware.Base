@@ -10,6 +10,7 @@ Current integration branches:
 - `display` - display integration baseline
 - `weighingboard` - load-cell / weighing integration baseline
 - `display35` - 3.5 inch display integration baseline
+- `RelayBoardEspBuildIn` - ESP-12F 4-channel relay board (built-in ESP) + digital twin
 
 The older `serial` branch may still exist as historical reference, but new serial implementation work should start from `serial2`.
 

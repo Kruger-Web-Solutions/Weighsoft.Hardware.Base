@@ -63,6 +63,7 @@ This documentation provides comprehensive architecture, design patterns, API ref
 | [EXTENSION-GUIDE.md](EXTENSION-GUIDE.md) | Step-by-step guide to add custom features |
 | [DEVICE-TEMPLATE-GUIDE.md](DEVICE-TEMPLATE-GUIDE.md) | Quick start checklist for new device projects |
 | [LED-EXAMPLE.md](LED-EXAMPLE.md) | LED control example - template for controllable devices |
+| [RELAY-BOARD-ESP-BUILT-IN.md](RELAY-BOARD-ESP-BUILT-IN.md) | ESP-12F 4-ch relay board wiring, pins, digital twin (`RelayBoardEspBuildIn`) |
 | [DIAGNOSTICS-EXAMPLE.md](DIAGNOSTICS-EXAMPLE.md) | UART diagnostics example with loopback and baud detection |
 | [WEIGHT-FORWARDER-LESSONS.md](WEIGHT-FORWARDER-LESSONS.md) | Multi-protocol weight forwarding patterns (WebSocket, SSE, UDP, MQTT) |
 
