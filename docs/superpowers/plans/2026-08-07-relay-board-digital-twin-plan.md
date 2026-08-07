@@ -42,4 +42,4 @@
 
 ### Task 5: Docs index + commit/push
 - [x] Link from docs README / integration workflow
-- [ ] Commit and push
+- [x] Commit and push (`2745fa0`)
