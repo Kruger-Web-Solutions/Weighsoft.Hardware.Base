@@ -118,12 +118,17 @@ const RelayBoardDigitalTwin: FC = () => {
     <SectionContent title="Digital Twin" titleGutter>
       {demoMode && (
         <Alert severity="info" sx={{ mb: 2 }}>
-          Demo mode — board offline or WebSocket not connected. Toggle relays on the 3D twin to preview wiring/behavior.
+          Demo mode — board offline or WebSocket not connected. Click relays on the isometric twin to fire GPIO pipes.
           Live control uses <code>/ws/relayBoard</code> when the ESP is reachable.
         </Alert>
       )}
 
-      <RelayBoardTwin3D state={state} powerOn onToggleRelay={toggleRelay} />
+      <RelayBoardTwin3D
+        state={state}
+        powerOn
+        uartLive={connected || demoMode}
+        onToggleRelay={toggleRelay}
+      />
 
       <Typography variant="subtitle2" gutterBottom>ESP stats</Typography>
       <div className="relay-stats-grid">
@@ -132,7 +137,10 @@ const RelayBoardDigitalTwin: FC = () => {
         <div className="relay-stat"><div className="k">Free RAM</div><div className="v">{formatBytes(heap)}</div></div>
         <div className="relay-stat"><div className="k">Heap frag</div><div className="v">{frag}%</div></div>
         <div className="relay-stat"><div className="k">Flash</div><div className="v">{formatBytes(status.flash_chip_size)}</div></div>
-        <div className="relay-stat"><div className="k">Sketch free</div><div className="v">{formatBytes(status.free_sketch_space)}</div></div>
+        <div className="relay-stat">
+          <div className="k">Sketch free</div>
+          <div className="v">{formatBytes(status.free_sketch_space)}</div>
+        </div>
         <div className="relay-stat"><div className="k">Temp sensor</div><div className="v">None on PCB</div></div>
         <div className="relay-stat"><div className="k">Chip ID</div><div className="v">{status.chip_id}</div></div>
       </div>
