@@ -25,7 +25,9 @@ let relays = {
   relay2: false,
   relay3: false,
   relay4: false,
-  buzzer: false
+  buzzer: false,
+  di1: false,
+  di2: false
 };
 
 const json = (res, code, body) => {
@@ -101,21 +103,30 @@ const server = http.createServer((req, res) => {
       sketch_size: 854040,
       free_sketch_space: 1500000,
       sdk_version: 'mock',
+      core_version: 'mock',
+      uptime_ms: Date.now() % 100000000,
+      reset_reason: 'Power On',
+      vcc_mv: 3290,
+      wifi_ssid: 'mock-network',
+      wifi_rssi: -55,
+      ip: '127.0.0.1',
+      mac: 'MO:CK:MO:CK:MO:CK',
+      flash_chip_speed: 40000000,
       has_temp_sensor: false,
-      has_buzzer: false,
+      has_buzzer: true,
       power_led: 'hardwired',
       relay_active: 'low',
-      pins: { ry1: 16, ry2: 14, ry3: 12, ry4: 13 },
+      pins: { ry1: 16, ry2: 14, ry3: 12, ry4: 13, di1: 4, di2: 5, buzzer: 15 },
       gpio_legend: {
         '16': 'DO RY1',
         '14': 'DO RY2',
         '12': 'DO RY3',
         '13': 'DO RY4',
-        '4': 'DI/DO breakout',
-        '5': 'DI/DO breakout',
+        '4': 'DI 1 (pullup)',
+        '5': 'DI 2 (pullup)',
+        '15': 'DO buzzer',
         '0': 'BOOT strap / flash',
         '2': 'BOOT strap',
-        '15': 'BOOT strap',
         '1': 'TX0 UART',
         '3': 'RX0 UART'
       },

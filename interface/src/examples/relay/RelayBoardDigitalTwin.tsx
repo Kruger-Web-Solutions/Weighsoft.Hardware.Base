@@ -33,6 +33,23 @@ const formatBytes = (n?: number) => {
   return `${n} B`;
 };
 
+const formatUptime = (ms?: number) => {
+  if (ms == null || Number.isNaN(ms)) {
+    return '—';
+  }
+  const s = Math.floor(ms / 1000);
+  const d = Math.floor(s / 86400);
+  const h = Math.floor((s % 86400) / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  if (d > 0) {
+    return `${d}d ${h}h ${m}m`;
+  }
+  if (h > 0) {
+    return `${h}h ${m}m`;
+  }
+  return `${m}m ${s % 60}s`;
+};
+
 const RelayBoardDigitalTwin: FC = () => {
   const { connected, updateData, data } = useWs<RelayBoardState>(RELAY_BOARD_WEBSOCKET_URL);
   const [demoMode, setDemoMode] = useState(false);
@@ -127,7 +144,9 @@ const RelayBoardDigitalTwin: FC = () => {
         state={state}
         powerOn
         uartLive={connected || demoMode}
+        hasBuzzer={status.has_buzzer}
         onToggleRelay={toggleRelay}
+        onToggleBuzzer={() => setRelay('buzzer', !state.buzzer)}
       />
 
       <Typography variant="subtitle2" gutterBottom>ESP stats</Typography>
@@ -136,14 +155,52 @@ const RelayBoardDigitalTwin: FC = () => {
         <div className="relay-stat"><div className="k">CPU</div><div className="v">{status.cpu_freq_mhz} MHz</div></div>
         <div className="relay-stat"><div className="k">Free RAM</div><div className="v">{formatBytes(heap)}</div></div>
         <div className="relay-stat"><div className="k">Heap frag</div><div className="v">{frag}%</div></div>
+        <div className="relay-stat"><div className="k">Uptime</div><div className="v">{formatUptime(status.uptime_ms)}</div></div>
+        <div className="relay-stat">
+          <div className="k">Supply VCC</div>
+          <div className="v">{status.vcc_mv != null ? `${(status.vcc_mv / 1000).toFixed(2)} V` : '—'}</div>
+        </div>
+        <div className="relay-stat">
+          <div className="k">WiFi signal</div>
+          <div className="v">{status.wifi_rssi != null ? `${status.wifi_rssi} dBm` : '—'}</div>
+        </div>
+        <div className="relay-stat"><div className="k">IP address</div><div className="v">{status.ip ?? '—'}</div></div>
         <div className="relay-stat"><div className="k">Flash</div><div className="v">{formatBytes(status.flash_chip_size)}</div></div>
         <div className="relay-stat">
           <div className="k">Sketch free</div>
           <div className="v">{formatBytes(status.free_sketch_space)}</div>
         </div>
+        <div className="relay-stat"><div className="k">Reset reason</div><div className="v">{status.reset_reason ?? '—'}</div></div>
         <div className="relay-stat"><div className="k">Temp sensor</div><div className="v">None on PCB</div></div>
         <div className="relay-stat"><div className="k">Chip ID</div><div className="v">{status.chip_id}</div></div>
+        <div className="relay-stat"><div className="k">MAC</div><div className="v">{status.mac ?? '—'}</div></div>
       </div>
+
+      <Typography variant="subtitle2" gutterBottom>Digital inputs (DI) — live</Typography>
+      <Box mb={2}>
+        <Chip
+          sx={{ mr: 1 }}
+          label={`DI 1 · GPIO${status.pins.di1 ?? 4} — ${state.di1 ? 'ACTIVE (to GND)' : 'idle'}`}
+          color={state.di1 ? 'success' : 'default'}
+        />
+        <Chip
+          label={`DI 2 · GPIO${status.pins.di2 ?? 5} — ${state.di2 ? 'ACTIVE (to GND)' : 'idle'}`}
+          color={state.di2 ? 'success' : 'default'}
+        />
+        {demoMode && (
+          <>
+            <FormControlLabel
+              sx={{ ml: 2 }}
+              control={<Switch checked={state.di1} onChange={(_, v) => setRelay('di1', v)} size="small" />}
+              label="simulate DI1"
+            />
+            <FormControlLabel
+              control={<Switch checked={state.di2} onChange={(_, v) => setRelay('di2', v)} size="small" />}
+              label="simulate DI2"
+            />
+          </>
+        )}
+      </Box>
 
       <Typography variant="subtitle2" gutterBottom>Digital outputs (DO) — relays</Typography>
       <Box mb={2}>
@@ -170,17 +227,20 @@ const RelayBoardDigitalTwin: FC = () => {
       <Typography variant="subtitle2" gutterBottom>GPIO map (DI / DO / boot)</Typography>
       <Box mb={2}>
         {Object.entries(status.gpio_legend).map(([gpio, role]) => {
-          const isDo = role.startsWith('DO');
+          const isDi = role.startsWith('DI');
           const pinNum = Number(gpio);
           const on =
             (pinNum === status.pins.ry1 && state.relay1) ||
             (pinNum === status.pins.ry2 && state.relay2) ||
             (pinNum === status.pins.ry3 && state.relay3) ||
-            (pinNum === status.pins.ry4 && state.relay4);
+            (pinNum === status.pins.ry4 && state.relay4) ||
+            (pinNum === status.pins.buzzer && state.buzzer) ||
+            (pinNum === (status.pins.di1 ?? 4) && isDi && state.di1) ||
+            (pinNum === (status.pins.di2 ?? 5) && isDi && state.di2);
           const boot = role.toLowerCase().includes('boot');
           return (
-            <span key={gpio} className={`gpio-chip ${isDo && on ? 'do-on' : ''} ${boot ? 'boot' : ''}`}>
-              <Chip size="small" label={`GPIO${gpio}`} color={isDo && on ? 'success' : 'default'} />
+            <span key={gpio} className={`gpio-chip ${on ? 'do-on' : ''} ${boot ? 'boot' : ''}`}>
+              <Chip size="small" label={`GPIO${gpio}`} color={on ? 'success' : 'default'} />
               {role}
             </span>
           );

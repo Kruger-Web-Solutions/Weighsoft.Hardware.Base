@@ -4,6 +4,11 @@
 
 #define SERIAL_BAUD_RATE 115200
 
+#ifdef ESP8266
+// Route the ADC to measure the 3.3V supply so the twin can report VCC
+ADC_MODE(ADC_VCC);
+#endif
+
 // Use pointers to avoid early construction issues on ESP32
 AsyncWebServer* server;
 ESP8266React* esp8266React;
@@ -74,4 +79,5 @@ void setup() {
 
 void loop() {
   esp8266React->loop();
+  relayBoardService->loop();
 }

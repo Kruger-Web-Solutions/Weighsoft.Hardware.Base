@@ -15,8 +15,9 @@ Integration branch: `RelayBoardEspBuildIn`
 | Programming | Header: TX0, RX0, GND, 3V3/5V, IO0; **RST** button |
 | Breakouts | IO4, IO5, IO0, IO2, IO15, IO16, IO14, IO12, IO13 |
 | Serial adapter path | Laptop USB → Prolific USB-Serial → DB9 → MAX3232/MAX232 board → ESP header |
-| Onboard temp sensor | **None** on this PCB |
-| Buzzer | Not confirmed on silkscreen; twin exposes optional control only if firmware enables it |
+| Onboard temp sensor | **None** on this PCB (twin reports supply VCC via ADC instead) |
+| Buzzer | Firmware drives an active-high buzzer output on **GPIO15** (pulled low at boot, so silent on reset) |
+| Digital inputs | **DI1 = GPIO4**, **DI2 = GPIO5** (INPUT_PULLUP — close pin to GND to trigger; polled every 50 ms, pushed live over WebSocket) |
 
 ## Default GPIO map (firmware)
 
@@ -28,9 +29,12 @@ LC-style ESP-12F 4-ch boards typically hard-wire:
 | RY2 | 14 | |
 | RY3 | 12 | |
 | RY4 | 13 | |
-| Active level | **LOW = ON** | Opto/transistor drive (verify with click test) |
+| Buzzer | 15 | Active HIGH (GPIO15 is pulled low at boot) |
+| DI1 | 4 | INPUT_PULLUP, close to GND = active |
+| DI2 | 5 | INPUT_PULLUP, close to GND = active |
+| Active level (relays) | **LOW = ON** | Opto/transistor drive (verify with click test) |
 
-Avoid using GPIO0 / GPIO2 / GPIO15 as relay outputs (boot strapping).
+Avoid using GPIO0 / GPIO2 as outputs (boot strapping). GPIO15 is safe for an active-high load like the buzzer.
 
 ## Wiring diagram — programming / serial (photos)
 
@@ -81,8 +85,10 @@ flowchart TB
 
 In the web UI: **Project → Relay Board Twin**
 
-- CSS-3D board view of relays, LEDs, headers
-- Live DO (relays) control via WebSocket
-- DI/GPIO legend (boot-sensitive pins marked)
-- ESP stats from `/rest/systemStatus` (heap, flash, CPU)
+- Isometric 3D board view: relays, PSU, transformer + caps, ESP-12F, UART header, buzzer, DI header, mounting holes
+- Live DO (relays + buzzer) control via WebSocket; animated signal packets on power / UART / GPIO / DI pipes
+- Live DI 1 / DI 2 state (GPIO4 / GPIO5), pushed from firmware every 50 ms on change
+- ESP stats: heap, fragmentation, uptime, supply VCC, WiFi RSSI, IP, MAC, reset reason, flash, chip ID
 - Wiring tab with this diagram
+
+![Live digital twin](images/relay-twin-live.png)

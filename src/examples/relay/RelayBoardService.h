@@ -27,9 +27,19 @@
 #ifndef RELAY_BOARD_HAS_BUZZER
 #define RELAY_BOARD_HAS_BUZZER 0
 #endif
+// GPIO15 is pulled low at boot, safe for an active-high buzzer
 #ifndef BUZZER_PIN
-#define BUZZER_PIN 4
+#define BUZZER_PIN 15
 #endif
+
+// Digital inputs on the IO4 / IO5 breakout pins (INPUT_PULLUP, close to GND = active)
+#ifndef DI1_PIN
+#define DI1_PIN 4
+#endif
+#ifndef DI2_PIN
+#define DI2_PIN 5
+#endif
+#define DI_POLL_INTERVAL_MS 50
 
 #define DEFAULT_RELAY_STATE false
 
@@ -44,6 +54,8 @@ class RelayBoardState {
   bool relay3;
   bool relay4;
   bool buzzer;
+  bool di1;
+  bool di2;
 
   static void read(RelayBoardState& state, JsonObject& root) {
     root["relay1"] = state.relay1;
@@ -51,6 +63,8 @@ class RelayBoardState {
     root["relay3"] = state.relay3;
     root["relay4"] = state.relay4;
     root["buzzer"] = state.buzzer;
+    root["di1"] = state.di1;
+    root["di2"] = state.di2;
   }
 
   static StateUpdateResult update(JsonObject& root, RelayBoardState& state) {
@@ -100,6 +114,7 @@ class RelayBoardService : public StatefulService<RelayBoardState> {
  public:
   RelayBoardService(AsyncWebServer* server, SecurityManager* securityManager, AsyncMqttClient* mqttClient);
   void begin();
+  void loop();
 
  private:
   HttpEndpoint<RelayBoardState> _httpEndpoint;
@@ -112,10 +127,12 @@ class RelayBoardService : public StatefulService<RelayBoardState> {
   String _mqttBasePath;
   String _mqttName;
   String _mqttUniqueId;
+  unsigned long _lastDiPoll = 0;
 
   void configureMqtt();
   void onConfigUpdated();
   void applyOutputs();
+  void pollInputs();
   void registerStatusEndpoint();
 };
 
