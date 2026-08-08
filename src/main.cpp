@@ -63,7 +63,13 @@ void setup() {
   Serial.println(F("[6/8] Initializing live weight service..."));
   liveWeightService = new LiveWeightService(
       server, esp8266React->getFS(), esp8266React->getSecurityManager(), esp8266React->getMqttClient());
+  liveWeightService->setRelayBoardService(relayBoardService);
   liveWeightService->begin();
+  relayBoardService->setDiEdgeCallback([](uint8_t di, bool active) {
+    if (liveWeightService) {
+      liveWeightService->onDiEdge(di, active);
+    }
+  });
   Serial.println(F("[6/8] Live weight service loaded OK"));
 
 #if FT_ENABLED(FT_BLE)
