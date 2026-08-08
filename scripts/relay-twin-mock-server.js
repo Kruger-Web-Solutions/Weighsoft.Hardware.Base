@@ -115,7 +115,7 @@ const server = http.createServer((req, res) => {
       has_temp_sensor: false,
       has_buzzer: true,
       power_led: 'hardwired',
-      relay_active: 'low',
+      relay_active: 'high',
       pins: { ry1: 16, ry2: 14, ry3: 12, ry4: 13, di1: 4, di2: 5, buzzer: 15 },
       gpio_legend: {
         '16': 'DO RY1',

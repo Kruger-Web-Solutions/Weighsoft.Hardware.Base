@@ -20,9 +20,10 @@
 #define RELAY4_PIN 13
 #endif
 
-// Most opto-isolated boards: LOW energizes relay
-#define RELAY_ON LOW
-#define RELAY_OFF HIGH
+// ESP12F_Relay_X4: transistor drive, HIGH energizes relay
+// (confirmed by Tasmota/ESPHome device configs for LC-Relay-ESP12-4R-MV)
+#define RELAY_ON HIGH
+#define RELAY_OFF LOW
 
 #ifndef RELAY_BOARD_HAS_BUZZER
 #define RELAY_BOARD_HAS_BUZZER 0

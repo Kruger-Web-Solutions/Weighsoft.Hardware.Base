@@ -2,6 +2,22 @@
 
 Integration branch: `RelayBoardEspBuildIn`
 
+Board identification: **ESP12F_Relay_X4** aka **LC-Relay-ESP12-4R-MV** (93×87 mm).
+References: [Tasmota template](https://templates.blakadder.com/ESP12F_Relay_X4.html),
+[ESPHome device page](https://devices.esphome.io/devices/ESP-12F-Relay-X4/), vendor datasheet.
+
+Key facts confirmed from documentation:
+
+- Relay drive is **active HIGH** through jumper caps: RY1–RY4 pads sit next to GPIO16/14/12/13
+  headers; any GPIO can drive any relay with a DuPont wire instead of the cap.
+- **GPIO16 pulses briefly at power-up** (hardware quirk), so RY1 clicks once at boot.
+  Community workaround: move the RY1 jumper to GPIO15 (we keep GPIO15 for the buzzer).
+- **GPIO5 carries the board's blue LED** (inverted) and GPIO2 the ESP module LED.
+- ADC pin exposed (0–1 V input range) — our firmware uses ADC in VCC mode instead.
+- Relays: Songle SRD-05VDC-SL-C, 10 A dry contacts (COM/NO/NC), AC 250 V / DC 30 V loads.
+- Power: AC 90–250 V, DC 7–30 V, or 5 V (separate inputs). RST button onboard.
+- IO4/IO5 are the usual I2C pins for add-ons (OLED, RTC) if the DIs are ever repurposed.
+
 ## Hardware inventory (from board photos)
 
 | Item | Detail |
@@ -32,7 +48,7 @@ LC-style ESP-12F 4-ch boards typically hard-wire:
 | Buzzer | 15 | Active HIGH (GPIO15 is pulled low at boot) |
 | DI1 | 4 | INPUT_PULLUP, close to GND = active |
 | DI2 | 5 | INPUT_PULLUP, close to GND = active |
-| Active level (relays) | **LOW = ON** | Opto/transistor drive (verify with click test) |
+| Active level (relays) | **HIGH = ON** | Transistor drive via jumper caps (per Tasmota/ESPHome configs) |
 
 Avoid using GPIO0 / GPIO2 as outputs (boot strapping). GPIO15 is safe for an active-high load like the buzzer.
 

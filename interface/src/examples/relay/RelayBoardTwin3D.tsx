@@ -62,23 +62,23 @@ const TIPS: Record<string, Tip> = {
   },
   di: {
     title: 'Digital inputs · GPIO4 / GPIO5',
-    body: 'INPUT_PULLUP: close the pin to GND to trigger. The LED here lights live when the input is active.'
+    body: 'INPUT_PULLUP: close the pin to GND to trigger. GPIO5 also has the board\u2019s blue LED, so it glows when DI 2 fires.'
   },
   relay1: {
     title: 'RY1 · Songle SRD-05VDC',
-    body: 'GPIO16 → driver → coil. Click to toggle. Green packets fire while the DO signal is ON.'
+    body: 'GPIO16 → jumper → driver → coil, active HIGH. Note: GPIO16 pulses briefly at power-up (board quirk).'
   },
   relay2: {
     title: 'RY2 · Songle SRD-05VDC',
-    body: 'GPIO14 → driver → coil. COM / NO / NC on the screw terminal in front.'
+    body: 'GPIO14 → jumper → driver → coil, active HIGH. COM / NO / NC on the screw terminal in front.'
   },
   relay3: {
     title: 'RY3 · Songle SRD-05VDC',
-    body: 'GPIO12 → driver → coil. Active LOW drive on this board family.'
+    body: 'GPIO12 → jumper → driver → coil, active HIGH. Jumper caps let any GPIO drive any relay.'
   },
   relay4: {
     title: 'RY4 · Songle SRD-05VDC',
-    body: 'GPIO13 → driver → coil. 10A class contacts for switched loads.'
+    body: 'GPIO13 → jumper → driver → coil, active HIGH. 10A dry contacts: AC 250V / DC 30V.'
   }
 };
 

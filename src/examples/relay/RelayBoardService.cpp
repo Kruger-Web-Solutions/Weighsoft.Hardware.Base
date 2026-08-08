@@ -109,7 +109,7 @@ void RelayBoardService::registerStatusEndpoint() {
             AsyncJsonResponse* response = new AsyncJsonResponse(false, 2048);
             JsonObject root = response->getRoot();
 
-            root["board"] = "RelayBoardEspBuildIn";
+            root["board"] = "ESP12F_Relay_X4 (LC-Relay-ESP12-4R-MV)";
             root["mcu"] = "ESP-12F";
             root["platform"] = "esp8266";
             root["chip_id"] = String(ESP.getChipId(), HEX);
@@ -132,7 +132,7 @@ void RelayBoardService::registerStatusEndpoint() {
             root["has_temp_sensor"] = false;
             root["has_buzzer"] = RELAY_BOARD_HAS_BUZZER == 1;
             root["power_led"] = "hardwired";
-            root["relay_active"] = "low";
+            root["relay_active"] = "high";
 
             JsonObject pins = root.createNestedObject("pins");
             pins["ry1"] = RELAY1_PIN;
@@ -146,19 +146,19 @@ void RelayBoardService::registerStatusEndpoint() {
 #endif
 
             JsonObject gpio = root.createNestedObject("gpio_legend");
-            gpio["16"] = "DO RY1";
+            gpio["16"] = "DO RY1 (pulses at boot)";
             gpio["14"] = "DO RY2";
             gpio["12"] = "DO RY3";
             gpio["13"] = "DO RY4";
             gpio["4"] = "DI 1 (pullup)";
-            gpio["5"] = "DI 2 (pullup)";
+            gpio["5"] = "DI 2 (pullup + blue LED)";
 #if RELAY_BOARD_HAS_BUZZER
             gpio["15"] = "DO buzzer";
 #else
             gpio["15"] = "BOOT strap";
 #endif
             gpio["0"] = "BOOT strap / flash";
-            gpio["2"] = "BOOT strap";
+            gpio["2"] = "BOOT strap / ESP LED";
             gpio["1"] = "TX0 UART";
             gpio["3"] = "RX0 UART";
 
