@@ -187,12 +187,10 @@ class LiveWeightState {
     root["unit"] = state.unit;
     root["di1_action"] = state.di1Action;
     root["di2_action"] = state.di2Action;
-    root["job_running"] = state.jobRunning;
-    root["last_action"] = state.lastAction;
-    root["action_seq"] = state.actionSeq;
     root["printer_enabled"] = state.printerEnabled;
     root["printer_ip"] = state.printerIp;
     root["printer_port"] = state.printerPort;
+    // job_running / last_action / action_seq are runtime-only (not persisted)
   }
 
   static StateUpdateResult updateConfig(JsonObject& root, LiveWeightState& state) {
@@ -222,9 +220,6 @@ class LiveWeightState {
     state.unit = root["unit"] | "kg";
     state.di1Action = normalizeAction(root["di1_action"] | "none");
     state.di2Action = normalizeAction(root["di2_action"] | "none");
-    state.jobRunning = root["job_running"] | false;
-    state.lastAction = root["last_action"] | "";
-    state.actionSeq = root["action_seq"] | 0UL;
     state.printerEnabled = root["printer_enabled"] | false;
     state.printerIp = root["printer_ip"] | "";
     uint32_t port = root["printer_port"] | 9100U;

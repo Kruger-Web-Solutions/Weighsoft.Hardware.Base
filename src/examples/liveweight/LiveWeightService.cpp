@@ -52,34 +52,25 @@ LiveWeightService::LiveWeightService(AsyncWebServer* server,
     _appliedUnit("kg"),
     _appliedDi1Action("none"),
     _appliedDi2Action("none"),
-    _appliedJobRunning(false),
-    _appliedLastAction(""),
-    _appliedActionSeq(0),
     _appliedPrinterEnabled(false),
     _appliedPrinterIp(""),
     _appliedPrinterPort(9100),
-    _lastDrivenZone(255) {
+    _lastDrivenZone(255),
+    _pendingAction(""),
+    _printPending(false) {
   _mqttBasePath = SettingValue::format("weighsoft/liveWeight/#{unique_id}");
   _mqttClient->onConnect(std::bind(&LiveWeightService::configureMqtt, this));
   _fsPersistence.disableUpdateHandler();
 
   addUpdateHandler(
       [this](const String& originId) {
-        if (originId == "init" || originId == "band" || originId == "print" || originId == "print_prep") {
+        if (originId == "init" || originId == "band" || originId == "print" || originId == "print_prep" ||
+            originId == "di_action") {
           return;
         }
-        if (originId == "di_action") {
-          if (configChanged()) {
-            onConfigUpdated();
-          }
-          // next may change total/zone display; print/start/stop skip band drive
-          if (_state.lastAction == "next") {
-            evaluateBandAndDrive(originId);
-          }
-          return;
-        }
+        // Queue print from REST trigger_action — never block AsyncWebServer disconnect path
         if (_state.printRequested) {
-          sendNetworkPrint();
+          _printPending = true;
         }
         if (originId == "serial_hw" || originId == "http" || originId == "mqtt" || originId.startsWith("websocket")) {
           if (configChanged()) {
@@ -92,7 +83,6 @@ LiveWeightService::LiveWeightService(AsyncWebServer* server,
           onConfigUpdated();
           evaluateBandAndDrive("config");
         } else {
-          // Product fields / weight-only from REST without baud change
           evaluateBandAndDrive(originId);
         }
       },
@@ -103,17 +93,43 @@ void LiveWeightService::setRelayBoardService(RelayBoardService* relayBoard) {
   _relayBoard = relayBoard;
 }
 
-bool LiveWeightService::configChanged() const {
+bool LiveWeightService::sourceSettingsChanged() const {
   return _state.source != _appliedSource || _state.baudrate != _appliedBaud || _state.regexPattern != _appliedRegex ||
-         _state.rs485Enabled != _appliedRs485Enabled || _state.rs485Address != _appliedRs485Address ||
-         _state.rangeEnabled != _appliedRangeEnabled || _state.rangeLow != _appliedRangeLow ||
+         _state.rs485Enabled != _appliedRs485Enabled || _state.rs485Address != _appliedRs485Address;
+}
+
+bool LiveWeightService::configChanged() const {
+  // Persisted settings only — not runtime last_action / action_seq / job_running
+  return sourceSettingsChanged() || _state.rangeEnabled != _appliedRangeEnabled || _state.rangeLow != _appliedRangeLow ||
          _state.rangeHigh != _appliedRangeHigh || _state.relayLow != _appliedRelayLow ||
          _state.relayOk != _appliedRelayOk || _state.relayHigh != _appliedRelayHigh || _state.plu != _appliedPlu ||
          _state.product != _appliedProduct || _state.count != _appliedCount || _state.unit != _appliedUnit ||
          _state.di1Action != _appliedDi1Action || _state.di2Action != _appliedDi2Action ||
-         _state.jobRunning != _appliedJobRunning || _state.lastAction != _appliedLastAction ||
-         _state.actionSeq != _appliedActionSeq || _state.printerEnabled != _appliedPrinterEnabled ||
-         _state.printerIp != _appliedPrinterIp || _state.printerPort != _appliedPrinterPort;
+         _state.printerEnabled != _appliedPrinterEnabled || _state.printerIp != _appliedPrinterIp ||
+         _state.printerPort != _appliedPrinterPort;
+}
+
+void LiveWeightService::syncAppliedConfig() {
+  _appliedSource = _state.source;
+  _appliedBaud = _state.baudrate;
+  _appliedRegex = _state.regexPattern;
+  _appliedRs485Enabled = _state.rs485Enabled;
+  _appliedRs485Address = _state.rs485Address;
+  _appliedRangeEnabled = _state.rangeEnabled;
+  _appliedRangeLow = _state.rangeLow;
+  _appliedRangeHigh = _state.rangeHigh;
+  _appliedRelayLow = _state.relayLow;
+  _appliedRelayOk = _state.relayOk;
+  _appliedRelayHigh = _state.relayHigh;
+  _appliedPlu = _state.plu;
+  _appliedProduct = _state.product;
+  _appliedCount = _state.count;
+  _appliedUnit = _state.unit;
+  _appliedDi1Action = _state.di1Action;
+  _appliedDi2Action = _state.di2Action;
+  _appliedPrinterEnabled = _state.printerEnabled;
+  _appliedPrinterIp = _state.printerIp;
+  _appliedPrinterPort = _state.printerPort;
 }
 
 void LiveWeightService::begin() {
@@ -166,40 +182,32 @@ void LiveWeightService::begin() {
 }
 
 void LiveWeightService::loop() {
+  if (_pendingAction.length() > 0) {
+    String action = _pendingAction;
+    _pendingAction = "";
+    runAction(action);
+  }
+  if (_printPending) {
+    _printPending = false;
+    sendNetworkPrint();
+  }
   if (_state.source == LIVE_WEIGHT_SOURCE_SERIAL) {
     readSerialLine();
   }
 }
 
 void LiveWeightService::onConfigUpdated() {
+  const bool reapplySource = sourceSettingsChanged();
   _fsPersistence.writeToFS();
-  applySource();
+  if (reapplySource) {
+    applySource();
+  } else {
+    syncAppliedConfig();
+  }
 }
 
 void LiveWeightService::applySource() {
-  _appliedSource = _state.source;
-  _appliedBaud = _state.baudrate;
-  _appliedRegex = _state.regexPattern;
-  _appliedRs485Enabled = _state.rs485Enabled;
-  _appliedRs485Address = _state.rs485Address;
-  _appliedRangeEnabled = _state.rangeEnabled;
-  _appliedRangeLow = _state.rangeLow;
-  _appliedRangeHigh = _state.rangeHigh;
-  _appliedRelayLow = _state.relayLow;
-  _appliedRelayOk = _state.relayOk;
-  _appliedRelayHigh = _state.relayHigh;
-  _appliedPlu = _state.plu;
-  _appliedProduct = _state.product;
-  _appliedCount = _state.count;
-  _appliedUnit = _state.unit;
-  _appliedDi1Action = _state.di1Action;
-  _appliedDi2Action = _state.di2Action;
-  _appliedJobRunning = _state.jobRunning;
-  _appliedLastAction = _state.lastAction;
-  _appliedActionSeq = _state.actionSeq;
-  _appliedPrinterEnabled = _state.printerEnabled;
-  _appliedPrinterIp = _state.printerIp;
-  _appliedPrinterPort = _state.printerPort;
+  syncAppliedConfig();
 
   if (_state.source == LIVE_WEIGHT_SOURCE_SERIAL) {
     uint32_t baud = _state.baudrate;
@@ -407,15 +415,12 @@ void LiveWeightService::onDiEdge(uint8_t diIndex, bool active) {
   if (!active) {
     return;
   }
-  String action = "none";
+  // Defer work to loop() so RelayBoard can finish DI state update without blocking on TCP/FS
   if (diIndex == 1) {
-    action = _state.di1Action;
+    _pendingAction = _state.di1Action;
   } else if (diIndex == 2) {
-    action = _state.di2Action;
-  } else {
-    return;
+    _pendingAction = _state.di2Action;
   }
-  runAction(action);
 }
 
 void LiveWeightService::runAction(const String& action) {
@@ -424,7 +429,6 @@ void LiveWeightService::runAction(const String& action) {
     return;
   }
 
-  bool doPrint = false;
   update(
       [&](LiveWeightState& state) {
         if (a == "next") {
@@ -453,22 +457,28 @@ void LiveWeightService::runAction(const String& action) {
           state.lastAction = "print";
           state.actionSeq++;
           state.statusMessage = "Print requested";
-          doPrint = true;
+          state.printRequested = false;
           return StateUpdateResult::CHANGED;
         }
         return StateUpdateResult::UNCHANGED;
       },
       "di_action");
 
-  if (doPrint) {
-    sendNetworkPrint();
+  if (a == "next") {
+    // Persist piece count without re-opening UART
+    if (configChanged()) {
+      onConfigUpdated();
+    }
+    evaluateBandAndDrive("di_action");
+  } else if (a == "print") {
+    _printPending = true;
   }
 }
 
 void LiveWeightService::sendNetworkPrint() {
   String ip;
   uint16_t port = 9100;
-  String ticket;
+  char ticket[384];
   bool abortPrint = false;
 
   update(
@@ -481,30 +491,25 @@ void LiveWeightService::sendNetworkPrint() {
         }
         ip = state.printerIp;
         port = state.printerPort ? state.printerPort : 9100;
-        ticket = "================================\n";
-        ticket += "Weighsoft Live Weight\n";
-        ticket += "================================\n";
-        ticket += "PLU: ";
-        ticket += state.plu;
-        ticket += "\n";
-        ticket += "Product: ";
-        ticket += state.product;
-        ticket += "\n";
-        ticket += "Weight: ";
-        ticket += state.weight;
-        ticket += " ";
-        ticket += state.unit;
-        ticket += "\n";
-        ticket += "Count: ";
-        ticket += String(state.count);
-        ticket += "\n";
-        ticket += "Total: ";
-        ticket += state.total;
-        ticket += " ";
-        ticket += state.unit;
-        ticket += "\n";
-        ticket += "================================\n\n";
-        return StateUpdateResult::UNCHANGED;
+        snprintf(ticket,
+                 sizeof(ticket),
+                 "================================\n"
+                 "Weighsoft Live Weight\n"
+                 "================================\n"
+                 "PLU: %s\n"
+                 "Product: %s\n"
+                 "Weight: %s %s\n"
+                 "Count: %lu\n"
+                 "Total: %s %s\n"
+                 "================================\n\n",
+                 state.plu.c_str(),
+                 state.product.c_str(),
+                 state.weight.c_str(),
+                 state.unit.c_str(),
+                 (unsigned long)state.count,
+                 state.total.c_str(),
+                 state.unit.c_str());
+        return StateUpdateResult::CHANGED;
       },
       "print_prep");
 

@@ -52,17 +52,18 @@ class LiveWeightService : public StatefulService<LiveWeightState> {
   String _appliedUnit;
   String _appliedDi1Action;
   String _appliedDi2Action;
-  bool _appliedJobRunning;
-  String _appliedLastAction;
-  uint32_t _appliedActionSeq;
   bool _appliedPrinterEnabled;
   String _appliedPrinterIp;
   uint16_t _appliedPrinterPort;
   uint8_t _lastDrivenZone;
+  String _pendingAction;
+  bool _printPending;
 
   void configureMqtt();
   void onConfigUpdated();
   bool configChanged() const;
+  bool sourceSettingsChanged() const;
+  void syncAppliedConfig();
   void applySource();
   void readSerialLine();
   String extractWeight(const String& line);
