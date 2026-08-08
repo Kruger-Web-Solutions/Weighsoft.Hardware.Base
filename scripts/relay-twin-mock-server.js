@@ -30,6 +30,21 @@ let relays = {
   di2: false
 };
 
+let liveWeight = {
+  weight: '12.34',
+  last_line: 'ST,GS,+  12.34 kg',
+  timestamp: Date.now(),
+  active_source: 'wifi',
+  status_message: 'Mock weight',
+  source: 1,
+  source_name: 'wifi',
+  baud_rate: 9600,
+  regex_pattern: '([+-]?[0-9]+[\\.,]?[0-9]*)',
+  rs485_enabled: false,
+  rs485_address: 1,
+  rs485_ready: false
+};
+
 const json = (res, code, body) => {
   const data = JSON.stringify(body);
   res.writeHead(code, {
@@ -132,6 +147,34 @@ const server = http.createServer((req, res) => {
       },
       relays
     });
+  }
+
+  if (url === '/rest/liveWeight' && req.method === 'GET') {
+    return json(res, 200, liveWeight);
+  }
+
+  if (url === '/rest/liveWeight' && req.method === 'POST') {
+    let body = '';
+    req.on('data', (c) => (body += c));
+    req.on('end', () => {
+      try {
+        const patch = JSON.parse(body || '{}');
+        liveWeight = {
+          ...liveWeight,
+          ...patch,
+          timestamp: Date.now(),
+          active_source: patch.active_source || liveWeight.active_source || 'wifi',
+          status_message: patch.status_message || 'Mock weight updated'
+        };
+        if (patch.source != null) {
+          liveWeight.source_name = ['serial', 'wifi', 'rs485'][patch.source] || 'wifi';
+        }
+      } catch (_) {
+        /* keep */
+      }
+      json(res, 200, liveWeight);
+    });
+    return;
   }
 
   if (url === '/rest/systemStatus' && req.method === 'GET') {

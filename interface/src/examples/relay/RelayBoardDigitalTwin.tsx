@@ -8,6 +8,7 @@ import { FormLoader, SectionContent } from '../../components';
 import { SystemStatus } from '../../types';
 import { useWs } from '../../utils';
 
+import { LiveWeightState } from '../liveweight/types';
 import { readRelayBoardStatus } from './api';
 import RelayBoardTwin3D from './RelayBoardTwin3D';
 import {
@@ -19,6 +20,7 @@ import {
 import './relayTwin.css';
 
 export const RELAY_BOARD_WEBSOCKET_URL = WEB_SOCKET_ROOT + 'relayBoard';
+export const LIVE_WEIGHT_WEBSOCKET_URL = WEB_SOCKET_ROOT + 'liveWeight';
 
 const formatBytes = (n?: number) => {
   if (n == null || Number.isNaN(n)) {
@@ -52,7 +54,9 @@ const formatUptime = (ms?: number) => {
 
 const RelayBoardDigitalTwin: FC = () => {
   const { connected, updateData, data } = useWs<RelayBoardState>(RELAY_BOARD_WEBSOCKET_URL);
+  const { data: liveWeight } = useWs<LiveWeightState>(LIVE_WEIGHT_WEBSOCKET_URL);
   const [demoMode, setDemoMode] = useState(false);
+  const [weightPulse, setWeightPulse] = useState(false);
   const [localState, setLocalState] = useState<RelayBoardState>(DEMO_RELAY_STATE);
   const [boardStatus, setBoardStatus] = useState<RelayBoardStatus>(DEMO_BOARD_STATUS);
   const [systemStatus, setSystemStatus] = useState<SystemStatus | undefined>();
@@ -65,6 +69,15 @@ const RelayBoardDigitalTwin: FC = () => {
     setDemoMode(false);
     return undefined;
   }, [connected]);
+
+  useEffect(() => {
+    if (!liveWeight?.timestamp && !liveWeight?.weight) {
+      return;
+    }
+    setWeightPulse(true);
+    const t = window.setTimeout(() => setWeightPulse(false), 1600);
+    return () => window.clearTimeout(t);
+  }, [liveWeight?.timestamp, liveWeight?.weight]);
 
   useEffect(() => {
     if (demoMode || !connected) {
@@ -143,7 +156,7 @@ const RelayBoardDigitalTwin: FC = () => {
       <RelayBoardTwin3D
         state={state}
         powerOn
-        uartLive={connected || demoMode}
+        uartLive={weightPulse || demoMode}
         hasBuzzer={status.has_buzzer}
         onToggleRelay={toggleRelay}
         onToggleBuzzer={() => setRelay('buzzer', !state.buzzer)}

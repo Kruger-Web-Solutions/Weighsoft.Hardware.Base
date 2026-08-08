@@ -97,6 +97,23 @@ flowchart TB
   Relays --> Loads["COM / NO / NC screw terminals"]
 ```
 
+## Live Weight
+
+In the web UI: **Project → Live Weight**
+
+- **Live** tab — end-user view: big weight only (no settings)
+- **Setup** / **How it connects** tabs — admin only (source, baud, regex, test weight, log)
+
+One service, multiple ways in (no duplicate weight UIs):
+
+| Source | How it works |
+|--------|----------------|
+| Serial (RS-232) | Scale → MAX3232 / PROG header → UART0. Baud + regex configurable. |
+| WiFi / WebSocket | `POST /rest/liveWeight` or `/ws/liveWeight` with `{ weight, last_line }`. MQTT `…/set`. |
+| RS-485 | Stubbed — needs a transceiver module; address is persisted for later. |
+
+Endpoints: `/rest/liveWeight`, `/ws/liveWeight`. Reuses patterns from `serial2` (`SerialService`) and `serial` (`RemoteWeightService`) without pulling those whole branches onto this board.
+
 ## Digital twin
 
 In the web UI: **Project → Relay Board Twin**

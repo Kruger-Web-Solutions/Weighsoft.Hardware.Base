@@ -1,5 +1,6 @@
 #include <ESP8266React.h>
 #include <examples/led/LedExampleService.h>
+#include <examples/liveweight/LiveWeightService.h>
 #include <examples/relay/RelayBoardService.h>
 
 #define SERIAL_BAUD_RATE 115200
@@ -14,6 +15,7 @@ AsyncWebServer* server;
 ESP8266React* esp8266React;
 LedExampleService* ledExampleService;
 RelayBoardService* relayBoardService;
+LiveWeightService* liveWeightService;
 
 void setup() {
   // start serial and filesystem
@@ -52,11 +54,17 @@ void setup() {
   ledExampleService->begin();
   Serial.println(F("[4/7] LED example loaded OK"));
 
-  Serial.println(F("[5/7] Initializing relay board service..."));
+  Serial.println(F("[5/8] Initializing relay board service..."));
   relayBoardService =
       new RelayBoardService(server, esp8266React->getSecurityManager(), esp8266React->getMqttClient());
   relayBoardService->begin();
-  Serial.println(F("[5/7] Relay board service loaded OK"));
+  Serial.println(F("[5/8] Relay board service loaded OK"));
+
+  Serial.println(F("[6/8] Initializing live weight service..."));
+  liveWeightService = new LiveWeightService(
+      server, esp8266React->getFS(), esp8266React->getSecurityManager(), esp8266React->getMqttClient());
+  liveWeightService->begin();
+  Serial.println(F("[6/8] Live weight service loaded OK"));
 
 #if FT_ENABLED(FT_BLE)
   esp8266React->getBleSettingsService()->onBleServerStarted([](BLEServer* bleServer) {
@@ -68,9 +76,9 @@ void setup() {
   });
 #endif
 
-  Serial.println(F("[6/7] Starting web server..."));
+  Serial.println(F("[7/8] Starting web server..."));
   server->begin();
-  Serial.println(F("[6/7] Web server started OK"));
+  Serial.println(F("[7/8] Web server started OK"));
 
   Serial.println(F("=== System Ready! ==="));
   Serial.print(F("Free heap after init: "));
@@ -80,4 +88,5 @@ void setup() {
 void loop() {
   esp8266React->loop();
   relayBoardService->loop();
+  liveWeightService->loop();
 }
