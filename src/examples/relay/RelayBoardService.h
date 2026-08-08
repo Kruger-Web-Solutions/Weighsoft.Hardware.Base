@@ -1,6 +1,7 @@
 #ifndef RelayBoardService_h
 #define RelayBoardService_h
 
+#include <functional>
 #include <HttpEndpoint.h>
 #include <MqttPubSub.h>
 #include <WebSocketTxRx.h>
@@ -28,9 +29,12 @@
 #ifndef RELAY_BOARD_HAS_BUZZER
 #define RELAY_BOARD_HAS_BUZZER 0
 #endif
-// GPIO15 is pulled low at boot, safe for an active-high buzzer
+// GPIO15 is pulled low at boot — wire add-on buzzer: SIG→IO15, GND→GND (VCC if module needs it)
 #ifndef BUZZER_PIN
 #define BUZZER_PIN 15
+#endif
+#ifndef BUZZER_FREQ_HZ
+#define BUZZER_FREQ_HZ 2000
 #endif
 
 // Digital inputs on the IO4 / IO5 breakout pins (INPUT_PULLUP, close to GND = active)
@@ -113,9 +117,15 @@ class RelayBoardState {
 
 class RelayBoardService : public StatefulService<RelayBoardState> {
  public:
+  using DiEdgeCallback = std::function<void(uint8_t diIndex, bool active)>;
+
   RelayBoardService(AsyncWebServer* server, SecurityManager* securityManager, AsyncMqttClient* mqttClient);
   void begin();
   void loop();
+
+  // Live Weight range control: turn on one of three mapped relays (1–4), others in the map off
+  void setWeightBandRelays(uint8_t relayLow, uint8_t relayOk, uint8_t relayHigh, uint8_t zone);
+  void setDiEdgeCallback(DiEdgeCallback cb);
 
  private:
   HttpEndpoint<RelayBoardState> _httpEndpoint;
@@ -124,6 +134,7 @@ class RelayBoardService : public StatefulService<RelayBoardState> {
   AsyncMqttClient* _mqttClient;
   AsyncWebServer* _server;
   SecurityManager* _securityManager;
+  DiEdgeCallback _diEdgeCallback;
 
   String _mqttBasePath;
   String _mqttName;

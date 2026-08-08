@@ -71,9 +71,24 @@ void RelayBoardService::loop() {
   pollInputs();
 }
 
+void RelayBoardService::setDiEdgeCallback(DiEdgeCallback cb) {
+  _diEdgeCallback = cb;
+}
+
 void RelayBoardService::pollInputs() {
   bool di1 = digitalRead(DI1_PIN) == LOW;
   bool di2 = digitalRead(DI2_PIN) == LOW;
+
+  // Rising edge to active (contact close): fire once before state update
+  if (_diEdgeCallback) {
+    if (!_state.di1 && di1) {
+      _diEdgeCallback(1, true);
+    }
+    if (!_state.di2 && di2) {
+      _diEdgeCallback(2, true);
+    }
+  }
+
   update(
       [&](RelayBoardState& state) {
         if (state.di1 == di1 && state.di2 == di2) {
@@ -90,13 +105,74 @@ void RelayBoardService::onConfigUpdated() {
   applyOutputs();
 }
 
+void RelayBoardService::setWeightBandRelays(uint8_t relayLow, uint8_t relayOk, uint8_t relayHigh, uint8_t zone) {
+  update(
+      [&](RelayBoardState& state) {
+        bool next1 = state.relay1;
+        bool next2 = state.relay2;
+        bool next3 = state.relay3;
+        bool next4 = state.relay4;
+
+        auto clearN = [&](uint8_t n) {
+          if (n == 1) {
+            next1 = false;
+          } else if (n == 2) {
+            next2 = false;
+          } else if (n == 3) {
+            next3 = false;
+          } else if (n == 4) {
+            next4 = false;
+          }
+        };
+        auto setN = [&](uint8_t n, bool on) {
+          if (n == 1) {
+            next1 = on;
+          } else if (n == 2) {
+            next2 = on;
+          } else if (n == 3) {
+            next3 = on;
+          } else if (n == 4) {
+            next4 = on;
+          }
+        };
+
+        clearN(relayLow);
+        clearN(relayOk);
+        clearN(relayHigh);
+        if (zone == 1) {
+          setN(relayLow, true);
+        } else if (zone == 2) {
+          setN(relayOk, true);
+        } else if (zone == 3) {
+          setN(relayHigh, true);
+        }
+
+        if (next1 == state.relay1 && next2 == state.relay2 && next3 == state.relay3 && next4 == state.relay4) {
+          return StateUpdateResult::UNCHANGED;
+        }
+        state.relay1 = next1;
+        state.relay2 = next2;
+        state.relay3 = next3;
+        state.relay4 = next4;
+        return StateUpdateResult::CHANGED;
+      },
+      "live_weight");
+}
+
 void RelayBoardService::applyOutputs() {
   digitalWrite(RELAY1_PIN, _state.relay1 ? RELAY_ON : RELAY_OFF);
   digitalWrite(RELAY2_PIN, _state.relay2 ? RELAY_ON : RELAY_OFF);
   digitalWrite(RELAY3_PIN, _state.relay3 ? RELAY_ON : RELAY_OFF);
   digitalWrite(RELAY4_PIN, _state.relay4 ? RELAY_ON : RELAY_OFF);
 #if RELAY_BOARD_HAS_BUZZER
-  digitalWrite(BUZZER_PIN, _state.buzzer ? HIGH : LOW);
+  // Passive buzzers need a square wave; active buzzers also sound with tone().
+  // digitalWrite(HIGH) alone is silent on most piezo modules.
+  if (_state.buzzer) {
+    tone(BUZZER_PIN, BUZZER_FREQ_HZ);
+  } else {
+    noTone(BUZZER_PIN);
+    digitalWrite(BUZZER_PIN, LOW);
+  }
 #endif
 }
 
