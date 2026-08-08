@@ -6,9 +6,10 @@
 
 | Phase | State | Branch / PR | Notes |
 |-------|-------|-------------|-------|
-| P1 Firmware | DELIVERED | [PR #3](https://github.com/Kruger-Web-Solutions/Weighsoft.Hardware.Base/pull/3) merged | DI + network print |
-| P2 Operator UI | DELIVERED | [PR #4](https://github.com/Kruger-Web-Solutions/Weighsoft.Hardware.Base/pull/4) merged | Tabs + hero dial |
-| P3 Twin + docs | `plan:phase-active` | `feat/lw-p3-twin-docs` | In progress |
-| P4 Device verify | HUMAN | — | Needs flash after P3 |
+| P1 Firmware | DELIVERED | [PR #3](https://github.com/Kruger-Web-Solutions/Weighsoft.Hardware.Base/pull/3) | DI + network print |
+| P2 Operator UI | DELIVERED | [PR #4](https://github.com/Kruger-Web-Solutions/Weighsoft.Hardware.Base/pull/4) | Tabs + hero dial |
+| P3 Twin + docs | DELIVERED | [PR #5](https://github.com/Kruger-Web-Solutions/Weighsoft.Hardware.Base/pull/5) | DI labels + docs |
+| P4 Device verify | **needs:human** | — | Flash + field check |
 
-**Next:** merge P3, then Jurien flashes board (IO0→GND + RST) and verifies buzzer / DI / dial.
+**Software roadmap:** shipped on `RelayBoardEspBuildIn`.  
+**Blocked on you:** USB flash (kill python → COM + IO0→GND + RST), then check dial, DI actions, buzzer, optional print.
