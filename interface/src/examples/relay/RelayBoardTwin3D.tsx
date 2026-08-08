@@ -21,19 +21,19 @@ interface Tip {
 
 const TIPS: Record<string, Tip> = {
   ac: {
-    title: 'AC L / N input',
-    body: 'Mains feed into the isolation transformer. Powers the whole board.'
+    title: 'AC input · L/N',
+    body: 'Mains feed (90–250V AC) into the onboard switching supply. Fuse and MOV sit right next to it.'
   },
   dc: {
-    title: 'DC 7–30V input',
-    body: 'Alternative DC feed straight into the LM2596 buck converter.'
+    title: 'DC input · 7–30V / GND / 5V',
+    body: 'Alternative DC feed into the LM2596 buck, or direct regulated 5V on the third screw.'
   },
   trafo: {
-    title: 'Transformer + bulk caps',
-    body: 'Isolation transformer with electrolytic capacitors smoothing the rails.'
+    title: 'Switching transformer',
+    body: 'Isolation transformer of the AC-DC supply, with filter caps and fuse beside it.'
   },
   psu: {
-    title: 'LM2596 buck converter',
+    title: 'LM2596S-5.0 buck + 330 coil',
     body: 'Steps the input down to 5V for the relay coils. Orange packets = power rail flow.'
   },
   ams: {
@@ -41,53 +41,61 @@ const TIPS: Record<string, Tip> = {
     body: '5V → 3.3V linear regulator feeding the ESP-12F.'
   },
   esp: {
-    title: 'ESP-12F (DOIT)',
-    body: 'WiFi MCU. Drives RY1–RY4, buzzer on GPIO15, reads DI 1/2 on GPIO4/5, UART TX0/RX0 for flash and debug.'
+    title: 'ESP-12F (ESP8266MOD)',
+    body: 'WiFi MCU with PCB antenna. Drives K1–K4 via the RY jumpers, buzzer on GPIO15, reads DI on GPIO4/5.'
   },
-  uart: {
-    title: 'UART / flash header',
-    body: 'TX0, RX0, GND, 3V3, IO0. Blue packets = serial traffic. Pull IO0 low at reset for flash mode.'
+  prog: {
+    title: 'Programming header',
+    body: '5V, GND, TXD0, RXD0 + IO row. Laptop → MAX3232 → here. Hold IO0 low at reset for flash mode.'
+  },
+  rst: {
+    title: 'RST button',
+    body: 'Hardware reset for the ESP-12F.'
   },
   max: {
     title: 'MAX3232 adapter',
-    body: 'RS-232 ↔ TTL level shifter between the USB-serial cable and the ESP UART pins.'
+    body: 'RS-232 ↔ TTL level shifter between the USB-serial cable and the ESP UART pins. Blue packets = serial.'
   },
-  pwrled: {
-    title: 'Power LED',
-    body: 'Hardwired red status LED — not on a GPIO.'
+  io: {
+    title: 'IO breakout · DI 1 / DI 2',
+    body: 'IO5, IO4, IO0, IO2, IO15 pins. DI 1 = GPIO4, DI 2 = GPIO5 (pullup, close to GND to trigger). GPIO5 also drives the blue LED.'
+  },
+  jump: {
+    title: 'RY jumper caps',
+    body: 'GPIO16/14/12/13 connect to the relay drivers through these caps — move a cap or use a wire to remap any relay.'
+  },
+  leds: {
+    title: 'Indicator LEDs',
+    body: 'Power LED plus one red LED per relay channel, following the coil drive.'
   },
   buzzer: {
-    title: 'Buzzer · GPIO15',
-    body: 'Active-high output. Click to beep on / off. GPIO15 is pulled low at boot so it stays quiet on reset.'
-  },
-  di: {
-    title: 'Digital inputs · GPIO4 / GPIO5',
-    body: 'INPUT_PULLUP: close the pin to GND to trigger. GPIO5 also has the board\u2019s blue LED, so it glows when DI 2 fires.'
+    title: 'Buzzer add-on · GPIO15',
+    body: 'External active buzzer wired to the IO15 breakout pin. Active high, quiet at boot. Click to beep.'
   },
   relay1: {
-    title: 'RY1 · Songle SRD-05VDC',
-    body: 'GPIO16 → jumper → driver → coil, active HIGH. Note: GPIO16 pulses briefly at power-up (board quirk).'
+    title: 'K1 · Songle SRD-05VDC',
+    body: 'GPIO16 → jumper → driver → coil, active HIGH. Click to toggle. Note: GPIO16 pulses briefly at power-up.'
   },
   relay2: {
-    title: 'RY2 · Songle SRD-05VDC',
-    body: 'GPIO14 → jumper → driver → coil, active HIGH. COM / NO / NC on the screw terminal in front.'
+    title: 'K2 · Songle SRD-05VDC',
+    body: 'GPIO14 → jumper → driver → coil, active HIGH. COM / NO / NC on the terminal to the right.'
   },
   relay3: {
-    title: 'RY3 · Songle SRD-05VDC',
-    body: 'GPIO12 → jumper → driver → coil, active HIGH. Jumper caps let any GPIO drive any relay.'
+    title: 'K3 · Songle SRD-05VDC',
+    body: 'GPIO12 → jumper → driver → coil, active HIGH. 10A dry contacts: AC 250V / DC 30V.'
   },
   relay4: {
-    title: 'RY4 · Songle SRD-05VDC',
-    body: 'GPIO13 → jumper → driver → coil, active HIGH. 10A dry contacts: AC 250V / DC 30V.'
+    title: 'K4 · Songle SRD-05VDC',
+    body: 'GPIO13 → jumper → driver → coil, active HIGH. Driver cluster with flyback diode sits to its left.'
   }
 };
 
 /* ---------- isometric projection ---------- */
 
 const K = 0.95;
-const K2 = 0.48;
-const OX = 470;
-const OY = 96;
+const K2 = 0.5;
+const OX = 500;
+const OY = 105;
 
 const iso = (u: number, v: number, z = 0) => ({ x: OX + (u - v) * K, y: OY + (u + v) * K2 - z });
 
@@ -101,7 +109,6 @@ const shade = (hex: string, f: number) => {
   return `rgb(${r},${g},${b})`;
 };
 
-/** Flat path along the board surface through (u,v) waypoints at height z */
 const boardPath = (waypoints: [number, number][], z = 3) => {
   return waypoints
     .map(([u, v], i) => {
@@ -186,34 +193,32 @@ const Pipe: FC<{
   );
 };
 
-/* ---------- layout constants (board units, board = 400 x 230) ---------- */
+/* ---------- layout: board 300 x 280, mirrors the real PCB photo ---------- */
 
-const RELAYS: { key: RelayKey; gpio: number; u: number }[] = [
-  { key: 'relay1', gpio: 16, u: 28 },
-  { key: 'relay2', gpio: 14, u: 118 },
-  { key: 'relay3', gpio: 12, u: 208 },
-  { key: 'relay4', gpio: 13, u: 298 }
+const RELAYS: { key: RelayKey; gpio: number; silk: string; v: number }[] = [
+  { key: 'relay1', gpio: 16, silk: 'K1', v: 12 },
+  { key: 'relay2', gpio: 14, silk: 'K2', v: 78 },
+  { key: 'relay3', gpio: 12, silk: 'K3', v: 144 },
+  { key: 'relay4', gpio: 13, silk: 'K4', v: 210 }
 ];
 
-const RELAY_W = 62;
-const RELAY_V = 152;
-const RELAY_D = 46;
-const RELAY_H = 30;
+const RELAY_U = 190;
+const RELAY_W = 78;
+const RELAY_D = 60;
+const RELAY_H = 32;
 
-/* ESP module footprint */
-const ESP = { u: 198, v: 18, w: 90, d: 78 };
-
-/* signal start points along the ESP front edge, one per relay */
-const relayPipe = (i: number, u: number): string => {
-  const sx = 214 + i * 18;
-  const corridor = 136 - i * 9;
-  const cx = u + RELAY_W / 2;
+/* relay signal path: ESP → RY jumper → driver column → relay */
+const relayPipe = (i: number): string => {
+  const vc = RELAYS[i].v + RELAY_D / 2;
+  const capU = 108 + i * 14;
+  const corridorU = 170 + i * 4;
   return boardPath(
     [
-      [sx, ESP.v + ESP.d + 2],
-      [sx, corridor],
-      [cx, corridor],
-      [cx, RELAY_V - 2]
+      [85, 95 + i * 6],
+      [capU, 162],
+      [corridorU, 162],
+      [corridorU, vc],
+      [RELAY_U - 2, vc]
     ],
     3
   );
@@ -221,69 +226,51 @@ const relayPipe = (i: number, u: number): string => {
 
 const POWER_PIPE = boardPath(
   [
-    [40, 36],
-    [40, 118],
-    [126, 118],
-    [154, 102],
-    [196, 62]
+    [12, 250],
+    [70, 250],
+    [70, 206],
+    [95, 186],
+    [148, 46],
+    [88, 88]
   ],
   4
 );
 
 const UART_PIPE = boardPath(
   [
-    [448, 44],
-    [377, 52],
-    [292, 52]
+    [-52, -14],
+    [95, 20],
+    [70, 55]
   ],
   8
 );
 
-const DI_PIPE = boardPath(
+const DI1_PIPE = boardPath(
   [
-    [352, 120],
-    [352, 90],
-    [292, 90]
+    [47, 141],
+    [47, 131],
+    [60, 124]
   ],
-  4
+  3
+);
+
+const DI2_PIPE = boardPath(
+  [
+    [35, 141],
+    [35, 129],
+    [50, 122]
+  ],
+  3
 );
 
 const BUZZER_PIPE = boardPath(
   [
-    [272, 96],
-    [302, 96],
-    [302, 112]
+    [83, 141],
+    [20, 141],
+    [-38, 146]
   ],
   4
 );
-
-/* decorative SMD parts (u, v, w, d, color) */
-const SMDS: [number, number, number, number, string][] = [
-  [178, 30, 8, 4, '#8a6d3a'],
-  [178, 40, 8, 4, '#8a6d3a'],
-  [178, 50, 8, 4, '#2a2a2a'],
-  [150, 130, 10, 5, '#2a2a2a'],
-  [165, 130, 10, 5, '#8a6d3a'],
-  [310, 92, 8, 4, '#2a2a2a'],
-  [322, 92, 8, 4, '#8a6d3a'],
-  [70, 132, 10, 5, '#2a2a2a']
-];
-
-/* traces purely for looks */
-const DECOR_TRACES: [number, number][][] = [
-  [
-    [60, 145],
-    [340, 145]
-  ],
-  [
-    [20, 200],
-    [20, 60]
-  ],
-  [
-    [380, 150],
-    [380, 90]
-  ]
-];
 
 const RelayBoardTwin3D: FC<RelayBoardTwin3DProps> = ({
   state,
@@ -312,16 +299,14 @@ const RelayBoardTwin3D: FC<RelayBoardTwin3DProps> = ({
   const showTip = (id: string) => setTip(TIPS[id] || null);
   const hideTip = () => setTip(null);
 
-  /* frequently used anchors */
   const bA = iso(0, 0);
-  const bB = iso(400, 0);
-  const bC = iso(400, 230);
-  const bD = iso(0, 230);
+  const bB = iso(300, 0);
+  const bC = iso(300, 280);
+  const bD = iso(0, 280);
   const thickness = 20;
 
-  const espLabel = iso(ESP.u + 4, ESP.v, 28);
-  const pBuzz = iso(302, 126, 14);
-  const pLed = iso(174, 64, 6);
+  const pBuzz = iso(-45, 148, 12);
+  const relayStates = [state.relay1, state.relay2, state.relay3, state.relay4];
 
   return (
     <div className="relay-iso-wrap">
@@ -335,20 +320,15 @@ const RelayBoardTwin3D: FC<RelayBoardTwin3DProps> = ({
 
         <svg
           className="relay-iso-svg"
-          viewBox="0 0 1000 480"
+          viewBox="0 0 1000 470"
           role="img"
-          aria-label="Isometric digital twin of ESP-12F 4-channel relay board"
+          aria-label="Isometric digital twin of the ESP12F_Relay_X4 board"
         >
           <defs>
             <linearGradient id="pcbTop" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor="#1b8a4d" />
-              <stop offset="50%" stopColor="#127040" />
-              <stop offset="100%" stopColor="#0b5530" />
-            </linearGradient>
-            <linearGradient id="espShield" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#d8e0ea" />
-              <stop offset="55%" stopColor="#93a0ae" />
-              <stop offset="100%" stopColor="#5c6874" />
+              <stop offset="0%" stopColor="#1c8a4e" />
+              <stop offset="50%" stopColor="#137243" />
+              <stop offset="100%" stopColor="#0c5833" />
             </linearGradient>
             <radialGradient id="stageGlow" cx="0.5" cy="0.42" r="0.75">
               <stop offset="0%" stopColor="#1f4a33" stopOpacity="0.9" />
@@ -360,215 +340,80 @@ const RelayBoardTwin3D: FC<RelayBoardTwin3DProps> = ({
             </filter>
           </defs>
 
-          <rect x="0" y="0" width="1000" height="480" fill="url(#stageGlow)" />
+          <rect x="0" y="0" width="1000" height="470" fill="url(#stageGlow)" />
 
           {/* ---------- PCB slab ---------- */}
           <g filter="url(#boardShadow)">
             <polygon
-              points={pts(
-                { x: bD.x, y: bD.y + thickness },
-                { x: bC.x, y: bC.y + thickness },
-                bC,
-                bD
-              )}
+              points={pts({ x: bD.x, y: bD.y + thickness }, { x: bC.x, y: bC.y + thickness }, bC, bD)}
               fill="#05301a"
             />
             <polygon
-              points={pts(
-                { x: bC.x, y: bC.y + thickness },
-                { x: bB.x, y: bB.y + thickness },
-                bB,
-                bC
-              )}
+              points={pts({ x: bC.x, y: bC.y + thickness }, { x: bB.x, y: bB.y + thickness }, bB, bC)}
               fill="#083f22"
             />
             <polygon points={pts(bA, bB, bC, bD)} fill="url(#pcbTop)" stroke="#7fe0a4" strokeOpacity="0.28" />
           </g>
 
           {/* silkscreen grid */}
-          <g opacity="0.09" stroke="#d8ffe6" strokeWidth="1" style={{ pointerEvents: 'none' }}>
-            {Array.from({ length: 15 }).map((_, i) => {
-              const a = iso(14 + i * 26, 10);
-              const b = iso(14 + i * 26, 220);
+          <g opacity="0.08" stroke="#d8ffe6" strokeWidth="1" style={{ pointerEvents: 'none' }}>
+            {Array.from({ length: 11 }).map((_, i) => {
+              const a = iso(14 + i * 27, 10);
+              const b = iso(14 + i * 27, 270);
               return <line key={`v${i}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} />;
             })}
-            {Array.from({ length: 8 }).map((_, i) => {
-              const a = iso(10, 16 + i * 28);
-              const b = iso(390, 16 + i * 28);
+            {Array.from({ length: 10 }).map((_, i) => {
+              const a = iso(10, 16 + i * 27);
+              const b = iso(290, 16 + i * 27);
               return <line key={`h${i}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} />;
             })}
           </g>
 
-          {/* decorative copper traces */}
-          <g stroke="#e8c26a" strokeOpacity="0.16" strokeWidth="2.5" fill="none" style={{ pointerEvents: 'none' }}>
-            {DECOR_TRACES.map((t, i) => (
-              <path key={i} d={boardPath(t, 1)} />
-            ))}
-          </g>
-
-          {/* silk title printed on the board */}
+          {/* silk name + logo */}
           <text
-            transform={`matrix(${K},${K2},${-K},${K2},${iso(24, 210).x},${iso(24, 210).y})`}
+            transform={`matrix(${K},${K2},${-K},${K2},${iso(30, 274).x},${iso(30, 274).y})`}
             fill="#eafff2"
             opacity="0.3"
             fontFamily="IBM Plex Mono, Consolas, monospace"
-            fontSize="13"
+            fontSize="12"
             style={{ pointerEvents: 'none' }}
           >
-            WEIGHSOFT · RELAY-4CH · ESP-12F
+            WEIGHSOFT · ESP12F_RELAY_X4 · 2026-04-01
           </text>
+          <polygon
+            points={pts(iso(238, 250), iso(252, 244), iso(266, 250), iso(252, 262))}
+            fill="#eafff2"
+            opacity="0.22"
+            style={{ pointerEvents: 'none' }}
+          />
 
           {/* mounting holes */}
-          {[iso(14, 14), iso(386, 14), iso(386, 216), iso(14, 216)].map((p, i) => (
+          {[iso(14, 14), iso(286, 14), iso(286, 266), iso(14, 266), iso(14, 140)].map((p, i) => (
             <g key={i} style={{ pointerEvents: 'none' }}>
-              <ellipse cx={p.x} cy={p.y} rx="8.5" ry="5" fill="#caa64e" />
-              <ellipse cx={p.x} cy={p.y} rx="4.5" ry="2.6" fill="#081720" />
+              <ellipse cx={p.x} cy={p.y} rx="8" ry="4.6" fill="#caa64e" />
+              <ellipse cx={p.x} cy={p.y} rx="4.2" ry="2.4" fill="#081720" />
             </g>
           ))}
 
-          {/* ---------- signal pipes (flat on the board) ---------- */}
-          <Pipe kind="pwr" active={!!powerOn} duration="2.6s" packets={4} d={POWER_PIPE} />
+          {/* ---------- signal pipes ---------- */}
+          <Pipe kind="pwr" active={!!powerOn} duration="2.8s" packets={4} d={POWER_PIPE} />
           <Pipe kind="uart" active={uartBurst || uartLive} duration="1.8s" packets={4} d={UART_PIPE} />
-          <Pipe kind="di" active={state.di1} duration="1.3s" packets={2} d={DI_PIPE} />
-          <Pipe
-            kind="di"
-            active={state.di2}
-            duration="1.3s"
-            packets={2}
-            d={boardPath(
-              [
-                [368, 120],
-                [368, 84],
-                [292, 84]
-              ],
-              4
-            )}
-          />
-          {hasBuzzer && <Pipe kind="gpio" active={state.buzzer} duration="1s" packets={2} d={BUZZER_PIPE} />}
+          <Pipe kind="di" active={state.di1} duration="1.2s" packets={2} d={DI1_PIPE} />
+          <Pipe kind="di" active={state.di2} duration="1.2s" packets={2} d={DI2_PIPE} />
+          {hasBuzzer && <Pipe kind="gpio" active={state.buzzer} duration="1.1s" packets={2} d={BUZZER_PIPE} />}
           {RELAYS.map((r, i) => (
-            <Pipe key={r.key} kind="gpio" active={state[r.key]} duration="1.5s" packets={3} d={relayPipe(i, r.u)} />
+            <Pipe key={r.key} kind="gpio" active={state[r.key]} duration="1.6s" packets={3} d={relayPipe(i)} />
           ))}
 
-          {/* ---------- rear row: power inputs ---------- */}
-          <g className="hit" onMouseEnter={() => showTip('ac')} onMouseLeave={hideTip}>
-            <IsoBox u={12} v={12} w={56} d={26} h={18} color="#2fa05a" stroke="#0d3a1e" />
-            {[26, 48].map((u, i) => {
-              const p = iso(u, 25, 18);
-              return <ellipse key={i} cx={p.x} cy={p.y} rx="4.5" ry="2.6" fill="#e8eef2" />;
-            })}
-            <text className="comp-label" x={iso(12, 12, 30).x - 24} y={iso(12, 12, 30).y}>AC IN · L/N</text>
-          </g>
-
-          <g className="hit" onMouseEnter={() => showTip('dc')} onMouseLeave={hideTip}>
-            <IsoBox u={84} v={8} w={62} d={24} h={16} color="#2fa05a" stroke="#0d3a1e" />
-            {[96, 114, 132].map((u, i) => {
-              const p = iso(u, 20, 16);
-              return <ellipse key={i} cx={p.x} cy={p.y} rx="4" ry="2.3" fill="#e8eef2" />;
-            })}
-            <text className="comp-label" x={iso(96, 8, 26).x} y={iso(96, 8, 26).y}>DC 7–30V</text>
-          </g>
-
-          {/* ---------- power section ---------- */}
-          <g className="hit" onMouseEnter={() => showTip('trafo')} onMouseLeave={hideTip}>
-            <IsoBox u={14} v={64} w={54} d={54} h={26} color="#d9b13b" topColor="#e6c355" stroke="#7a5f10" />
-            <IsoBox u={24} v={74} w={34} d={34} h={28} color="#8a6d14" />
-            <text className="comp-sub" x={iso(0, 128).x - 8} y={iso(0, 128).y + 12}>transformer</text>
-          </g>
-          <Cyl u={86} v={74} r={9} h={22} color="#26303c" topColor="#3c4c5e" />
-          <Cyl u={102} v={88} r={7.5} h={18} color="#26303c" topColor="#3c4c5e" />
-
-          <g className="hit" onMouseEnter={() => showTip('psu')} onMouseLeave={hideTip}>
-            <Cyl u={106} v={118} r={10} h={12} color="#20242c" topColor="#2e3642" />
-            <IsoBox u={118} v={106} w={24} d={24} h={9} color="#20242c" topColor="#161a20" />
-            <text className="comp-sub" x={iso(96, 140).x - 10} y={iso(96, 140).y + 14}>LM2596 · 5V</text>
-          </g>
-
-          <g className="hit" onMouseEnter={() => showTip('ams')} onMouseLeave={hideTip}>
-            <IsoBox u={148} v={94} w={16} d={14} h={6} color="#20242c" topColor="#14181e" />
-            <text className="comp-sub" x={iso(148, 116).x - 6} y={iso(148, 116).y + 10}>AMS1117</text>
-          </g>
-
-          <g className="hit" onMouseEnter={() => showTip('pwrled')} onMouseLeave={hideTip}>
-            <circle className={powerOn ? 'led-on' : 'led-off'} cx={pLed.x} cy={pLed.y} r="5.5" />
-            <text className="comp-sub" x={pLed.x + 9} y={pLed.y - 4}>PWR</text>
-          </g>
-
-          {/* decorative SMDs */}
-          <g style={{ pointerEvents: 'none' }}>
-            {SMDS.map(([u, v, w, d, c], i) => (
-              <IsoBox key={i} u={u} v={v} w={w} d={d} h={3} color={c} />
-            ))}
-          </g>
-
-          {/* ---------- ESP-12F ---------- */}
-          <g className="hit" onMouseEnter={() => showTip('esp')} onMouseLeave={hideTip}>
-            <IsoBox u={ESP.u} v={ESP.v} w={ESP.w} d={ESP.d} h={5} color="#10222e" topColor="#132a3a" />
-            {/* castellated pads */}
-            {Array.from({ length: 8 }).map((_, i) => {
-              const p = iso(ESP.u + 8 + i * 11, ESP.v + ESP.d, 3);
-              return <rect key={i} x={p.x - 2.5} y={p.y - 2} width="5" height="5" fill="#d8b44a" />;
-            })}
-            {/* antenna zone */}
-            <polygon
-              points={pts(
-                iso(ESP.u + 4, ESP.v + 4, 6),
-                iso(ESP.u + ESP.w - 4, ESP.v + 4, 6),
-                iso(ESP.u + ESP.w - 4, ESP.v + 22, 6),
-                iso(ESP.u + 4, ESP.v + 22, 6)
-              )}
-              fill="#0c1c28"
-            />
-            <path
-              d={boardPath(
-                [
-                  [ESP.u + 8, ESP.v + 8],
-                  [ESP.u + 80, ESP.v + 8],
-                  [ESP.u + 80, ESP.v + 13],
-                  [ESP.u + 12, ESP.v + 13],
-                  [ESP.u + 12, ESP.v + 18],
-                  [ESP.u + 80, ESP.v + 18]
-                ],
-                6
-              )}
-              stroke="#d8b44a"
-              strokeWidth="1.6"
-              fill="none"
-            />
-            {/* RF shield */}
-            <IsoBox
-              u={ESP.u + 10}
-              v={ESP.v + 28}
-              w={70}
-              d={44}
-              h={14}
-              color="#93a0ae"
-              topColor="#c3ccd6"
-              stroke="#e8eef4"
-              strokeWidth={0.6}
-            />
-            <text className="comp-label" x={espLabel.x} y={espLabel.y}>ESP-12F · WiFi MCU</text>
-          </g>
-
-          {/* ---------- UART header (right rear edge) ---------- */}
-          <g className="hit" onMouseEnter={() => showTip('uart')} onMouseLeave={hideTip}>
-            <IsoBox u={366} v={28} w={20} d={54} h={12} color="#e6dcc0" topColor="#efe7cf" stroke="#8a7f5a" />
-            {[38, 48, 58, 68, 78].map((v, i) => {
-              const p = iso(376, v, 12);
-              return <circle key={i} cx={p.x} cy={p.y} r="2.2" fill="#20242c" />;
-            })}
-            <text className="comp-label" x={iso(392, 28, 24).x} y={iso(392, 28, 24).y}>UART</text>
-            <text className="comp-sub" x={iso(392, 28, 12).x} y={iso(392, 28, 12).y}>TX RX IO0</text>
-          </g>
-
-          {/* ---------- MAX3232 module (off-board) ---------- */}
+          {/* ---------- MAX3232 (off-board, top-left) ---------- */}
           <g className="hit" onMouseEnter={() => showTip('max')} onMouseLeave={hideTip}>
-            <IsoBox u={428} v={22} w={58} d={42} h={8} color="#17603a" topColor="#1e7546" stroke="#8fd9a8" />
-            <IsoBox u={444} v={34} w={26} d={18} h={6} color="#14181e" />
-            <text className="comp-label" x={iso(432, 74).x - 4} y={iso(432, 74).y + 18}>MAX3232</text>
-            <text className="comp-sub" x={iso(432, 74).x - 4} y={iso(432, 74).y + 31}>USB-serial bridge</text>
+            <IsoBox u={-100} v={-40} w={52} d={38} h={8} color="#17603a" topColor="#1e7546" stroke="#8fd9a8" />
+            <IsoBox u={-86} v={-30} w={24} d={17} h={6} color="#14181e" />
+            <text className="comp-label" x={iso(-100, -2).x - 60} y={iso(-100, -2).y + 26}>MAX3232</text>
+            <text className="comp-sub" x={iso(-100, -2).x - 60} y={iso(-100, -2).y + 39}>USB-serial bridge</text>
           </g>
 
-          {/* ---------- buzzer ---------- */}
+          {/* ---------- buzzer add-on (off-board, left) ---------- */}
           {hasBuzzer && (
             <g
               className="hit"
@@ -582,37 +427,190 @@ const RelayBoardTwin3D: FC<RelayBoardTwin3DProps> = ({
                   <circle className="buzz-ring buzz-ring-2" cx={pBuzz.x} cy={pBuzz.y} r="21" />
                 </>
               )}
-              <Cyl u={302} v={126} r={13} h={14} color="#14141c" topColor="#1e1e28" />
+              <Cyl u={-45} v={148} r={13} h={12} color="#14141c" topColor="#1e1e28" />
               <ellipse cx={pBuzz.x} cy={pBuzz.y} rx="3.4" ry="2" fill={state.buzzer ? '#ffd54a' : '#2e2e3a'} />
-              <text className="comp-sub" x={pBuzz.x - 24} y={pBuzz.y - 26}>BUZZER · GPIO15</text>
             </g>
           )}
 
-          {/* ---------- DI header ---------- */}
-          <g className="hit" onMouseEnter={() => showTip('di')} onMouseLeave={hideTip}>
-            <IsoBox u={340} v={116} w={52} d={26} h={10} color="#e6dcc0" topColor="#efe7cf" stroke="#8a7f5a" />
-            <circle
-              className={state.di1 ? 'led-green-on' : 'led-off'}
-              cx={iso(352, 129, 10).x}
-              cy={iso(352, 129, 10).y}
-              r="4.5"
-            />
-            <circle
-              className={state.di2 ? 'led-green-on' : 'led-off'}
-              cx={iso(378, 129, 10).x}
-              cy={iso(378, 129, 10).y}
-              r="4.5"
-            />
-            <text className="comp-label" x={iso(392, 116, 18).x + 10} y={iso(392, 116, 18).y}>DI 1 · DI 2</text>
-            <text className="comp-sub" x={iso(392, 116, 4).x + 10} y={iso(392, 116, 4).y}>GPIO4 · GPIO5</text>
+          {/* ---------- programming header (top-left) ---------- */}
+          <g className="hit" onMouseEnter={() => showTip('prog')} onMouseLeave={hideTip}>
+            <IsoBox u={56} v={10} w={78} d={26} h={2} color="#0d3b23" topColor="#0f4429" />
+            {Array.from({ length: 8 }).map((_, i) => {
+              const p1 = iso(62 + i * 9, 16, 2);
+              const p2 = iso(62 + i * 9, 28, 2);
+              return (
+                <g key={i}>
+                  <circle cx={p1.x} cy={p1.y} r="2.4" fill="#d8b44a" />
+                  <circle cx={p2.x} cy={p2.y} r="2.4" fill="#d8b44a" />
+                </g>
+              );
+            })}
+            <text className="comp-label" x={iso(56, 10, 22).x} y={iso(56, 10, 22).y}>PROG</text>
+            <text className="comp-sub" x={iso(56, 10, 10).x} y={iso(56, 10, 10).y}>5V GND TX RX IO0</text>
           </g>
 
-          {/* ---------- relays + terminals ---------- */}
+          {/* ---------- RST button ---------- */}
+          <g className="hit" onMouseEnter={() => showTip('rst')} onMouseLeave={hideTip}>
+            <IsoBox u={158} v={14} w={16} d={14} h={6} color="#9aa4ae" topColor="#c3ccd6" />
+            <Cyl u={166} v={21} r={4.5} h={9} color="#30343a" topColor="#42474e" />
+            <text className="comp-sub" x={iso(176, 14, 14).x} y={iso(176, 14, 14).y}>RST</text>
+          </g>
+
+          {/* ---------- ESP-12F with antenna (left) ---------- */}
+          <g className="hit" onMouseEnter={() => showTip('esp')} onMouseLeave={hideTip}>
+            <IsoBox u={8} v={55} w={80} d={70} h={4} color="#10222e" topColor="#132a3a" />
+            {/* PCB antenna zigzag */}
+            <path
+              d={boardPath(
+                [
+                  [13, 62],
+                  [26, 62],
+                  [26, 72],
+                  [13, 72],
+                  [13, 82],
+                  [26, 82],
+                  [26, 92],
+                  [13, 92],
+                  [13, 102],
+                  [26, 102],
+                  [26, 112],
+                  [13, 112]
+                ],
+                5
+              )}
+              stroke="#d8b44a"
+              strokeWidth="1.6"
+              fill="none"
+            />
+            {/* RF shield */}
+            <IsoBox
+              u={32}
+              v={58}
+              w={52}
+              d={64}
+              h={13}
+              color="#93a0ae"
+              topColor="#c3ccd6"
+              stroke="#e8eef4"
+              strokeWidth={0.6}
+            />
+            {/* castellated pads on right edge */}
+            {Array.from({ length: 7 }).map((_, i) => {
+              const p = iso(88, 60 + i * 9, 2);
+              return <rect key={i} x={p.x - 2} y={p.y - 2} width="4.5" height="4.5" fill="#d8b44a" />;
+            })}
+            <text className="comp-label" x={iso(2, 55, 40).x - 10} y={iso(2, 55, 40).y}>ESP-12F</text>
+            <text className="comp-sub" x={iso(2, 55, 28).x - 10} y={iso(2, 55, 28).y}>ESP8266MOD · WiFi</text>
+          </g>
+
+          {/* ---------- AMS1117 ---------- */}
+          <g className="hit" onMouseEnter={() => showTip('ams')} onMouseLeave={hideTip}>
+            <IsoBox u={142} v={38} w={18} d={13} h={5} color="#20242c" topColor="#14181e" />
+            <text className="comp-sub" x={iso(138, 34, 26).x} y={iso(138, 34, 26).y}>AMS1117</text>
+          </g>
+
+          {/* ---------- indicator LED column (left edge) ---------- */}
+          <g className="hit" onMouseEnter={() => showTip('leds')} onMouseLeave={hideTip}>
+            <circle className={powerOn ? 'led-on' : 'led-off'} cx={iso(10, 152, 3).x} cy={iso(10, 152, 3).y} r="4" />
+            {relayStates.map((on, i) => {
+              const p = iso(10, 161 + i * 9, 3);
+              return <circle key={i} className={on ? 'led-on' : 'led-off'} cx={p.x} cy={p.y} r="3.4" />;
+            })}
+          </g>
+
+          {/* ---------- IO breakout row (DI pins) ---------- */}
+          <g className="hit" onMouseEnter={() => showTip('io')} onMouseLeave={hideTip}>
+            <IsoBox u={28} v={136} w={64} d={12} h={2} color="#0d3b23" topColor="#0f4429" />
+            {[35, 47, 59, 71, 83].map((u, i) => {
+              const p = iso(u, 142, 2);
+              return <circle key={i} cx={p.x} cy={p.y} r="2.4" fill="#d8b44a" />;
+            })}
+            <circle
+              className={state.di2 ? 'led-green-on' : 'led-off'}
+              cx={iso(35, 133, 4).x}
+              cy={iso(35, 133, 4).y}
+              r="3.4"
+            />
+            <circle
+              className={state.di1 ? 'led-green-on' : 'led-off'}
+              cx={iso(47, 133, 4).x}
+              cy={iso(47, 133, 4).y}
+              r="3.4"
+            />
+          </g>
+
+          {/* ---------- IO16-13 row + RY jumper caps ---------- */}
+          <g className="hit" onMouseEnter={() => showTip('jump')} onMouseLeave={hideTip}>
+            <IsoBox u={100} v={156} w={66} d={14} h={2} color="#0d3b23" topColor="#0f4429" />
+            {[108, 122, 136, 150].map((u, i) => (
+              <IsoBox key={i} u={u - 4} v={158} w={9} d={10} h={6} color="#1a1a22" topColor="#26262f" />
+            ))}
+            <text className="comp-sub" x={iso(100, 172).x - 30} y={iso(100, 172).y + 20}>RY1-RY4 jumpers</text>
+          </g>
+
+          {/* ---------- DC terminal (left edge) ---------- */}
+          <g className="hit" onMouseEnter={() => showTip('dc')} onMouseLeave={hideTip}>
+            <IsoBox u={2} v={175} w={22} d={42} h={16} color="#2fa05a" stroke="#0d3a1e" />
+            {[183, 196, 209].map((v, i) => {
+              const p = iso(13, v, 16);
+              return <ellipse key={i} cx={p.x} cy={p.y} rx="3.6" ry="2.1" fill="#e8eef2" />;
+            })}
+          </g>
+
+          {/* ---------- LM2596 + coil + caps ---------- */}
+          <g className="hit" onMouseEnter={() => showTip('psu')} onMouseLeave={hideTip}>
+            <IsoBox u={32} v={192} w={38} d={26} h={6} color="#20242c" topColor="#14181e" />
+            {Array.from({ length: 5 }).map((_, i) => {
+              const p = iso(72, 195 + i * 5, 2);
+              return <rect key={i} x={p.x - 1.5} y={p.y - 1.5} width="3.5" height="3.5" fill="#c9c9c9" />;
+            })}
+            <Cyl u={95} v={185} r={13} h={12} color="#20242c" topColor="#2e3642" />
+            <ellipse cx={iso(95, 185, 12).x} cy={iso(95, 185, 12).y} rx="5" ry="2.8" fill="#14181e" />
+          </g>
+          <Cyl u={120} v={150} r={10} h={20} color="#26303c" topColor="#3c4c5e" />
+          <Cyl u={112} v={226} r={10} h={18} color="#26303c" topColor="#3c4c5e" />
+
+          {/* ---------- AC terminal + fuse + discs (bottom-left) ---------- */}
+          <g className="hit" onMouseEnter={() => showTip('ac')} onMouseLeave={hideTip}>
+            <IsoBox u={2} v={235} w={20} d={34} h={16} color="#2fa05a" stroke="#0d3a1e" />
+            {[243, 259].map((v, i) => {
+              const p = iso(12, v, 16);
+              return <ellipse key={i} cx={p.x} cy={p.y} rx="3.6" ry="2.1" fill="#e8eef2" />;
+            })}
+          </g>
+          <Cyl u={32} v={248} r={6} h={9} color="#14181e" topColor="#22262e" />
+          <Cyl u={54} v={252} r={5.5} h={8} color="#2255c4" topColor="#3a6fe0" />
+          <Cyl u={152} v={247} r={5.5} h={8} color="#2255c4" topColor="#3a6fe0" />
+
+          {/* ---------- transformer (bottom-center) ---------- */}
+          <g className="hit" onMouseEnter={() => showTip('trafo')} onMouseLeave={hideTip}>
+            <IsoBox u={88} v={246} w={42} d={32} h={20} color="#d9b13b" topColor="#e6c355" stroke="#7a5f10" />
+            <IsoBox u={96} v={252} w={26} d={20} h={22} color="#8a6d14" />
+            <text className="comp-sub" x={iso(88, 278).x - 26} y={iso(88, 278).y + 16}>transformer</text>
+          </g>
+          <IsoBox u={148} v={258} w={16} d={11} h={5} color="#20242c" topColor="#14181e" />
+          <IsoBox u={60} v={232} w={14} d={10} h={5} color="#20242c" topColor="#14181e" />
+
+          {/* ---------- relay driver clusters ---------- */}
+          <g style={{ pointerEvents: 'none' }}>
+            {RELAYS.map((r, i) => {
+              const vc = r.v + RELAY_D / 2;
+              return (
+                <g key={i}>
+                  <IsoBox u={166} v={vc - 12} w={9} d={5} h={2.5} color="#8a6d3a" />
+                  <IsoBox u={166} v={vc - 4} w={9} d={5} h={2.5} color="#2a2a2a" />
+                  <IsoBox u={166} v={vc + 4} w={9} d={5} h={2.5} color="#8a6d3a" />
+                  <circle cx={iso(180, vc - 8, 2).x} cy={iso(180, vc - 8, 2).y} r="2.2" fill="#b03030" />
+                </g>
+              );
+            })}
+          </g>
+
+          {/* ---------- relays K1-K4 + terminals (right side) ---------- */}
           {RELAYS.map((r) => {
             const on = state[r.key];
-            const cx = r.u + RELAY_W / 2;
-            const ledP = iso(r.u + 10, RELAY_V - 8, 2);
-            const labelP = iso(cx - 12, 238);
+            const vc = r.v + RELAY_D / 2;
+            const label = iso(300, vc + 10);
             return (
               <g key={r.key}>
                 <g
@@ -621,10 +619,9 @@ const RelayBoardTwin3D: FC<RelayBoardTwin3DProps> = ({
                   onMouseLeave={hideTip}
                   onClick={() => onToggleRelay(r.key)}
                 >
-                  <circle className={on ? 'led-on' : 'led-off'} cx={ledP.x} cy={ledP.y} r="4.5" />
                   <IsoBox
-                    u={r.u}
-                    v={RELAY_V}
+                    u={RELAY_U}
+                    v={r.v}
                     w={RELAY_W}
                     d={RELAY_D}
                     h={RELAY_H}
@@ -633,36 +630,72 @@ const RelayBoardTwin3D: FC<RelayBoardTwin3DProps> = ({
                     stroke={on ? '#bfe0ff' : '#153a6e'}
                     strokeWidth={on ? 1.6 : 0.8}
                   />
-                  {/* white spec sticker on top */}
                   <polygon
                     points={pts(
-                      iso(r.u + 8, RELAY_V + 8, RELAY_H + 0.5),
-                      iso(r.u + RELAY_W - 8, RELAY_V + 8, RELAY_H + 0.5),
-                      iso(r.u + RELAY_W - 8, RELAY_V + RELAY_D - 8, RELAY_H + 0.5),
-                      iso(r.u + 8, RELAY_V + RELAY_D - 8, RELAY_H + 0.5)
+                      iso(RELAY_U + 8, r.v + 8, RELAY_H + 0.5),
+                      iso(RELAY_U + RELAY_W - 8, r.v + 8, RELAY_H + 0.5),
+                      iso(RELAY_U + RELAY_W - 8, r.v + RELAY_D - 8, RELAY_H + 0.5),
+                      iso(RELAY_U + 8, r.v + RELAY_D - 8, RELAY_H + 0.5)
                     )}
                     fill="#e9edf2"
                     opacity="0.92"
                   />
+                  <text
+                    transform={`matrix(${K},${K2},${-K},${K2},${iso(RELAY_U + 14, r.v + 22, RELAY_H + 0.5).x},${
+                      iso(RELAY_U + 14, r.v + 22, RELAY_H + 0.5).y
+                    })`}
+                    fill="#2b3d55"
+                    fontFamily="IBM Plex Mono, Consolas, monospace"
+                    fontSize="8.5"
+                    fontWeight="700"
+                    style={{ pointerEvents: 'none' }}
+                  >
+                    SONGLE
+                  </text>
+                  <text
+                    transform={`matrix(${K},${K2},${-K},${K2},${iso(RELAY_U + 12, r.v + 36, RELAY_H + 0.5).x},${
+                      iso(RELAY_U + 12, r.v + 36, RELAY_H + 0.5).y
+                    })`}
+                    fill="#54677f"
+                    fontFamily="IBM Plex Mono, Consolas, monospace"
+                    fontSize="6"
+                    style={{ pointerEvents: 'none' }}
+                  >
+                    SRD-05VDC-SL-C
+                  </text>
                 </g>
-                {/* screw terminal in front */}
                 <g style={{ pointerEvents: 'none' }}>
-                  <IsoBox u={r.u + 6} v={206} w={50} d={20} h={14} color="#2fa05a" stroke="#0d3a1e" />
-                  {[16, 28, 40].map((du, i) => {
-                    const p = iso(r.u + 6 + du, 216, 14);
+                  <IsoBox u={272} v={r.v + 2} w={26} d={56} h={15} color="#2fa05a" stroke="#0d3a1e" />
+                  {[10, 28, 46].map((dv, i) => {
+                    const p = iso(285, r.v + 2 + dv, 15);
                     return <ellipse key={i} cx={p.x} cy={p.y} rx="3.4" ry="2" fill="#e8eef2" />;
                   })}
                 </g>
-                <text className="comp-label" x={labelP.x} y={labelP.y + 14}>
-                  {r.key.replace('relay', 'RY')} · GPIO{r.gpio}
+                <text className="comp-label" x={label.x + 10} y={label.y - 6}>
+                  {r.silk} · GPIO{r.gpio}
                 </text>
+                <text className="comp-sub" x={label.x + 10} y={label.y + 7}>COM · NO · NC</text>
               </g>
             );
           })}
 
+          {/* left-side callouts with leader lines */}
+          <g style={{ pointerEvents: 'none' }}>
+            <g stroke="#8fb0c8" strokeOpacity="0.45" strokeWidth="1">
+              <line x1="268" y1="149" x2="300" y2="155" />
+              <line x1="268" y1="192" x2="398" y2="188" />
+              <line x1="215" y1="236" x2="310" y2="200" />
+              <line x1="242" y1="279" x2="260" y2="230" />
+            </g>
+            <text className="comp-label" x="108" y="152">BUZZER · GPIO15</text>
+            <text className="comp-label" x="108" y="195">DI 1 · DI 2 · GPIO4/5</text>
+            <text className="comp-label" x="108" y="239">DC IN · 7-30V / 5V</text>
+            <text className="comp-label" x="108" y="282">AC IN · L/N</text>
+          </g>
+
           {/* header text */}
-          <text className="comp-label" x="30" y="30">RelayBoardEspBuildIn · digital twin</text>
-          <text className="comp-sub" x="30" y="46">hover a part · click a relay or the buzzer · packets = live signals</text>
+          <text className="comp-label" x="26" y="26">ESP12F_Relay_X4 · digital twin</text>
+          <text className="comp-sub" x="26" y="42">hover a part · click a relay or the buzzer · packets = live signals</text>
         </svg>
 
         <div className="relay-iso-legend">
