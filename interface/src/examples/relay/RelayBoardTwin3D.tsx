@@ -70,7 +70,7 @@ const TIPS: Record<string, Tip> = {
   },
   buzzer: {
     title: 'Buzzer add-on · GPIO15',
-    body: 'External active buzzer wired to the IO15 breakout pin. Active high, quiet at boot. Click to beep.'
+    body: 'External buzzer on IO15. Firmware drives tone at 2 kHz when on (works for passive piezos). Quiet at boot. Click to beep.'
   },
   relay1: {
     title: 'K1 · Songle SRD-05VDC',

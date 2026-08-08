@@ -32,8 +32,8 @@ Key facts confirmed from documentation:
 | Breakouts | IO4, IO5, IO0, IO2, IO15, IO16, IO14, IO12, IO13 |
 | Serial adapter path | Laptop USB → Prolific USB-Serial → DB9 → MAX3232/MAX232 board → ESP header |
 | Onboard temp sensor | **None** on this PCB (twin reports supply VCC via ADC instead) |
-| Buzzer | Firmware drives an active-high buzzer output on **GPIO15** (pulled low at boot, so silent on reset) |
-| Digital inputs | **DI1 = GPIO4**, **DI2 = GPIO5** (INPUT_PULLUP — close pin to GND to trigger; polled every 50 ms, pushed live over WebSocket) |
+| Buzzer | Add-on on **GPIO15** — firmware uses `tone(2000)` / `noTone()` (passive piezos need a square wave; steady HIGH is often silent). Pulled low at boot. |
+| Digital inputs | **DI1 = GPIO4**, **DI2 = GPIO5** (INPUT_PULLUP — close pin to GND to trigger; polled every 50 ms). Mapped in Live Weight to Print / Next / Start / Stop / None. |
 
 ## Default GPIO map (firmware)
 
@@ -45,7 +45,7 @@ LC-style ESP-12F 4-ch boards typically hard-wire:
 | RY2 | 14 | |
 | RY3 | 12 | |
 | RY4 | 13 | |
-| Buzzer | 15 | Active HIGH (GPIO15 is pulled low at boot) |
+| Buzzer | 15 | `tone(2000 Hz)` when enabled (GPIO15 pulled low at boot) |
 | DI1 | 4 | INPUT_PULLUP, close to GND = active |
 | DI2 | 5 | INPUT_PULLUP, close to GND = active |
 | Active level (relays) | **HIGH = ON** | Transistor drive via jumper caps (per Tasmota/ESPHome configs) |
@@ -101,18 +101,29 @@ flowchart TB
 
 In the web UI: **Project → Live Weight**
 
-- **Live** tab — end-user view: big weight only (no settings)
-- **Setup** / **How it connects** tabs — admin only (source, baud, regex, test weight, log)
+| Tab | Who | Content |
+|-----|-----|---------|
+| **Live** | all | Big scale dial + Net weight + read-only PLU strip |
+| **Target & Relays** | all | Range low/high, UNDER/CORRECT/OVER → RY maps, DI1/DI2 actions, network printer IP:9100, buzzer test |
+| **Product** | all | PLU, description, piece count, total |
+| **Tech** | admin | Weight source, baud, regex, test weight |
+| **How it connects** | admin | Connection help |
+
+**Range control:** Weight under → `relay_low` (default RY1), in range → `relay_ok` (RY2), over → `relay_high` (RY3). Only one of those three relays is on.
+
+**DI actions:** rising edge (pin to GND) → `print` | `next` | `start` | `stop` | `none`.  
+**Print:** short TCP ESC/POS ticket to configured printer IP (port 9100). Fail soft if offline.  
+**Next:** increments piece `count` (total = count × weight).
 
 One service, multiple ways in (no duplicate weight UIs):
 
 | Source | How it works |
 |--------|----------------|
 | Serial (RS-232) | Scale → MAX3232 / PROG header → UART0. Baud + regex configurable. |
-| WiFi / WebSocket | `POST /rest/liveWeight` or `/ws/liveWeight` with `{ weight, last_line }`. MQTT `…/set`. |
-| RS-485 | Stubbed — needs a transceiver module; address is persisted for later. |
+| WiFi / WebSocket | `POST /rest/liveWeight` or `/ws/liveWeight` with `{ weight, last_line }`. |
+| RS-485 | **Not available** on this board (no free pins / transceiver). |
 
-Endpoints: `/rest/liveWeight`, `/ws/liveWeight`. Reuses patterns from `serial2` (`SerialService`) and `serial` (`RemoteWeightService`) without pulling those whole branches onto this board.
+Endpoints: `/rest/liveWeight`, `/ws/liveWeight`.
 
 ## Digital twin
 
@@ -120,7 +131,8 @@ In the web UI: **Project → Relay Board Twin**
 
 - Isometric 3D board view: relays, PSU, transformer + caps, ESP-12F, UART header, buzzer, DI header, mounting holes
 - Live DO (relays + buzzer) control via WebSocket; animated signal packets on power / UART / GPIO / DI pipes
-- Live DI 1 / DI 2 state (GPIO4 / GPIO5), pushed from firmware every 50 ms on change
+- Live DI 1 / DI 2 state (GPIO4 / GPIO5), with Live Weight action labels when configured
+- Buzzer tip: GPIO15 — tone 2 kHz when on
 - ESP stats: heap, fragmentation, uptime, supply VCC, WiFi RSSI, IP, MAC, reset reason, flash, chip ID
 - Wiring tab with this diagram
 
