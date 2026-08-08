@@ -17,16 +17,18 @@ import { FormLoader, SectionContent } from '../../components';
 import { useWs } from '../../utils';
 
 import { updateLiveWeight } from './api';
+import './liveWeight.css';
 import { LIVE_WEIGHT_WS_URL } from './LiveWeightScreen';
 import { DEMO_LIVE_WEIGHT, LiveWeightSourceId, LiveWeightState, SOURCE_OPTIONS } from './types';
 
+/** Admin Tech tab: weight input path (serial / WiFi). RS-485 is not available on this board. */
 const LiveWeightSetup: FC = () => {
   const { connected, data, updateData } = useWs<LiveWeightState>(LIVE_WEIGHT_WS_URL);
   const [demoMode, setDemoMode] = useState(false);
   const [local, setLocal] = useState<LiveWeightState>(DEMO_LIVE_WEIGHT);
   const [history, setHistory] = useState<Array<{ weight: string; line: string; time: Date; source: string }>>([]);
   const [saving, setSaving] = useState(false);
-  const [testWeight, setTestWeight] = useState('25.50');
+  const [testWeight, setTestWeight] = useState('1.50');
   const [baudDraft, setBaudDraft] = useState<number | null>(null);
   const [regexDraft, setRegexDraft] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -84,10 +86,7 @@ const LiveWeightSetup: FC = () => {
   };
 
   const sendTestWeight = async () => {
-    const payload = {
-      weight: testWeight,
-      last_line: `TEST,${testWeight}`
-    };
+    const payload = { weight: testWeight, last_line: `TEST,${testWeight}` };
     if (demoMode) {
       setLocal((prev) => ({
         ...prev,
@@ -109,152 +108,129 @@ const LiveWeightSetup: FC = () => {
 
   if (!demoMode && !data && !connected) {
     return (
-      <SectionContent title="Weight Setup" titleGutter>
+      <SectionContent title="Tech" titleGutter>
         <FormLoader />
       </SectionContent>
     );
   }
 
   return (
-    <SectionContent title="Weight Setup" titleGutter>
-      <Alert severity="warning" sx={{ mb: 2 }}>
-        Technician setup only. End users should stay on the Live tab — changing baud, regex, or source can stop the
-        scale reading.
+    <SectionContent title="Tech" titleGutter>
+      <Alert severity="info" sx={{ mb: 2 }}>
+        Technician page: how weight comes into the board. Everyday settings live on{' '}
+        <strong>Target & Relays</strong> and <strong>Product</strong>. RS-485 is not available on this board.
       </Alert>
 
-      {demoMode && (
-        <Alert severity="info" sx={{ mb: 2 }}>
-          Demo mode — board not connected. Settings still work locally for UI checks.
-        </Alert>
-      )}
+      <Box className="lw-page">
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
+          <Chip size="small" label={demoMode ? 'Demo' : connected ? 'Connected' : 'Disconnected'} color="success" />
+          <Chip size="small" variant="outlined" label={`Zone: ${state.zone_name || 'none'}`} />
+          <Chip size="small" variant="outlined" label={`Weight: ${state.weight || '—'}`} />
+        </Box>
 
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'center', mb: 2 }}>
-        <Chip
-          size="small"
-          label={connected || demoMode ? (demoMode ? 'Demo' : 'Connected') : 'Disconnected'}
-          color={connected || demoMode ? 'success' : 'error'}
-        />
-        <Chip size="small" variant="outlined" label={`Active: ${state.active_source || state.source_name}`} />
-      </Box>
+        <div className="lw-card">
+          <div className="lw-card-head">Weight input source</div>
+          <div className="lw-card-body">
+            <FormControl fullWidth size="small">
+              <InputLabel id="lw-source">Input source</InputLabel>
+              <Select
+                labelId="lw-source"
+                label="Input source"
+                value={state.source === 2 ? 0 : state.source}
+                disabled={saving}
+                onChange={(e) => applyConfig({ source: Number(e.target.value) as LiveWeightSourceId })}
+              >
+                {SOURCE_OPTIONS.map((o) => (
+                  <MenuItem key={o.value} value={o.value} disabled={!!o.disabled}>
+                    {o.label}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <Typography variant="caption" color="text.secondary">
+              {SOURCE_OPTIONS.find((o) => o.value === (state.source === 2 ? 0 : state.source))?.help}
+            </Typography>
 
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        {state.status_message || 'Waiting for weight'}
-        {state.weight ? ` · ${state.weight}` : ''}
-        {state.last_line ? ` · ${state.last_line}` : ''}
-      </Typography>
+            {state.source === 0 && (
+              <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' } }}>
+                <TextField
+                  size="small"
+                  label="Baud rate"
+                  type="number"
+                  value={baudDraft ?? state.baud_rate}
+                  onChange={(e) => setBaudDraft(Number(e.target.value) || 9600)}
+                  onBlur={() => {
+                    const baud = baudDraft ?? state.baud_rate;
+                    setBaudDraft(null);
+                    applyConfig({ baud_rate: baud });
+                  }}
+                />
+                <TextField
+                  size="small"
+                  label="Weight regex"
+                  value={regexDraft ?? state.regex_pattern}
+                  onChange={(e) => setRegexDraft(e.target.value)}
+                  onBlur={() => {
+                    const regex = regexDraft ?? state.regex_pattern;
+                    setRegexDraft(null);
+                    applyConfig({ regex_pattern: regex });
+                  }}
+                />
+              </Box>
+            )}
 
-      <Box sx={{ display: 'grid', gap: 2, maxWidth: 560, mb: 3 }}>
-        <FormControl fullWidth size="small">
-          <InputLabel id="lw-source">Input source</InputLabel>
-          <Select
-            labelId="lw-source"
-            label="Input source"
-            value={state.source}
-            disabled={saving}
-            onChange={(e) => applyConfig({ source: Number(e.target.value) as LiveWeightSourceId })}
-          >
-            {SOURCE_OPTIONS.map((o) => (
-              <MenuItem key={o.value} value={o.value}>
-                {o.label}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-        <Typography variant="caption" color="text.secondary">
-          {SOURCE_OPTIONS.find((o) => o.value === state.source)?.help}
-        </Typography>
-
-        {state.source === 0 && (
-          <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' } }}>
-            <TextField
-              size="small"
-              label="Baud rate"
-              type="number"
-              value={baudDraft ?? state.baud_rate}
-              disabled={saving}
-              onChange={(e) => setBaudDraft(Number(e.target.value) || 9600)}
-              onBlur={() => {
-                const baud = baudDraft ?? state.baud_rate;
-                setBaudDraft(null);
-                applyConfig({ baud_rate: baud });
-              }}
-            />
-            <TextField
-              size="small"
-              label="Weight regex"
-              value={regexDraft ?? state.regex_pattern}
-              disabled={saving}
-              onChange={(e) => setRegexDraft(e.target.value)}
-              onBlur={() => {
-                const regex = regexDraft ?? state.regex_pattern;
-                setRegexDraft(null);
-                applyConfig({ regex_pattern: regex });
-              }}
-            />
-          </Box>
-        )}
-
-        {state.source === 2 && (
-          <Alert severity="warning">
-            RS-485 is stubbed. Fit a transceiver (A/B/GND) and we will wire the reader next — address field is saved
-            for later (current: {state.rs485_address}).
-          </Alert>
-        )}
-
-        {(state.source === 1 || demoMode) && (
-          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
-            <TextField
-              size="small"
-              label="Test weight"
-              value={testWeight}
-              onChange={(e) => setTestWeight(e.target.value)}
-              sx={{ width: 140 }}
-            />
-            <Button variant="contained" onClick={sendTestWeight} disabled={saving}>
-              Send test weight
-            </Button>
-          </Box>
-        )}
-      </Box>
-
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-        <Typography variant="subtitle2">Recent readings</Typography>
-        <Button size="small" onClick={() => setHistory([])}>
-          Clear
-        </Button>
-      </Box>
-      <Box
-        ref={scrollRef}
-        sx={{
-          fontFamily: 'IBM Plex Mono, Consolas, monospace',
-          fontSize: '0.85rem',
-          bgcolor: 'background.paper',
-          border: '1px solid',
-          borderColor: 'divider',
-          p: 2,
-          borderRadius: 1,
-          height: 280,
-          overflow: 'auto'
-        }}
-      >
-        {history.length === 0 ? (
-          <Typography color="text.secondary">Waiting for weight data…</Typography>
-        ) : (
-          history.map((entry, idx) => (
-            <Box key={`${entry.time.getTime()}-${idx}`} sx={{ mb: 0.5 }}>
-              <Typography component="span" variant="caption" color="text.secondary" sx={{ mr: 1 }}>
-                [{entry.time.toLocaleTimeString()}]
-              </Typography>
-              <Typography component="span" color="primary" sx={{ mr: 1, fontWeight: 700 }}>
-                {entry.weight}
-              </Typography>
-              <Typography component="span" variant="caption" color="text.secondary" sx={{ mr: 1 }}>
-                ({entry.source})
-              </Typography>
-              <Typography component="span">{entry.line}</Typography>
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+              <TextField
+                size="small"
+                label="Test weight"
+                value={testWeight}
+                onChange={(e) => setTestWeight(e.target.value)}
+                sx={{ width: 140 }}
+              />
+              <Button variant="contained" onClick={sendTestWeight} disabled={saving}>
+                Send test weight
+              </Button>
             </Box>
-          ))
-        )}
+          </div>
+        </div>
+
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+          <Typography variant="subtitle2">Recent readings</Typography>
+          <Button size="small" onClick={() => setHistory([])}>
+            Clear
+          </Button>
+        </Box>
+        <Box
+          ref={scrollRef}
+          sx={{
+            fontFamily: 'IBM Plex Mono, Consolas, monospace',
+            fontSize: '0.85rem',
+            bgcolor: 'background.paper',
+            border: '1px solid',
+            borderColor: 'divider',
+            p: 2,
+            borderRadius: 1,
+            height: 220,
+            overflow: 'auto',
+            mb: 2
+          }}
+        >
+          {history.length === 0 ? (
+            <Typography color="text.secondary">Waiting for weight data…</Typography>
+          ) : (
+            history.map((entry, idx) => (
+              <Box key={`${entry.time.getTime()}-${idx}`} sx={{ mb: 0.5 }}>
+                <Typography component="span" variant="caption" color="text.secondary" sx={{ mr: 1 }}>
+                  [{entry.time.toLocaleTimeString()}]
+                </Typography>
+                <Typography component="span" color="primary" sx={{ mr: 1, fontWeight: 700 }}>
+                  {entry.weight}
+                </Typography>
+                <Typography component="span">{entry.line}</Typography>
+              </Box>
+            ))
+          )}
+        </Box>
       </Box>
     </SectionContent>
   );

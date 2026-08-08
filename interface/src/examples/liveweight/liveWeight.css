@@ -1,0 +1,240 @@
+:root {
+  --lw-blue: #0b3d66;
+  --lw-blue-deep: #062844;
+  --lw-panel: #f4f7fb;
+  --lw-ink: #0b3d66;
+  --lw-muted: rgba(11, 61, 102, 0.72);
+  --lw-border: rgba(11, 61, 102, 0.14);
+}
+
+.lw-page {
+  --lw-blue: #0b3d66;
+  --lw-blue-deep: #062844;
+  --lw-panel: #f4f7fb;
+  --lw-ink: #0b3d66;
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.lw-scale {
+  --lw-blue: #0b3d66;
+  --lw-blue-deep: #062844;
+  --lw-panel: #f4f7fb;
+  --lw-ink: #0b3d66;
+  max-width: 960px;
+  margin: 0 auto;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 12px 32px rgba(6, 40, 68, 0.28);
+  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+  background: var(--lw-panel);
+}
+
+.lw-scale-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--lw-blue);
+  color: #fff;
+  padding: 12px 18px;
+  font-size: 0.95rem;
+}
+
+.lw-conn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  opacity: 0.95;
+}
+
+.lw-conn-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #7f8c8d;
+}
+
+.lw-conn-dot.on {
+  background: #2ecc71;
+  box-shadow: 0 0 0 3px rgba(46, 204, 113, 0.25);
+}
+
+.lw-conn-dot.demo {
+  background: #f0c419;
+}
+
+.lw-live-body {
+  display: grid;
+  gap: 8px;
+  padding: 20px 20px 24px;
+  background: linear-gradient(180deg, #eef3f8 0%, #f7fafc 55%, #ffffff 100%);
+}
+
+.lw-gauge-hero {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 8px 0;
+}
+
+.lw-gauge-hero svg,
+.lw-gauge-hero .lw-gauge-svg {
+  max-width: min(100%, 520px);
+  width: 100%;
+  height: auto;
+  min-height: 220px;
+}
+
+.lw-gauge-label {
+  font-size: 1.75rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  fill: #111;
+}
+
+.lw-net-hero {
+  text-align: center;
+  color: var(--lw-blue-deep);
+  padding: 4px 12px 8px;
+}
+
+.lw-net-hero-label {
+  font-size: 1.1rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+
+.lw-net-hero-value {
+  font-family: "IBM Plex Mono", Consolas, monospace;
+  font-weight: 700;
+  font-size: clamp(3.8rem, 12vw, 6.5rem);
+  line-height: 0.95;
+  letter-spacing: -0.03em;
+  color: var(--lw-blue-deep);
+}
+
+.lw-net-hero-unit {
+  margin-left: 0.25em;
+  font-size: 0.42em;
+  font-weight: 600;
+  opacity: 0.75;
+  vertical-align: baseline;
+}
+
+.lw-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  padding: 4px 8px 12px;
+}
+
+.lw-chip {
+  min-width: 140px;
+  padding: 10px 16px;
+  border-radius: 6px;
+  background: var(--lw-blue);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  box-shadow: 0 4px 12px rgba(6, 40, 68, 0.18);
+}
+
+.lw-chip span {
+  font-size: 0.8rem;
+  opacity: 0.85;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.lw-chip strong {
+  font-family: "IBM Plex Mono", Consolas, monospace;
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
+.lw-chip.zone-ok {
+  background: #1e7a45;
+}
+
+.lw-chip.zone-low {
+  background: #b8860b;
+}
+
+.lw-chip.zone-high {
+  background: #b33a2b;
+}
+
+.lw-chip.zone-off {
+  background: #4a6274;
+}
+
+.lw-product-strip {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 18px;
+  padding: 14px 16px;
+  background: var(--lw-blue-deep);
+  color: #fff;
+  font-size: 1.05rem;
+  letter-spacing: 0.01em;
+}
+
+.lw-product-strip span {
+  opacity: 0.92;
+}
+
+.lw-product-strip .sep {
+  opacity: 0.45;
+}
+
+.lw-card {
+  --lw-blue: #0b3d66;
+  --lw-blue-deep: #062844;
+  max-width: 920px;
+  margin: 0 auto 16px;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(6, 40, 68, 0.16);
+  background: #fff;
+  border: 1px solid var(--lw-border, rgba(11, 61, 102, 0.14));
+}
+
+.lw-card-head {
+  background: var(--lw-blue);
+  color: #fff;
+  padding: 12px 18px;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.lw-card-body {
+  padding: 18px 20px 20px;
+  display: grid;
+  gap: 16px;
+  background: linear-gradient(180deg, #f7fafc 0%, #ffffff 40%);
+}
+
+.lw-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+@media (max-width: 720px) {
+  .lw-chip {
+    min-width: 120px;
+    flex: 1 1 120px;
+  }
+
+  .lw-product-strip {
+    font-size: 0.95rem;
+    gap: 6px 12px;
+  }
+}
