@@ -2,14 +2,13 @@
 
 **Plan:** `docs/superpowers/plans/2026-08-08-live-weight-operator-ui-phases.md`  
 **Base:** `RelayBoardEspBuildIn`  
-**Gate:** `gate=human` between phases  
 **Updated:** 2026-08-08
 
 | Phase | State | Branch / PR | Notes |
 |-------|-------|-------------|-------|
-| P1 Firmware | `plan:phase-active` | `feat/lw-p1-firmware-di-print` | Starting |
-| P2 Operator UI | blocked-by-dep | — | Needs P1 |
-| P3 Twin + docs | blocked-by-dep | — | Needs P2 |
-| P4 Device verify | blocked-by-dep / HUMAN | — | Needs P3 + Jurien flash |
+| P1 Firmware | DELIVERED | [PR #3](https://github.com/Kruger-Web-Solutions/Weighsoft.Hardware.Base/pull/3) merged | DI + network print |
+| P2 Operator UI | DELIVERED | [PR #4](https://github.com/Kruger-Web-Solutions/Weighsoft.Hardware.Base/pull/4) merged | Tabs + hero dial |
+| P3 Twin + docs | `plan:phase-active` | `feat/lw-p3-twin-docs` | In progress |
+| P4 Device verify | HUMAN | — | Needs flash after P3 |
 
-**This pass:** writing plan, branching P1, building firmware contract.
+**Next:** merge P3, then Jurien flashes board (IO0→GND + RST) and verifies buzzer / DI / dial.

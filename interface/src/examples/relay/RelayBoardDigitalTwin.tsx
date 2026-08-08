@@ -193,11 +193,15 @@ const RelayBoardDigitalTwin: FC = () => {
       <Box mb={2}>
         <Chip
           sx={{ mr: 1 }}
-          label={`DI 1 · GPIO${status.pins.di1 ?? 4} — ${state.di1 ? 'ACTIVE (to GND)' : 'idle'}`}
+          label={`DI 1 · GPIO${status.pins.di1 ?? 4} — ${state.di1 ? 'ACTIVE' : 'idle'} · ${
+            liveWeight?.di1_action || 'none'
+          }`}
           color={state.di1 ? 'success' : 'default'}
         />
         <Chip
-          label={`DI 2 · GPIO${status.pins.di2 ?? 5} — ${state.di2 ? 'ACTIVE (to GND)' : 'idle'}`}
+          label={`DI 2 · GPIO${status.pins.di2 ?? 5} — ${state.di2 ? 'ACTIVE' : 'idle'} · ${
+            liveWeight?.di2_action || 'none'
+          }`}
           color={state.di2 ? 'success' : 'default'}
         />
         {demoMode && (

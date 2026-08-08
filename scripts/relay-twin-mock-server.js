@@ -31,18 +31,39 @@ let relays = {
 };
 
 let liveWeight = {
-  weight: '12.34',
-  last_line: 'ST,GS,+  12.34 kg',
+  weight: '3.500',
+  last_line: 'ST,GS,+  3.500 kg',
   timestamp: Date.now(),
   active_source: 'wifi',
-  status_message: 'Mock weight',
+  status_message: 'OVER target range',
+  unit: 'kg',
+  zone: 3,
+  zone_name: 'high',
   source: 1,
   source_name: 'wifi',
   baud_rate: 9600,
   regex_pattern: '([+-]?[0-9]+[\\.,]?[0-9]*)',
   rs485_enabled: false,
   rs485_address: 1,
-  rs485_ready: false
+  rs485_ready: false,
+  range_enabled: true,
+  range_low: 1,
+  range_high: 2,
+  relay_low: 1,
+  relay_ok: 2,
+  relay_high: 3,
+  plu: '19',
+  product: 'Screw',
+  count: 1,
+  total: '3.500',
+  di1_action: 'print',
+  di2_action: 'next',
+  job_running: false,
+  last_action: '',
+  action_seq: 0,
+  printer_enabled: false,
+  printer_ip: '',
+  printer_port: 9100
 };
 
 const json = (res, code, body) => {
