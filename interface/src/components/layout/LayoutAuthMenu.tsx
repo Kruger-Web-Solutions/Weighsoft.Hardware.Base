@@ -1,11 +1,13 @@
 import React, { FC, useContext } from "react";
+import { Link as RouterLink } from "react-router-dom";
 
 import { Box, Button, Divider, IconButton, Popover, Typography, Avatar, styled, TypographyProps } from '@mui/material';
 
 import PersonIcon from "@mui/icons-material/Person";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
+import LoginIcon from "@mui/icons-material/Login";
 
-import { AuthenticatedContext } from "../../contexts/authentication";
+import { AuthenticationContext } from "../../contexts/authentication";
 
 const ItemTypography = styled(Typography)<TypographyProps>({
   maxWidth: '250px',
@@ -15,7 +17,7 @@ const ItemTypography = styled(Typography)<TypographyProps>({
 });
 
 const LayoutAuthMenu: FC = () => {
-  const { me, signOut } = useContext(AuthenticatedContext);
+  const { me, signOut } = useContext(AuthenticationContext);
 
   const [anchorEl, setAnchorEl] = React.useState<HTMLButtonElement | null>(null);
 
@@ -29,6 +31,21 @@ const LayoutAuthMenu: FC = () => {
 
   const open = Boolean(anchorEl);
   const id = anchorEl ? 'app-menu-popover' : undefined;
+
+  if (!me) {
+    return (
+      <Button
+        id="open-login"
+        color="inherit"
+        component={RouterLink}
+        to="/"
+        startIcon={<LoginIcon />}
+        sx={{ textTransform: 'none' }}
+      >
+        Log in
+      </Button>
+    );
+  }
 
   return (
     <>
