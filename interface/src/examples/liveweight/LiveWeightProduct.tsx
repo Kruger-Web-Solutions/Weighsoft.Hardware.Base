@@ -1,4 +1,4 @@
-import { FC, useCallback, useEffect, useState } from 'react';
+import { FC, useCallback, useEffect, useRef, useState } from 'react';
 
 import { Alert, Box, Button, TextField, Typography } from '@mui/material';
 
@@ -21,10 +21,13 @@ import { DEMO_LIVE_WEIGHT, LiveWeightState } from './types';
 const MAX_PRODUCTS = 9;
 const MAX_TX = 40;
 
+/** Offline / explicit demo only — never seed LIVE UI with this list. */
 const DEMO_CATALOG: LiveWeightProductEntry[] = [
   { plu: '19', product: 'Screw M6', unit: 'kg' },
   { plu: '21', product: 'Washer', unit: 'kg' }
 ];
+
+type CatalogSource = 'none' | 'loading' | 'live' | 'demo' | 'error';
 
 const LiveWeightProduct: FC = () => {
   const { connected, data, updateData } = useWs<LiveWeightState>(LIVE_WEIGHT_WS_URL);
@@ -36,10 +39,14 @@ const LiveWeightProduct: FC = () => {
     count: DEMO_LIVE_WEIGHT.count,
     unit: DEMO_LIVE_WEIGHT.unit
   });
-  const [catalog, setCatalog] = useState<LiveWeightProductEntry[]>(DEMO_CATALOG);
+  // Empty until board load or explicit demo — do not flash DEMO_CATALOG on remount.
+  const [catalog, setCatalog] = useState<LiveWeightProductEntry[]>([]);
+  const [catalogSource, setCatalogSource] = useState<CatalogSource>('none');
   const [txCount, setTxCount] = useState(0);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const liveLoadSucceeded = useRef(false);
 
   useEffect(() => {
     if (!connected) {
@@ -51,6 +58,7 @@ const LiveWeightProduct: FC = () => {
   }, [connected]);
 
   const state = demoMode ? local : data || DEMO_LIVE_WEIGHT;
+  const boardOnline = connected && !demoMode;
 
   useEffect(() => {
     setDraft({
@@ -62,31 +70,45 @@ const LiveWeightProduct: FC = () => {
   }, [state.plu, state.product, state.count, state.unit, demoMode, connected]);
 
   const refreshCatalog = useCallback(async () => {
-    if (demoMode) {
-      return;
-    }
+    setCatalogSource((prev) => (prev === 'live' ? 'live' : 'loading'));
+    setLoadError(null);
     try {
       const [productsRes, txRes] = await Promise.all([
         readLiveWeightProducts(),
         readLiveWeightTransactions()
       ]);
-      setCatalog(productsRes.data.products || []);
+      const products = productsRes.data.products || [];
+      setCatalog(products);
       setTxCount(txRes.data.count ?? 0);
-    } catch {
-      // keep previous catalog
+      setCatalogSource('live');
+      liveLoadSucceeded.current = true;
+    } catch (err: unknown) {
+      const status = (err as { response?: { status?: number; data?: { error?: string } } })?.response;
+      const detail =
+        status?.data?.error ||
+        (status?.status ? `HTTP ${status.status}` : 'Could not load catalog from board');
+      setLoadError(detail);
+      setCatalogSource(liveLoadSucceeded.current ? 'live' : 'error');
+      setMessage(`Catalog load failed: ${detail}`);
     }
-  }, [demoMode]);
+  }, []);
 
   useEffect(() => {
-    if (demoMode) {
-      setCatalog(DEMO_CATALOG);
-      setTxCount(0);
+    if (boardOnline) {
+      void refreshCatalog();
       return;
     }
-    if (connected) {
-      void refreshCatalog();
+    if (demoMode) {
+      // Never wipe a successful live list with demo on remount / flicker.
+      if (liveLoadSucceeded.current) {
+        return;
+      }
+      setCatalog(DEMO_CATALOG);
+      setTxCount(0);
+      setCatalogSource('demo');
+      setLoadError(null);
     }
-  }, [demoMode, connected, refreshCatalog]);
+  }, [boardOnline, demoMode, refreshCatalog]);
 
   const saveActive = async () => {
     const payload = {
@@ -96,7 +118,7 @@ const LiveWeightProduct: FC = () => {
       unit: draft.unit || 'kg'
     };
 
-    if (demoMode) {
+    if (demoMode && !boardOnline) {
       setLocal((prev) => ({ ...prev, ...payload }));
       setMessage('Saved (demo)');
       return;
@@ -126,7 +148,7 @@ const LiveWeightProduct: FC = () => {
       return;
     }
 
-    if (demoMode) {
+    if (demoMode && !boardOnline) {
       setCatalog((prev) => {
         const idx = prev.findIndex((p) => p.plu === entry.plu);
         if (idx >= 0) {
@@ -141,6 +163,7 @@ const LiveWeightProduct: FC = () => {
         return [...prev, entry];
       });
       setLocal((prev) => ({ ...prev, ...entry, count: draft.count }));
+      setCatalogSource('demo');
       setMessage('Saved to catalog (demo)');
       return;
     }
@@ -150,6 +173,9 @@ const LiveWeightProduct: FC = () => {
     try {
       const res = await upsertLiveWeightProduct(entry);
       setCatalog(res.data.products || []);
+      setCatalogSource('live');
+      liveLoadSucceeded.current = true;
+      setLoadError(null);
       const active = await updateLiveWeight({
         plu: entry.plu,
         product: entry.product,
@@ -167,7 +193,7 @@ const LiveWeightProduct: FC = () => {
   };
 
   const selectProduct = async (entry: LiveWeightProductEntry) => {
-    if (demoMode) {
+    if (demoMode && !boardOnline) {
       setLocal((prev) => ({ ...prev, plu: entry.plu, product: entry.product, unit: entry.unit }));
       setMessage(`Selected ${entry.plu}`);
       return;
@@ -191,7 +217,7 @@ const LiveWeightProduct: FC = () => {
   };
 
   const removeProduct = async (plu: string) => {
-    if (demoMode) {
+    if (demoMode && !boardOnline) {
       setCatalog((prev) => prev.filter((p) => p.plu !== plu));
       setMessage('Removed (demo)');
       return;
@@ -201,6 +227,8 @@ const LiveWeightProduct: FC = () => {
     try {
       const res = await deleteLiveWeightProduct(plu);
       setCatalog(res.data.products || []);
+      setCatalogSource('live');
+      liveLoadSucceeded.current = true;
       setMessage('Removed');
     } catch {
       setMessage('Delete failed');
@@ -217,11 +245,32 @@ const LiveWeightProduct: FC = () => {
     );
   }
 
+  const showLiveBanner = catalogSource === 'live' || (boardOnline && catalogSource === 'loading');
+  const showDemoBanner = catalogSource === 'demo' || (demoMode && !liveLoadSucceeded.current && !boardOnline);
+
   return (
     <SectionContent title="Product" titleGutter>
-      {demoMode && (
-        <Alert severity="info" sx={{ mb: 2 }}>
-          Demo mode — catalog stays in the browser until the board is online.
+      {showLiveBanner && (
+        <Alert severity="success" sx={{ mb: 2 }}>
+          <strong>LIVE</strong> — product catalog from the board. Leave this tab and come back; the list stays.
+        </Alert>
+      )}
+      {showDemoBanner && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          <strong>DEMO</strong> — board offline. Catalog is sample data in the browser only (not saved on the board).
+        </Alert>
+      )}
+      {loadError && boardOnline && (
+        <Alert
+          severity="error"
+          sx={{ mb: 2 }}
+          action={
+            <Button color="inherit" size="small" onClick={() => void refreshCatalog()}>
+              Retry
+            </Button>
+          }
+        >
+          Catalog load failed: {loadError}
         </Alert>
       )}
 
@@ -275,7 +324,10 @@ const LiveWeightProduct: FC = () => {
               <Button
                 variant="outlined"
                 onClick={saveToCatalog}
-                disabled={saving || (!demoMode && catalog.length >= MAX_PRODUCTS && !catalog.some((p) => p.plu === draft.plu.trim()))}
+                disabled={
+                  saving ||
+                  (boardOnline && catalog.length >= MAX_PRODUCTS && !catalog.some((p) => p.plu === draft.plu.trim()))
+                }
               >
                 Save to catalog
               </Button>
@@ -291,9 +343,14 @@ const LiveWeightProduct: FC = () => {
         <div className="lw-card">
           <div className="lw-card-head">
             Catalog ({catalog.length}/{MAX_PRODUCTS}) · Transactions {txCount}/{MAX_TX}
+            {catalogSource === 'live' ? ' · LIVE' : catalogSource === 'demo' ? ' · DEMO' : ''}
           </div>
           <div className="lw-card-body">
-            {catalog.length === 0 ? (
+            {catalogSource === 'loading' && catalog.length === 0 ? (
+              <Typography variant="body2" color="text.secondary">
+                Loading catalog from board…
+              </Typography>
+            ) : catalog.length === 0 ? (
               <Typography variant="body2" color="text.secondary">
                 No products yet. Fill PLU + description, then Save to catalog.
               </Typography>

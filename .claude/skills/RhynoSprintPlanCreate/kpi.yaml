@@ -1,6 +1,6 @@
 # RhynoSprintPlanCreate — improvement KPI log (all repos)
 # status: open | shipped | carried | dropped
-updated_at: 2026-08-09T16:25:00+02:00
+updated_at: 2026-08-09T17:00:00+02:00
 
 sprints:
   - id: SPRINT-2026-08-09-RS485-DJB
@@ -22,7 +22,8 @@ sprints:
     repo: Weighsoft.Hardware.Base
     branch: RelayBoardEspBuildIn
     opened_at: 2026-08-09T15:55:00+02:00
-    closed_at: null
+    closed_at: 2026-08-09T16:50:00+02:00
+    plan: docs/superpowers/plans/2026-08-09-weighsoft-hardware-base-option-a-sprint.md
     planned_rt:
       - RT-012
       - RT-020
@@ -33,6 +34,28 @@ sprints:
       - RT-009
       - RT-021
       - RT-018
+    waiting_rt:
+      - RT-005
+      - RT-007
+      - RT-008
+    later_excluded:
+      - RT-010
+      - RT-019
+    note: P1-P7 shipped; P8 field checks carried into HWB-B
+
+  - id: SPRINT-2026-08-09-HWB-B
+    name: Field fix catalog persist + printer findable
+    repo: Weighsoft.Hardware.Base
+    branch: RelayBoardEspBuildIn
+    opened_at: 2026-08-09T16:50:00+02:00
+    closed_at: null
+    plan: docs/superpowers/plans/2026-08-09-weighsoft-hardware-base-field-fix-sprint.md
+    planned_rt:
+      - RT-033
+      - RT-034
+      - RT-005
+      - RT-007
+      - RT-008
     waiting_rt:
       - RT-005
       - RT-007
@@ -162,3 +185,28 @@ improvements:
     added_by: agent
     added_at: 2026-08-09T16:25:00+02:00
     shipped_at: 2026-08-09T16:35:00+02:00
+
+  - id: KPI-008
+    sprint_id: SPRINT-2026-08-09-HWB-B
+    repo: Weighsoft.Hardware.Base
+    title: Product tab stuck on DEMO_CATALOG while board has real products
+    detail: >-
+      Board GET /rest/liveWeightProducts returns S1/R2/W3; UI remount shows Screw M6/Washer demo.
+      Fix LIVE load + error surfacing.
+    source: RT-033
+    status: shipped
+    added_by: agent
+    added_at: 2026-08-09T16:50:00+02:00
+    shipped_at: 2026-08-09T17:00:00+02:00
+
+  - id: KPI-009
+    sprint_id: SPRINT-2026-08-09-HWB-B
+    repo: Weighsoft.Hardware.Base
+    title: Printer IP/port invisible when operator looks at Tech
+    detail: >-
+      Fields already on Target & Relays; add Tech jump link + pin printer card so field find is under 30s.
+    source: RT-034
+    status: shipped
+    added_by: agent
+    added_at: 2026-08-09T16:50:00+02:00
+    shipped_at: 2026-08-09T17:00:00+02:00

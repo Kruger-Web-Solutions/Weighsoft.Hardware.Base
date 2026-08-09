@@ -1,4 +1,5 @@
 import { FC, useEffect, useRef, useState } from 'react';
+import { Link as RouterLink } from 'react-router-dom';
 
 import {
   Alert,
@@ -7,6 +8,7 @@ import {
   Chip,
   FormControl,
   InputLabel,
+  Link,
   MenuItem,
   Select,
   TextField,
@@ -125,6 +127,14 @@ const LiveWeightSetup: FC = () => {
         <strong>Target & Relays</strong> and <strong>Product</strong>. RS-485 is not available on this board.
       </Alert>
 
+      <Alert severity="warning" sx={{ mb: 2 }}>
+        <strong>Printer IP and port are not on Tech.</strong> Set them on{' '}
+        <Link component={RouterLink} to="/live-weight/target#network-printer" underline="always" fontWeight={700}>
+          Target & Relays → Network printer
+        </Link>
+        .
+      </Alert>
+
       <Box className="lw-page">
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2, alignItems: 'center' }}>
           <Chip size="small" label={demoMode ? 'Demo' : connected ? 'WS connected' : 'Disconnected'} color="success" />
@@ -135,6 +145,14 @@ const LiveWeightSetup: FC = () => {
             color={streaming ? 'primary' : 'default'}
             label={streaming ? 'Stream ON' : 'Stream OFF'}
           />
+          <Button
+            size="small"
+            variant="outlined"
+            component={RouterLink}
+            to="/live-weight/target#network-printer"
+          >
+            Printer IP & port → Target & Relays
+          </Button>
         </Box>
 
         <div className="lw-card">
