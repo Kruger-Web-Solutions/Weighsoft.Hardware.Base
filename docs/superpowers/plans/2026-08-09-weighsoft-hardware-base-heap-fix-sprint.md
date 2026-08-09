@@ -8,7 +8,7 @@
 **Evidence:** Agent Playwright test 2026-08-09 ~18:50; training log field outcomes  
 **Sprint id:** `SPRINT-2026-08-09-HWB-E`  
 **KPI log:** `.claude/skills/RhynoSprintPlanCreate/kpi.yaml`  
-**Status:** draft  
+**Status:** shipped (branch `sprint-e/heap-public-operator`)  
 **List mode:** LOCAL LIST MODE
 
 ## Goal
@@ -82,23 +82,24 @@ Agent browser test proved:
 
 | KPI id | Improvement | Source | Status | Sprint |
 |--------|-------------|--------|--------|--------|
-| KPI-020 | Heap starvation found in agent browser test | RT-054 | open | this |
-| KPI-021 | Fix Tech printer deep-link `/project` prefix | RT-056 | open | this |
-| KPI-022 | Catalog last-good cache + no demo wipe | RT-055/059 | open | this |
-| KPI-023 | Default landing Live Weight (if approved) | RT-057/060 | open | this |
+| KPI-020 | Heap starvation found in agent browser test | RT-054 | shipped | this |
+| KPI-021 | Fix Tech printer deep-link `/project` prefix | RT-056 | shipped | this |
+| KPI-022 | Catalog last-good cache + no demo wipe | RT-055/059 | shipped | this |
+| KPI-023 | Default landing Live Weight (if approved) | RT-057/060 | shipped | this |
 
 ## Pre-build gate
 
 - [x] Data audit all PASS
 - [x] Plan matches Option A / caps / dropped features
-- [ ] rhynoTodoList items → planned (agent applies with this write)
+- [x] rhynoTodoList items → planned then complete (RT-010/054–057/059/060)
 - [x] Improvements section seeded
-- [ ] Jurien approved / said build
+- [x] Jurien approved / said build
 - [x] No other-repo work
-- [ ] RT-060 answered (yes/no) — or approve default **yes** in the approve message
+- [x] RT-060 answered **yes** — Live Weight home + public operator mode
 
-## Jurien decisions needed
+## Jurien decisions (locked)
 
-1. **Approve Sprint E** (heap + bugs) — yes / no  
-2. **RT-060:** Login home = **Live Weight** (recommended) or keep Twin?  
-3. After approve: say **build** (or **approve and build**)
+1. **Approve Sprint E** — yes  
+2. **RT-060:** Login home = **Live Weight** (yes)  
+3. Public operator: weigh / PLU / tx / DI-DO without login; settings need login  
+4. Build + flash after merge

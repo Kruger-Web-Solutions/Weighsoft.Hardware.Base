@@ -7,27 +7,37 @@
 RelayBoardService::RelayBoardService(AsyncWebServer* server,
                                      SecurityManager* securityManager,
                                      AsyncMqttClient* mqttClient) :
+    // Operator DI/DO (relays + inputs) — public; settings pages stay behind login in the SPA.
     _httpEndpoint(RelayBoardState::read,
                   RelayBoardState::update,
                   this,
                   server,
                   RELAY_BOARD_ENDPOINT_PATH,
                   securityManager,
-                  AuthenticationPredicates::IS_AUTHENTICATED),
+                  AuthenticationPredicates::NONE_REQUIRED),
+#if FT_ENABLED(FT_MQTT)
     _mqttPubSub(RelayBoardState::read, RelayBoardState::update, this, mqttClient),
+#endif
     _webSocket(RelayBoardState::read,
                RelayBoardState::update,
                this,
                server,
                RELAY_BOARD_SOCKET_PATH,
                securityManager,
-               AuthenticationPredicates::IS_AUTHENTICATED),
+               AuthenticationPredicates::NONE_REQUIRED),
+#if FT_ENABLED(FT_MQTT)
     _mqttClient(mqttClient),
+#endif
     _server(server),
     _securityManager(securityManager) {
+#if FT_ENABLED(FT_MQTT)
   _mqttBasePath = SettingValue::format("homeassistant/switch/#{unique_id}");
   _mqttName = SettingValue::format("relay-board-#{unique_id}");
   _mqttUniqueId = SettingValue::format("relay-#{unique_id}");
+  _mqttClient->onConnect(std::bind(&RelayBoardService::configureMqtt, this));
+#else
+  (void)mqttClient;
+#endif
 
   pinMode(RELAY1_PIN, OUTPUT);
   pinMode(RELAY2_PIN, OUTPUT);
@@ -41,7 +51,6 @@ RelayBoardService::RelayBoardService(AsyncWebServer* server,
   pinMode(DI1_PIN, INPUT_PULLUP);
   pinMode(DI2_PIN, INPUT_PULLUP);
 
-  _mqttClient->onConnect(std::bind(&RelayBoardService::configureMqtt, this));
   addUpdateHandler([&](const String& originId) { onConfigUpdated(); }, false);
   registerStatusEndpoint();
 }
@@ -225,9 +234,10 @@ void RelayBoardService::registerStatusEndpoint() {
             response->setLength();
             request->send(response);
           },
-          AuthenticationPredicates::IS_AUTHENTICATED));
+          AuthenticationPredicates::NONE_REQUIRED));
 }
 
+#if FT_ENABLED(FT_MQTT)
 void RelayBoardService::configureMqtt() {
   if (!_mqttClient->connected()) {
     return;
@@ -237,3 +247,4 @@ void RelayBoardService::configureMqtt() {
   String subTopic = _mqttBasePath + "/set";
   _mqttPubSub.configureTopics(pubTopic, subTopic);
 }
+#endif

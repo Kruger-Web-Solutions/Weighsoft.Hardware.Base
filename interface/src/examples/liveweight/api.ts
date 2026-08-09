@@ -38,6 +38,10 @@ export const readLiveWeight = (): AxiosPromise<LiveWeightState> => AXIOS.get('/l
 export const updateLiveWeight = (state: Partial<LiveWeightState>): AxiosPromise<LiveWeightState> =>
   AXIOS.post('/liveWeight', state);
 
+/** Settings / config — requires login */
+export const updateLiveWeightConfig = (state: Partial<LiveWeightState>): AxiosPromise<Partial<LiveWeightState>> =>
+  AXIOS.post('/liveWeightConfig', state);
+
 export const readLiveWeightProducts = (): AxiosPromise<LiveWeightProductsResponse> =>
   AXIOS.get('/liveWeightProducts');
 

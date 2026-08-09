@@ -4,10 +4,12 @@ import { useSnackbar, VariantType } from 'notistack';
 
 import { Authentication, AuthenticationContext } from './contexts/authentication';
 import { FeaturesContext } from './contexts/features';
-import { RequireAuthenticated, RequireUnauthenticated } from './components';
+import { Layout, RequireAuthenticated, RequireUnauthenticated } from './components';
+import { PROJECT_PATH } from './api/env';
 
 import SignIn from './SignIn';
 import AuthenticatedRouting from './AuthenticatedRouting';
+import LiveWeight from './examples/liveweight/LiveWeight';
 
 interface SecurityRedirectProps {
   message: string;
@@ -22,20 +24,29 @@ const RootRedirect: FC<SecurityRedirectProps> = ({ message, variant, signOut }) 
     signOut && authenticationContext.signOut(false);
     enqueueSnackbar(message, { variant });
   }, [message, variant, signOut, authenticationContext, enqueueSnackbar]);
-  return (<Navigate to="/" />);
+  return <Navigate to="/" />;
 };
 
 export const RemoveTrailingSlashes = () => {
   const location = useLocation();
-  return location.pathname.match('/.*/$') && (
-    <Navigate
-      to={{
-        pathname: location.pathname.replace(/\/+$/, ""),
-        search: location.search
-      }}
-    />
+  return (
+    location.pathname.match('/.*/$') && (
+      <Navigate
+        to={{
+          pathname: location.pathname.replace(/\/+$/, ''),
+          search: location.search
+        }}
+      />
+    )
   );
 };
+
+/** End-user Live Weight — no login. Settings stay behind RequireAuthenticated. */
+const PublicLiveWeight: FC = () => (
+  <Layout>
+    <LiveWeight />
+  </Layout>
+);
 
 const AppRouting: FC = () => {
   const { features } = useContext(FeaturesContext);
@@ -44,24 +55,24 @@ const AppRouting: FC = () => {
     <Authentication>
       <RemoveTrailingSlashes />
       <Routes>
-        <Route
-          path="/unauthorized"
-          element={<RootRedirect message="Please log in to continue" signOut />}
-        />
+        <Route path="/unauthorized" element={<RootRedirect message="Please log in to continue" signOut />} />
         <Route
           path="/firmwareUpdated"
           element={<RootRedirect message="Firmware update successful" variant="success" />}
         />
-        {features.security &&
+        {features.security && (
           <Route
             path="/"
             element={
-
               <RequireUnauthenticated>
                 <SignIn />
               </RequireUnauthenticated>
             }
-          />}
+          />
+        )}
+        {features.project && (
+          <Route path={`/${PROJECT_PATH}/live-weight/*`} element={<PublicLiveWeight />} />
+        )}
         <Route
           path="/*"
           element={

@@ -7,7 +7,7 @@ import RelayBoard from '../examples/relay/RelayBoard';
 const ProjectRouting: FC = () => {
   return (
     <Routes>
-      <Route path="/*" element={<Navigate to="relay-board/twin" />} />
+      <Route path="/*" element={<Navigate to="live-weight/live" replace />} />
       <Route path="relay-board/*" element={<RelayBoard />} />
       <Route path="live-weight/*" element={<LiveWeight />} />
     </Routes>

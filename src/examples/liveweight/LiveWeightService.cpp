@@ -1,5 +1,6 @@
 #include <examples/liveweight/LiveWeightService.h>
 #include <examples/relay/RelayBoardService.h>
+#include <Features.h>
 #include <AsyncJson.h>
 
 #ifdef ESP8266
@@ -35,21 +36,32 @@ LiveWeightService::LiveWeightService(AsyncWebServer* server,
                   server,
                   LIVE_WEIGHT_ENDPOINT_PATH,
                   securityManager,
-                  AuthenticationPredicates::IS_AUTHENTICATED),
+                  AuthenticationPredicates::NONE_REQUIRED),
+    _httpConfigEndpoint(LiveWeightState::readConfig,
+                        LiveWeightState::updateConfig,
+                        this,
+                        server,
+                        LIVE_WEIGHT_CONFIG_ENDPOINT_PATH,
+                        securityManager,
+                        AuthenticationPredicates::IS_AUTHENTICATED),
     _fsPersistence(LiveWeightState::readConfig,
                    LiveWeightState::updateConfig,
                    this,
                    fs,
                    LIVE_WEIGHT_CONFIG_FILE),
+#if FT_ENABLED(FT_MQTT)
     _mqttPubSub(LiveWeightState::read, LiveWeightState::update, this, mqttClient),
+#endif
     _webSocket(LiveWeightState::read,
                LiveWeightState::update,
                this,
                server,
                LIVE_WEIGHT_SOCKET_PATH,
                securityManager,
-               AuthenticationPredicates::IS_AUTHENTICATED),
+               AuthenticationPredicates::NONE_REQUIRED),
+#if FT_ENABLED(FT_MQTT)
     _mqttClient(mqttClient),
+#endif
     _server(server),
     _securityManager(securityManager),
     _fs(fs),
@@ -78,8 +90,12 @@ LiveWeightService::LiveWeightService(AsyncWebServer* server,
     _pendingAction(""),
     _printPending(false),
     _lastSerialPublishMs(0) {
+#if FT_ENABLED(FT_MQTT)
   _mqttBasePath = SettingValue::format("weighsoft/liveWeight/#{unique_id}");
   _mqttClient->onConnect(std::bind(&LiveWeightService::configureMqtt, this));
+#else
+  (void)mqttClient;
+#endif
   _fsPersistence.disableUpdateHandler();
 
   addUpdateHandler(
@@ -785,7 +801,7 @@ void LiveWeightService::registerCatalogEndpoints() {
             response->setLength();
             request->send(response);
           },
-          AuthenticationPredicates::IS_AUTHENTICATED));
+          AuthenticationPredicates::NONE_REQUIRED));
 
   AsyncCallbackJsonWebHandler* productsPost = new AsyncCallbackJsonWebHandler(
       LIVE_WEIGHT_PRODUCTS_PATH,
@@ -797,6 +813,14 @@ void LiveWeightService::registerCatalogEndpoints() {
             }
             JsonObject root = json.as<JsonObject>();
             String action = root["action"] | "upsert";
+            // select = operator (public); upsert/delete = catalog config (login)
+            if (action != "select") {
+              Authentication auth = _securityManager->authenticateRequest(request);
+              if (!AuthenticationPredicates::IS_AUTHENTICATED(auth)) {
+                request->send(401, "application/json", "{\"error\":\"login required\"}");
+                return;
+              }
+            }
             if (action == "delete") {
               String plu = root["plu"] | "";
               int idx = findProductIndex(plu);
@@ -862,7 +886,7 @@ void LiveWeightService::registerCatalogEndpoints() {
             response->setLength();
             request->send(response);
           },
-          AuthenticationPredicates::IS_AUTHENTICATED),
+          AuthenticationPredicates::NONE_REQUIRED),
       1024);
   productsPost->setMethod(HTTP_POST);
   _server->addHandler(productsPost);
@@ -899,7 +923,7 @@ void LiveWeightService::registerCatalogEndpoints() {
             response->setLength();
             request->send(response);
           },
-          AuthenticationPredicates::IS_AUTHENTICATED));
+          AuthenticationPredicates::NONE_REQUIRED));
 
   // Discovery identity + optional unicast poke to the caller (desk / AP broadcast filter)
   _server->on(
@@ -937,9 +961,10 @@ void LiveWeightService::registerCatalogEndpoints() {
             response->setLength();
             request->send(response);
           },
-          AuthenticationPredicates::IS_AUTHENTICATED));
+          AuthenticationPredicates::NONE_REQUIRED));
 }
 
+#if FT_ENABLED(FT_MQTT)
 void LiveWeightService::configureMqtt() {
   if (!_mqttClient->connected()) {
     return;
@@ -948,3 +973,4 @@ void LiveWeightService::configureMqtt() {
   String subTopic = _mqttBasePath + "/set";
   _mqttPubSub.configureTopics(pubTopic, subTopic);
 }
+#endif
