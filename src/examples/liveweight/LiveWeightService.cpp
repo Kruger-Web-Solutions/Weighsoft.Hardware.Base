@@ -912,10 +912,9 @@ void LiveWeightService::registerCatalogEndpoints() {
             if (request->client()) {
               unicastOk = _discovery.announceTo(request->client()->remoteIP());
             }
-            char payload[192];
-            const size_t len = _discovery.buildPayload(payload, sizeof(payload));
-            AsyncJsonResponse* response = new AsyncJsonResponse(false, 768);
+            AsyncJsonResponse* response = new AsyncJsonResponse(false, 1024);
             JsonObject root = response->getRoot();
+            root["v"] = 1;
             root["svc"] = LIVE_WEIGHT_DISCOVERY_SVC;
             root["udp_port"] = LIVE_WEIGHT_DISCOVERY_UDP_PORT;
             root["udp_ready"] = _discovery.udpReady();
@@ -924,16 +923,16 @@ void LiveWeightService::registerCatalogEndpoints() {
             root["mdns"] = String("_") + LIVE_WEIGHT_DISCOVERY_SVC + "._tcp.local";
             root["rest"] = LIVE_WEIGHT_ENDPOINT_PATH;
             root["ws"] = LIVE_WEIGHT_SOCKET_PATH;
+            root["http"] = 80;
             if (WiFi.status() == WL_CONNECTED) {
               root["ip"] = WiFi.localIP().toString();
 #ifdef ESP8266
               root["host"] = WiFi.hostname();
+              root["id"] = String(ESP.getChipId(), HEX);
 #elif defined(ESP32)
               root["host"] = WiFi.getHostname() ? WiFi.getHostname() : "";
+              root["id"] = String((uint32_t)ESP.getEfuseMac(), HEX);
 #endif
-            }
-            if (len > 0 && len < sizeof(payload)) {
-              root["announce"] = (const char*)payload;
             }
             response->setLength();
             request->send(response);
