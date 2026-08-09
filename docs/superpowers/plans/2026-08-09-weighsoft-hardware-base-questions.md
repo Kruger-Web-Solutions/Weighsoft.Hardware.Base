@@ -14,6 +14,7 @@ Durable store so product/tech questions are not lost in chat. Status: `open` | `
 |----|----------|-------|--------|-------|
 | Q-001 / RT-047 | Does Windows firewall block UDP **4210** for `scripts/listen-weighsoft-announce.py` on the desk PC? | 2026-08-09 | open | Field risk for discovery proof; allow inbound UDP 4210 if listen hears nothing |
 | Q-002 / RT-048 | Which **first real sender** product should we integrate next (ESP bridge, WOW Trade / Pi, PC tool, other)? | 2026-08-09 | open | Sender = any LAN device; pick priority product after field tests |
+| Q-008 / RT-060 | Make **Live Weight** the post-login home (not Twin) to save heap? | 2026-08-09 | open | Agent browser: Twin Free RAM ~2.4 KB; SPA/catalog fail under stress. Related RT-057 |
 
 ## Answered
 

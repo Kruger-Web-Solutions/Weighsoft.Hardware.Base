@@ -24,6 +24,7 @@
 | 2026-08-09 | Never commit `data/config/wifiSettings.json` | standing rule | dirty-tree audits |
 | 2026-08-09 | **Approved x2** — Sprint D + flash now | Jurien | RT-046; HWB-D gate |
 | 2026-08-09 | Flash delivered via HTTP `/rest/uploadFirmware` to 192.168.2.67 | agent | sketch 915072; discovery REST OK |
+| 2026-08-09 | Agent browser field test; heap starvation + broken printer deep-link + catalog fail under load | agent Playwright | RT-054…060; training field outcomes |
 
 ## Software clear snapshot (HWB-D audit)
 
@@ -32,19 +33,30 @@
 - Waiting field tests: RT-005, RT-007, RT-008, RT-043, RT-044, RT-045  
 - Flash: RT-046 **complete** — HTTP flash 2026-08-09 ~18:35; hand off tests
 
-## Field outcomes (placeholders — fill after Jurien tests)
+## Field outcomes
 
 | RT | Test | Result | When | Notes |
 |----|------|--------|------|-------|
-| RT-043 | Product catalog LIVE persist | _pending_ | | Leave tab / refresh |
-| RT-008 | Printer IP/port + ticket | _pending_ | | Target & Relays; ESC/POS |
-| RT-007 | DI Print / Next / Start / Stop | _pending_ | | Pin to GND |
-| RT-005 | Live Weight UI overall | _pending_ | | Dial / tabs / zones |
-| RT-044 | Discovery find-me + listen script | _pending_ | | UDP 4210; firewall? |
-| RT-045 | Count job-wide (until RT-040) | _pending_ | | Shared count expected |
+| RT-044 | Discovery How senders find me | **PASS** (agent) | 2026-08-09 | Tech UI + discovery REST OK |
+| RT-045 | Count job-wide | **PASS** (agent) | 2026-08-09 | 1.50 × count 3 → total 4.500 |
+| RT-043 | Product catalog LIVE persist | **FAIL** (agent) | 2026-08-09 | Browser CONNECTION_RESET; REST OK when heap free; see RT-054/055/059 |
+| RT-008 | Printer IP/port + ticket | **PARTIAL** (agent) | 2026-08-09 | Fields on Target OK; Tech deep-link broken RT-056; ticket needs real printer |
+| RT-005 | Live Weight UI overall | **PARTIAL** (agent) | 2026-08-09 | Live 1.50 OK; heap/JS stress; Jurien still confirm |
+| RT-007 | DI Print/Next/Start/Stop | **pending human** | | Twin maps DI1=next DI2=start; physical DI not pressed |
+| RT-008 | Printer ticket | **pending human** | | Need real ESC/POS printer on LAN |
+
+## Agent browser session (2026-08-09 ~18:50)
+
+- Method: Playwright headed → `http://192.168.2.67` admin/admin  
+- Twin LIVE: Free RAM **2.4 KB**, frag 39%  
+- Product: catalog REST **ERR_CONNECTION_RESET** in browser; PC REST OK when heap ~11 KB  
+- Active PLU **Screw M6** vs catalog **S1/R2/W3**  
+- Tech printer link `/live-weight/target` → wrong page (relay twin)  
+- Live weight POST 1.50 → UI Net/Gross **1.50 kg**  
+- New list ids: RT-054…RT-060 (issues/ideas/Q)
 
 ## KPI pointers
 
 - Log: `.claude/skills/RhynoSprintPlanCreate/kpi.yaml`  
 - Sprint D: `SPRINT-2026-08-09-HWB-D`  
-- Improvements seeded: KPI-017 (test+questions list), KPI-018 (this training log), KPI-019 (UDP 4210 firewall note)
+- Improvements: KPI-017…019; agent-test issues KPI-020+
