@@ -25,7 +25,6 @@ let relays = {
   relay2: false,
   relay3: false,
   relay4: false,
-  buzzer: false,
   di1: false,
   di2: false
 };
@@ -149,10 +148,9 @@ const server = http.createServer((req, res) => {
       mac: 'MO:CK:MO:CK:MO:CK',
       flash_chip_speed: 40000000,
       has_temp_sensor: false,
-      has_buzzer: true,
       power_led: 'hardwired',
       relay_active: 'high',
-      pins: { ry1: 16, ry2: 14, ry3: 12, ry4: 13, di1: 4, di2: 5, buzzer: 15 },
+      pins: { ry1: 16, ry2: 14, ry3: 12, ry4: 13, di1: 4, di2: 5 },
       gpio_legend: {
         '16': 'DO RY1',
         '14': 'DO RY2',
@@ -160,7 +158,7 @@ const server = http.createServer((req, res) => {
         '13': 'DO RY4',
         '4': 'DI 1 (pullup)',
         '5': 'DI 2 (pullup)',
-        '15': 'DO buzzer',
+        '15': 'BOOT strap',
         '0': 'BOOT strap / flash',
         '2': 'BOOT strap',
         '1': 'TX0 UART',

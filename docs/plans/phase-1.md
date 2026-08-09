@@ -1,6 +1,6 @@
 # Phase 1 plan — Firmware contract
 
-**Goal:** DI actions, network ESC/POS print, job start/stop, buzzer tone already in tree, serial churn reduced.  
+**Goal:** DI actions, network ESC/POS print, job start/stop, serial churn reduced. (Buzzer dropped from product.)  
 **Branch:** `feat/lw-p1-firmware-di-print`  
 **Acceptance:** see `docs/superpowers/plans/2026-08-08-live-weight-operator-ui-phases.md` §P1
 

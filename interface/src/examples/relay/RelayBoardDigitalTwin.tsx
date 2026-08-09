@@ -157,9 +157,7 @@ const RelayBoardDigitalTwin: FC = () => {
         state={state}
         powerOn
         uartLive={weightPulse || demoMode}
-        hasBuzzer={status.has_buzzer}
         onToggleRelay={toggleRelay}
-        onToggleBuzzer={() => setRelay('buzzer', !state.buzzer)}
       />
 
       <Typography variant="subtitle2" gutterBottom>ESP stats</Typography>
@@ -233,12 +231,6 @@ const RelayBoardDigitalTwin: FC = () => {
             label={label}
           />
         ))}
-        {status.has_buzzer && (
-          <FormControlLabel
-            control={<Switch checked={state.buzzer} onChange={(_, v) => setRelay('buzzer', v)} color="secondary" />}
-            label="Buzzer"
-          />
-        )}
       </Box>
 
       <Typography variant="subtitle2" gutterBottom>GPIO map (DI / DO / boot)</Typography>
@@ -251,7 +243,6 @@ const RelayBoardDigitalTwin: FC = () => {
             (pinNum === status.pins.ry2 && state.relay2) ||
             (pinNum === status.pins.ry3 && state.relay3) ||
             (pinNum === status.pins.ry4 && state.relay4) ||
-            (pinNum === status.pins.buzzer && state.buzzer) ||
             (pinNum === (status.pins.di1 ?? 4) && isDi && state.di1) ||
             (pinNum === (status.pins.di2 ?? 5) && isDi && state.di2);
           const boot = role.toLowerCase().includes('boot');

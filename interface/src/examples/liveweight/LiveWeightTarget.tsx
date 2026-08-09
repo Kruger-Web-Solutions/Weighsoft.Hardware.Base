@@ -16,7 +16,6 @@ import {
 
 import { FormLoader, SectionContent } from '../../components';
 import { useWs } from '../../utils';
-import { readRelayBoard, updateRelayBoard } from '../relay/api';
 
 import { updateLiveWeight } from './api';
 import './liveWeight.css';
@@ -35,7 +34,6 @@ const LiveWeightTarget: FC = () => {
   const [local, setLocal] = useState<LiveWeightState>(DEMO_LIVE_WEIGHT);
   const [draft, setDraft] = useState<LiveWeightState>(DEMO_LIVE_WEIGHT);
   const [saving, setSaving] = useState(false);
-  const [buzzerBusy, setBuzzerBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -152,24 +150,6 @@ const LiveWeightTarget: FC = () => {
       setMessage(`Trigger ${action} failed`);
     } finally {
       setSaving(false);
-    }
-  };
-
-  const testBuzzer = async (on: boolean) => {
-    if (demoMode) {
-      setMessage(on ? 'Buzzer on (demo)' : 'Buzzer off (demo)');
-      return;
-    }
-    setBuzzerBusy(true);
-    setMessage(null);
-    try {
-      const current = await readRelayBoard();
-      await updateRelayBoard({ ...current.data, buzzer: on });
-      setMessage(on ? 'Buzzer on' : 'Buzzer off');
-    } catch {
-      setMessage('Buzzer request failed');
-    } finally {
-      setBuzzerBusy(false);
     }
   };
 
@@ -356,16 +336,9 @@ const LiveWeightTarget: FC = () => {
           <div className="lw-card-head">Tests</div>
           <div className="lw-card-body">
             <Typography variant="body2" color="text.secondary">
-              Buzzer uses Relay Board GPIO15 (<code>tone</code>). Print / Next call Live Weight{' '}
-              <code>trigger_action</code>.
+              Print / Next call Live Weight <code>trigger_action</code>.
             </Typography>
             <div className="lw-actions">
-              <Button variant="outlined" disabled={buzzerBusy || saving} onClick={() => testBuzzer(true)}>
-                Buzzer on
-              </Button>
-              <Button variant="outlined" disabled={buzzerBusy || saving} onClick={() => testBuzzer(false)}>
-                Buzzer off
-              </Button>
               <Button variant="outlined" disabled={saving} onClick={() => triggerAction('print')}>
                 Test Print
               </Button>

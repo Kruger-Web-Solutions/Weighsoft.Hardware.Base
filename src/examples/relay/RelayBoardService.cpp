@@ -38,11 +38,6 @@ RelayBoardService::RelayBoardService(AsyncWebServer* server,
   digitalWrite(RELAY3_PIN, RELAY_OFF);
   digitalWrite(RELAY4_PIN, RELAY_OFF);
 
-#if RELAY_BOARD_HAS_BUZZER
-  pinMode(BUZZER_PIN, OUTPUT);
-  digitalWrite(BUZZER_PIN, LOW);
-#endif
-
   pinMode(DI1_PIN, INPUT_PULLUP);
   pinMode(DI2_PIN, INPUT_PULLUP);
 
@@ -56,7 +51,6 @@ void RelayBoardService::begin() {
   _state.relay2 = DEFAULT_RELAY_STATE;
   _state.relay3 = DEFAULT_RELAY_STATE;
   _state.relay4 = DEFAULT_RELAY_STATE;
-  _state.buzzer = false;
   _state.di1 = digitalRead(DI1_PIN) == LOW;
   _state.di2 = digitalRead(DI2_PIN) == LOW;
   onConfigUpdated();
@@ -164,16 +158,6 @@ void RelayBoardService::applyOutputs() {
   digitalWrite(RELAY2_PIN, _state.relay2 ? RELAY_ON : RELAY_OFF);
   digitalWrite(RELAY3_PIN, _state.relay3 ? RELAY_ON : RELAY_OFF);
   digitalWrite(RELAY4_PIN, _state.relay4 ? RELAY_ON : RELAY_OFF);
-#if RELAY_BOARD_HAS_BUZZER
-  // Passive buzzers need a square wave; active buzzers also sound with tone().
-  // digitalWrite(HIGH) alone is silent on most piezo modules.
-  if (_state.buzzer) {
-    tone(BUZZER_PIN, BUZZER_FREQ_HZ);
-  } else {
-    noTone(BUZZER_PIN);
-    digitalWrite(BUZZER_PIN, LOW);
-  }
-#endif
 }
 
 void RelayBoardService::registerStatusEndpoint() {
@@ -206,7 +190,6 @@ void RelayBoardService::registerStatusEndpoint() {
             root["ip"] = WiFi.localIP().toString();
             root["mac"] = WiFi.macAddress();
             root["has_temp_sensor"] = false;
-            root["has_buzzer"] = RELAY_BOARD_HAS_BUZZER == 1;
             root["power_led"] = "hardwired";
             root["relay_active"] = "high";
 
@@ -217,9 +200,6 @@ void RelayBoardService::registerStatusEndpoint() {
             pins["ry4"] = RELAY4_PIN;
             pins["di1"] = DI1_PIN;
             pins["di2"] = DI2_PIN;
-#if RELAY_BOARD_HAS_BUZZER
-            pins["buzzer"] = BUZZER_PIN;
-#endif
 
             JsonObject gpio = root.createNestedObject("gpio_legend");
             gpio["16"] = "DO RY1 (pulses at boot)";
@@ -228,11 +208,7 @@ void RelayBoardService::registerStatusEndpoint() {
             gpio["13"] = "DO RY4";
             gpio["4"] = "DI 1 (pullup)";
             gpio["5"] = "DI 2 (pullup + blue LED)";
-#if RELAY_BOARD_HAS_BUZZER
-            gpio["15"] = "DO buzzer";
-#else
             gpio["15"] = "BOOT strap";
-#endif
             gpio["0"] = "BOOT strap / flash";
             gpio["2"] = "BOOT strap / ESP LED";
             gpio["1"] = "TX0 UART";
@@ -243,7 +219,6 @@ void RelayBoardService::registerStatusEndpoint() {
             relays["relay2"] = _state.relay2;
             relays["relay3"] = _state.relay3;
             relays["relay4"] = _state.relay4;
-            relays["buzzer"] = _state.buzzer;
             relays["di1"] = _state.di1;
             relays["di2"] = _state.di2;
 

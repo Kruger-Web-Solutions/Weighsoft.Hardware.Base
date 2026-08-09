@@ -26,17 +26,6 @@
 #define RELAY_ON HIGH
 #define RELAY_OFF LOW
 
-#ifndef RELAY_BOARD_HAS_BUZZER
-#define RELAY_BOARD_HAS_BUZZER 0
-#endif
-// GPIO15 is pulled low at boot — wire add-on buzzer: SIG→IO15, GND→GND (VCC if module needs it)
-#ifndef BUZZER_PIN
-#define BUZZER_PIN 15
-#endif
-#ifndef BUZZER_FREQ_HZ
-#define BUZZER_FREQ_HZ 2000
-#endif
-
 // Digital inputs on the IO4 / IO5 breakout pins (INPUT_PULLUP, close to GND = active)
 #ifndef DI1_PIN
 #define DI1_PIN 4
@@ -58,7 +47,6 @@ class RelayBoardState {
   bool relay2;
   bool relay3;
   bool relay4;
-  bool buzzer;
   bool di1;
   bool di2;
 
@@ -67,7 +55,6 @@ class RelayBoardState {
     root["relay2"] = state.relay2;
     root["relay3"] = state.relay3;
     root["relay4"] = state.relay4;
-    root["buzzer"] = state.buzzer;
     root["di1"] = state.di1;
     root["di2"] = state.di2;
   }
@@ -100,13 +87,6 @@ class RelayBoardState {
       bool v = root["relay4"];
       if (state.relay4 != v) {
         state.relay4 = v;
-        changed = true;
-      }
-    }
-    if (root.containsKey("buzzer")) {
-      bool v = root["buzzer"];
-      if (state.buzzer != v) {
-        state.buzzer = v;
         changed = true;
       }
     }

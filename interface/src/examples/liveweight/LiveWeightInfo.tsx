@@ -24,7 +24,7 @@ const LiveWeightInfo: FC = () => (
           primary="Target & Relays"
           secondary={
             'Target range, UNDER/CORRECT/OVER → RY mapping, DI1/DI2 actions (Print / Next / Start / Stop), ' +
-            'network printer IP:port, and buzzer test.'
+            'and network printer IP:port.'
           }
         />
       </ListItem>
