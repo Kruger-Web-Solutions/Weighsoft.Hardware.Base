@@ -63,6 +63,8 @@ python scripts/listen-weighsoft-announce.py --rest http://BOARD_IP --seconds 15
 
 `--rest` signs in, GETs `/rest/liveWeightDiscovery` (board identity + triggers broadcast/unicast poke), and still listens on UDP. If the AP filters broadcast, REST still returns `ip` / `host` for adopt; use **manual IP** on the sender.
 
+**Windows firewall:** If the PC hear script gets nothing on UDP **4210**, check Windows Defender Firewall (or third-party firewall) for an inbound **UDP 4210** allow rule for Python / the script. Broadcast filtering on the AP is a separate issue — try `--rest` and manual IP when UDP stays silent.
+
 ### 2) Optional — mDNS
 
 The board also registers:

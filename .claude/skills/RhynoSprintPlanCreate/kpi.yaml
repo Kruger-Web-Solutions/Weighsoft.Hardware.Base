@@ -1,6 +1,6 @@
 # RhynoSprintPlanCreate — improvement KPI log (all repos)
 # status: open | shipped | carried | dropped
-updated_at: 2026-08-09T17:40:00+02:00
+updated_at: 2026-08-09T18:30:00+02:00
 
 sprints:
   - id: SPRINT-2026-08-09-RS485-DJB
@@ -48,7 +48,7 @@ sprints:
     repo: Weighsoft.Hardware.Base
     branch: RelayBoardEspBuildIn
     opened_at: 2026-08-09T16:50:00+02:00
-    closed_at: null
+    closed_at: 2026-08-09T18:05:00+02:00
     plan: docs/superpowers/plans/2026-08-09-weighsoft-hardware-base-field-fix-sprint.md
     planned_rt:
       - RT-033
@@ -63,14 +63,14 @@ sprints:
     later_excluded:
       - RT-010
       - RT-019
-    note: P1-P2 shipped + flashed; RT-039 pulled into HWB-C
+    note: P1-P2 shipped + flashed; field checks carried to HWB-D test list; closed into D
 
   - id: SPRINT-2026-08-09-HWB-C
     name: WiFi weight discovery — board announce
     repo: Weighsoft.Hardware.Base
     branch: RelayBoardEspBuildIn
     opened_at: 2026-08-09T17:40:00+02:00
-    closed_at: null
+    closed_at: 2026-08-09T18:30:00+02:00
     plan: docs/superpowers/plans/2026-08-09-weighsoft-hardware-base-discovery-sprint.md
     planned_rt:
       - RT-039
@@ -82,7 +82,31 @@ sprints:
       - RT-010
       - RT-019
       - RT-040
-    note: draft — gate waiting Jurien approve/build; Option 2 discovery; sender any LAN device
+    note: P1–P4 shipped PR #12–#15; P5 field carried to HWB-D test list (RT-044)
+
+  - id: SPRINT-2026-08-09-HWB-D
+    name: Software clear → flash → field test list
+    repo: Weighsoft.Hardware.Base
+    branch: RelayBoardEspBuildIn
+    opened_at: 2026-08-09T18:30:00+02:00
+    closed_at: null
+    plan: docs/superpowers/plans/2026-08-09-weighsoft-hardware-base-software-clear-sprint.md
+    planned_rt:
+      - RT-046
+    waiting_rt:
+      - RT-005
+      - RT-007
+      - RT-008
+      - RT-043
+      - RT-044
+      - RT-045
+    later_excluded:
+      - RT-010
+      - RT-019
+      - RT-040
+    note: >-
+      Audit — no remaining software build RTs. Gate asks Jurien approve flash then tests.
+      Questions + training log persisted. Do not mix RS485.
 
 improvements:
   - id: KPI-010
@@ -272,3 +296,45 @@ improvements:
     added_by: agent
     added_at: 2026-08-09T17:40:00+02:00
     shipped_at: null
+
+  - id: KPI-017
+    sprint_id: SPRINT-2026-08-09-HWB-D
+    repo: Weighsoft.Hardware.Base
+    title: Durable test list + questions section on living list (TTS)
+    detail: >-
+      Living list ### tests and ### questions; TEST: / Q: items with test_list and kind:question;
+      regen LIST.md for TTS. Seeded from Jurien ask 2026-08-09 ~18:25.
+    source: SPRINT-2026-08-09-HWB-D
+    status: shipped
+    note: PC list.yaml + _regen_list.py updated this session
+    added_by: agent
+    added_at: 2026-08-09T18:30:00+02:00
+    shipped_at: 2026-08-09T18:30:00+02:00
+
+  - id: KPI-018
+    sprint_id: SPRINT-2026-08-09-HWB-D
+    repo: Weighsoft.Hardware.Base
+    title: Training log for decisions + field outcomes
+    detail: >-
+      docs/superpowers/plans/2026-08-09-weighsoft-hardware-base-training-log.md —
+      chronological decisions + placeholders for Jurien field results (training data / KPI).
+    source: SPRINT-2026-08-09-HWB-D
+    status: shipped
+    note: file written; field rows pending her tests
+    added_by: agent
+    added_at: 2026-08-09T18:30:00+02:00
+    shipped_at: 2026-08-09T18:30:00+02:00
+
+  - id: KPI-019
+    sprint_id: SPRINT-2026-08-09-HWB-D
+    repo: Weighsoft.Hardware.Base
+    title: Windows firewall note for UDP 4210 listen harness
+    detail: >-
+      WIFI-WEIGHT-DISCOVERY.md — if listen script hears nothing, check inbound UDP 4210;
+      also try --rest / manual IP when AP filters broadcast.
+    source: RT-044 / RT-047
+    status: shipped
+    note: doc-only Phase 2 gap
+    added_by: agent
+    added_at: 2026-08-09T18:30:00+02:00
+    shipped_at: 2026-08-09T18:30:00+02:00

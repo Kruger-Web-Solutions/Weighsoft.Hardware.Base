@@ -112,7 +112,7 @@ In the web UI: **Project → Live Weight**
 
 **DI actions:** rising edge (pin to GND) → `print` | `next` | `start` | `stop` | `none`.  
 **Print:** short TCP ESC/POS ticket to configured printer IP (port 9100). Fail soft if offline.  
-**Next:** increments piece `count` (total = count × weight).
+**Next:** increments piece `count` (total = count × weight). Count is **job-wide** (shared across PLUs) until a later per-PLU count feature (RT-040) is approved.
 
 One service, multiple ways in (no duplicate weight UIs):
 
