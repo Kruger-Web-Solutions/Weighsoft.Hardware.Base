@@ -27,6 +27,7 @@
 | 2026-08-09 | Agent browser field test; heap starvation + broken printer deep-link + catalog fail under load | agent Playwright | RT-054…060; training field outcomes |
 | 2026-08-09 | **Approved Sprint E** + RT-060 **yes** + public operator Live Weight | Jurien | SPRINT-2026-08-09-HWB-E |
 | 2026-08-09 | Sprint E shipped: FT_MQTT=0, public weigh/PLU/DI-DO, config auth, PLU sync, printer deep-link, Live Weight landing | agent | branch `sprint-e/heap-public-operator`; KPI-020…023 |
+| 2026-08-09 | Sprint E flash: HTTP OTA to 192.168.2.67 failed (host unreachable); **USB COM4** upload SUCCESS (hash verified, MAC e8:db:84:97:cb:c0). Post-flash WiFi 192.168.2.67 not yet responding — needs Jurien power-cycle / WiFi check | agent | PR #16 merged |
 
 ## Software clear snapshot (HWB-D audit)
 
