@@ -82,13 +82,11 @@ def main() -> int:
             tok = sign_in(args.rest, args.user, args.password)
             rest_info = probe_rest(args.rest, tok)
             print(
-                f"[REST] ip={rest_info.get('ip')} host={rest_info.get('host')} "
+                f"[REST] id={rest_info.get('id')} host={rest_info.get('host')} ip={rest_info.get('ip')} "
                 f"udp_ready={rest_info.get('udp_ready')} last_send_ok={rest_info.get('last_send_ok')} "
                 f"unicast_ok={rest_info.get('unicast_to_client_ok')}",
                 flush=True,
             )
-            if rest_info.get("announce"):
-                print(f"[REST] announce={rest_info.get('announce')}", flush=True)
         except Exception as exc:  # noqa: BLE001 — desk harness
             print(f"[REST] probe failed: {exc}", file=sys.stderr, flush=True)
 

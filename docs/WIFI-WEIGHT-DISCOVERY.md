@@ -76,7 +76,7 @@ Browse with Avahi / `dns-sd` / OS mDNS APIs. UDP remains the lean primary path f
 
 ### 3) REST identity (authenticated helper)
 
-`GET /rest/liveWeightDiscovery` (same auth as other `/rest/*` APIs) returns board `ip`, `host`, UDP port, mDNS name, and the announce JSON string. Calling it also triggers a UDP broadcast and a **unicast** announce to the caller’s IP (useful when the AP filters broadcast).
+`GET /rest/liveWeightDiscovery` (same auth as other `/rest/*` APIs) returns board `ip`, `host`, `id`, UDP port, mDNS name, and push paths. Calling it also triggers a UDP broadcast and a **unicast** announce to the caller’s IP (useful when the AP filters broadcast).
 
 This is a helper for senders/tools — not a second discovery server, and not “type sender IP on the board”.
 
