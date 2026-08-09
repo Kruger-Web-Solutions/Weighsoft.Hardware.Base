@@ -1,0 +1,212 @@
+# RhynoSprintPlanCreate — improvement KPI log (all repos)
+# status: open | shipped | carried | dropped
+updated_at: 2026-08-09T17:00:00+02:00
+
+sprints:
+  - id: SPRINT-2026-08-09-RS485-DJB
+    name: RhynoV4 live M1X Modbus + cal + touch
+    repo: RS485-CanHatPi5DJB-W1X
+    branch: master
+    opened_at: 2026-08-09T15:55:00+02:00
+    closed_at: null
+    plan: docs/superpowers/plans/2026-08-09-rs485-djb-sprint.md
+    planned_rt:
+      - RT-022
+      - RT-026
+    waiting_rt:
+      - RT-025
+    later_excluded: []
+
+  - id: SPRINT-2026-08-09-HWB-A
+    name: Option A lean field board
+    repo: Weighsoft.Hardware.Base
+    branch: RelayBoardEspBuildIn
+    opened_at: 2026-08-09T15:55:00+02:00
+    closed_at: 2026-08-09T16:50:00+02:00
+    plan: docs/superpowers/plans/2026-08-09-weighsoft-hardware-base-option-a-sprint.md
+    planned_rt:
+      - RT-012
+      - RT-020
+      - RT-014
+      - RT-015
+      - RT-016
+      - RT-017
+      - RT-009
+      - RT-021
+      - RT-018
+    waiting_rt:
+      - RT-005
+      - RT-007
+      - RT-008
+    later_excluded:
+      - RT-010
+      - RT-019
+    note: P1-P7 shipped; P8 field checks carried into HWB-B
+
+  - id: SPRINT-2026-08-09-HWB-B
+    name: Field fix catalog persist + printer findable
+    repo: Weighsoft.Hardware.Base
+    branch: RelayBoardEspBuildIn
+    opened_at: 2026-08-09T16:50:00+02:00
+    closed_at: null
+    plan: docs/superpowers/plans/2026-08-09-weighsoft-hardware-base-field-fix-sprint.md
+    planned_rt:
+      - RT-033
+      - RT-034
+      - RT-005
+      - RT-007
+      - RT-008
+    waiting_rt:
+      - RT-005
+      - RT-007
+      - RT-008
+    later_excluded:
+      - RT-010
+      - RT-019
+
+improvements:
+  - id: KPI-010
+    sprint_id: SPRINT-2026-08-09-RS485-DJB
+    repo: RS485-CanHatPi5DJB-W1X
+    title: Fallback to sim with warning on Modbus CRC fail
+    detail: Today serial open works but CRC makes /api/weight 503; operators need sim fallback + clear warn.
+    source: RT-022
+    status: open
+    added_by: agent
+    added_at: 2026-08-09T15:55:00+02:00
+    shipped_at: null
+
+  - id: KPI-011
+    sprint_id: SPRINT-2026-08-09-RS485-DJB
+    repo: RS485-CanHatPi5DJB-W1X
+    title: Autostart wow_trade + lcd_weight_fb on RhynoV4 boot
+    detail: Power cycle should bring LCD weigh UI back without SSH.
+    source: RT-022
+    status: open
+    added_by: agent
+    added_at: 2026-08-09T15:55:00+02:00
+    shipped_at: null
+
+  - id: KPI-012
+    sprint_id: SPRINT-2026-08-09-RS485-DJB
+    repo: RS485-CanHatPi5DJB-W1X
+    title: One bring-up page for SPI LCD + HAT (no CAN)
+    detail: Commit dirty LCD helpers and point to single bench doc.
+    source: RT-022
+    status: open
+    added_by: agent
+    added_at: 2026-08-09T15:55:00+02:00
+    shipped_at: null
+
+  - id: KPI-013
+    sprint_id: SPRINT-2026-08-09-RS485-DJB
+    repo: RS485-CanHatPi5DJB-W1X
+    title: Touch calibration + big hit targets on 480x320
+    detail: Resistive XPT2046 needs calibration; buttons must be large for finger use.
+    source: RT-026
+    status: open
+    added_by: agent
+    added_at: 2026-08-09T16:00:00+02:00
+    shipped_at: null
+
+  - id: KPI-001
+    sprint_id: SPRINT-2026-08-09-HWB-A
+    repo: Weighsoft.Hardware.Base
+    title: Clearer Network printer block on Target & Relays
+    detail: Fields exist but easy to miss; layout/label pass with RT-017.
+    source: RT-017
+    status: shipped
+    added_by: agent
+    added_at: 2026-08-09T15:55:00+02:00
+    shipped_at: 2026-08-09T16:20:00+02:00
+
+  - id: KPI-002
+    sprint_id: SPRINT-2026-08-09-HWB-A
+    repo: Weighsoft.Hardware.Base
+    title: Twin leaves Demo mode when board WS is online
+    detail: Live click relays + real DI lights — reliability of operator trust.
+    source: RT-014
+    added_by: agent
+    added_at: 2026-08-09T15:55:00+02:00
+    status: open
+    shipped_at: null
+
+  - id: KPI-003
+    sprint_id: SPRINT-2026-08-09-HWB-A
+    repo: Weighsoft.Hardware.Base
+    title: Tech Connect/Stop with visible serial stream
+    detail: Operator can see raw scale lines without guessing.
+    source: RT-016
+    status: open
+    added_by: agent
+    added_at: 2026-08-09T15:55:00+02:00
+    shipped_at: null
+
+  - id: KPI-004
+    sprint_id: SPRINT-2026-08-09-HWB-A
+    repo: Weighsoft.Hardware.Base
+    title: Remove LED Example to free ESP8266 flash/RAM
+    detail: Dead demo UI/firmware path on field board.
+    source: RT-012
+    status: shipped
+    added_by: agent
+    added_at: 2026-08-09T15:55:00+02:00
+    shipped_at: 2026-08-09T16:05:00+02:00
+
+  - id: KPI-005
+    sprint_id: SPRINT-2026-08-09-HWB-A
+    repo: Weighsoft.Hardware.Base
+    title: Serial ingest rate-limit / change-gate under continuous scale
+    detail: Prevent WDT/heap death from chatty RS-232.
+    source: RT-020
+    status: shipped
+    added_by: agent
+    added_at: 2026-08-09T15:55:00+02:00
+    shipped_at: 2026-08-09T16:10:00+02:00
+
+  - id: KPI-006
+    sprint_id: SPRINT-2026-08-09-HWB-A
+    repo: Weighsoft.Hardware.Base
+    title: Twin Go live / Switch to demo control
+    detail: Explicit exit from stuck Demo so operators can rejoin WS without reload.
+    source: RT-014
+    status: shipped
+    added_by: agent
+    added_at: 2026-08-09T16:10:00+02:00
+    shipped_at: 2026-08-09T16:15:00+02:00
+
+  - id: KPI-007
+    sprint_id: SPRINT-2026-08-09-HWB-A
+    repo: Weighsoft.Hardware.Base
+    title: Product catalog 9 + transaction log 40
+    detail: products.json hard cap 9; NDJSON ring drop oldest at 40; Product UI Use/Save/Delete.
+    source: RT-018
+    status: shipped
+    added_by: agent
+    added_at: 2026-08-09T16:25:00+02:00
+    shipped_at: 2026-08-09T16:35:00+02:00
+
+  - id: KPI-008
+    sprint_id: SPRINT-2026-08-09-HWB-B
+    repo: Weighsoft.Hardware.Base
+    title: Product tab stuck on DEMO_CATALOG while board has real products
+    detail: >-
+      Board GET /rest/liveWeightProducts returns S1/R2/W3; UI remount shows Screw M6/Washer demo.
+      Fix LIVE load + error surfacing.
+    source: RT-033
+    status: shipped
+    added_by: agent
+    added_at: 2026-08-09T16:50:00+02:00
+    shipped_at: 2026-08-09T17:00:00+02:00
+
+  - id: KPI-009
+    sprint_id: SPRINT-2026-08-09-HWB-B
+    repo: Weighsoft.Hardware.Base
+    title: Printer IP/port invisible when operator looks at Tech
+    detail: >-
+      Fields already on Target & Relays; add Tech jump link + pin printer card so field find is under 30s.
+    source: RT-034
+    status: shipped
+    added_by: agent
+    added_at: 2026-08-09T16:50:00+02:00
+    shipped_at: 2026-08-09T17:00:00+02:00

@@ -45,6 +45,17 @@ const LiveWeightTarget: FC = () => {
     return undefined;
   }, [connected]);
 
+  // Jump from Tech (and bookmarks) to #network-printer
+  useEffect(() => {
+    if (window.location.hash !== '#network-printer') {
+      return;
+    }
+    const t = window.setTimeout(() => {
+      document.getElementById('network-printer')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 80);
+    return () => window.clearTimeout(t);
+  }, []);
+
   const state = demoMode ? local : data || DEMO_LIVE_WEIGHT;
   const {
     range_enabled,
@@ -170,46 +181,14 @@ const LiveWeightTarget: FC = () => {
       )}
 
       <Box className="lw-page">
-        <div className="lw-card">
-          <div className="lw-card-head">Target range</div>
-          <div className="lw-card-body">
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={!!draft.range_enabled}
-                  disabled={saving}
-                  onChange={(e) => patchDraft({ range_enabled: e.target.checked })}
-                />
-              }
-              label="Enable range control (drives UNDER / CORRECT / OVER relays)"
-            />
-            <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' } }}>
-              <TextField
-                size="small"
-                label="Low limit"
-                type="number"
-                value={draft.range_low}
-                disabled={saving}
-                onChange={(e) => patchDraft({ range_low: Number(e.target.value) })}
-              />
-              <TextField
-                size="small"
-                label="High limit"
-                type="number"
-                value={draft.range_high}
-                disabled={saving}
-                onChange={(e) => patchDraft({ range_high: Number(e.target.value) })}
-              />
-            </Box>
-          </div>
-        </div>
-
+        {/* Printer first — field operators look here for IP/port (not on Tech). */}
         <div className="lw-card lw-card-printer" id="network-printer">
-          <div className="lw-card-head">Network printer (ESC/POS)</div>
+          <div className="lw-card-head">Network printer (ESC/POS) — IP &amp; port</div>
           <div className="lw-card-body">
             <Alert severity="info" sx={{ mb: 1.5 }}>
-              Set the printer LAN IP here. Default port is <strong>9100</strong> (raw TCP). Used by DI Print and Test
-              Print.
+              Printer settings live on <strong>Target &amp; Relays</strong> (this page), not on Tech. Set the LAN IP
+              here. Default port is <strong>9100</strong> (raw TCP). Used by DI Print and Test Print. Press{' '}
+              <strong>Save printer &amp; targets</strong> after changes.
             </Alert>
             <FormControlLabel
               control={
@@ -239,6 +218,50 @@ const LiveWeightTarget: FC = () => {
                 disabled={saving}
                 helperText="Usually 9100"
                 onChange={(e) => patchDraft({ printer_port: Number(e.target.value) || 9100 })}
+              />
+            </Box>
+            <div className="lw-actions" style={{ marginTop: 12 }}>
+              <Button variant="contained" onClick={save} disabled={saving}>
+                Save printer &amp; targets
+              </Button>
+              {message && (
+                <Typography variant="body2" color="text.secondary">
+                  {message}
+                </Typography>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="lw-card">
+          <div className="lw-card-head">Target range</div>
+          <div className="lw-card-body">
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={!!draft.range_enabled}
+                  disabled={saving}
+                  onChange={(e) => patchDraft({ range_enabled: e.target.checked })}
+                />
+              }
+              label="Enable range control (drives UNDER / CORRECT / OVER relays)"
+            />
+            <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' } }}>
+              <TextField
+                size="small"
+                label="Low limit"
+                type="number"
+                value={draft.range_low}
+                disabled={saving}
+                onChange={(e) => patchDraft({ range_low: Number(e.target.value) })}
+              />
+              <TextField
+                size="small"
+                label="High limit"
+                type="number"
+                value={draft.range_high}
+                disabled={saving}
+                onChange={(e) => patchDraft({ range_high: Number(e.target.value) })}
               />
             </Box>
           </div>
@@ -357,7 +380,7 @@ const LiveWeightTarget: FC = () => {
 
         <div className="lw-actions" style={{ marginBottom: 24 }}>
           <Button variant="contained" onClick={save} disabled={saving}>
-            Save
+            Save printer &amp; targets
           </Button>
           {message && (
             <Typography variant="body2" color="text.secondary">

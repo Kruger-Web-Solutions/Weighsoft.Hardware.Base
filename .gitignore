@@ -8,7 +8,11 @@
 /interface/node_modules
 /interface/.eslintcache
 .vscode
-.claude/
+# Claude Code local noise — .claude/skills/ IS committed (remote agents load skills from the clone)
+.claude/settings.local.json
+.claude/launch.json
+.claude/scheduled_tasks.lock
+.claude/worktrees/
 .superpowers/
 
 .playwright-cli/
