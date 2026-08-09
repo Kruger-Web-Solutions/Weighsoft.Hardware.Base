@@ -17,6 +17,8 @@
 #define LIVE_WEIGHT_DISCOVERY_UDP_PORT 4210
 #define LIVE_WEIGHT_DISCOVERY_INTERVAL_MS 5000
 #define LIVE_WEIGHT_DISCOVERY_SVC "weighsoft-lw"
+#define LIVE_WEIGHT_DISCOVERY_LOCAL_PORT 4211
+#define LIVE_WEIGHT_DISCOVERY_PATH "/rest/liveWeightDiscovery"
 
 /**
  * Board-side LAN announce: UDP broadcast + optional mDNS service.
@@ -26,18 +28,29 @@ class LiveWeightDiscovery {
  public:
   void begin();
   void loop();
+  void announce();
+  bool announceTo(const IPAddress& dest);
+  size_t buildPayload(char* buf, size_t buflen);
+  bool udpReady() const {
+    return _udpReady;
+  }
+  bool lastSendOk() const {
+    return _lastSendOk;
+  }
+  unsigned long lastAnnounceMs() const {
+    return _lastAnnounceMs;
+  }
 
  private:
   WiFiUDP _udp;
   bool _udpReady = false;
   bool _mdnsReady = false;
+  bool _lastSendOk = false;
   unsigned long _lastAnnounceMs = 0;
   String _lastIp;
 
   void ensureUdp();
   void ensureMdns();
-  void announce();
-  size_t buildPayload(char* buf, size_t buflen);
 };
 
 #endif

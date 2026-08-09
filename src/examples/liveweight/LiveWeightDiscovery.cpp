@@ -5,6 +5,7 @@ void LiveWeightDiscovery::begin() {
   _lastAnnounceMs = 0;
   _lastIp = "";
   _mdnsReady = false;
+  _lastSendOk = false;
   ensureUdp();
 }
 
@@ -20,20 +21,20 @@ void LiveWeightDiscovery::loop() {
     _lastIp = ip;
     _mdnsReady = false;
     ensureUdp();
-    ensureMdns();
-    // Announce immediately on join / IP change
+    // Announce before mDNS so a flaky MDNS path cannot block presence
     announce();
     _lastAnnounceMs = millis();
+    ensureMdns();
     return;
   }
-
-  ensureMdns();
 
   const unsigned long now = millis();
   if (now - _lastAnnounceMs >= LIVE_WEIGHT_DISCOVERY_INTERVAL_MS) {
     _lastAnnounceMs = now;
     announce();
   }
+
+  ensureMdns();
 }
 
 void LiveWeightDiscovery::ensureUdp() {
@@ -41,7 +42,7 @@ void LiveWeightDiscovery::ensureUdp() {
     return;
   }
   // ESP8266 rejects port 0 — bind a fixed local port for outbound announces
-  if (_udp.begin(LIVE_WEIGHT_DISCOVERY_UDP_PORT + 1)) {
+  if (_udp.begin(LIVE_WEIGHT_DISCOVERY_LOCAL_PORT)) {
     _udpReady = true;
     Serial.println(F("[LiveWeightDiscovery] UDP announce ready"));
   } else {
@@ -65,7 +66,6 @@ void LiveWeightDiscovery::ensureMdns() {
     hostStr = "weighsoft-lw";
   }
 
-  // ArduinoOTA may already have started mDNS; begin is safe to call again
   if (!MDNS.begin(hostStr.c_str())) {
     return;
   }
@@ -107,21 +107,34 @@ size_t LiveWeightDiscovery::buildPayload(char* buf, size_t buflen) {
                   LIVE_WEIGHT_SOCKET_PATH);
 }
 
-void LiveWeightDiscovery::announce() {
+bool LiveWeightDiscovery::announceTo(const IPAddress& dest) {
   if (WiFi.status() != WL_CONNECTED) {
-    return;
+    _lastSendOk = false;
+    return false;
   }
   ensureUdp();
   if (!_udpReady) {
-    return;
+    _lastSendOk = false;
+    return false;
   }
 
   char payload[192];
   const size_t len = buildPayload(payload, sizeof(payload));
   if (len == 0 || len >= sizeof(payload)) {
-    return;
+    _lastSendOk = false;
+    return false;
   }
 
+  bool ok = false;
+  if (_udp.beginPacket(dest, LIVE_WEIGHT_DISCOVERY_UDP_PORT)) {
+    const size_t written = _udp.write(reinterpret_cast<const uint8_t*>(payload), len);
+    ok = _udp.endPacket() != 0 && written == len;
+  }
+  _lastSendOk = ok;
+  return ok;
+}
+
+void LiveWeightDiscovery::announce() {
   IPAddress limited = IPAddress(255, 255, 255, 255);
   if (WiFi.subnetMask()) {
     const uint32_t ip = (uint32_t)WiFi.localIP();
@@ -129,12 +142,10 @@ void LiveWeightDiscovery::announce() {
     limited = IPAddress(ip | ~mask);
   }
 
-  // Send subnet broadcast + global broadcast (some LANs only deliver one)
-  const IPAddress targets[] = {limited, IPAddress(255, 255, 255, 255)};
-  for (const IPAddress& dest : targets) {
-    if (_udp.beginPacket(dest, LIVE_WEIGHT_DISCOVERY_UDP_PORT)) {
-      _udp.write(reinterpret_cast<const uint8_t*>(payload), len);
-      _udp.endPacket();
-    }
+  // Prefer global broadcast first (some STA stacks drop directed subnet bcast)
+  bool ok = announceTo(IPAddress(255, 255, 255, 255));
+  if (limited != IPAddress(255, 255, 255, 255)) {
+    ok = announceTo(limited) || ok;
   }
+  _lastSendOk = ok;
 }

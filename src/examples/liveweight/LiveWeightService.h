@@ -18,6 +18,7 @@ class RelayBoardService;
 #define LIVE_WEIGHT_TX_FILE "/log/transactions.ndjson"
 #define LIVE_WEIGHT_PRODUCTS_PATH "/rest/liveWeightProducts"
 #define LIVE_WEIGHT_TX_PATH "/rest/liveWeightTransactions"
+#define LIVE_WEIGHT_DISCOVERY_REST_PATH LIVE_WEIGHT_DISCOVERY_PATH
 #define LIVE_WEIGHT_MAX_PRODUCTS 9
 #define LIVE_WEIGHT_MAX_TX 40
 

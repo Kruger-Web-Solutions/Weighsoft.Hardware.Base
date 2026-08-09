@@ -900,6 +900,45 @@ void LiveWeightService::registerCatalogEndpoints() {
             request->send(response);
           },
           AuthenticationPredicates::IS_AUTHENTICATED));
+
+  // Discovery identity + optional unicast poke to the caller (desk / AP broadcast filter)
+  _server->on(
+      LIVE_WEIGHT_DISCOVERY_REST_PATH,
+      HTTP_GET,
+      _securityManager->wrapRequest(
+          [this](AsyncWebServerRequest* request) {
+            _discovery.announce();
+            bool unicastOk = false;
+            if (request->client()) {
+              unicastOk = _discovery.announceTo(request->client()->remoteIP());
+            }
+            char payload[192];
+            const size_t len = _discovery.buildPayload(payload, sizeof(payload));
+            AsyncJsonResponse* response = new AsyncJsonResponse(false, 768);
+            JsonObject root = response->getRoot();
+            root["svc"] = LIVE_WEIGHT_DISCOVERY_SVC;
+            root["udp_port"] = LIVE_WEIGHT_DISCOVERY_UDP_PORT;
+            root["udp_ready"] = _discovery.udpReady();
+            root["last_send_ok"] = _discovery.lastSendOk();
+            root["unicast_to_client_ok"] = unicastOk;
+            root["mdns"] = String("_") + LIVE_WEIGHT_DISCOVERY_SVC + "._tcp.local";
+            root["rest"] = LIVE_WEIGHT_ENDPOINT_PATH;
+            root["ws"] = LIVE_WEIGHT_SOCKET_PATH;
+            if (WiFi.status() == WL_CONNECTED) {
+              root["ip"] = WiFi.localIP().toString();
+#ifdef ESP8266
+              root["host"] = WiFi.hostname();
+#elif defined(ESP32)
+              root["host"] = WiFi.getHostname() ? WiFi.getHostname() : "";
+#endif
+            }
+            if (len > 0 && len < sizeof(payload)) {
+              root["announce"] = (const char*)payload;
+            }
+            response->setLength();
+            request->send(response);
+          },
+          AuthenticationPredicates::IS_AUTHENTICATED));
 }
 
 void LiveWeightService::configureMqtt() {
