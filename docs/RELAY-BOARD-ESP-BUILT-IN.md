@@ -118,7 +118,7 @@ One service, multiple ways in (no duplicate weight UIs):
 
 | Source | How it works |
 |--------|----------------|
-| Serial (RS-232) | Scale → MAX3232 / PROG header → UART0. Baud + regex configurable. |
+| Serial (RS-232) | Scale → MAX3232 / PROG header → UART0. Baud + optional custom regex. Ingest caps: 128 B lines, ≤64 bytes/loop, publish ≤5 Hz, change-gated; default parse is simple numeric (no POSIX regex every line). |
 | WiFi / WebSocket | `POST /rest/liveWeight` or `/ws/liveWeight` with `{ weight, last_line }`. |
 | RS-485 | **Not available** on this board (no free pins / transceiver). |
 
