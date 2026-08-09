@@ -14,6 +14,11 @@ class RelayBoardService;
 #define LIVE_WEIGHT_SOCKET_PATH "/ws/liveWeight"
 #define LIVE_WEIGHT_CONFIG_FILE "/config/liveWeight.json"
 
+// Serial ingest caps (ESP8266-safe): 128 B lines, ≤5 Hz state publish, drain-bounded
+#define LIVE_WEIGHT_LINE_MAX 128
+#define LIVE_WEIGHT_PUBLISH_MIN_MS 200
+#define LIVE_WEIGHT_SERIAL_BYTES_PER_LOOP 64
+
 class LiveWeightService : public StatefulService<LiveWeightState> {
  public:
   LiveWeightService(AsyncWebServer* server, FS* fs, SecurityManager* securityManager, AsyncMqttClient* mqttClient);
@@ -58,6 +63,7 @@ class LiveWeightService : public StatefulService<LiveWeightState> {
   uint8_t _lastDrivenZone;
   String _pendingAction;
   bool _printPending;
+  unsigned long _lastSerialPublishMs;
 
   void configureMqtt();
   void onConfigUpdated();
@@ -66,6 +72,8 @@ class LiveWeightService : public StatefulService<LiveWeightState> {
   void syncAppliedConfig();
   void applySource();
   void readSerialLine();
+  void invalidateRegexCache();
+  bool ensureRegexCompiled(const String& pattern);
   String extractWeight(const String& line);
   String extractWeightSimple(const String& line);
   void evaluateBandAndDrive(const String& originId);

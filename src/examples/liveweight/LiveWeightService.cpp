@@ -10,6 +10,20 @@
 #include <regex.h>
 #endif
 
+namespace {
+regex_t s_cachedRegex;
+String s_cachedRegexPattern;
+bool s_regexReady = false;
+
+void freeCachedRegex() {
+  if (s_regexReady) {
+    regfree(&s_cachedRegex);
+    s_regexReady = false;
+  }
+  s_cachedRegexPattern = "";
+}
+}  // namespace
+
 LiveWeightService::LiveWeightService(AsyncWebServer* server,
                                      FS* fs,
                                      SecurityManager* securityManager,
@@ -57,7 +71,8 @@ LiveWeightService::LiveWeightService(AsyncWebServer* server,
     _appliedPrinterPort(9100),
     _lastDrivenZone(255),
     _pendingAction(""),
-    _printPending(false) {
+    _printPending(false),
+    _lastSerialPublishMs(0) {
   _mqttBasePath = SettingValue::format("weighsoft/liveWeight/#{unique_id}");
   _mqttClient->onConnect(std::bind(&LiveWeightService::configureMqtt, this));
   _fsPersistence.disableUpdateHandler();
@@ -208,6 +223,7 @@ void LiveWeightService::onConfigUpdated() {
 
 void LiveWeightService::applySource() {
   syncAppliedConfig();
+  invalidateRegexCache();
 
   if (_state.source == LIVE_WEIGHT_SOURCE_SERIAL) {
     uint32_t baud = _state.baudrate;
@@ -312,33 +328,71 @@ void LiveWeightService::evaluateBandAndDrive(const String& originId) {
   _relayBoard->setWeightBandRelays(_state.relayLow, _state.relayOk, _state.relayHigh, driveZone);
 }
 
+void LiveWeightService::invalidateRegexCache() {
+  freeCachedRegex();
+}
+
+bool LiveWeightService::ensureRegexCompiled(const String& pattern) {
+  if (pattern.length() == 0) {
+    return false;
+  }
+  if (s_regexReady && s_cachedRegexPattern == pattern) {
+    return true;
+  }
+  freeCachedRegex();
+  if (regcomp(&s_cachedRegex, pattern.c_str(), REG_EXTENDED) != 0) {
+    return false;
+  }
+  s_cachedRegexPattern = pattern;
+  s_regexReady = true;
+  return true;
+}
+
 void LiveWeightService::readSerialLine() {
-  while (Serial.available()) {
+  // Bound work per loop so a chatty scale cannot starve WiFi / AsyncWebServer
+  uint8_t budget = LIVE_WEIGHT_SERIAL_BYTES_PER_LOOP;
+  while (budget-- > 0 && Serial.available()) {
     char c = (char)Serial.read();
     if (c == '\n' || c == '\r') {
       if (_lineBuffer.length() > 0) {
         String extracted = extractWeight(_lineBuffer);
         String line = _lineBuffer;
-        update(
+        _lineBuffer = "";
+
+        // Change-gate: identical line/weight → no publish
+        if (_state.lastLine == line && _state.weight == extracted) {
+          continue;
+        }
+
+        // Rate-limit publishes to ≤5 Hz (still drain UART every loop)
+        unsigned long now = millis();
+        if (_lastSerialPublishMs != 0 && (unsigned long)(now - _lastSerialPublishMs) < LIVE_WEIGHT_PUBLISH_MIN_MS) {
+          continue;
+        }
+
+        StateUpdateResult result = update(
             [&](LiveWeightState& state) {
-              // Prefer UNCHANGED when line/weight identical to cut WebSocket spam
               if (state.lastLine == line && state.weight == extracted) {
                 return StateUpdateResult::UNCHANGED;
               }
               state.lastLine = line;
               state.weight = extracted;
-              state.timestamp = millis();
+              state.timestamp = now;
               state.activeSource = "serial";
               state.statusMessage = extracted.length() ? "Weight from serial" : "Serial line (no weight match)";
               LiveWeightState::refreshTotal(state);
               return StateUpdateResult::CHANGED;
             },
             "serial_hw");
-        _lineBuffer = "";
+        if (result == StateUpdateResult::CHANGED) {
+          _lastSerialPublishMs = now;
+        }
       }
     } else {
-      _lineBuffer += c;
-      if (_lineBuffer.length() > 512) {
+      if (_lineBuffer.length() < LIVE_WEIGHT_LINE_MAX) {
+        _lineBuffer += c;
+      } else {
+        // Overflow: drop line (scale framing error or noise)
         _lineBuffer = "";
       }
     }
@@ -381,20 +435,17 @@ String LiveWeightService::extractWeightSimple(const String& line) {
 
 String LiveWeightService::extractWeight(const String& line) {
   const String& pattern = _state.regexPattern;
-  if (pattern.length() == 0) {
+  // Production path: simple numeric scan (cheap). Custom Tech regex only if non-default.
+  if (pattern.length() == 0 || pattern == LIVE_WEIGHT_DEFAULT_REGEX) {
     return extractWeightSimple(line);
   }
 
-  regex_t regex;
+  if (!ensureRegexCompiled(pattern)) {
+    return extractWeightSimple(line);
+  }
+
   regmatch_t matches[2];
-  int reti = regcomp(&regex, pattern.c_str(), REG_EXTENDED);
-  if (reti != 0) {
-    return extractWeightSimple(line);
-  }
-
-  reti = regexec(&regex, line.c_str(), 2, matches, 0);
-  regfree(&regex);
-
+  int reti = regexec(&s_cachedRegex, line.c_str(), 2, matches, 0);
   if (reti == 0) {
     int start = matches[1].rm_so >= 0 ? matches[1].rm_so : matches[0].rm_so;
     int end = matches[1].rm_eo >= 0 ? matches[1].rm_eo : matches[0].rm_eo;
