@@ -40,10 +40,12 @@ void LiveWeightDiscovery::ensureUdp() {
   if (_udpReady) {
     return;
   }
-  // Bind any local port; we only send
-  if (_udp.begin(0)) {
+  // ESP8266 rejects port 0 — bind a fixed local port for outbound announces
+  if (_udp.begin(LIVE_WEIGHT_DISCOVERY_UDP_PORT + 1)) {
     _udpReady = true;
     Serial.println(F("[LiveWeightDiscovery] UDP announce ready"));
+  } else {
+    Serial.println(F("[LiveWeightDiscovery] UDP begin failed"));
   }
 }
 
@@ -120,16 +122,19 @@ void LiveWeightDiscovery::announce() {
     return;
   }
 
-  IPAddress bcast = IPAddress(255, 255, 255, 255);
-  // Prefer subnet broadcast when mask is known
+  IPAddress limited = IPAddress(255, 255, 255, 255);
   if (WiFi.subnetMask()) {
     const uint32_t ip = (uint32_t)WiFi.localIP();
     const uint32_t mask = (uint32_t)WiFi.subnetMask();
-    bcast = IPAddress(ip | ~mask);
+    limited = IPAddress(ip | ~mask);
   }
 
-  if (_udp.beginPacket(bcast, LIVE_WEIGHT_DISCOVERY_UDP_PORT)) {
-    _udp.write(reinterpret_cast<const uint8_t*>(payload), len);
-    _udp.endPacket();
+  // Send subnet broadcast + global broadcast (some LANs only deliver one)
+  const IPAddress targets[] = {limited, IPAddress(255, 255, 255, 255)};
+  for (const IPAddress& dest : targets) {
+    if (_udp.beginPacket(dest, LIVE_WEIGHT_DISCOVERY_UDP_PORT)) {
+      _udp.write(reinterpret_cast<const uint8_t*>(payload), len);
+      _udp.endPacket();
+    }
   }
 }
