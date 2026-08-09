@@ -12,12 +12,12 @@ import WifiIcon from '@mui/icons-material/Wifi';
 
 import { FeaturesContext } from '../../contexts/features';
 import ProjectMenu from '../../project/ProjectMenu';
-import { AuthenticatedContext } from '../../contexts/authentication';
+import { AuthenticationContext } from '../../contexts/authentication';
 import LayoutMenuItem from './LayoutMenuItem';
 
 const LayoutMenu: FC = () => {
   const { features } = useContext(FeaturesContext);
-  const authenticatedContext = useContext(AuthenticatedContext);
+  const { me } = useContext(AuthenticationContext);
 
   return (
     <>
@@ -40,7 +40,7 @@ const LayoutMenu: FC = () => {
           <LayoutMenuItem icon={BluetoothIcon} label="BLE" to="/ble" />
         )}
         {features.security && (
-          <LayoutMenuItem icon={LockIcon} label="Security" to="/security" disabled={!authenticatedContext.me.admin} />
+          <LayoutMenuItem icon={LockIcon} label="Security" to="/security" disabled={!me?.admin} />
         )}
         <LayoutMenuItem icon={SettingsIcon} label="System" to="/system" />
       </List>
