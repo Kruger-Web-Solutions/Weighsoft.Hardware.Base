@@ -37,7 +37,7 @@ const LiveWeightInfo: FC = () => (
       <ListItem>
         <ListItemText
           primary="Tech (admin)"
-          secondary="Serial (RS-232) or WiFi / WebSocket source, baud, regex, test weight, and recent readings."
+          secondary="Serial (RS-232) or WiFi source, baud, optional regex, test weight, and Connect/Stop live stream."
         />
       </ListItem>
       <ListItem>

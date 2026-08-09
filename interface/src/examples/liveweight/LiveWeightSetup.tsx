@@ -26,6 +26,7 @@ const LiveWeightSetup: FC = () => {
   const { connected, data, updateData } = useWs<LiveWeightState>(LIVE_WEIGHT_WS_URL);
   const [demoMode, setDemoMode] = useState(false);
   const [local, setLocal] = useState<LiveWeightState>(DEMO_LIVE_WEIGHT);
+  const [streaming, setStreaming] = useState(false);
   const [history, setHistory] = useState<Array<{ weight: string; line: string; time: Date; source: string }>>([]);
   const [saving, setSaving] = useState(false);
   const [testWeight, setTestWeight] = useState('1.50');
@@ -45,6 +46,9 @@ const LiveWeightSetup: FC = () => {
   const state = demoMode ? local : data || DEMO_LIVE_WEIGHT;
 
   useEffect(() => {
+    if (!streaming) {
+      return;
+    }
     if (!state?.last_line && !state?.weight) {
       return;
     }
@@ -64,12 +68,12 @@ const LiveWeightSetup: FC = () => {
           time: new Date(),
           source: state.active_source || state.source_name
         }
-      ].slice(-80);
+      ].slice(-200);
     });
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [state?.timestamp, state?.weight, state?.last_line, state?.active_source, state?.source_name]);
+  }, [streaming, state?.timestamp, state?.weight, state?.last_line, state?.active_source, state?.source_name]);
 
   const applyConfig = async (patch: Partial<LiveWeightState>) => {
     if (demoMode) {
@@ -122,10 +126,15 @@ const LiveWeightSetup: FC = () => {
       </Alert>
 
       <Box className="lw-page">
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
-          <Chip size="small" label={demoMode ? 'Demo' : connected ? 'Connected' : 'Disconnected'} color="success" />
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2, alignItems: 'center' }}>
+          <Chip size="small" label={demoMode ? 'Demo' : connected ? 'WS connected' : 'Disconnected'} color="success" />
           <Chip size="small" variant="outlined" label={`Zone: ${state.zone_name || 'none'}`} />
           <Chip size="small" variant="outlined" label={`Weight: ${state.weight || '—'}`} />
+          <Chip
+            size="small"
+            color={streaming ? 'primary' : 'default'}
+            label={streaming ? 'Stream ON' : 'Stream OFF'}
+          />
         </Box>
 
         <div className="lw-card">
@@ -167,7 +176,7 @@ const LiveWeightSetup: FC = () => {
                 />
                 <TextField
                   size="small"
-                  label="Weight regex"
+                  label="Weight regex (optional)"
                   value={regexDraft ?? state.regex_pattern}
                   onChange={(e) => setRegexDraft(e.target.value)}
                   onBlur={() => {
@@ -175,6 +184,7 @@ const LiveWeightSetup: FC = () => {
                     setRegexDraft(null);
                     applyConfig({ regex_pattern: regex });
                   }}
+                  helperText="Leave default for fast simple parse"
                 />
               </Box>
             )}
@@ -194,43 +204,69 @@ const LiveWeightSetup: FC = () => {
           </div>
         </div>
 
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-          <Typography variant="subtitle2">Recent readings</Typography>
-          <Button size="small" onClick={() => setHistory([])}>
-            Clear
-          </Button>
-        </Box>
-        <Box
-          ref={scrollRef}
-          sx={{
-            fontFamily: 'IBM Plex Mono, Consolas, monospace',
-            fontSize: '0.85rem',
-            bgcolor: 'background.paper',
-            border: '1px solid',
-            borderColor: 'divider',
-            p: 2,
-            borderRadius: 1,
-            height: 220,
-            overflow: 'auto',
-            mb: 2
-          }}
-        >
-          {history.length === 0 ? (
-            <Typography color="text.secondary">Waiting for weight data…</Typography>
-          ) : (
-            history.map((entry, idx) => (
-              <Box key={`${entry.time.getTime()}-${idx}`} sx={{ mb: 0.5 }}>
-                <Typography component="span" variant="caption" color="text.secondary" sx={{ mr: 1 }}>
-                  [{entry.time.toLocaleTimeString()}]
-                </Typography>
-                <Typography component="span" color="primary" sx={{ mr: 1, fontWeight: 700 }}>
-                  {entry.weight}
-                </Typography>
-                <Typography component="span">{entry.line}</Typography>
-              </Box>
-            ))
-          )}
-        </Box>
+        <div className="lw-card">
+          <div className="lw-card-head">Live stream</div>
+          <div className="lw-card-body">
+            <Typography variant="body2" color="text.secondary">
+              Press <strong>Connect</strong> to append incoming weight / serial lines below. <strong>Stop</strong> freezes
+              the box (WebSocket stays up for config).
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+              {!streaming ? (
+                <Button
+                  variant="contained"
+                  color="primary"
+                  onClick={() => setStreaming(true)}
+                  disabled={!demoMode && !connected}
+                >
+                  Connect
+                </Button>
+              ) : (
+                <Button variant="contained" color="secondary" onClick={() => setStreaming(false)}>
+                  Stop
+                </Button>
+              )}
+              <Button size="small" variant="outlined" onClick={() => setHistory([])}>
+                Clear box
+              </Button>
+            </Box>
+            <Box
+              ref={scrollRef}
+              sx={{
+                fontFamily: 'IBM Plex Mono, Consolas, monospace',
+                fontSize: '0.85rem',
+                bgcolor: streaming ? 'rgba(11, 61, 102, 0.04)' : 'background.paper',
+                border: '2px solid',
+                borderColor: streaming ? 'primary.main' : 'divider',
+                p: 2,
+                borderRadius: 1,
+                height: 260,
+                overflow: 'auto'
+              }}
+            >
+              {!streaming && history.length === 0 ? (
+                <Typography color="text.secondary">Stream stopped — press Connect to capture lines.</Typography>
+              ) : history.length === 0 ? (
+                <Typography color="text.secondary">Connected — waiting for weight / serial data…</Typography>
+              ) : (
+                history.map((entry, idx) => (
+                  <Box key={`${entry.time.getTime()}-${idx}`} sx={{ mb: 0.5 }}>
+                    <Typography component="span" variant="caption" color="text.secondary" sx={{ mr: 1 }}>
+                      [{entry.time.toLocaleTimeString()}]
+                    </Typography>
+                    <Typography component="span" color="primary" sx={{ mr: 1, fontWeight: 700 }}>
+                      {entry.weight}
+                    </Typography>
+                    <Typography component="span" sx={{ mr: 1 }} color="text.secondary">
+                      {entry.source}
+                    </Typography>
+                    <Typography component="span">{entry.line}</Typography>
+                  </Box>
+                ))
+              )}
+            </Box>
+          </div>
+        </div>
       </Box>
     </SectionContent>
   );
