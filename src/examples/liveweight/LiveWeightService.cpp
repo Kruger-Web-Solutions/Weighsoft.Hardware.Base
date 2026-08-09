@@ -1,5 +1,6 @@
 #include <examples/liveweight/LiveWeightService.h>
 #include <examples/relay/RelayBoardService.h>
+#include <AsyncJson.h>
 
 #ifdef ESP8266
 #include <ESP8266WiFi.h>
@@ -49,7 +50,11 @@ LiveWeightService::LiveWeightService(AsyncWebServer* server,
                securityManager,
                AuthenticationPredicates::IS_AUTHENTICATED),
     _mqttClient(mqttClient),
+    _server(server),
+    _securityManager(securityManager),
+    _fs(fs),
     _relayBoard(nullptr),
+    _productCount(0),
     _serialConfigured(false),
     _appliedSource(LIVE_WEIGHT_SOURCE_WIFI),
     _appliedBaud(LIVE_WEIGHT_DEFAULT_BAUD),
@@ -193,7 +198,9 @@ void LiveWeightService::begin() {
   }
 
   applySource();
-  Serial.println(F("[LiveWeight] Service ready — /rest/liveWeight /ws/liveWeight"));
+  loadProducts();
+  registerCatalogEndpoints();
+  Serial.println(F("[LiveWeight] Service ready — /rest/liveWeight /ws/liveWeight (+ products/tx)"));
 }
 
 void LiveWeightService::loop() {
@@ -521,6 +528,7 @@ void LiveWeightService::runAction(const String& action) {
       onConfigUpdated();
     }
     evaluateBandAndDrive("di_action");
+    appendTransaction("next");
   } else if (a == "print") {
     _printPending = true;
   }
@@ -593,6 +601,302 @@ void LiveWeightService::sendNetworkPrint() {
         return StateUpdateResult::CHANGED;
       },
       "print");
+  appendTransaction("print");
+}
+
+void LiveWeightService::loadProducts() {
+  _productCount = 0;
+  if (!_fs || !_fs->exists(LIVE_WEIGHT_PRODUCTS_FILE)) {
+    return;
+  }
+  File f = _fs->open(LIVE_WEIGHT_PRODUCTS_FILE, "r");
+  if (!f) {
+    return;
+  }
+  DynamicJsonDocument doc(1536);
+  DeserializationError err = deserializeJson(doc, f);
+  f.close();
+  if (err) {
+    return;
+  }
+  JsonArray arr = doc["products"].as<JsonArray>();
+  if (arr.isNull()) {
+    return;
+  }
+  for (JsonObject o : arr) {
+    if (_productCount >= LIVE_WEIGHT_MAX_PRODUCTS) {
+      break;
+    }
+    _products[_productCount].plu = o["plu"] | "";
+    _products[_productCount].product = o["product"] | "";
+    _products[_productCount].unit = o["unit"] | "kg";
+    if (_products[_productCount].plu.length() > 0) {
+      _productCount++;
+    }
+  }
+}
+
+bool LiveWeightService::saveProducts() {
+  if (!_fs) {
+    return false;
+  }
+  DynamicJsonDocument doc(1536);
+  JsonArray arr = doc.createNestedArray("products");
+  for (uint8_t i = 0; i < _productCount; i++) {
+    JsonObject o = arr.createNestedObject();
+    o["plu"] = _products[i].plu;
+    o["product"] = _products[i].product;
+    o["unit"] = _products[i].unit;
+  }
+  File f = _fs->open(LIVE_WEIGHT_PRODUCTS_FILE, "w");
+  if (!f) {
+    return false;
+  }
+  serializeJson(doc, f);
+  f.close();
+  return true;
+}
+
+int LiveWeightService::findProductIndex(const String& plu) const {
+  for (uint8_t i = 0; i < _productCount; i++) {
+    if (_products[i].plu == plu) {
+      return (int)i;
+    }
+  }
+  return -1;
+}
+
+void LiveWeightService::appendTransaction(const char* reason) {
+  if (!_fs) {
+    return;
+  }
+  LiveWeightState snap;
+  read([&](LiveWeightState& state) { snap = state; });
+  if (!snap.weight.length()) {
+    return;
+  }
+  _fs->mkdir("/log");
+
+  char line[220];
+  snprintf(line,
+           sizeof(line),
+           "{\"t\":%lu,\"reason\":\"%s\",\"plu\":\"%s\",\"product\":\"%s\",\"weight\":\"%s\",\"count\":%lu,\"total\":\"%s\",\"unit\":\"%s\"}\n",
+           (unsigned long)millis(),
+           reason ? reason : "",
+           snap.plu.c_str(),
+           snap.product.c_str(),
+           snap.weight.c_str(),
+           (unsigned long)snap.count,
+           snap.total.c_str(),
+           snap.unit.c_str());
+
+  uint16_t count = 0;
+  if (_fs->exists(LIVE_WEIGHT_TX_FILE)) {
+    File rf = _fs->open(LIVE_WEIGHT_TX_FILE, "r");
+    if (rf) {
+      while (rf.available()) {
+        if (rf.read() == '\n') {
+          count++;
+        }
+      }
+      rf.close();
+    }
+  }
+
+  if (count < LIVE_WEIGHT_MAX_TX) {
+    File af = _fs->open(LIVE_WEIGHT_TX_FILE, "a");
+    if (af) {
+      af.print(line);
+      af.close();
+    }
+    return;
+  }
+
+  // Ring: rewrite file, drop oldest line, append new (temp file — ESP8266-safe)
+  const char* tmpPath = "/log/transactions.tmp";
+  File in = _fs->open(LIVE_WEIGHT_TX_FILE, "r");
+  File out = _fs->open(tmpPath, "w");
+  if (!out) {
+    if (in) {
+      in.close();
+    }
+    return;
+  }
+  bool skipOldest = true;
+  if (in) {
+    while (in.available()) {
+      String l = in.readStringUntil('\n');
+      l.trim();
+      if (l.length() == 0) {
+        continue;
+      }
+      if (skipOldest) {
+        skipOldest = false;
+        continue;
+      }
+      out.println(l);
+    }
+    in.close();
+  }
+  out.print(line);
+  out.close();
+  _fs->remove(LIVE_WEIGHT_TX_FILE);
+  // LittleFS rename may be unavailable — copy-back fallback
+  File src = _fs->open(tmpPath, "r");
+  File dst = _fs->open(LIVE_WEIGHT_TX_FILE, "w");
+  if (src && dst) {
+    while (src.available()) {
+      dst.write(src.read());
+    }
+  }
+  if (src) {
+    src.close();
+  }
+  if (dst) {
+    dst.close();
+  }
+  _fs->remove(tmpPath);
+}
+
+void LiveWeightService::registerCatalogEndpoints() {
+  if (!_server || !_securityManager) {
+    return;
+  }
+
+  _server->on(
+      LIVE_WEIGHT_PRODUCTS_PATH,
+      HTTP_GET,
+      _securityManager->wrapRequest(
+          [this](AsyncWebServerRequest* request) {
+            AsyncJsonResponse* response = new AsyncJsonResponse(false, 1536);
+            JsonObject root = response->getRoot();
+            root["max"] = LIVE_WEIGHT_MAX_PRODUCTS;
+            root["count"] = _productCount;
+            JsonArray arr = root.createNestedArray("products");
+            for (uint8_t i = 0; i < _productCount; i++) {
+              JsonObject o = arr.createNestedObject();
+              o["plu"] = _products[i].plu;
+              o["product"] = _products[i].product;
+              o["unit"] = _products[i].unit;
+            }
+            response->setLength();
+            request->send(response);
+          },
+          AuthenticationPredicates::IS_AUTHENTICATED));
+
+  AsyncCallbackJsonWebHandler* productsPost = new AsyncCallbackJsonWebHandler(
+      LIVE_WEIGHT_PRODUCTS_PATH,
+      _securityManager->wrapCallback(
+          [this](AsyncWebServerRequest* request, JsonVariant& json) {
+            if (!json.is<JsonObject>()) {
+              request->send(400, "application/json", "{\"error\":\"invalid json\"}");
+              return;
+            }
+            JsonObject root = json.as<JsonObject>();
+            String action = root["action"] | "upsert";
+            if (action == "delete") {
+              String plu = root["plu"] | "";
+              int idx = findProductIndex(plu);
+              if (idx < 0) {
+                request->send(404, "application/json", "{\"error\":\"not found\"}");
+                return;
+              }
+              for (uint8_t i = (uint8_t)idx; i + 1 < _productCount; i++) {
+                _products[i] = _products[i + 1];
+              }
+              _productCount--;
+              saveProducts();
+            } else if (action == "select") {
+              String plu = root["plu"] | "";
+              int idx = findProductIndex(plu);
+              if (idx < 0) {
+                request->send(404, "application/json", "{\"error\":\"not found\"}");
+                return;
+              }
+              update(
+                  [&](LiveWeightState& state) {
+                    state.plu = _products[idx].plu;
+                    state.product = _products[idx].product;
+                    state.unit = _products[idx].unit;
+                    LiveWeightState::refreshTotal(state);
+                    return StateUpdateResult::CHANGED;
+                  },
+                  "catalog");
+              if (configChanged()) {
+                onConfigUpdated();
+              }
+            } else {
+              String plu = root["plu"] | "";
+              if (plu.length() == 0) {
+                request->send(400, "application/json", "{\"error\":\"plu required\"}");
+                return;
+              }
+              int idx = findProductIndex(plu);
+              if (idx < 0) {
+                if (_productCount >= LIVE_WEIGHT_MAX_PRODUCTS) {
+                  request->send(400, "application/json", "{\"error\":\"max 9 products\"}");
+                  return;
+                }
+                idx = _productCount++;
+              }
+              _products[idx].plu = plu;
+              _products[idx].product = root["product"] | "";
+              _products[idx].unit = root["unit"] | "kg";
+              saveProducts();
+            }
+
+            AsyncJsonResponse* response = new AsyncJsonResponse(false, 1536);
+            JsonObject out = response->getRoot();
+            out["max"] = LIVE_WEIGHT_MAX_PRODUCTS;
+            out["count"] = _productCount;
+            JsonArray arr = out.createNestedArray("products");
+            for (uint8_t i = 0; i < _productCount; i++) {
+              JsonObject o = arr.createNestedObject();
+              o["plu"] = _products[i].plu;
+              o["product"] = _products[i].product;
+              o["unit"] = _products[i].unit;
+            }
+            response->setLength();
+            request->send(response);
+          },
+          AuthenticationPredicates::IS_AUTHENTICATED),
+      1024);
+  productsPost->setMethod(HTTP_POST);
+  _server->addHandler(productsPost);
+
+  _server->on(
+      LIVE_WEIGHT_TX_PATH,
+      HTTP_GET,
+      _securityManager->wrapRequest(
+          [this](AsyncWebServerRequest* request) {
+            AsyncJsonResponse* response = new AsyncJsonResponse(false, 4096);
+            JsonObject root = response->getRoot();
+            root["max"] = LIVE_WEIGHT_MAX_TX;
+            JsonArray arr = root.createNestedArray("transactions");
+            uint16_t n = 0;
+            if (_fs && _fs->exists(LIVE_WEIGHT_TX_FILE)) {
+              File f = _fs->open(LIVE_WEIGHT_TX_FILE, "r");
+              if (f) {
+                while (f.available() && n < LIVE_WEIGHT_MAX_TX) {
+                  String l = f.readStringUntil('\n');
+                  l.trim();
+                  if (l.length() == 0) {
+                    continue;
+                  }
+                  DynamicJsonDocument lineDoc(256);
+                  if (deserializeJson(lineDoc, l) == DeserializationError::Ok) {
+                    arr.add(lineDoc.as<JsonObject>());
+                    n++;
+                  }
+                }
+                f.close();
+              }
+            }
+            root["count"] = n;
+            response->setLength();
+            request->send(response);
+          },
+          AuthenticationPredicates::IS_AUTHENTICATED));
 }
 
 void LiveWeightService::configureMqtt() {

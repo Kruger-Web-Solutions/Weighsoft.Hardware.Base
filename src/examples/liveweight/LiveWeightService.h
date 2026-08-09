@@ -13,11 +13,23 @@ class RelayBoardService;
 #define LIVE_WEIGHT_ENDPOINT_PATH "/rest/liveWeight"
 #define LIVE_WEIGHT_SOCKET_PATH "/ws/liveWeight"
 #define LIVE_WEIGHT_CONFIG_FILE "/config/liveWeight.json"
+#define LIVE_WEIGHT_PRODUCTS_FILE "/config/products.json"
+#define LIVE_WEIGHT_TX_FILE "/log/transactions.ndjson"
+#define LIVE_WEIGHT_PRODUCTS_PATH "/rest/liveWeightProducts"
+#define LIVE_WEIGHT_TX_PATH "/rest/liveWeightTransactions"
+#define LIVE_WEIGHT_MAX_PRODUCTS 9
+#define LIVE_WEIGHT_MAX_TX 40
 
 // Serial ingest caps (ESP8266-safe): 128 B lines, ≤5 Hz state publish, drain-bounded
 #define LIVE_WEIGHT_LINE_MAX 128
 #define LIVE_WEIGHT_PUBLISH_MIN_MS 200
 #define LIVE_WEIGHT_SERIAL_BYTES_PER_LOOP 64
+
+struct LiveWeightProductEntry {
+  String plu;
+  String product;
+  String unit;
+};
 
 class LiveWeightService : public StatefulService<LiveWeightState> {
  public:
@@ -35,7 +47,12 @@ class LiveWeightService : public StatefulService<LiveWeightState> {
   MqttPubSub<LiveWeightState> _mqttPubSub;
   WebSocketTxRx<LiveWeightState> _webSocket;
   AsyncMqttClient* _mqttClient;
+  AsyncWebServer* _server;
+  SecurityManager* _securityManager;
+  FS* _fs;
   RelayBoardService* _relayBoard;
+  LiveWeightProductEntry _products[LIVE_WEIGHT_MAX_PRODUCTS];
+  uint8_t _productCount;
 
   String _mqttBasePath;
   String _lineBuffer;
@@ -80,6 +97,11 @@ class LiveWeightService : public StatefulService<LiveWeightState> {
   uint8_t computeZone(float weight) const;
   void runAction(const String& action);
   void sendNetworkPrint();
+  void registerCatalogEndpoints();
+  void loadProducts();
+  bool saveProducts();
+  int findProductIndex(const String& plu) const;
+  void appendTransaction(const char* reason);
 };
 
 #endif
