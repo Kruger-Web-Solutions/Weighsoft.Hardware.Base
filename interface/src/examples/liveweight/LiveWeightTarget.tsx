@@ -204,6 +204,46 @@ const LiveWeightTarget: FC = () => {
           </div>
         </div>
 
+        <div className="lw-card lw-card-printer" id="network-printer">
+          <div className="lw-card-head">Network printer (ESC/POS)</div>
+          <div className="lw-card-body">
+            <Alert severity="info" sx={{ mb: 1.5 }}>
+              Set the printer LAN IP here. Default port is <strong>9100</strong> (raw TCP). Used by DI Print and Test
+              Print.
+            </Alert>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={!!draft.printer_enabled}
+                  disabled={saving}
+                  onChange={(e) => patchDraft({ printer_enabled: e.target.checked })}
+                />
+              }
+              label="Enable network print"
+            />
+            <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', sm: '2fr 1fr' }, mt: 1 }}>
+              <TextField
+                size="small"
+                label="Printer IP address"
+                value={draft.printer_ip || ''}
+                disabled={saving}
+                placeholder="e.g. 192.168.2.50"
+                helperText="Same WiFi / LAN as this board"
+                onChange={(e) => patchDraft({ printer_ip: e.target.value })}
+              />
+              <TextField
+                size="small"
+                label="TCP port"
+                type="number"
+                value={draft.printer_port ?? 9100}
+                disabled={saving}
+                helperText="Usually 9100"
+                onChange={(e) => patchDraft({ printer_port: Number(e.target.value) || 9100 })}
+              />
+            </Box>
+          </div>
+        </div>
+
         <div className="lw-card">
           <div className="lw-card-head">Band → relays</div>
           <div className="lw-card-body">
@@ -294,40 +334,6 @@ const LiveWeightTarget: FC = () => {
                   ))}
                 </Select>
               </FormControl>
-            </Box>
-          </div>
-        </div>
-
-        <div className="lw-card">
-          <div className="lw-card-head">Network printer</div>
-          <div className="lw-card-body">
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={!!draft.printer_enabled}
-                  disabled={saving}
-                  onChange={(e) => patchDraft({ printer_enabled: e.target.checked })}
-                />
-              }
-              label="Enable network print (ESC/POS TCP)"
-            />
-            <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', sm: '2fr 1fr' } }}>
-              <TextField
-                size="small"
-                label="Printer IP"
-                value={draft.printer_ip || ''}
-                disabled={saving}
-                placeholder="192.168.1.50"
-                onChange={(e) => patchDraft({ printer_ip: e.target.value })}
-              />
-              <TextField
-                size="small"
-                label="Port"
-                type="number"
-                value={draft.printer_port ?? 9100}
-                disabled={saving}
-                onChange={(e) => patchDraft({ printer_port: Number(e.target.value) || 9100 })}
-              />
             </Box>
           </div>
         </div>

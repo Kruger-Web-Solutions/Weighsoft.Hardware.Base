@@ -213,6 +213,15 @@
   font-weight: 600;
 }
 
+.lw-card-printer {
+  border: 2px solid rgba(11, 61, 102, 0.35);
+  box-shadow: 0 4px 16px rgba(11, 61, 102, 0.12);
+}
+
+.lw-card-printer .lw-card-head {
+  background: #0a4f7a;
+}
+
 .lw-card-body {
   padding: 18px 20px 20px;
   display: grid;

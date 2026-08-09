@@ -103,7 +103,7 @@ In the web UI: **Project → Live Weight**
 | Tab | Who | Content |
 |-----|-----|---------|
 | **Live** | all | Big scale dial + Net weight + read-only PLU strip |
-| **Target & Relays** | all | Range low/high, UNDER/CORRECT/OVER → RY maps, DI1/DI2 actions, network printer IP:9100 |
+| **Target & Relays** | all | Range low/high, **Network printer** block (IP + port 9100) near top, UNDER/CORRECT/OVER → RY maps, DI1/DI2 actions |
 | **Product** | all | PLU, description, piece count, total |
 | **Tech** | admin | Weight source, baud, regex, test weight |
 | **How it connects** | admin | Connection help |
