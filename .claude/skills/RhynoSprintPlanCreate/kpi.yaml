@@ -1,6 +1,6 @@
 # RhynoSprintPlanCreate — improvement KPI log (all repos)
 # status: open | shipped | carried | dropped
-updated_at: 2026-08-09T18:30:00+02:00
+updated_at: 2026-08-09T19:00:00+02:00
 
 sprints:
   - id: SPRINT-2026-08-09-RS485-DJB
@@ -108,6 +108,32 @@ sprints:
     note: >-
       Jurien approved x2. RT-046 flash shipped via HTTP /rest/uploadFirmware to 192.168.2.67
       (sketch 915072; discovery REST OK). Hand off HUMAN tests. Do not mix RS485.
+      Agent browser found heap bugs → carried into HWB-E.
+
+  - id: SPRINT-2026-08-09-HWB-E
+    name: Heap + field bugs from agent browser test
+    repo: Weighsoft.Hardware.Base
+    branch: RelayBoardEspBuildIn
+    opened_at: 2026-08-09T19:00:00+02:00
+    closed_at: null
+    plan: docs/superpowers/plans/2026-08-09-weighsoft-hardware-base-heap-fix-sprint.md
+    planned_rt:
+      - RT-056
+      - RT-054
+      - RT-010
+      - RT-055
+      - RT-059
+      - RT-057
+    waiting_rt:
+      - RT-005
+      - RT-007
+      - RT-008
+      - RT-043
+    later_excluded:
+      - RT-058
+      - RT-019
+      - RT-040
+    note: Draft — gate needs Jurien approve + RT-060 home page decision
 
 improvements:
   - id: KPI-010
@@ -341,14 +367,47 @@ improvements:
     shipped_at: 2026-08-09T18:30:00+02:00
 
   - id: KPI-020
-    sprint_id: SPRINT-2026-08-09-HWB-D
+    sprint_id: SPRINT-2026-08-09-HWB-E
     repo: Weighsoft.Hardware.Base
-    title: Agent browser test found heap starvation + broken deep-link
+    title: Recover usable ESP8266 heap under Live Weight
     detail: >-
-      Twin Free RAM ~2.4KB; catalog CONNECTION_RESET; Tech printer link missing /project;
-      logged RT-054/055/056 + improvements RT-057/058/059 + Q RT-060.
-    source: agent Playwright 2026-08-09
+      Twin Free RAM ~2.4KB caused catalog CONNECTION_RESET and SPA JS mismatch.
+      Ship MQTT-off / less Twin stress so browser catalog works.
+    source: RT-054 / RT-010
     status: open
     added_by: agent
     added_at: 2026-08-09T18:55:00+02:00
+    shipped_at: null
+
+  - id: KPI-021
+    sprint_id: SPRINT-2026-08-09-HWB-E
+    repo: Weighsoft.Hardware.Base
+    title: Fix Tech printer deep-link /project prefix
+    detail: Links must open /project/live-weight/target#network-printer not Twin.
+    source: RT-056
+    status: open
+    added_by: agent
+    added_at: 2026-08-09T19:00:00+02:00
+    shipped_at: null
+
+  - id: KPI-022
+    sprint_id: SPRINT-2026-08-09-HWB-E
+    repo: Weighsoft.Hardware.Base
+    title: Catalog last-good cache + sync active PLU (no demo wipe)
+    detail: Fix Screw M6 demo vs S1/R2/W3; stale-while-revalidate on REST fail.
+    source: RT-055 / RT-059
+    status: open
+    added_by: agent
+    added_at: 2026-08-09T19:00:00+02:00
+    shipped_at: null
+
+  - id: KPI-023
+    sprint_id: SPRINT-2026-08-09-HWB-E
+    repo: Weighsoft.Hardware.Base
+    title: Default landing Live Weight when Jurien approves RT-060
+    detail: Post-login home = Live Weight to save heap; Twin stays in menu.
+    source: RT-057 / RT-060
+    status: open
+    added_by: agent
+    added_at: 2026-08-09T19:00:00+02:00
     shipped_at: null

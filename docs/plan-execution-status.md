@@ -77,4 +77,21 @@ P1–P7 **DELIVERED** (PR #6–#10). Flash done (USB COM4). Field checks carried
 **Next:** Jurien starts test list **RT-005 / RT-007 / RT-008 / RT-043 / RT-044 / RT-045**.
 
 **KPI:** KPI-017, KPI-018, KPI-019 **shipped** (bookkeeping); flash RT-046 complete  
+**Agent browser (same day):** RT-044/045 PASS; RT-043 FAIL (heap); RT-056 broken link; issues RT-054…060 logged  
+
+## Sprint E — Heap + field bugs (draft — gate closed)
+
+**Plan:** `docs/superpowers/plans/2026-08-09-weighsoft-hardware-base-heap-fix-sprint.md`  
+**Sprint id:** `SPRINT-2026-08-09-HWB-E`  
+**Status:** **draft** — waiting Jurien approve / build  
+
+| Phase | State | RT | Notes |
+|-------|-------|-----|-------|
+| P1 Printer deep-link | blocked on gate | RT-056 | `/project/live-weight/target#…` |
+| P2 Heap relief | blocked on gate | RT-054 + RT-010 | MQTT off / less Twin stress |
+| P3 Catalog + active PLU | blocked on gate | RT-055 + RT-059 | No demo wipe; last-good cache |
+| P4 Default landing | blocked on gate | RT-057 / RT-060 | Needs yes/no: Live Weight home? |
+| P5 Flash + re-test | blocked | — | Then re-check RT-043; DI/printer still human |
+
+**KPI open:** KPI-020 … KPI-023  
 
