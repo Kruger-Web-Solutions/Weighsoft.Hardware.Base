@@ -13,7 +13,8 @@
 **KPI log:** `.claude/skills/RhynoSprintPlanCreate/kpi.yaml`  
 **Questions store:** `docs/superpowers/plans/2026-08-09-weighsoft-hardware-base-questions.md`  
 **Training log:** `docs/superpowers/plans/2026-08-09-weighsoft-hardware-base-training-log.md`  
-**Status:** draft — **ready for flash + test** after Jurien approves (no remaining software build RTs)  
+**Status:** draft — bookkeeping done; **ready for flash + test** after Jurien approves (no remaining software build RTs)  
+**Commit:** `623e970` (docs/KPI this session)  
 **List mode:** LOCAL LIST MODE (`$HOME/.cursor/skills/rhynoTodoList/`)
 
 ## Goal
