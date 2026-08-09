@@ -7,6 +7,7 @@
 #include <WebSocketTxRx.h>
 #include <SettingValue.h>
 #include <examples/liveweight/LiveWeightState.h>
+#include <examples/liveweight/LiveWeightDiscovery.h>
 
 class RelayBoardService;
 
@@ -51,6 +52,7 @@ class LiveWeightService : public StatefulService<LiveWeightState> {
   SecurityManager* _securityManager;
   FS* _fs;
   RelayBoardService* _relayBoard;
+  LiveWeightDiscovery _discovery;
   LiveWeightProductEntry _products[LIVE_WEIGHT_MAX_PRODUCTS];
   uint8_t _productCount;
 

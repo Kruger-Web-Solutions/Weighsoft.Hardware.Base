@@ -200,7 +200,9 @@ void LiveWeightService::begin() {
   applySource();
   loadProducts();
   registerCatalogEndpoints();
+  _discovery.begin();
   Serial.println(F("[LiveWeight] Service ready — /rest/liveWeight /ws/liveWeight (+ products/tx)"));
+  Serial.println(F("[LiveWeight] Discovery: UDP :4210 + mDNS _weighsoft-lw._tcp"));
 }
 
 void LiveWeightService::loop() {
@@ -216,6 +218,7 @@ void LiveWeightService::loop() {
   if (_state.source == LIVE_WEIGHT_SOURCE_SERIAL) {
     readSerialLine();
   }
+  _discovery.loop();
 }
 
 void LiveWeightService::onConfigUpdated() {

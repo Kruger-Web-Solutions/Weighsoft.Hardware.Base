@@ -16,7 +16,9 @@ import {
 } from '@mui/material';
 
 import { FormLoader, SectionContent } from '../../components';
+import { readWiFiSettings, readWiFiStatus } from '../../api/wifi';
 import { useWs } from '../../utils';
+import { WiFiConnectionStatus } from '../../types';
 
 import { updateLiveWeight } from './api';
 import './liveWeight.css';
@@ -34,7 +36,36 @@ const LiveWeightSetup: FC = () => {
   const [testWeight, setTestWeight] = useState('1.50');
   const [baudDraft, setBaudDraft] = useState<number | null>(null);
   const [regexDraft, setRegexDraft] = useState<string | null>(null);
+  const [boardIp, setBoardIp] = useState<string>('');
+  const [boardHost, setBoardHost] = useState<string>('');
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadIdentity = async () => {
+      try {
+        const [statusRes, settingsRes] = await Promise.all([readWiFiStatus(), readWiFiSettings()]);
+        if (cancelled) {
+          return;
+        }
+        const status = statusRes.data;
+        if (status.status === WiFiConnectionStatus.WIFI_STATUS_CONNECTED && status.local_ip) {
+          setBoardIp(status.local_ip);
+        }
+        if (settingsRes.data?.hostname) {
+          setBoardHost(settingsRes.data.hostname);
+        }
+      } catch {
+        // Tech page still usable without WiFi identity
+      }
+    };
+    void loadIdentity();
+    const t = window.setInterval(() => void loadIdentity(), 15000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(t);
+    };
+  }, []);
 
   useEffect(() => {
     if (!connected) {
@@ -154,6 +185,27 @@ const LiveWeightSetup: FC = () => {
             Printer IP & port → Target & Relays
           </Button>
         </Box>
+
+        <div className="lw-card" id="how-senders-find-me">
+          <div className="lw-card-head">How senders find me</div>
+          <div className="lw-card-body">
+            <Typography variant="body2" paragraph>
+              This board <strong>announces</strong> on the LAN so any sender can auto-find it. Weight is still{' '}
+              <strong>pushed to</strong> the board. Manual IP is set on the <strong>sender</strong>, not here.
+            </Typography>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 1 }}>
+              <Chip size="small" color="primary" label={`IP: ${boardIp || '—'}`} />
+              <Chip size="small" variant="outlined" label={`Hostname: ${boardHost || '—'}`} />
+              <Chip size="small" variant="outlined" label="UDP announce :4210" />
+              <Chip size="small" variant="outlined" label="mDNS _weighsoft-lw._tcp" />
+            </Box>
+            <Typography variant="caption" color="text.secondary" component="div">
+              Sender listens for service <code>weighsoft-lw</code> on UDP 4210, then POSTs{' '}
+              <code>{'{ weight, last_line }'}</code> to <code>/rest/liveWeight</code> (or WebSocket{' '}
+              <code>/ws/liveWeight</code>). Full protocol: docs/WIFI-WEIGHT-DISCOVERY.md
+            </Typography>
+          </div>
+        </div>
 
         <div className="lw-card">
           <div className="lw-card-head">Weight input source</div>
