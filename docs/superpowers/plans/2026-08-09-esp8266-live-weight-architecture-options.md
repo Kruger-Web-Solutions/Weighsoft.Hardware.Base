@@ -119,4 +119,9 @@ Field caps (fits ESP8266 easily):
 
 **Buzzer:** stripped from code and plan (2026-08-09). Not shipping.
 
-Next: move RT items to **planned** / **build** on request.
+**Decisions (later / discovery):**
+
+- **2026-08-09 — WiFi weight discovery Option 2 locked:** Relay board announces itself on the LAN when it joins WiFi via a **simple open protocol** (UDP broadcast and/or mDNS — documentable). **Sender = any LAN device** (ESP, WOW Trade/Pi, PC, or future) that auto-adopts the board; plus a **manual IP box** if auto-find fails. Data direction unchanged: sender pushes weight **to** the relay board (board does not pull). Tracked as **RT-039**.
+- **2026-08-09 — Sprint C:** Jurien invoked RhynoSprintPlanCreate → RT-039 pulled into `SPRINT-2026-08-09-HWB-C` (`docs/superpowers/plans/2026-08-09-weighsoft-hardware-base-discovery-sprint.md`). Per-PLU count discussed but **not approved** → RT-040 later.
+
+Next: Jurien approve Sprint C / say **build** before coding.

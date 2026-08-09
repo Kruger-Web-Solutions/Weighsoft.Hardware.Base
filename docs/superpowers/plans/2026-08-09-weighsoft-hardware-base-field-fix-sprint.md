@@ -66,6 +66,7 @@ Make **Product catalog save stick** on the real board, make **printer IP/port** 
 - Buzzer  
 - MQTT off (RT-010 later)  
 - WiFi report export (RT-019 later)  
+- WiFi weight discovery Option 2 — decided 2026-08-09; **RT-039** moved to Sprint C (`SPRINT-2026-08-09-HWB-C`) — not HWB-B  
 - RS485-CanHatPi5DJB-W1X work (other repo)
 
 ## Improvements (KPI — required)

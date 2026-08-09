@@ -1,6 +1,6 @@
 # RhynoSprintPlanCreate — improvement KPI log (all repos)
 # status: open | shipped | carried | dropped
-updated_at: 2026-08-09T17:00:00+02:00
+updated_at: 2026-08-09T17:40:00+02:00
 
 sprints:
   - id: SPRINT-2026-08-09-RS485-DJB
@@ -63,6 +63,26 @@ sprints:
     later_excluded:
       - RT-010
       - RT-019
+    note: P1-P2 shipped + flashed; RT-039 pulled into HWB-C
+
+  - id: SPRINT-2026-08-09-HWB-C
+    name: WiFi weight discovery — board announce
+    repo: Weighsoft.Hardware.Base
+    branch: RelayBoardEspBuildIn
+    opened_at: 2026-08-09T17:40:00+02:00
+    closed_at: null
+    plan: docs/superpowers/plans/2026-08-09-weighsoft-hardware-base-discovery-sprint.md
+    planned_rt:
+      - RT-039
+    waiting_rt:
+      - RT-005
+      - RT-007
+      - RT-008
+    later_excluded:
+      - RT-010
+      - RT-019
+      - RT-040
+    note: draft — gate waiting Jurien approve/build; Option 2 discovery; sender any LAN device
 
 improvements:
   - id: KPI-010
@@ -210,3 +230,44 @@ improvements:
     added_by: agent
     added_at: 2026-08-09T16:50:00+02:00
     shipped_at: 2026-08-09T17:00:00+02:00
+
+  - id: KPI-014
+    sprint_id: SPRINT-2026-08-09-HWB-C
+    repo: Weighsoft.Hardware.Base
+    title: WiFi weight discovery — board announce + sender auto-adopt + manual IP
+    detail: >-
+      Option 2 locked 2026-08-09. Sender = any LAN device; open documentable
+      protocol (UDP broadcast and/or mDNS); auto-adopt + manual IP. Sender pushes
+      TO board. Attached to HWB-C after Jurien invoked RhynoSprintPlanCreate.
+    source: RT-039
+    status: open
+    note: attached HWB-C (was carried from HWB-B later)
+    added_by: agent
+    added_at: 2026-08-09T17:32:00+02:00
+    shipped_at: null
+
+  - id: KPI-015
+    sprint_id: SPRINT-2026-08-09-HWB-C
+    repo: Weighsoft.Hardware.Base
+    title: Keep announce payload + interval lean for ESP8266 heap
+    detail: >-
+      Discovery must not chat the heap to death — small packet, sensible interval,
+      no heavy second stack on the board. Reference sender/harness stays off-board or tiny.
+    source: RT-039
+    status: open
+    added_by: agent
+    added_at: 2026-08-09T17:40:00+02:00
+    shipped_at: null
+
+  - id: KPI-016
+    sprint_id: SPRINT-2026-08-09-HWB-C
+    repo: Weighsoft.Hardware.Base
+    title: Per-PLU count (discussed, not approved)
+    detail: >-
+      Discussed in chat; Jurien did not say yes. Parked as RT-040 later — not in HWB-C build phases.
+    source: RT-040
+    status: open
+    note: later / not in build
+    added_by: agent
+    added_at: 2026-08-09T17:40:00+02:00
+    shipped_at: null
