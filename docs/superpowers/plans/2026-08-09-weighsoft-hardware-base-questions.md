@@ -4,7 +4,7 @@
 **Branch:** `RelayBoardEspBuildIn`  
 **Updated:** 2026-08-09  
 **Living list:** PC `rhynoTodoList` items with `kind: question` / `Q:` prefix  
-**Sprint:** `SPRINT-2026-08-09-HWB-D`
+**Sprint:** `SPRINT-2026-08-09-HWB-E`
 
 Durable store so product/tech questions are not lost in chat. Status: `open` | `answered`.
 
@@ -14,7 +14,6 @@ Durable store so product/tech questions are not lost in chat. Status: `open` | `
 |----|----------|-------|--------|-------|
 | Q-001 / RT-047 | Does Windows firewall block UDP **4210** for `scripts/listen-weighsoft-announce.py` on the desk PC? | 2026-08-09 | open | Field risk for discovery proof; allow inbound UDP 4210 if listen hears nothing |
 | Q-002 / RT-048 | Which **first real sender** product should we integrate next (ESP bridge, WOW Trade / Pi, PC tool, other)? | 2026-08-09 | open | Sender = any LAN device; pick priority product after field tests |
-| Q-008 / RT-060 | Make **Live Weight** the post-login home (not Twin) to save heap? | 2026-08-09 | open | Agent browser: Twin Free RAM ~2.4 KB; SPA/catalog fail under stress. Related RT-057 |
 
 ## Answered
 
@@ -25,6 +24,7 @@ Durable store so product/tech questions are not lost in chat. Status: `open` | `
 | Q-005 / RT-051 | Is count per PLU or job-wide? | 2026-08-09 | 2026-08-09 | **Job-wide** shared count until **RT-040** (later, not approved) |
 | Q-006 / RT-052 | Where is printer IP/port configured? | 2026-08-09 | 2026-08-09 | **Target & Relays** (not Tech); Tech may jump/link only |
 | Q-007 / RT-053 | When do we flash again? | 2026-08-09 | 2026-08-09 | **After software work on the list is cleared** — then Jurien tests |
+| Q-008 / RT-060 | Make **Live Weight** the post-login home (not Twin) to save heap? | 2026-08-09 | 2026-08-09 | **Yes** — Live Weight home + public operator (weigh/PLU/tx/DI-DO); settings need login. Sprint E. |
 
 ## How to update
 

@@ -25,6 +25,8 @@
 | 2026-08-09 | **Approved x2** — Sprint D + flash now | Jurien | RT-046; HWB-D gate |
 | 2026-08-09 | Flash delivered via HTTP `/rest/uploadFirmware` to 192.168.2.67 | agent | sketch 915072; discovery REST OK |
 | 2026-08-09 | Agent browser field test; heap starvation + broken printer deep-link + catalog fail under load | agent Playwright | RT-054…060; training field outcomes |
+| 2026-08-09 | **Approved Sprint E** + RT-060 **yes** + public operator Live Weight | Jurien | SPRINT-2026-08-09-HWB-E |
+| 2026-08-09 | Sprint E shipped: FT_MQTT=0, public weigh/PLU/DI-DO, config auth, PLU sync, printer deep-link, Live Weight landing | agent | branch `sprint-e/heap-public-operator`; KPI-020…023 |
 
 ## Software clear snapshot (HWB-D audit)
 
