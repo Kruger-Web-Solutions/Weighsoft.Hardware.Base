@@ -54,7 +54,14 @@ When STA has an IP, the board broadcasts a small JSON packet every **5 seconds**
 3. Adopt `ip` (and remember `rest` / `ws`). If several boards appear, pick by `id` / `host` or let the operator choose.
 4. Push weight to `http://{ip}{rest}` (see below). Keep listening; refresh IP if announce changes.
 
-Desk proof: `python scripts/listen-weighsoft-announce.py`
+Desk proof:
+
+```text
+python scripts/listen-weighsoft-announce.py --seconds 20
+python scripts/listen-weighsoft-announce.py --rest http://BOARD_IP --seconds 15
+```
+
+`--rest` signs in, GETs `/rest/liveWeightDiscovery` (board identity + triggers broadcast/unicast poke), and still listens on UDP. If the AP filters broadcast, REST still returns `ip` / `host` for adopt; use **manual IP** on the sender.
 
 ### 2) Optional — mDNS
 
@@ -67,9 +74,15 @@ The board also registers:
 
 Browse with Avahi / `dns-sd` / OS mDNS APIs. UDP remains the lean primary path for ESP8266 heap.
 
-### 3) Fallback — manual IP (sender-side only)
+### 3) REST identity (authenticated helper)
 
-If auto-find fails (VLAN, broadcast filtered, etc.), the **sender** UI/config has a **manual IP** box. Point it at the board’s STA IP (shown on Tech → “How senders find me”, or WiFi Status).
+`GET /rest/liveWeightDiscovery` (same auth as other `/rest/*` APIs) returns board `ip`, `host`, UDP port, mDNS name, and the announce JSON string. Calling it also triggers a UDP broadcast and a **unicast** announce to the caller’s IP (useful when the AP filters broadcast).
+
+This is a helper for senders/tools — not a second discovery server, and not “type sender IP on the board”.
+
+### 4) Fallback — manual IP (sender-side only)
+
+If auto-find fails (VLAN, broadcast filtered, etc.), the **sender** UI/config has a **manual IP** box. Point it at the board’s STA IP (shown on Tech → “How senders find me”, WiFi Status, or `GET /rest/liveWeightDiscovery`).
 
 There is **no** “type sender IP here” discovery setting on the board.
 
