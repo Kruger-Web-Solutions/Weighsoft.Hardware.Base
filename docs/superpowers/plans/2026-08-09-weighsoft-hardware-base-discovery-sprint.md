@@ -10,7 +10,7 @@
 - `SPRINT-2026-08-09-HWB-B` — field fix catalog + printer (PR #11 merged + flash done; field checks still open)  
 **Sprint id:** `SPRINT-2026-08-09-HWB-C`  
 **KPI log:** `.claude/skills/RhynoSprintPlanCreate/kpi.yaml`  
-**Status:** draft  
+**Status:** P1–P4 delivered (PR #12–#15); P5 needs:human  
 **List mode:** LOCAL LIST MODE (`$HOME/.cursor/skills/rhynoTodoList/`)
 
 ## Goal
@@ -107,17 +107,17 @@ Seed before build. Agents add rows when they find more.
 
 | KPI id | Improvement | Source RT / finding | Status | Sprint |
 |--------|-------------|---------------------|--------|--------|
-| KPI-014 | WiFi weight discovery — board announce + sender auto-adopt + manual IP | RT-039; Option 2 locked | open (attached this sprint) | HWB-C |
-| KPI-015 | Keep announce payload + interval lean for ESP8266 heap | RT-039 / ESP8266 risk | open | HWB-C |
+| KPI-014 | WiFi weight discovery — board announce + sender auto-adopt + manual IP | RT-039; Option 2 locked | shipped | HWB-C |
+| KPI-015 | Keep announce payload + interval lean for ESP8266 heap | RT-039 / ESP8266 risk | shipped | HWB-C |
 | KPI-016 | Per-PLU count (discussed, not approved) | Chat 2026-08-09 | open / later | parked RT-040 |
 
 ## Pre-build gate
 
 - [x] Data audit all PASS (or FAIL fixed + re-audited)
-- [ ] Plan doc matches Option / caps / dropped features
-- [ ] Sprint items planned in rhynoTodoList for this repo (LOCAL) OR proposed for PC apply (remote) and Jurien accepts that
+- [x] Plan doc matches Option / caps / dropped features
+- [x] Sprint items planned in rhynoTodoList for this repo (LOCAL) OR proposed for PC apply (remote) and Jurien accepts that
 - [x] Improvements section exists (at least seed KPIs)
-- [ ] Jurien approved sprint (or explicit "build" / "go")
+- [x] Jurien approved sprint (or explicit "build" / "go") — `/weighsoft-plan-execute` gate OPEN
 - [x] No work from other repos in this sprint
 
 ## Jurien decisions needed

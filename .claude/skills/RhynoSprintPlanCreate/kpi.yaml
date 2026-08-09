@@ -240,11 +240,11 @@ improvements:
       protocol (UDP broadcast and/or mDNS); auto-adopt + manual IP. Sender pushes
       TO board. Attached to HWB-C after Jurien invoked RhynoSprintPlanCreate.
     source: RT-039
-    status: open
-    note: attached HWB-C (was carried from HWB-B later)
+    status: shipped
+    note: PR #12–#15; HTTP flash; REST discovery ok; P5 field UDP hear needs:human
     added_by: agent
     added_at: 2026-08-09T17:32:00+02:00
-    shipped_at: null
+    shipped_at: 2026-08-09T18:05:00+02:00
 
   - id: KPI-015
     sprint_id: SPRINT-2026-08-09-HWB-C
@@ -254,10 +254,11 @@ improvements:
       Discovery must not chat the heap to death — small packet, sensible interval,
       no heavy second stack on the board. Reference sender/harness stays off-board or tiny.
     source: RT-039
-    status: open
+    status: shipped
+    note: ~160B UDP / 5s; heap free ~17KB post-flash; harness off-board
     added_by: agent
     added_at: 2026-08-09T17:40:00+02:00
-    shipped_at: null
+    shipped_at: 2026-08-09T18:05:00+02:00
 
   - id: KPI-016
     sprint_id: SPRINT-2026-08-09-HWB-C

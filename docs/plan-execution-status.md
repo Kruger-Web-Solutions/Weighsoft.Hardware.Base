@@ -27,21 +27,32 @@ P1–P7 **DELIVERED** (PR #6–#10). Flash done (USB COM4). Field checks carried
 
 **KPI:** KPI-008, KPI-009 **shipped**  
 
-## Sprint C — WiFi weight discovery (draft — gate not open)
+## Sprint C — WiFi weight discovery (P1–P4 delivered; P5 human)
 
 **Plan:** `docs/superpowers/plans/2026-08-09-weighsoft-hardware-base-discovery-sprint.md`  
 **Sprint id:** `SPRINT-2026-08-09-HWB-C`  
-**Status:** **draft** — data audit PASS; waiting Jurien **approve / build**  
-**List:** RT-039 todo → planned (LOCAL); RT-005/007/008 stay waiting; RT-040 per-PLU count later (not approved)
+**Status:** **in_build → P1–P4 DELIVERED**; P5 **needs:human**  
+**Combine note:** P1–P4 shipped as one feature PR (#12) then UDP/REST hot-fixes (#13–#15) — same protocol contract; deps respected.  
+**List:** RT-039 **complete** (announce + docs + UI + harness); RT-005/007/008 stay **waiting**; RT-040 later  
 
 | Phase | State | RT | Notes |
 |-------|-------|-----|-------|
-| P1 Spec / protocol + sender doc | planned | RT-039 | UDP and/or mDNS; document for any LAN sender |
-| P2 Board announce | planned | RT-039 | Lean ESP8266 announce when STA up |
-| P3 Tech/UI identity + find-me | planned | RT-039 | Manual IP is sender-side |
-| P4 Reference sender / harness | planned | RT-039 | Keep lean |
-| P5 Field verify + carry checks | waiting (human) | RT-039 + RT-005/007/008 | Discovery field + prior field checks |
+| P1 Spec / protocol + sender doc | **DELIVERED** | RT-039 | `docs/WIFI-WEIGHT-DISCOVERY.md` — UDP primary, mDNS, REST helper, sender-side manual IP |
+| P2 Board announce | **DELIVERED** | RT-039 | `LiveWeightDiscovery` UDP :4210 / local :4211 + mDNS `_weighsoft-lw._tcp` |
+| P3 Tech/UI identity + find-me | **DELIVERED** | RT-039 | Tech **How senders find me**; no sender-IP box on board |
+| P4 Reference sender / harness | **DELIVERED** | RT-039 | `scripts/listen-weighsoft-announce.py` (+ `--rest`) |
+| P5 Field verify + carry checks | **needs:human** | RT-039 field + RT-005/007/008 | Desk UDP hear + prior field checks |
 
-**KPI:** KPI-014 attached; KPI-015 heap lean; KPI-016 / RT-040 per-PLU parked later  
+**PRs:**  
+- https://github.com/Kruger-Web-Solutions/Weighsoft.Hardware.Base/pull/12 (merged) — P1–P4 feature  
+- https://github.com/Kruger-Web-Solutions/Weighsoft.Hardware.Base/pull/13 (merged) — ESP8266 UDP bind fix  
+- https://github.com/Kruger-Web-Solutions/Weighsoft.Hardware.Base/pull/14 (merged) — REST discovery + unicast poke  
+- https://github.com/Kruger-Web-Solutions/Weighsoft.Hardware.Base/pull/15 (merged) — REST JSON fields fix  
 
-**Out of scope:** RS485-CanHatPi5DJB-W1X; per-PLU count build; no flash/code until gate PASS  
+**Flash:** HTTP `/rest/uploadFirmware` to `192.168.2.67` succeeded (sketch ~915072). Prolific COM4 present but unused (HTTP preferred).  
+
+**Desk verify:** `GET /rest/liveWeightDiscovery` → `udp_ready=true`, `last_send_ok=true`, `unicast_to_client_ok=true`, host `esp8266-relayboard`, ip `192.168.2.67`. Test weight POST `1.25` OK. PC UDP listen on :4210 heard nothing (likely Windows inbound firewall / AP filter) — Jurien field check should try phone/Pi or allow UDP 4210. Heap free ~17 KB after flash.  
+
+**KPI:** KPI-014, KPI-015 **shipped**; KPI-016 / RT-040 parked later  
+
+**Out of scope held:** RS485 other repo; per-PLU count  
