@@ -1,6 +1,6 @@
 import { FC, useCallback, useEffect, useState } from 'react';
 
-import { Alert, Box, Chip, FormControlLabel, Switch, Typography } from '@mui/material';
+import { Alert, Box, Button, Chip, FormControlLabel, Switch, Typography } from '@mui/material';
 
 import { WEB_SOCKET_ROOT } from '../../api/endpoints';
 import { readSystemStatus } from '../../api/system';
@@ -55,20 +55,28 @@ const formatUptime = (ms?: number) => {
 const RelayBoardDigitalTwin: FC = () => {
   const { connected, updateData, data } = useWs<RelayBoardState>(RELAY_BOARD_WEBSOCKET_URL);
   const { data: liveWeight } = useWs<LiveWeightState>(LIVE_WEIGHT_WEBSOCKET_URL);
-  const [demoMode, setDemoMode] = useState(false);
+  const [forceDemo, setForceDemo] = useState(false);
+  const [offlineDemo, setOfflineDemo] = useState(false);
   const [weightPulse, setWeightPulse] = useState(false);
   const [localState, setLocalState] = useState<RelayBoardState>(DEMO_RELAY_STATE);
   const [boardStatus, setBoardStatus] = useState<RelayBoardStatus>(DEMO_BOARD_STATUS);
   const [systemStatus, setSystemStatus] = useState<SystemStatus | undefined>();
+  const [statusError, setStatusError] = useState<string | null>(null);
+
+  const liveReady = connected && !!data && !forceDemo;
+  const demoMode = forceDemo || offlineDemo || !liveReady;
 
   useEffect(() => {
-    if (!connected) {
-      const timer = window.setTimeout(() => setDemoMode(true), 2500);
-      return () => window.clearTimeout(timer);
+    if (forceDemo) {
+      return undefined;
     }
-    setDemoMode(false);
-    return undefined;
-  }, [connected]);
+    if (connected && data) {
+      setOfflineDemo(false);
+      return undefined;
+    }
+    const timer = window.setTimeout(() => setOfflineDemo(true), 2000);
+    return () => window.clearTimeout(timer);
+  }, [connected, data, forceDemo]);
 
   useEffect(() => {
     if (!liveWeight?.timestamp && !liveWeight?.weight) {
@@ -80,44 +88,47 @@ const RelayBoardDigitalTwin: FC = () => {
   }, [liveWeight?.timestamp, liveWeight?.weight]);
 
   useEffect(() => {
-    if (demoMode || !connected) {
+    if (!liveReady) {
       return;
     }
     let cancelled = false;
     const load = async () => {
       try {
-        const [boardRes, sysRes] = await Promise.all([
-          readRelayBoardStatus(),
-          readSystemStatus()
-        ]);
+        const [boardRes, sysRes] = await Promise.all([readRelayBoardStatus(), readSystemStatus()]);
         if (!cancelled) {
           setBoardStatus(boardRes.data);
           setSystemStatus(sysRes.data);
+          setStatusError(null);
         }
       } catch {
-        // keep last / demo values
+        if (!cancelled) {
+          setStatusError('Could not refresh board status REST — twin still uses live WebSocket relays/DI.');
+        }
       }
     };
     load();
-    const id = window.setInterval(load, 5000);
+    const id = window.setInterval(load, 2000);
     return () => {
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [connected, demoMode]);
+  }, [liveReady]);
 
-  const state = demoMode ? localState : (data || DEMO_RELAY_STATE);
+  const state = demoMode ? localState : data || DEMO_RELAY_STATE;
 
-  const toggleRelay = useCallback((key: keyof Pick<RelayBoardState, 'relay1' | 'relay2' | 'relay3' | 'relay4'>) => {
-    if (demoMode) {
-      setLocalState((prev) => ({ ...prev, [key]: !prev[key] }));
-      return;
-    }
-    if (!data) {
-      return;
-    }
-    updateData({ ...data, [key]: !data[key] });
-  }, [demoMode, data, updateData]);
+  const toggleRelay = useCallback(
+    (key: keyof Pick<RelayBoardState, 'relay1' | 'relay2' | 'relay3' | 'relay4'>) => {
+      if (demoMode) {
+        setLocalState((prev) => ({ ...prev, [key]: !prev[key] }));
+        return;
+      }
+      if (!data) {
+        return;
+      }
+      updateData({ ...data, [key]: !data[key] });
+    },
+    [demoMode, data, updateData]
+  );
 
   const setRelay = (key: keyof RelayBoardState, value: boolean) => {
     if (demoMode) {
@@ -130,64 +141,143 @@ const RelayBoardDigitalTwin: FC = () => {
     updateData({ ...data, [key]: value });
   };
 
-  if (!demoMode && (!connected || !data)) {
+  if (!demoMode && !liveReady) {
     return (
       <SectionContent title="Digital Twin" titleGutter>
         <FormLoader message="Connecting to relay board WebSocket… (demo unlocks if offline)" />
+        <Box mt={2}>
+          <Button variant="outlined" onClick={() => setForceDemo(true)}>
+            Use demo now
+          </Button>
+        </Box>
       </SectionContent>
     );
   }
 
   const status = demoMode ? DEMO_BOARD_STATUS : boardStatus;
   const heap = systemStatus?.free_heap ?? status.free_heap;
-  const frag = systemStatus && 'heap_fragmentation' in systemStatus
-    ? systemStatus.heap_fragmentation
-    : status.heap_fragmentation;
+  const frag =
+    systemStatus && 'heap_fragmentation' in systemStatus
+      ? (systemStatus as { heap_fragmentation?: number }).heap_fragmentation
+      : status.heap_fragmentation;
+
+  const modeChip = liveReady
+    ? { label: 'LIVE — WebSocket', color: 'success' as const }
+    : forceDemo
+      ? { label: 'Demo (forced)', color: 'warning' as const }
+      : { label: 'Demo — offline', color: 'default' as const };
 
   return (
     <SectionContent title="Digital Twin" titleGutter>
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2, alignItems: 'center' }}>
+        <Chip size="small" color={modeChip.color} label={modeChip.label} />
+        {liveReady && <Chip size="small" variant="outlined" label={`WS ${connected ? 'up' : 'down'}`} />}
+        {liveReady ? (
+          <Button size="small" onClick={() => setForceDemo(true)}>
+            Switch to demo
+          </Button>
+        ) : (
+          <Button
+            size="small"
+            variant="contained"
+            onClick={() => {
+              setForceDemo(false);
+              setOfflineDemo(false);
+            }}
+          >
+            Go live
+          </Button>
+        )}
+      </Box>
+
       {demoMode && (
         <Alert severity="info" sx={{ mb: 2 }}>
-          Demo mode — board offline or WebSocket not connected. Click relays on the isometric twin to fire GPIO pipes.
-          Live control uses <code>/ws/relayBoard</code> when the ESP is reachable.
+          Demo mode — clicks stay in the browser. Press <strong>Go live</strong> when the board is online to drive real
+          relays and DI via <code>/ws/relayBoard</code>.
+        </Alert>
+      )}
+      {statusError && !demoMode && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          {statusError}
         </Alert>
       )}
 
       <RelayBoardTwin3D
         state={state}
         powerOn
-        uartLive={weightPulse || demoMode}
+        uartLive={liveReady && weightPulse}
         onToggleRelay={toggleRelay}
       />
 
-      <Typography variant="subtitle2" gutterBottom>ESP stats</Typography>
+      <Typography variant="subtitle2" gutterBottom>
+        ESP stats {liveReady ? '(live)' : '(demo)'}
+      </Typography>
       <div className="relay-stats-grid">
-        <div className="relay-stat"><div className="k">MCU</div><div className="v">{status.mcu}</div></div>
-        <div className="relay-stat"><div className="k">CPU</div><div className="v">{status.cpu_freq_mhz} MHz</div></div>
-        <div className="relay-stat"><div className="k">Free RAM</div><div className="v">{formatBytes(heap)}</div></div>
-        <div className="relay-stat"><div className="k">Heap frag</div><div className="v">{frag}%</div></div>
-        <div className="relay-stat"><div className="k">Uptime</div><div className="v">{formatUptime(status.uptime_ms)}</div></div>
+        <div className="relay-stat">
+          <div className="k">MCU</div>
+          <div className="v">{status.mcu}</div>
+        </div>
+        <div className="relay-stat">
+          <div className="k">CPU</div>
+          <div className="v">{status.cpu_freq_mhz} MHz</div>
+        </div>
+        <div className="relay-stat">
+          <div className="k">Free RAM</div>
+          <div className="v">{formatBytes(heap)}</div>
+        </div>
+        <div className="relay-stat">
+          <div className="k">Heap frag</div>
+          <div className="v">{frag != null ? `${frag}%` : '—'}</div>
+        </div>
+        <div className="relay-stat">
+          <div className="k">Uptime</div>
+          <div className="v">{formatUptime(status.uptime_ms)}</div>
+        </div>
         <div className="relay-stat">
           <div className="k">Supply VCC</div>
           <div className="v">{status.vcc_mv != null ? `${(status.vcc_mv / 1000).toFixed(2)} V` : '—'}</div>
         </div>
         <div className="relay-stat">
+          <div className="k">WiFi SSID</div>
+          <div className="v">{status.wifi_ssid ?? '—'}</div>
+        </div>
+        <div className="relay-stat">
           <div className="k">WiFi signal</div>
           <div className="v">{status.wifi_rssi != null ? `${status.wifi_rssi} dBm` : '—'}</div>
         </div>
-        <div className="relay-stat"><div className="k">IP address</div><div className="v">{status.ip ?? '—'}</div></div>
-        <div className="relay-stat"><div className="k">Flash</div><div className="v">{formatBytes(status.flash_chip_size)}</div></div>
+        <div className="relay-stat">
+          <div className="k">IP address</div>
+          <div className="v">{status.ip ?? '—'}</div>
+        </div>
+        <div className="relay-stat">
+          <div className="k">Flash</div>
+          <div className="v">{formatBytes(status.flash_chip_size)}</div>
+        </div>
         <div className="relay-stat">
           <div className="k">Sketch free</div>
           <div className="v">{formatBytes(status.free_sketch_space)}</div>
         </div>
-        <div className="relay-stat"><div className="k">Reset reason</div><div className="v">{status.reset_reason ?? '—'}</div></div>
-        <div className="relay-stat"><div className="k">Temp sensor</div><div className="v">None on PCB</div></div>
-        <div className="relay-stat"><div className="k">Chip ID</div><div className="v">{status.chip_id}</div></div>
-        <div className="relay-stat"><div className="k">MAC</div><div className="v">{status.mac ?? '—'}</div></div>
+        <div className="relay-stat">
+          <div className="k">Reset reason</div>
+          <div className="v">{status.reset_reason ?? '—'}</div>
+        </div>
+        <div className="relay-stat">
+          <div className="k">Temp sensor</div>
+          <div className="v">None on PCB</div>
+        </div>
+        <div className="relay-stat">
+          <div className="k">Chip ID</div>
+          <div className="v">{status.chip_id}</div>
+        </div>
+        <div className="relay-stat">
+          <div className="k">MAC</div>
+          <div className="v">{status.mac ?? '—'}</div>
+        </div>
       </div>
 
-      <Typography variant="subtitle2" gutterBottom>Digital inputs (DI) — live</Typography>
+      <Typography variant="subtitle2" gutterBottom>
+        Digital inputs (DI) — {liveReady ? 'live from board' : 'demo'}
+      </Typography>
       <Box mb={2}>
         <Chip
           sx={{ mr: 1 }}
@@ -217,14 +307,18 @@ const RelayBoardDigitalTwin: FC = () => {
         )}
       </Box>
 
-      <Typography variant="subtitle2" gutterBottom>Digital outputs (DO) — relays</Typography>
+      <Typography variant="subtitle2" gutterBottom>
+        Digital outputs (DO) — relays
+      </Typography>
       <Box mb={2}>
-        {([
-          ['relay1', 'RY1 GPIO16'],
-          ['relay2', 'RY2 GPIO14'],
-          ['relay3', 'RY3 GPIO12'],
-          ['relay4', 'RY4 GPIO13']
-        ] as const).map(([key, label]) => (
+        {(
+          [
+            ['relay1', 'RY1 GPIO16'],
+            ['relay2', 'RY2 GPIO14'],
+            ['relay3', 'RY3 GPIO12'],
+            ['relay4', 'RY4 GPIO13']
+          ] as const
+        ).map(([key, label]) => (
           <FormControlLabel
             key={key}
             control={<Switch checked={state[key]} onChange={(_, v) => setRelay(key, v)} color="primary" />}
@@ -233,7 +327,9 @@ const RelayBoardDigitalTwin: FC = () => {
         ))}
       </Box>
 
-      <Typography variant="subtitle2" gutterBottom>GPIO map (DI / DO / boot)</Typography>
+      <Typography variant="subtitle2" gutterBottom>
+        GPIO map (DI / DO / boot)
+      </Typography>
       <Box mb={2}>
         {Object.entries(status.gpio_legend).map(([gpio, role]) => {
           const isDi = role.startsWith('DI');
@@ -256,8 +352,8 @@ const RelayBoardDigitalTwin: FC = () => {
       </Box>
 
       <Typography variant="body2" color="textSecondary">
-        Power LED is hardwired. Relay LEDs follow coil drive (active {status.relay_active}).
-        UART flash path: Laptop → Prolific USB-Serial → MAX3232 → ESP TX0/RX0/GND (IO0 low to flash).
+        Power LED is hardwired. Relay LEDs follow coil drive (active {status.relay_active}). UART flash path: Laptop →
+        Prolific USB-Serial → MAX3232 → ESP TX0/RX0/GND (IO0 low to flash).
       </Typography>
     </SectionContent>
   );
