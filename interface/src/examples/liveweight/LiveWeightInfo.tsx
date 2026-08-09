@@ -54,6 +54,15 @@ const LiveWeightInfo: FC = () => (
       </ListItem>
       <ListItem>
         <ListItemText
+          primary="How senders find the board"
+          secondary={
+            'Board announces on UDP :4210 (service weighsoft-lw) and mDNS _weighsoft-lw._tcp. ' +
+            'Any LAN sender can auto-adopt; manual IP is configured on the sender only. See Tech tab.'
+          }
+        />
+      </ListItem>
+      <ListItem>
+        <ListItemText
           primary="RS-485"
           secondary="Not available on this board — no transceiver / free pins. Do not select as a working source."
         />

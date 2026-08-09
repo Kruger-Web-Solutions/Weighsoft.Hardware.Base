@@ -105,7 +105,7 @@ In the web UI: **Project → Live Weight**
 | **Live** | all | Big scale dial + Net weight + read-only PLU strip |
 | **Target & Relays** | all | Range low/high, **Network printer** block (IP + port 9100) near top, UNDER/CORRECT/OVER → RY maps, DI1/DI2 actions |
 | **Product** | all | PLU, description, piece count, total |
-| **Tech** | admin | Weight source, baud, regex, test weight |
+| **Tech** | admin | Weight source, baud, regex, test weight, **How senders find me** (IP / hostname / UDP 4210 / mDNS) |
 | **How it connects** | admin | Connection help |
 
 **Range control:** Weight under → `relay_low` (default RY1), in range → `relay_ok` (RY2), over → `relay_high` (RY3). Only one of those three relays is on.
@@ -120,6 +120,7 @@ One service, multiple ways in (no duplicate weight UIs):
 |--------|----------------|
 | Serial (RS-232) | Scale → MAX3232 / PROG header → UART0. Baud + optional custom regex. Ingest caps: 128 B lines, ≤64 bytes/loop, publish ≤5 Hz, change-gated; default parse is simple numeric (no POSIX regex every line). |
 | WiFi / WebSocket | `POST /rest/liveWeight` or `/ws/liveWeight` with `{ weight, last_line }`. |
+| WiFi discovery | Board announces on LAN (UDP **4210** + mDNS `_weighsoft-lw._tcp`). Senders auto-adopt or use manual IP. See [WIFI-WEIGHT-DISCOVERY.md](WIFI-WEIGHT-DISCOVERY.md). |
 | RS-485 | **Not available** on this board (no free pins / transceiver). |
 
 Endpoints: `/rest/liveWeight`, `/ws/liveWeight`.
