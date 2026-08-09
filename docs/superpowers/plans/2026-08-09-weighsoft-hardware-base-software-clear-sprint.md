@@ -13,8 +13,8 @@
 **KPI log:** `.claude/skills/RhynoSprintPlanCreate/kpi.yaml`  
 **Questions store:** `docs/superpowers/plans/2026-08-09-weighsoft-hardware-base-questions.md`  
 **Training log:** `docs/superpowers/plans/2026-08-09-weighsoft-hardware-base-training-log.md`  
-**Status:** draft — bookkeeping done; **ready for flash + test** after Jurien approves (no remaining software build RTs)  
-**Commit:** `623e970` (docs/KPI this session)  
+**Status:** **flash DELIVERED** — hand off HUMAN tests (software clear + RT-046 complete)  
+**Commit:** docs status update after flash (this session)  
 **List mode:** LOCAL LIST MODE (`$HOME/.cursor/skills/rhynoTodoList/`)
 
 ## Goal
@@ -86,11 +86,12 @@ Clear remaining **software** work for Hardware.Base; then **flash once**; then J
 - **Acceptance:** Docs match locked decisions; no firmware/UI feature work.  
 - **Depends on:** Phase 1  
 
-### Phase 3 — Prep flash checklist (no flash until approve)
-- **RT:** RT-046 (planned)  
+### Phase 3 — Flash (approved + done)
+- **RT:** RT-046 (**complete**)  
 - **Scope:** Checklist for one flash after software clear: kill Python COM holders, flash/OTA, confirm board IP, confirm discovery REST + Tech find-me text, leave WiFi secrets out of git.  
-- **Acceptance:** Checklist written; **flash not executed** until Jurien says approve flash.  
+- **Acceptance:** Jurien **approved x2**; HTTP POST `/rest/uploadFirmware` to `192.168.2.67` → 200; ping + discovery REST OK (sketch 915072).  
 - **Depends on:** Phase 1–2  
+- **Result:** **PASS — flash delivered 2026-08-09 ~18:35.**
 
 ### Phase 4 — Hand off HUMAN test list
 - **RT:** RT-005, RT-007, RT-008, RT-043, RT-044, RT-045 (all `waiting`, `test_list: true`)  
@@ -146,16 +147,17 @@ Clear remaining **software** work for Hardware.Base; then **flash once**; then J
 
 - [x] Data audit all PASS  
 - [x] Plan matches decisions (Option A / Option 2 / caps / later RT-040)  
-- [x] rhynoTodoList: software cleared; flash RT-046 **planned**; tests **waiting**; questions stored  
+- [x] rhynoTodoList: software cleared; flash RT-046 **complete**; tests **waiting**; questions stored  
 - [x] Improvements section seeded (KPI-017…019)  
-- [ ] Jurien approved sprint D / said **approve flash** / **start tests**  
+- [x] Jurien approved sprint D + flash (**approved x2**)  
+- [x] Flash executed + desk verify  
+- [ ] Jurien starts **test list** (HUMAN)  
 - [x] No other-repo work  
 
-**Gate status:** bookkeeping complete. **Not open for flash** until Jurien approves.
+**Gate status:** flash done. **Hand off to HUMAN tests.**
 
 ## Jurien decisions needed
 
-1. Approve **SPRINT-2026-08-09-HWB-D** (software clear → flash → test)?  
-2. Approve **flash** now (or say when)?  
-3. After flash — start the **test list** (RT-005/007/008/043/044/045)?  
-4. Optional open Qs: Windows firewall UDP 4210 OK? Which **first real sender** product next?
+1. ~~Approve Sprint D / flash~~ — **done** (approved x2)  
+2. **Start the test list** — RT-005 / RT-007 / RT-008 / RT-043 / RT-044 / RT-045  
+3. Optional open Qs: Windows firewall UDP 4210 OK? Which **first real sender** product next?

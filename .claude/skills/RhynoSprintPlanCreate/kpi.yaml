@@ -91,7 +91,8 @@ sprints:
     opened_at: 2026-08-09T18:30:00+02:00
     closed_at: null
     plan: docs/superpowers/plans/2026-08-09-weighsoft-hardware-base-software-clear-sprint.md
-    planned_rt:
+    planned_rt: []
+    completed_rt:
       - RT-046
     waiting_rt:
       - RT-005
@@ -105,8 +106,8 @@ sprints:
       - RT-019
       - RT-040
     note: >-
-      Audit — no remaining software build RTs. Gate asks Jurien approve flash then tests.
-      Questions + training log persisted. Do not mix RS485.
+      Jurien approved x2. RT-046 flash shipped via HTTP /rest/uploadFirmware to 192.168.2.67
+      (sketch 915072; discovery REST OK). Hand off HUMAN tests. Do not mix RS485.
 
 improvements:
   - id: KPI-010

@@ -22,13 +22,15 @@
 | 2026-08-09 | Create test list + questions section; save for training/KPI | Jurien | living list ### tests / ### questions |
 | 2026-08-09 | Do not mix RS485-CanHatPi5DJB-W1X into HWB sprint | Jurien / process | sprint D out of scope |
 | 2026-08-09 | Never commit `data/config/wifiSettings.json` | standing rule | dirty-tree audits |
+| 2026-08-09 | **Approved x2** — Sprint D + flash now | Jurien | RT-046; HWB-D gate |
+| 2026-08-09 | Flash delivered via HTTP `/rest/uploadFirmware` to 192.168.2.67 | agent | sketch 915072; discovery REST OK |
 
 ## Software clear snapshot (HWB-D audit)
 
 - Open software planned/build for this repo: **none**  
 - Later parked: RT-010, RT-019, RT-040  
 - Waiting field tests: RT-005, RT-007, RT-008, RT-043, RT-044, RT-045  
-- Flash: RT-046 planned — wait Jurien approve  
+- Flash: RT-046 **complete** — HTTP flash 2026-08-09 ~18:35; hand off tests
 
 ## Field outcomes (placeholders — fill after Jurien tests)
 

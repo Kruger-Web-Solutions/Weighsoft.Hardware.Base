@@ -56,3 +56,25 @@ P1–P7 **DELIVERED** (PR #6–#10). Flash done (USB COM4). Field checks carried
 **KPI:** KPI-014, KPI-015 **shipped**; KPI-016 / RT-040 parked later  
 
 **Out of scope held:** RS485 other repo; per-PLU count  
+
+## Sprint D — Software clear → flash → HUMAN tests
+
+**Plan:** `docs/superpowers/plans/2026-08-09-weighsoft-hardware-base-software-clear-sprint.md`  
+**Sprint id:** `SPRINT-2026-08-09-HWB-D`  
+**Status:** Software clear done; **flash DELIVERED**; field tests **needs:human**  
+**Gate:** Jurien **approved x2** (sprint D + flash) 2026-08-09 ~18:30  
+
+| Phase | State | RT | Notes |
+|-------|-------|-----|-------|
+| P1 Software inventory | **DELIVERED** | audit | No remaining planned/build software RTs |
+| P2 Doc gaps | **DELIVERED** | KPI-019 | UDP 4210 firewall note + job-wide count |
+| P3 Flash | **DELIVERED** | RT-046 | HTTP `/rest/uploadFirmware` to `192.168.2.67` |
+| P4 HUMAN test list | **needs:human** | RT-005/007/008/043/044/045 | Waiting on Jurien |
+| P5 Questions + training | **DELIVERED** | RT-047… | Store + training log + KPI-017…019 |
+
+**Flash:** Existing `esp12e` `firmware.bin` (915072, built 2026-08-09 17:57 from `780825e`). Kill Python; JWT `signIn`; HTTP POST `/rest/uploadFirmware` → **200**. Post-flash: ping OK, HTTP root **200**, `GET /rest/liveWeightDiscovery` → `udp_ready=true`, `last_send_ok=true`, `unicast_to_client_ok=true`, host `esp8266-relayboard`, id `97cbc0`, heap free ~16.5 KB. WiFi secrets not committed.
+
+**Next:** Jurien starts test list **RT-005 / RT-007 / RT-008 / RT-043 / RT-044 / RT-045**.
+
+**KPI:** KPI-017, KPI-018, KPI-019 **shipped** (bookkeeping); flash RT-046 complete  
+
