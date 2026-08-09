@@ -2,10 +2,15 @@
 #define RelayBoardService_h
 
 #include <functional>
+#include <Features.h>
 #include <HttpEndpoint.h>
+#if FT_ENABLED(FT_MQTT)
 #include <MqttPubSub.h>
+#endif
 #include <WebSocketTxRx.h>
 #include <SettingValue.h>
+
+class AsyncMqttClient;
 
 // LC-style ESP-12F 4-ch relay board (verify with click test)
 #ifndef RELAY1_PIN
@@ -22,11 +27,9 @@
 #endif
 
 // ESP12F_Relay_X4: transistor drive, HIGH energizes relay
-// (confirmed by Tasmota/ESPHome device configs for LC-Relay-ESP12-4R-MV)
 #define RELAY_ON HIGH
 #define RELAY_OFF LOW
 
-// Digital inputs on the IO4 / IO5 breakout pins (INPUT_PULLUP, close to GND = active)
 #ifndef DI1_PIN
 #define DI1_PIN 4
 #endif
@@ -103,15 +106,16 @@ class RelayBoardService : public StatefulService<RelayBoardState> {
   void begin();
   void loop();
 
-  // Live Weight range control: turn on one of three mapped relays (1–4), others in the map off
   void setWeightBandRelays(uint8_t relayLow, uint8_t relayOk, uint8_t relayHigh, uint8_t zone);
   void setDiEdgeCallback(DiEdgeCallback cb);
 
  private:
   HttpEndpoint<RelayBoardState> _httpEndpoint;
+#if FT_ENABLED(FT_MQTT)
   MqttPubSub<RelayBoardState> _mqttPubSub;
-  WebSocketTxRx<RelayBoardState> _webSocket;
   AsyncMqttClient* _mqttClient;
+#endif
+  WebSocketTxRx<RelayBoardState> _webSocket;
   AsyncWebServer* _server;
   SecurityManager* _securityManager;
   DiEdgeCallback _diEdgeCallback;
@@ -121,7 +125,9 @@ class RelayBoardService : public StatefulService<RelayBoardState> {
   String _mqttUniqueId;
   unsigned long _lastDiPoll = 0;
 
+#if FT_ENABLED(FT_MQTT)
   void configureMqtt();
+#endif
   void onConfigUpdated();
   void applyOutputs();
   void pollInputs();

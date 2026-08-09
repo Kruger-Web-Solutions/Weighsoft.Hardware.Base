@@ -17,7 +17,7 @@ import {
 import { FormLoader, SectionContent } from '../../components';
 import { useWs } from '../../utils';
 
-import { updateLiveWeight } from './api';
+import { readLiveWeight, updateLiveWeight, updateLiveWeightConfig } from './api';
 import './liveWeight.css';
 import { LIVE_WEIGHT_WS_URL } from './LiveWeightScreen';
 import {
@@ -128,8 +128,9 @@ const LiveWeightTarget: FC = () => {
     setSaving(true);
     setMessage(null);
     try {
-      const res = await updateLiveWeight(payload);
-      updateData(res.data);
+      await updateLiveWeightConfig(payload);
+      const live = await readLiveWeight();
+      updateData(live.data);
       setMessage('Saved');
     } catch {
       setMessage('Save failed');

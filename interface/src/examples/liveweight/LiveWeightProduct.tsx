@@ -1,8 +1,9 @@
-import { FC, useCallback, useEffect, useRef, useState } from 'react';
+import { FC, useCallback, useContext, useEffect, useRef, useState } from 'react';
 
 import { Alert, Box, Button, TextField, Typography } from '@mui/material';
 
 import { FormLoader, SectionContent } from '../../components';
+import { AuthenticationContext } from '../../contexts/authentication';
 import { useWs } from '../../utils';
 
 import {
@@ -27,18 +28,18 @@ const DEMO_CATALOG: LiveWeightProductEntry[] = [
   { plu: '21', product: 'Washer', unit: 'kg' }
 ];
 
+const EMPTY_DRAFT = { plu: '', product: '', count: 1, unit: 'kg' };
+
 type CatalogSource = 'none' | 'loading' | 'live' | 'demo' | 'error';
 
 const LiveWeightProduct: FC = () => {
+  const { me } = useContext(AuthenticationContext);
+  const isLoggedIn = !!me;
   const { connected, data, updateData } = useWs<LiveWeightState>(LIVE_WEIGHT_WS_URL);
   const [demoMode, setDemoMode] = useState(false);
   const [local, setLocal] = useState<LiveWeightState>(DEMO_LIVE_WEIGHT);
-  const [draft, setDraft] = useState({
-    plu: DEMO_LIVE_WEIGHT.plu,
-    product: DEMO_LIVE_WEIGHT.product,
-    count: DEMO_LIVE_WEIGHT.count,
-    unit: DEMO_LIVE_WEIGHT.unit
-  });
+  // Empty until board WS / catalog — never flash Screw M6 as "live" active PLU.
+  const [draft, setDraft] = useState(EMPTY_DRAFT);
   // Empty until board load or explicit demo — do not flash DEMO_CATALOG on remount.
   const [catalog, setCatalog] = useState<LiveWeightProductEntry[]>([]);
   const [catalogSource, setCatalogSource] = useState<CatalogSource>('none');
@@ -47,6 +48,8 @@ const LiveWeightProduct: FC = () => {
   const [message, setMessage] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const liveLoadSucceeded = useRef(false);
+  const pluSyncedRef = useRef(false);
+  const boardStateRef = useRef<LiveWeightState | undefined>(undefined);
 
   useEffect(() => {
     if (!connected) {
@@ -57,17 +60,74 @@ const LiveWeightProduct: FC = () => {
     return undefined;
   }, [connected]);
 
-  const state = demoMode ? local : data || DEMO_LIVE_WEIGHT;
+  // Prefer board WS; never treat DEMO_LIVE_WEIGHT as live active PLU while waiting.
+  const state = demoMode ? local : data;
   const boardOnline = connected && !demoMode;
+  boardStateRef.current = data;
+
+  const statePlu = state?.plu;
+  const stateProduct = state?.product;
+  const stateCount = state?.count;
+  const stateUnit = state?.unit;
 
   useEffect(() => {
+    if (statePlu === undefined && stateProduct === undefined) {
+      return;
+    }
     setDraft({
-      plu: state.plu || '',
-      product: state.product || '',
-      count: state.count ?? 1,
-      unit: state.unit || 'kg'
+      plu: statePlu || '',
+      product: stateProduct || '',
+      count: stateCount ?? 1,
+      unit: stateUnit || 'kg'
     });
-  }, [state.plu, state.product, state.count, state.unit, demoMode, connected]);
+  }, [statePlu, stateProduct, stateCount, stateUnit, demoMode, connected]);
+
+  const syncActiveFromCatalog = useCallback(async (products: LiveWeightProductEntry[]) => {
+    if (!products.length || pluSyncedRef.current) {
+      return;
+    }
+    const board = boardStateRef.current;
+    // Wait for live WS state so we do not overwrite a valid board PLU with catalog[0].
+    if (!board) {
+      return;
+    }
+    const boardPlu = (board.plu || '').trim();
+    const inCatalog = boardPlu !== '' && products.some((p) => p.plu === boardPlu);
+    if (inCatalog) {
+      const match = products.find((p) => p.plu === boardPlu)!;
+      setDraft((prev) => ({
+        ...prev,
+        plu: match.plu,
+        product: match.product,
+        unit: match.unit || prev.unit || 'kg',
+        count: board.count ?? prev.count
+      }));
+      pluSyncedRef.current = true;
+      return;
+    }
+    // Board PLU missing / stale demo — select first catalog entry (public select).
+    const first = products[0];
+    try {
+      await selectLiveWeightProduct(first.plu);
+      setDraft((prev) => ({
+        ...prev,
+        plu: first.plu,
+        product: first.product,
+        unit: first.unit || 'kg',
+        count: board.count ?? prev.count
+      }));
+      setMessage(`Active PLU synced: ${first.plu}`);
+    } catch {
+      setDraft((prev) => ({
+        ...prev,
+        plu: first.plu,
+        product: first.product,
+        unit: first.unit || 'kg'
+      }));
+      setMessage(`Showing catalog PLU ${first.plu} (select may have failed)`);
+    }
+    pluSyncedRef.current = true;
+  }, []);
 
   const refreshCatalog = useCallback(async () => {
     setCatalogSource((prev) => (prev === 'live' ? 'live' : 'loading'));
@@ -82,19 +142,26 @@ const LiveWeightProduct: FC = () => {
       setTxCount(txRes.data.count ?? 0);
       setCatalogSource('live');
       liveLoadSucceeded.current = true;
+      await syncActiveFromCatalog(products);
     } catch (err: unknown) {
       const status = (err as { response?: { status?: number; data?: { error?: string } } })?.response;
       const detail =
         status?.data?.error ||
         (status?.status ? `HTTP ${status.status}` : 'Could not load catalog from board');
       setLoadError(detail);
+      // Keep last good catalog — do not wipe to empty/demo
       setCatalogSource(liveLoadSucceeded.current ? 'live' : 'error');
-      setMessage(`Catalog load failed: ${detail}`);
+      setMessage(
+        liveLoadSucceeded.current
+          ? `Catalog refresh failed (showing last list): ${detail}`
+          : `Catalog load failed: ${detail}`
+      );
     }
-  }, []);
+  }, [syncActiveFromCatalog]);
 
   useEffect(() => {
     if (boardOnline) {
+      pluSyncedRef.current = false;
       void refreshCatalog();
       return;
     }
@@ -107,8 +174,21 @@ const LiveWeightProduct: FC = () => {
       setTxCount(0);
       setCatalogSource('demo');
       setLoadError(null);
+      setDraft({
+        plu: DEMO_LIVE_WEIGHT.plu,
+        product: DEMO_LIVE_WEIGHT.product,
+        count: DEMO_LIVE_WEIGHT.count,
+        unit: DEMO_LIVE_WEIGHT.unit
+      });
     }
   }, [boardOnline, demoMode, refreshCatalog]);
+
+  // When WS state arrives after catalog, re-check PLU membership once.
+  useEffect(() => {
+    if (boardOnline && catalogSource === 'live' && catalog.length > 0 && data && !pluSyncedRef.current) {
+      void syncActiveFromCatalog(catalog);
+    }
+  }, [boardOnline, catalog, catalogSource, data, syncActiveFromCatalog]);
 
   const saveActive = async () => {
     const payload = {
@@ -245,6 +325,8 @@ const LiveWeightProduct: FC = () => {
     );
   }
 
+  const totalDisplay = `${state?.total || state?.weight || '—'} ${state?.unit || draft.unit || 'kg'}`;
+
   const showLiveBanner = catalogSource === 'live' || (boardOnline && catalogSource === 'loading');
   const showDemoBanner = catalogSource === 'demo' || (demoMode && !liveLoadSucceeded.current && !boardOnline);
 
@@ -311,7 +393,7 @@ const LiveWeightProduct: FC = () => {
               <TextField
                 size="small"
                 label="Total"
-                value={`${state.total || state.weight || '—'} ${state.unit || 'kg'}`}
+                value={totalDisplay}
                 InputProps={{ readOnly: true }}
                 helperText="Derived on the board (count × weight)"
               />
@@ -321,16 +403,18 @@ const LiveWeightProduct: FC = () => {
               <Button variant="contained" onClick={saveActive} disabled={saving}>
                 Save active
               </Button>
-              <Button
-                variant="outlined"
-                onClick={saveToCatalog}
-                disabled={
-                  saving ||
-                  (boardOnline && catalog.length >= MAX_PRODUCTS && !catalog.some((p) => p.plu === draft.plu.trim()))
-                }
-              >
-                Save to catalog
-              </Button>
+              {isLoggedIn && (
+                <Button
+                  variant="outlined"
+                  onClick={saveToCatalog}
+                  disabled={
+                    saving ||
+                    (boardOnline && catalog.length >= MAX_PRODUCTS && !catalog.some((p) => p.plu === draft.plu.trim()))
+                  }
+                >
+                  Save to catalog
+                </Button>
+              )}
               {message && (
                 <Typography variant="body2" color="text.secondary">
                   {message}
@@ -377,9 +461,11 @@ const LiveWeightProduct: FC = () => {
                       <Button size="small" onClick={() => selectProduct(entry)} disabled={saving}>
                         Use
                       </Button>
-                      <Button size="small" color="error" onClick={() => removeProduct(entry.plu)} disabled={saving}>
-                        Delete
-                      </Button>
+                      {isLoggedIn && (
+                        <Button size="small" color="error" onClick={() => removeProduct(entry.plu)} disabled={saving}>
+                          Delete
+                        </Button>
+                      )}
                     </Box>
                   </Box>
                 ))}

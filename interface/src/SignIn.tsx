@@ -1,12 +1,14 @@
 import { FC, useContext, useState } from 'react';
+import { Link as RouterLink } from 'react-router-dom';
 import { ValidateFieldsError } from 'async-validator';
 import { useSnackbar } from 'notistack';
 
-import { Box, Fab, Paper, Typography, useTheme } from '@mui/material';
+import { Box, Button, Fab, Paper, Typography, useTheme } from '@mui/material';
 import ForwardIcon from '@mui/icons-material/Forward';
+import ScaleIcon from '@mui/icons-material/Scale';
 
 import * as AuthenticationApi from './api/authentication';
-import { PROJECT_NAME } from './api/env';
+import { PROJECT_NAME, PROJECT_PATH } from './api/env';
 import { SignInRequest } from './types';
 import { ValidatedTextField } from './components';
 import { SIGN_IN_REQUEST_VALIDATOR, validate } from './validators';
@@ -106,6 +108,18 @@ const SignIn: FC = () => {
           <ForwardIcon sx={{ mr: 1 }} />
           Sign In
         </Fab>
+        <Button
+          component={RouterLink}
+          to={`/${PROJECT_PATH}/live-weight/live`}
+          startIcon={<ScaleIcon />}
+          sx={{ mt: 2 }}
+          fullWidth
+        >
+          Open Live Weight (no login)
+        </Button>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+          Operator weigh / PLU / DI — settings need Sign In
+        </Typography>
       </Paper>
     </Box>
   );

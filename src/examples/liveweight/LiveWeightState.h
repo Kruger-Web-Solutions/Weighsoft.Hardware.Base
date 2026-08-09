@@ -231,92 +231,11 @@ class LiveWeightState {
     return StateUpdateResult::CHANGED;
   }
 
+  // Public / operator endpoint: PLU, count, weight, DI actions only.
+  // Config (baud, range, printer IP, DI map, etc.) → updateConfig + /rest/liveWeightConfig (auth).
   static StateUpdateResult update(JsonObject& root, LiveWeightState& state) {
     bool changed = false;
 
-    if (root.containsKey("source")) {
-      LiveWeightSource s = sourceFromValue((int)root["source"]);
-      if (s != state.source) {
-        state.source = s;
-        changed = true;
-      }
-    }
-    if (root.containsKey("baud_rate")) {
-      uint32_t v = root["baud_rate"];
-      if (v >= LIVE_WEIGHT_MIN_BAUD && v <= LIVE_WEIGHT_MAX_BAUD && v != state.baudrate) {
-        state.baudrate = v;
-        changed = true;
-      }
-    }
-    if (root.containsKey("regex_pattern")) {
-      String v = root["regex_pattern"].as<String>();
-      if (v != state.regexPattern) {
-        state.regexPattern = v;
-        changed = true;
-      }
-    }
-    if (root.containsKey("rs485_enabled")) {
-      bool v = root["rs485_enabled"];
-      if (v != state.rs485Enabled) {
-        state.rs485Enabled = v;
-        changed = true;
-      }
-    }
-    if (root.containsKey("rs485_address")) {
-      uint8_t v = root["rs485_address"];
-      if (v != state.rs485Address) {
-        state.rs485Address = v;
-        changed = true;
-      }
-    }
-    if (root.containsKey("range_enabled")) {
-      bool v = root["range_enabled"];
-      if (v != state.rangeEnabled) {
-        state.rangeEnabled = v;
-        changed = true;
-      }
-    }
-    if (root.containsKey("range_low")) {
-      float v = root["range_low"];
-      if (v != state.rangeLow) {
-        state.rangeLow = v;
-        changed = true;
-      }
-    }
-    if (root.containsKey("range_high")) {
-      float v = root["range_high"];
-      if (v != state.rangeHigh) {
-        state.rangeHigh = v;
-        changed = true;
-      }
-    }
-    if (state.rangeHigh < state.rangeLow) {
-      float t = state.rangeLow;
-      state.rangeLow = state.rangeHigh;
-      state.rangeHigh = t;
-      changed = true;
-    }
-    if (root.containsKey("relay_low")) {
-      uint8_t v = clampRelay((int)root["relay_low"], state.relayLow);
-      if (v != state.relayLow) {
-        state.relayLow = v;
-        changed = true;
-      }
-    }
-    if (root.containsKey("relay_ok")) {
-      uint8_t v = clampRelay((int)root["relay_ok"], state.relayOk);
-      if (v != state.relayOk) {
-        state.relayOk = v;
-        changed = true;
-      }
-    }
-    if (root.containsKey("relay_high")) {
-      uint8_t v = clampRelay((int)root["relay_high"], state.relayHigh);
-      if (v != state.relayHigh) {
-        state.relayHigh = v;
-        changed = true;
-      }
-    }
     if (root.containsKey("plu")) {
       String v = root["plu"].as<String>();
       if (v != state.plu) {
@@ -345,48 +264,10 @@ class LiveWeightState {
         changed = true;
       }
     }
-    if (root.containsKey("di1_action")) {
-      String v = normalizeAction(root["di1_action"].as<String>());
-      if (v != state.di1Action) {
-        state.di1Action = v;
-        changed = true;
-      }
-    }
-    if (root.containsKey("di2_action")) {
-      String v = normalizeAction(root["di2_action"].as<String>());
-      if (v != state.di2Action) {
-        state.di2Action = v;
-        changed = true;
-      }
-    }
     if (root.containsKey("job_running")) {
       bool v = root["job_running"];
       if (v != state.jobRunning) {
         state.jobRunning = v;
-        changed = true;
-      }
-    }
-    if (root.containsKey("printer_enabled")) {
-      bool v = root["printer_enabled"];
-      if (v != state.printerEnabled) {
-        state.printerEnabled = v;
-        changed = true;
-      }
-    }
-    if (root.containsKey("printer_ip")) {
-      String v = root["printer_ip"].as<String>();
-      if (v != state.printerIp) {
-        state.printerIp = v;
-        changed = true;
-      }
-    }
-    if (root.containsKey("printer_port")) {
-      uint32_t port = root["printer_port"];
-      if (port == 0 || port > 65535) {
-        port = 9100;
-      }
-      if ((uint16_t)port != state.printerPort) {
-        state.printerPort = (uint16_t)port;
         changed = true;
       }
     }

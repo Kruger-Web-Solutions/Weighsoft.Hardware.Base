@@ -1,17 +1,22 @@
 #ifndef LiveWeightService_h
 #define LiveWeightService_h
 
+#include <Features.h>
 #include <HttpEndpoint.h>
 #include <FSPersistence.h>
+#if FT_ENABLED(FT_MQTT)
 #include <MqttPubSub.h>
+#endif
 #include <WebSocketTxRx.h>
 #include <SettingValue.h>
 #include <examples/liveweight/LiveWeightState.h>
 #include <examples/liveweight/LiveWeightDiscovery.h>
 
 class RelayBoardService;
+class AsyncMqttClient;
 
 #define LIVE_WEIGHT_ENDPOINT_PATH "/rest/liveWeight"
+#define LIVE_WEIGHT_CONFIG_ENDPOINT_PATH "/rest/liveWeightConfig"
 #define LIVE_WEIGHT_SOCKET_PATH "/ws/liveWeight"
 #define LIVE_WEIGHT_CONFIG_FILE "/config/liveWeight.json"
 #define LIVE_WEIGHT_PRODUCTS_FILE "/config/products.json"
@@ -45,10 +50,13 @@ class LiveWeightService : public StatefulService<LiveWeightState> {
 
  private:
   HttpEndpoint<LiveWeightState> _httpEndpoint;
+  HttpEndpoint<LiveWeightState> _httpConfigEndpoint;
   FSPersistence<LiveWeightState> _fsPersistence;
+#if FT_ENABLED(FT_MQTT)
   MqttPubSub<LiveWeightState> _mqttPubSub;
-  WebSocketTxRx<LiveWeightState> _webSocket;
   AsyncMqttClient* _mqttClient;
+#endif
+  WebSocketTxRx<LiveWeightState> _webSocket;
   AsyncWebServer* _server;
   SecurityManager* _securityManager;
   FS* _fs;
@@ -85,7 +93,9 @@ class LiveWeightService : public StatefulService<LiveWeightState> {
   bool _printPending;
   unsigned long _lastSerialPublishMs;
 
+#if FT_ENABLED(FT_MQTT)
   void configureMqtt();
+#endif
   void onConfigUpdated();
   bool configChanged() const;
   bool sourceSettingsChanged() const;

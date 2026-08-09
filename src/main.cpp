@@ -1,6 +1,11 @@
 #include <ESP8266React.h>
+#include <Features.h>
 #include <examples/liveweight/LiveWeightService.h>
 #include <examples/relay/RelayBoardService.h>
+
+#if !FT_ENABLED(FT_MQTT)
+class AsyncMqttClient;
+#endif
 
 #define SERIAL_BAUD_RATE 115200
 
@@ -41,14 +46,18 @@ void setup() {
   Serial.println(F("[3/6] Framework initialized OK"));
 
   Serial.println(F("[4/6] Initializing relay board service..."));
-  relayBoardService =
-      new RelayBoardService(server, esp8266React->getSecurityManager(), esp8266React->getMqttClient());
+#if FT_ENABLED(FT_MQTT)
+  AsyncMqttClient* mqttClient = esp8266React->getMqttClient();
+#else
+  AsyncMqttClient* mqttClient = nullptr;
+#endif
+  relayBoardService = new RelayBoardService(server, esp8266React->getSecurityManager(), mqttClient);
   relayBoardService->begin();
   Serial.println(F("[4/6] Relay board service loaded OK"));
 
   Serial.println(F("[5/6] Initializing live weight service..."));
-  liveWeightService = new LiveWeightService(
-      server, esp8266React->getFS(), esp8266React->getSecurityManager(), esp8266React->getMqttClient());
+  liveWeightService =
+      new LiveWeightService(server, esp8266React->getFS(), esp8266React->getSecurityManager(), mqttClient);
   liveWeightService->setRelayBoardService(relayBoardService);
   liveWeightService->begin();
   relayBoardService->setDiEdgeCallback([](uint8_t di, bool active) {

@@ -11,7 +11,8 @@ import { PROJECT_PATH } from './env';
 export const SIGN_IN_PATHNAME = 'loginPathname';
 export const SIGN_IN_SEARCH = 'loginSearch';
 
-export const getDefaultRoute = (features: Features) => features.project ? `/${PROJECT_PATH}` : "/wifi";
+export const getDefaultRoute = (features: Features) =>
+  features.project ? `/${PROJECT_PATH}/live-weight/live` : "/wifi";
 
 export function verifyAuthorization(): AxiosPromise<void> {
   return AXIOS.get('/verifyAuthorization');

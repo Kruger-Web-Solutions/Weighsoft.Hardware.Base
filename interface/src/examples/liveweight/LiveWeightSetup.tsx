@@ -20,7 +20,7 @@ import { readWiFiSettings, readWiFiStatus } from '../../api/wifi';
 import { useWs } from '../../utils';
 import { WiFiConnectionStatus } from '../../types';
 
-import { updateLiveWeight } from './api';
+import { readLiveWeight, updateLiveWeight, updateLiveWeightConfig } from './api';
 import './liveWeight.css';
 import { LIVE_WEIGHT_WS_URL } from './LiveWeightScreen';
 import { DEMO_LIVE_WEIGHT, LiveWeightSourceId, LiveWeightState, SOURCE_OPTIONS } from './types';
@@ -115,8 +115,9 @@ const LiveWeightSetup: FC = () => {
     }
     setSaving(true);
     try {
-      const res = await updateLiveWeight({ ...state, ...patch });
-      updateData(res.data);
+      await updateLiveWeightConfig({ ...state, ...patch });
+      const live = await readLiveWeight();
+      updateData(live.data);
     } finally {
       setSaving(false);
     }
@@ -160,7 +161,7 @@ const LiveWeightSetup: FC = () => {
 
       <Alert severity="warning" sx={{ mb: 2 }}>
         <strong>Printer IP and port are not on Tech.</strong> Set them on{' '}
-        <Link component={RouterLink} to="/live-weight/target#network-printer" underline="always" fontWeight={700}>
+        <Link component={RouterLink} to="/project/live-weight/target#network-printer" underline="always" fontWeight={700}>
           Target & Relays → Network printer
         </Link>
         .
@@ -180,7 +181,7 @@ const LiveWeightSetup: FC = () => {
             size="small"
             variant="outlined"
             component={RouterLink}
-            to="/live-weight/target#network-printer"
+            to="/project/live-weight/target#network-printer"
           >
             Printer IP & port → Target & Relays
           </Button>
