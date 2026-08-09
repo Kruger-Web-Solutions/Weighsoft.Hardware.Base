@@ -9,9 +9,7 @@ interface RelayBoardTwin3DProps {
   state: RelayBoardState;
   powerOn?: boolean;
   uartLive?: boolean;
-  hasBuzzer?: boolean;
   onToggleRelay: (key: RelayKey) => void;
-  onToggleBuzzer?: () => void;
 }
 
 interface Tip {
@@ -42,7 +40,7 @@ const TIPS: Record<string, Tip> = {
   },
   esp: {
     title: 'ESP-12F (ESP8266MOD)',
-    body: 'WiFi MCU with PCB antenna. Drives K1–K4 via the RY jumpers, buzzer on GPIO15, reads DI on GPIO4/5.'
+    body: 'WiFi MCU with PCB antenna. Drives K1–K4 via the RY jumpers, reads DI on GPIO4/5.'
   },
   prog: {
     title: 'Programming header',
@@ -67,10 +65,6 @@ const TIPS: Record<string, Tip> = {
   leds: {
     title: 'Indicator LEDs',
     body: 'Power LED plus one red LED per relay channel, following the coil drive.'
-  },
-  buzzer: {
-    title: 'Buzzer add-on · GPIO15',
-    body: 'External buzzer on IO15. Firmware drives tone at 2 kHz when on (works for passive piezos). Quiet at boot. Click to beep.'
   },
   relay1: {
     title: 'K1 · Songle SRD-05VDC',
@@ -263,22 +257,11 @@ const DI2_PIPE = boardPath(
   3
 );
 
-const BUZZER_PIPE = boardPath(
-  [
-    [83, 141],
-    [20, 141],
-    [-38, 146]
-  ],
-  4
-);
-
 const RelayBoardTwin3D: FC<RelayBoardTwin3DProps> = ({
   state,
   powerOn = true,
   uartLive = false,
-  hasBuzzer = true,
-  onToggleRelay,
-  onToggleBuzzer
+  onToggleRelay
 }) => {
   const [tip, setTip] = useState<Tip | null>(null);
   const [uartBurst, setUartBurst] = useState(false);
@@ -305,7 +288,6 @@ const RelayBoardTwin3D: FC<RelayBoardTwin3DProps> = ({
   const bD = iso(0, 280);
   const thickness = 20;
 
-  const pBuzz = iso(-45, 148, 12);
   const relayStates = [state.relay1, state.relay2, state.relay3, state.relay4];
 
   return (
@@ -400,7 +382,6 @@ const RelayBoardTwin3D: FC<RelayBoardTwin3DProps> = ({
           <Pipe kind="uart" active={uartBurst || uartLive} duration="1.8s" packets={4} d={UART_PIPE} />
           <Pipe kind="di" active={state.di1} duration="1.2s" packets={2} d={DI1_PIPE} />
           <Pipe kind="di" active={state.di2} duration="1.2s" packets={2} d={DI2_PIPE} />
-          {hasBuzzer && <Pipe kind="gpio" active={state.buzzer} duration="1.1s" packets={2} d={BUZZER_PIPE} />}
           {RELAYS.map((r, i) => (
             <Pipe key={r.key} kind="gpio" active={state[r.key]} duration="1.6s" packets={3} d={relayPipe(i)} />
           ))}
@@ -412,25 +393,6 @@ const RelayBoardTwin3D: FC<RelayBoardTwin3DProps> = ({
             <text className="comp-label" x={iso(-100, -2).x - 60} y={iso(-100, -2).y + 26}>MAX3232</text>
             <text className="comp-sub" x={iso(-100, -2).x - 60} y={iso(-100, -2).y + 39}>USB-serial bridge</text>
           </g>
-
-          {/* ---------- buzzer add-on (off-board, left) ---------- */}
-          {hasBuzzer && (
-            <g
-              className="hit"
-              onMouseEnter={() => showTip('buzzer')}
-              onMouseLeave={hideTip}
-              onClick={() => onToggleBuzzer && onToggleBuzzer()}
-            >
-              {state.buzzer && (
-                <>
-                  <circle className="buzz-ring" cx={pBuzz.x} cy={pBuzz.y} r="15" />
-                  <circle className="buzz-ring buzz-ring-2" cx={pBuzz.x} cy={pBuzz.y} r="21" />
-                </>
-              )}
-              <Cyl u={-45} v={148} r={13} h={12} color="#14141c" topColor="#1e1e28" />
-              <ellipse cx={pBuzz.x} cy={pBuzz.y} rx="3.4" ry="2" fill={state.buzzer ? '#ffd54a' : '#2e2e3a'} />
-            </g>
-          )}
 
           {/* ---------- programming header (top-left) ---------- */}
           <g className="hit" onMouseEnter={() => showTip('prog')} onMouseLeave={hideTip}>
@@ -682,12 +644,10 @@ const RelayBoardTwin3D: FC<RelayBoardTwin3DProps> = ({
           {/* left-side callouts with leader lines */}
           <g style={{ pointerEvents: 'none' }}>
             <g stroke="#8fb0c8" strokeOpacity="0.45" strokeWidth="1">
-              <line x1="268" y1="149" x2="300" y2="155" />
               <line x1="268" y1="192" x2="398" y2="188" />
               <line x1="215" y1="236" x2="310" y2="200" />
               <line x1="242" y1="279" x2="260" y2="230" />
             </g>
-            <text className="comp-label" x="108" y="152">BUZZER · GPIO15</text>
             <text className="comp-label" x="108" y="195">DI 1 · DI 2 · GPIO4/5</text>
             <text className="comp-label" x="108" y="239">DC IN · 7-30V / 5V</text>
             <text className="comp-label" x="108" y="282">AC IN · L/N</text>
@@ -695,13 +655,13 @@ const RelayBoardTwin3D: FC<RelayBoardTwin3DProps> = ({
 
           {/* header text */}
           <text className="comp-label" x="26" y="26">ESP12F_Relay_X4 · digital twin</text>
-          <text className="comp-sub" x="26" y="42">hover a part · click a relay or the buzzer · packets = live signals</text>
+          <text className="comp-sub" x="26" y="42">hover a part · click a relay · packets = live signals</text>
         </svg>
 
         <div className="relay-iso-legend">
           <span><i className="relay-iso-dot pwr" /> Power rail</span>
           <span><i className="relay-iso-dot uart" /> UART / serial</span>
-          <span><i className="relay-iso-dot gpio" /> GPIO out (relay / buzzer)</span>
+          <span><i className="relay-iso-dot gpio" /> GPIO out (relay)</span>
           <span><i className="relay-iso-dot di" /> Digital input</span>
         </div>
       </div>

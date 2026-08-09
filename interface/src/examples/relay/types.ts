@@ -3,7 +3,6 @@ export interface RelayBoardState {
   relay2: boolean;
   relay3: boolean;
   relay4: boolean;
-  buzzer: boolean;
   di1: boolean;
   di2: boolean;
 }
@@ -30,7 +29,6 @@ export interface RelayBoardStatus {
   ip?: string;
   mac?: string;
   has_temp_sensor: boolean;
-  has_buzzer: boolean;
   power_led: string;
   relay_active: string;
   pins: {
@@ -40,7 +38,6 @@ export interface RelayBoardStatus {
     ry4: number;
     di1?: number;
     di2?: number;
-    buzzer?: number;
   };
   gpio_legend: Record<string, string>;
   relays: RelayBoardState;
@@ -51,7 +48,6 @@ export const DEMO_RELAY_STATE: RelayBoardState = {
   relay2: false,
   relay3: false,
   relay4: false,
-  buzzer: false,
   di1: false,
   di2: false
 };
@@ -78,10 +74,9 @@ export const DEMO_BOARD_STATUS: RelayBoardStatus = {
   ip: '192.168.4.1',
   mac: 'DE:MO:DE:MO:DE:MO',
   has_temp_sensor: false,
-  has_buzzer: true,
   power_led: 'hardwired',
   relay_active: 'high',
-  pins: { ry1: 16, ry2: 14, ry3: 12, ry4: 13, di1: 4, di2: 5, buzzer: 15 },
+  pins: { ry1: 16, ry2: 14, ry3: 12, ry4: 13, di1: 4, di2: 5 },
   gpio_legend: {
     '16': 'DO RY1',
     '14': 'DO RY2',
@@ -89,7 +84,7 @@ export const DEMO_BOARD_STATUS: RelayBoardStatus = {
     '13': 'DO RY4',
     '4': 'DI 1 (pullup)',
     '5': 'DI 2 (pullup)',
-    '15': 'DO buzzer',
+    '15': 'BOOT strap',
     '0': 'BOOT strap / flash',
     '2': 'BOOT strap',
     '1': 'TX0 UART',

@@ -1,15 +1,22 @@
-# Plan execution status — Live Weight operator UI
+# Plan execution status — Option A sprint
 
-**Plan:** `docs/superpowers/plans/2026-08-08-live-weight-operator-ui-phases.md`  
+**Plan:** `docs/superpowers/plans/2026-08-09-weighsoft-hardware-base-option-a-sprint.md`  
+**Sprint id:** `SPRINT-2026-08-09-HWB-A`  
 **Base:** `RelayBoardEspBuildIn`  
-**Updated:** 2026-08-08
+**Repo:** `Weighsoft.Hardware.Base`  
+**Updated:** 2026-08-09  
+**Gate policy:** auto-advance (Jurien opened via `/weighsoft-plan-execute`)
 
 | Phase | State | Branch / PR | Notes |
 |-------|-------|-------------|-------|
-| P1 Firmware | DELIVERED | [PR #3](https://github.com/Kruger-Web-Solutions/Weighsoft.Hardware.Base/pull/3) | DI + network print |
-| P2 Operator UI | DELIVERED | [PR #4](https://github.com/Kruger-Web-Solutions/Weighsoft.Hardware.Base/pull/4) | Tabs + hero dial |
-| P3 Twin + docs | DELIVERED | [PR #5](https://github.com/Kruger-Web-Solutions/Weighsoft.Hardware.Base/pull/5) | DI labels + docs |
-| P4 Device verify | **needs:human** | — | Flash + field check |
+| P0 Hygiene (buzzer strip commit) | active | — | Uncommitted strip → commit with P1 |
+| P1 Strip LED Example | active | — | RT-012 / KPI-004 |
+| P2 Harden serial | blocked-by-dep | — | RT-020 |
+| P3 Twin live + stats | blocked-by-dep | — | RT-014/015 |
+| P4 Tech Connect/Stop | blocked-by-dep | — | RT-016 |
+| P5 Printer UX | eligible (soft) | — | RT-017 — can parallel after P1 |
+| P6 OTA + docs | eligible (soft) | — | RT-009/021 |
+| P7 Catalog 9+40 | blocked-by-dep | — | RT-018 needs P1–2 |
+| P8 Field verify | **needs:human** | — | RT-005/007/008 |
 
-**Software roadmap:** shipped on `RelayBoardEspBuildIn`.  
-**Blocked on you:** USB flash (kill python → COM + IO0→GND + RST), then check dial, DI actions, buzzer, optional print.
+**Residual risk:** Board still runs old firmware until flash after merge. Phase 8 needs Jurien + printer IP.

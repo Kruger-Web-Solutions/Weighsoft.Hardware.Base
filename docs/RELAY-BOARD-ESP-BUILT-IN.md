@@ -11,7 +11,7 @@ Key facts confirmed from documentation:
 - Relay drive is **active HIGH** through jumper caps: RY1–RY4 pads sit next to GPIO16/14/12/13
   headers; any GPIO can drive any relay with a DuPont wire instead of the cap.
 - **GPIO16 pulses briefly at power-up** (hardware quirk), so RY1 clicks once at boot.
-  Community workaround: move the RY1 jumper to GPIO15 (we keep GPIO15 for the buzzer).
+  Community workaround: move the RY1 jumper to GPIO15 (unused for firmware outputs).
 - **GPIO5 carries the board's blue LED** (inverted) and GPIO2 the ESP module LED.
 - ADC pin exposed (0–1 V input range) — our firmware uses ADC in VCC mode instead.
 - Relays: Songle SRD-05VDC-SL-C, 10 A dry contacts (COM/NO/NC), AC 250 V / DC 30 V loads.
@@ -32,7 +32,7 @@ Key facts confirmed from documentation:
 | Breakouts | IO4, IO5, IO0, IO2, IO15, IO16, IO14, IO12, IO13 |
 | Serial adapter path | Laptop USB → Prolific USB-Serial → DB9 → MAX3232/MAX232 board → ESP header |
 | Onboard temp sensor | **None** on this PCB (twin reports supply VCC via ADC instead) |
-| Buzzer | Add-on on **GPIO15** — firmware uses `tone(2000)` / `noTone()` (passive piezos need a square wave; steady HIGH is often silent). Pulled low at boot. |
+| Buzzer | **Not used** — no firmware support (GPIO15 left as boot strap / free) |
 | Digital inputs | **DI1 = GPIO4**, **DI2 = GPIO5** (INPUT_PULLUP — close pin to GND to trigger; polled every 50 ms). Mapped in Live Weight to Print / Next / Start / Stop / None. |
 
 ## Default GPIO map (firmware)
@@ -45,12 +45,11 @@ LC-style ESP-12F 4-ch boards typically hard-wire:
 | RY2 | 14 | |
 | RY3 | 12 | |
 | RY4 | 13 | |
-| Buzzer | 15 | `tone(2000 Hz)` when enabled (GPIO15 pulled low at boot) |
 | DI1 | 4 | INPUT_PULLUP, close to GND = active |
 | DI2 | 5 | INPUT_PULLUP, close to GND = active |
 | Active level (relays) | **HIGH = ON** | Transistor drive via jumper caps (per Tasmota/ESPHome configs) |
 
-Avoid using GPIO0 / GPIO2 as outputs (boot strapping). GPIO15 is safe for an active-high load like the buzzer.
+Avoid using GPIO0 / GPIO2 / GPIO15 as outputs unless you know the boot-strap rules.
 
 ## Wiring diagram — programming / serial (photos)
 
@@ -104,7 +103,7 @@ In the web UI: **Project → Live Weight**
 | Tab | Who | Content |
 |-----|-----|---------|
 | **Live** | all | Big scale dial + Net weight + read-only PLU strip |
-| **Target & Relays** | all | Range low/high, UNDER/CORRECT/OVER → RY maps, DI1/DI2 actions, network printer IP:9100, buzzer test |
+| **Target & Relays** | all | Range low/high, UNDER/CORRECT/OVER → RY maps, DI1/DI2 actions, network printer IP:9100 |
 | **Product** | all | PLU, description, piece count, total |
 | **Tech** | admin | Weight source, baud, regex, test weight |
 | **How it connects** | admin | Connection help |
@@ -129,10 +128,9 @@ Endpoints: `/rest/liveWeight`, `/ws/liveWeight`.
 
 In the web UI: **Project → Relay Board Twin**
 
-- Isometric 3D board view: relays, PSU, transformer + caps, ESP-12F, UART header, buzzer, DI header, mounting holes
-- Live DO (relays + buzzer) control via WebSocket; animated signal packets on power / UART / GPIO / DI pipes
+- Isometric 3D board view: relays, PSU, transformer + caps, ESP-12F, UART header, DI header, mounting holes
+- Live DO (relays) control via WebSocket; animated signal packets on power / UART / GPIO / DI pipes
 - Live DI 1 / DI 2 state (GPIO4 / GPIO5), with Live Weight action labels when configured
-- Buzzer tip: GPIO15 — tone 2 kHz when on
 - ESP stats: heap, fragmentation, uptime, supply VCC, WiFi RSSI, IP, MAC, reset reason, flash, chip ID
 - Wiring tab with this diagram
 

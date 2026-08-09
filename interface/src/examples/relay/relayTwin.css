@@ -159,29 +159,6 @@
 .relay-iso-dot.pwr { background: #ffb34a; box-shadow: 0 0 8px #ffb34a; }
 .relay-iso-dot.di { background: #c77dff; box-shadow: 0 0 8px #c77dff; }
 
-.relay-iso-svg .buzz-ring {
-  fill: none;
-  stroke: #ffd54a;
-  stroke-width: 2;
-  opacity: 0.8;
-  animation: buzzRing 0.8s ease-out infinite;
-}
-
-.relay-iso-svg .buzz-ring-2 {
-  animation-delay: 0.4s;
-}
-
-@keyframes buzzRing {
-  0% { opacity: 0.9; transform: scale(1); }
-  100% { opacity: 0; transform: scale(1.6); }
-}
-
-.relay-iso-svg .buzz-ring,
-.relay-iso-svg .buzz-ring-2 {
-  transform-box: fill-box;
-  transform-origin: center;
-}
-
 .relay-iso-tip {
   position: absolute;
   left: 14px;
