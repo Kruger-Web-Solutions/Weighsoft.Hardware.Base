@@ -108,7 +108,7 @@ There is **no** “type sender IP here” discovery setting on the board.
 
 Data direction is unchanged.
 
-**REST** (authenticated — same as the web UI; default factory admin user):
+**REST** — `POST /rest/liveWeight` takes **no credentials**:
 
 ```http
 POST /rest/liveWeight
@@ -117,9 +117,53 @@ Content-Type: application/json
 { "weight": "1.50", "last_line": "SCALE,1.50" }
 ```
 
+> Corrected 2026-08-10. This section previously said the endpoint was
+> authenticated. It is not — verified against the running board, which accepts
+> the POST with no `Authorization` header. That matches the locked product
+> decision that **any LAN device may send weight** (RT-050): a sender should not
+> need to hold admin credentials just to report a number. The consequence is
+> real and worth stating plainly: **anyone on the same network can set the
+> displayed weight.** Config endpoints stay admin-only, so a stranger can move
+> the number but cannot change relay maps, the product catalog, or the printer.
+> On a trusted workshop LAN that is the intended trade-off. It is not suitable
+> for an untrusted network without putting the board behind its own VLAN.
+
 **WebSocket:** connect to `/ws/liveWeight` and send the same JSON fields (framework WebSocketTxRx protocol).
 
 Do **not** implement board-pulls-from-sender-IP.
+
+## Reference sender
+
+`scripts/send-weight.py` is a working sender for **any** device — Pi indicator,
+ESP bridge, or PC tool. Copy it or port its ~40 lines of real logic; the
+contract is what matters, not the language.
+
+```bash
+# one reading
+python scripts/send-weight.py --weight 12.34
+
+# a real scale, piped in - one reading per line, last number on the line wins
+cat /dev/ttyUSB0 | python scripts/send-weight.py --stdin
+
+# skip discovery when you already know where the board is
+python scripts/send-weight.py --host 192.168.2.55 --weight 12.34
+```
+
+It finds the board by name, falls back to the UDP announce, and **checks the
+board id before sending anything**. Exit codes: `0` sent · `2` board not found ·
+`3` something answered but it is not our board · `4` send failed.
+
+### Two behaviours worth copying into your own sender
+
+**Never drop the last reading.** Rate limiting protects the ESP8266, but a naive
+limiter discards the newest value — and on a scale the settled reading is the
+only one that matters. `send-weight.py` *coalesces* instead: it holds the most
+recent reading, sends it when the interval passes, and always flushes whatever
+is pending at end of stream.
+
+**Confirm identity, not reachability.** A stale IP can be answered by a totally
+different device that pings fine and serves nothing. Check `id` from
+`/rest/liveWeightDiscovery` before trusting an address.
 
 ## Security notes
 
