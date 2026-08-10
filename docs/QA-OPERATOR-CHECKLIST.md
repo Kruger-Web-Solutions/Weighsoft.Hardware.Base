@@ -2,21 +2,34 @@
 
 Use after a flash or when the automated smoke suite (`scripts/qa/operator-smoke.ps1`) has passed.
 
-**Board (lab):** http://192.168.2.67 · login `admin` / `admin` when needed
+**Board (lab):** http://esp8266-relayboard.local · login `admin` / `admin` when needed
+
+Use the **name**, not an IP address. The router hands the board a different IP over time
+(it has been `.3.117`, `.2.67`, `.2.55`). A stale IP is worse than a dead one: another
+device can take that address, answer ping, and serve nothing — which reads as a crashed
+board. The board's own id is **`97cbc0`** (last 6 of its MAC) and never changes.
 
 ## Before you start
 
 1. Run automated smoke:
 
    ```powershell
-   .\scripts\qa\operator-smoke.ps1 -BaseUrl http://192.168.2.67
+   .\scripts\qa\operator-smoke.ps1
    ```
 
-2. Confirm PASS summary (QA-001 … QA-012 as applicable).
+2. Confirm PASS summary (QA-000 … QA-012 as applicable).
+   **QA-000 is the identity check** — it fails if something other than our board answers.
+
+### If the board seems dead
+
+- [ ] Does the name resolve? `ping esp8266-relayboard.local` — the reply shows the current IP.
+- [ ] Check it is really ours: open `/rest/liveWeightDiscovery` and confirm `"id": "97cbc0"`.
+- [ ] A different `id`, or ping working while pages refuse, means **the address moved** — do
+      not power-cycle, just use the name.
 
 ## Browser / UI
 
-- [ ] Open http://192.168.2.67/project/live-weight/live **logged out** — page is **not blank** (shows Live Weight UI).
+- [ ] Open http://esp8266-relayboard.local/project/live-weight/live **logged out** — page is **not blank** (shows Live Weight UI).
 - [ ] Product tab shows **LIVE** catalog: Sand / Rock / Water (or current board products) — **not DEMO**.
 - [ ] Dial / weight area updates when weight is posted or scale sends data.
 

@@ -4,10 +4,14 @@
 Usage:
   python scripts/listen-weighsoft-announce.py
   python scripts/listen-weighsoft-announce.py --seconds 20
-  python scripts/listen-weighsoft-announce.py --rest http://192.168.2.67 --seconds 15
+  python scripts/listen-weighsoft-announce.py --rest http://esp8266-relayboard.local --seconds 15
 
 --rest signs in (admin/admin by default), GETs /rest/liveWeightDiscovery (triggers
 broadcast + unicast poke to this PC), and still listens on UDP.
+
+Use the hostname, not an IP - DHCP moves the board (it has been .3.117, .2.67, .2.55).
+A stale IP can be answered by a DIFFERENT device: it pings but serves no page.
+Confirm identity with /rest/liveWeightDiscovery -> "id" (last 6 of the board MAC).
 
 Manual IP fallback: point your sender at the board STA IP and POST
 {weight, last_line} to http://IP/rest/liveWeight (authenticated).
