@@ -287,6 +287,42 @@ else {
   }
 }
 
+# QA-014 CSV weigh report: header, a row per transaction, and a download filename.
+# Row count is compared against the JSON endpoint so a truncated stream is caught -
+# the report is streamed in chunks, and a silent short read would look like a small
+# but plausible report rather than an error.
+$rep = Invoke-BoardRequest -Method GET -Path "/rest/liveWeightReport"
+if ($rep.StatusCode -ne 200) {
+  Write-CheckResult -Id "QA-014" -Status "FAIL" -Detail ("GET /rest/liveWeightReport expected 200 got {0}" -f $rep.StatusCode)
+}
+else {
+  $csv = [string]$rep.Content
+  $lines = @($csv -split "`r?`n" | Where-Object { $_.Trim().Length -gt 0 })
+  $header = if ($lines.Count -gt 0) { $lines[0] } else { "" }
+  $rows = [Math]::Max(0, $lines.Count - 1)
+
+  $txNow = Invoke-BoardRequest -Method GET -Path "/rest/liveWeightTransactions"
+  $expectRows = if ($txNow.StatusCode -eq 200 -and $null -ne $txNow.Json.count) { [int]$txNow.Json.count } else { -1 }
+
+  $disp = ""
+  if ($rep.Headers -and $rep.Headers["Content-Disposition"]) {
+    $disp = [string]$rep.Headers["Content-Disposition"]
+  }
+
+  if ($header -notlike "timestamp_ms,reason,plu,product,weight,count,total,unit*") {
+    Write-CheckResult -Id "QA-014" -Status "FAIL" -Detail ("bad CSV header: '{0}'" -f $header)
+  }
+  elseif ($expectRows -ge 0 -and $rows -ne $expectRows) {
+    Write-CheckResult -Id "QA-014" -Status "FAIL" -Detail ("CSV has {0} rows, board reports {1} transactions - stream truncated?" -f $rows, $expectRows)
+  }
+  elseif ($disp -notlike "*attachment*" -or $disp -notlike "*.csv*") {
+    Write-CheckResult -Id "QA-014" -Status "FAIL" -Detail ("Content-Disposition missing/not a csv attachment: '{0}'" -f $disp)
+  }
+  else {
+    Write-CheckResult -Id "QA-014" -Status "PASS" -Detail ("CSV report {0} rows, matches transactions, downloads as a file" -f $rows)
+  }
+}
+
 # QA-006 guest product select
 if ($selectPlu) {
   $sel = Invoke-BoardRequest -Method POST -Path "/rest/liveWeightProducts" -Body @{
