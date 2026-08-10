@@ -2,6 +2,8 @@
 .clang_complete
 .gcc-flags.json
 *Thumbs.db
+__pycache__/
+*.pyc
 /data/www
 /lib/framework/WWWData.h
 /interface/build
