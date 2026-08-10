@@ -63,7 +63,23 @@ python scripts/listen-weighsoft-announce.py --rest http://BOARD_IP --seconds 15
 
 `--rest` signs in, GETs `/rest/liveWeightDiscovery` (board identity + triggers broadcast/unicast poke), and still listens on UDP. If the AP filters broadcast, REST still returns `ip` / `host` for adopt; use **manual IP** on the sender.
 
-**Windows firewall:** If the PC hear script gets nothing on UDP **4210**, check Windows Defender Firewall (or third-party firewall) for an inbound **UDP 4210** allow rule for Python / the script. Broadcast filtering on the AP is a separate issue — try `--rest` and manual IP when UDP stays silent.
+**Windows firewall:** If the PC hear script gets nothing on UDP **4210**, check Windows Defender Firewall (or third-party firewall) for an inbound **UDP 4210** allow rule for Python / the script.
+
+**Telling firewall from AP broadcast filtering apart** — they look identical from the script, but the fix is different:
+
+1. Run with `--rest`. That makes the board send a **unicast** poke straight back to this PC, on top of the broadcast.
+2. If the REST line prints `unicast_ok=True` but **nothing is heard**, the packet reached your machine and was dropped locally → **firewall on the PC**.
+3. If broadcast is silent but unicast arrives → **AP broadcast filtering / client isolation** → use `--rest` or manual IP on the sender.
+
+Confirmed on the dev PC 2026-08-10: WiFi adapter classified **Public**, Public profile **on**, no inbound rule for `python.exe` or port 4210 → both broadcast and unicast silent while the board reported `udp_ready / last_send_ok / unicast_ok` all true.
+
+Opening the port is a **security setting and the machine owner's call** — it is not done by any script in this repo. On that PC, as administrator:
+
+```powershell
+New-NetFirewallRule -DisplayName "Weighsoft LW announce (UDP 4210)" -Direction Inbound -Protocol UDP -LocalPort 4210 -Action Allow -Profile Private
+```
+
+Prefer marking the workshop WiFi **Private** over allowing the rule on **Public** — a Public profile rule opens the port on untrusted networks such as customer sites.
 
 ### 2) Optional — mDNS
 
