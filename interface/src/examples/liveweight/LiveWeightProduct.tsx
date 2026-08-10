@@ -9,6 +9,7 @@ import { useWs } from '../../utils';
 import {
   deleteLiveWeightProduct,
   LiveWeightProductEntry,
+  liveWeightReportUrl,
   readLiveWeightProducts,
   readLiveWeightTransactions,
   selectLiveWeightProduct,
@@ -428,6 +429,25 @@ const LiveWeightProduct: FC = () => {
           <div className="lw-card-head">
             Catalog ({catalog.length}/{MAX_PRODUCTS}) · Transactions {txCount}/{MAX_TX}
             {catalogSource === 'live' ? ' · LIVE' : catalogSource === 'demo' ? ' · DEMO' : ''}
+          </div>
+          <div className="lw-card-body">
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+              <Button
+                variant="contained"
+                color="primary"
+                size="small"
+                component="a"
+                href={liveWeightReportUrl()}
+                disabled={txCount === 0}
+              >
+                Download report (CSV)
+              </Button>
+              <Typography variant="body2" color="text.secondary">
+                {txCount === 0
+                  ? 'No weighs recorded yet — press Next or Print to record one.'
+                  : `${txCount} weigh${txCount === 1 ? '' : 's'} saved on the board. Opens in Excel.`}
+              </Typography>
+            </Box>
           </div>
           <div className="lw-card-body">
             {catalogSource === 'loading' && catalog.length === 0 ? (

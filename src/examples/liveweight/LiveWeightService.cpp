@@ -13,6 +13,42 @@
 #endif
 
 namespace {
+
+// One row of the CSV report at a time. Holding the open file plus a small
+// pending buffer keeps peak RAM at one row instead of the whole report.
+struct CsvPump {
+  File file;
+  String pending;
+  bool headerSent = false;
+};
+
+// RFC 4180 quoting. Product names are operator-typed, so a comma or a quote in
+// "Sand, washed" would otherwise shift every later column silently.
+String csvField(const String& value) {
+  bool mustQuote = false;
+  for (size_t i = 0; i < value.length(); i++) {
+    const char c = value[i];
+    if (c == ',' || c == '"' || c == '\n' || c == '\r') {
+      mustQuote = true;
+      break;
+    }
+  }
+  if (!mustQuote) {
+    return value;
+  }
+  String out = "\"";
+  for (size_t i = 0; i < value.length(); i++) {
+    const char c = value[i];
+    if (c == '"') {
+      out += "\"\"";  // a quote is escaped by doubling it
+    } else {
+      out += c;
+    }
+  }
+  out += '"';
+  return out;
+}
+
 regex_t s_cachedRegex;
 String s_cachedRegexPattern;
 bool s_regexReady = false;
@@ -939,6 +975,86 @@ void LiveWeightService::registerCatalogEndpoints() {
             }
             root["count"] = n;
             response->setLength();
+            request->send(response);
+          },
+          AuthenticationPredicates::NONE_REQUIRED));
+
+  // CSV report of the weigh log, for the operator to keep or send on.
+  // Streamed, never assembled in RAM: 40 rows is small today, but a String that
+  // size fragments a heap that has been observed at 5 KB under load (RT-080),
+  // and the row cap is a product decision that could rise later.
+  _server->on(
+      LIVE_WEIGHT_REPORT_PATH,
+      HTTP_GET,
+      _securityManager->wrapRequest(
+          [this](AsyncWebServerRequest* request) {
+            auto pump = std::make_shared<CsvPump>();
+            if (_fs && _fs->exists(LIVE_WEIGHT_TX_FILE)) {
+              pump->file = _fs->open(LIVE_WEIGHT_TX_FILE, "r");
+            }
+
+            AsyncWebServerResponse* response = request->beginChunkedResponse(
+                "text/csv",
+                [pump](uint8_t* buffer, size_t maxLen, size_t index) -> size_t {
+                  (void)index;
+                  if (!pump->headerSent) {
+                    pump->pending = F("timestamp_ms,reason,plu,product,weight,count,total,unit\n");
+                    pump->headerSent = true;
+                  }
+                  // Top the buffer up a row at a time so peak RAM is one row,
+                  // not one report.
+                  while (pump->pending.length() < maxLen && pump->file && pump->file.available()) {
+                    String line = pump->file.readStringUntil('\n');
+                    line.trim();
+                    if (!line.length()) {
+                      continue;
+                    }
+                    DynamicJsonDocument doc(256);
+                    if (deserializeJson(doc, line) != DeserializationError::Ok) {
+                      continue;  // a torn line must not abort the whole report
+                    }
+                    pump->pending += String((unsigned long)(doc["t"] | 0UL));
+                    pump->pending += ',';
+                    pump->pending += csvField(doc["reason"] | "");
+                    pump->pending += ',';
+                    pump->pending += csvField(doc["plu"] | "");
+                    pump->pending += ',';
+                    pump->pending += csvField(doc["product"] | "");
+                    pump->pending += ',';
+                    pump->pending += csvField(doc["weight"] | "");
+                    pump->pending += ',';
+                    pump->pending += String((unsigned long)(doc["count"] | 0UL));
+                    pump->pending += ',';
+                    pump->pending += csvField(doc["total"] | "");
+                    pump->pending += ',';
+                    pump->pending += csvField(doc["unit"] | "");
+                    pump->pending += '\n';
+                  }
+
+                  if (!pump->pending.length()) {
+                    if (pump->file) {
+                      pump->file.close();
+                    }
+                    return 0;  // nothing left: ends the response
+                  }
+                  size_t take = pump->pending.length() < maxLen ? pump->pending.length() : maxLen;
+                  memcpy(buffer, pump->pending.c_str(), take);
+                  pump->pending.remove(0, take);
+                  return take;
+                });
+
+            // Makes the browser save a file instead of rendering the text.
+            // Same id form the discovery endpoint reports, so the filename
+            // matches the board the operator sees on screen.
+#ifdef ESP8266
+            String boardId = String(ESP.getChipId(), HEX);
+#elif defined(ESP32)
+            String boardId = String((uint32_t)ESP.getEfuseMac(), HEX);
+#else
+            String boardId = "board";
+#endif
+            String filename = "weighsoft-report-" + boardId + ".csv";
+            response->addHeader("Content-Disposition", "attachment; filename=\"" + filename + "\"");
             request->send(response);
           },
           AuthenticationPredicates::NONE_REQUIRED));

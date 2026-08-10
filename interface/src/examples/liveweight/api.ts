@@ -58,3 +58,14 @@ export const deleteLiveWeightProduct = (plu: string): AxiosPromise<LiveWeightPro
 
 export const readLiveWeightTransactions = (): AxiosPromise<LiveWeightTransactionsResponse> =>
   AXIOS.get('/liveWeightTransactions');
+
+/**
+ * CSV of the weigh log. Deliberately NOT an AXIOS call — the board streams the
+ * file and sets Content-Disposition, so the browser must fetch it directly for
+ * the Save dialog to appear. Pulling it through axios would land it in memory
+ * as a string and lose the filename.
+ */
+export const liveWeightReportUrl = (): string => {
+  const base = AXIOS.defaults.baseURL ?? '/rest';
+  return `${base.replace(/\/$/, '')}/liveWeightReport`;
+};
