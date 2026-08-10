@@ -9,7 +9,9 @@
   Blank-screen UI fix is browser-only - QA-012 only checks HTTP/JS 404.
 
 .PARAMETER BaseUrl
-  Board base URL (no trailing slash). Default: http://192.168.2.67
+  Board base URL (no trailing slash). Default: http://esp8266-relayboard.local
+  Hostname, not an IP - DHCP moves the board (it has been .3.117, .2.67, .2.55).
+  Pass -BaseUrl http://<ip> if mDNS is unavailable on this network.
 
 .PARAMETER User
   Admin username for JWT checks. Default: admin
@@ -20,15 +22,23 @@
 .PARAMETER SkipSpa
   Skip QA-012 SPA shell check.
 
+.PARAMETER ExpectBoardId
+  Board id from /rest/liveWeightDiscovery (last 6 of the MAC). QA-000 fails if a
+  different device answers on this address. Pass "" to skip the identity check.
+
 .EXAMPLE
-  .\scripts\qa\operator-smoke.ps1 -BaseUrl http://192.168.2.67
+  .\scripts\qa\operator-smoke.ps1
+
+.EXAMPLE
+  .\scripts\qa\operator-smoke.ps1 -BaseUrl http://192.168.2.55
 #>
 [CmdletBinding()]
 param(
-  [string]$BaseUrl = "http://192.168.2.67",
+  [string]$BaseUrl = "http://esp8266-relayboard.local",
   [string]$User = "admin",
   [string]$Password = "admin",
-  [switch]$SkipSpa
+  [switch]$SkipSpa,
+  [string]$ExpectBoardId = "97cbc0"
 )
 
 $ErrorActionPreference = "Stop"
@@ -157,6 +167,26 @@ Write-Host "BaseUrl: $BaseUrl"
 Write-Host "User:    $User"
 Write-Host ("-" * 56)
 
+# Resolve the host first so the log shows WHICH machine answered.
+# 2026-08-10: DHCP moved the board off .67 and another device answered ping there -
+# looked exactly like a crashed web server. Always print the resolved address.
+$resolvedIp = $null
+try {
+  $hostName = ([System.Uri]$BaseUrl).Host
+  if ($hostName -as [System.Net.IPAddress]) {
+    $resolvedIp = $hostName
+  }
+  else {
+    $resolvedIp = ([System.Net.Dns]::GetHostAddresses($hostName) |
+      Where-Object { $_.AddressFamily -eq "InterNetwork" } |
+      Select-Object -First 1).IPAddressToString
+  }
+}
+catch { }
+if ($resolvedIp) { Write-Host ("Resolved: {0}" -f $resolvedIp) }
+else { Write-Host "Resolved: (name did not resolve)" }
+Write-Host ("-" * 56)
+
 # QA-001 reachability
 $root = Invoke-BoardRequest -Method GET -Path "/"
 if ($root.StatusCode -ge 200 -and $root.StatusCode -lt 500) {
@@ -167,7 +197,23 @@ else {
   Write-Host ""
   Write-Host ("SUMMARY  PASS={0}  FAIL={1}  SKIP={2}" -f $script:PassCount, $script:FailCount, $script:SkipCount) -ForegroundColor Red
   Write-Host "Board offline - remaining checks aborted."
+  Write-Host "If the address is hardcoded somewhere, try: -BaseUrl http://esp8266-relayboard.local"
   exit 2
+}
+
+# QA-000 identity - is this actually OUR board, or a different device on that address?
+$disc = Invoke-BoardRequest -Method GET -Path "/rest/liveWeightDiscovery"
+if (-not $ExpectBoardId) {
+  Write-CheckResult -Id "QA-000" -Status "SKIP" -Detail "identity check disabled"
+}
+elseif ($disc.StatusCode -ne 200 -or $null -eq $disc.Json) {
+  Write-CheckResult -Id "QA-000" -Status "FAIL" -Detail ("no discovery JSON (status={0}) - cannot confirm this is the board" -f $disc.StatusCode)
+}
+elseif ([string]$disc.Json.id -eq $ExpectBoardId) {
+  Write-CheckResult -Id "QA-000" -Status "PASS" -Detail ("board id={0} host={1} ip={2}" -f $disc.Json.id, $disc.Json.host, $disc.Json.ip)
+}
+else {
+  Write-CheckResult -Id "QA-000" -Status "FAIL" -Detail ("WRONG DEVICE: id={0} expected {1}. Something else holds this address." -f $disc.Json.id, $ExpectBoardId)
 }
 
 # QA-002 guest GET liveWeight

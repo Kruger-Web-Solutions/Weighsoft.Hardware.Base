@@ -40,9 +40,9 @@ When STA has an IP, the board broadcasts a small JSON packet every **5 seconds**
 |-------|---------|
 | `v` | Protocol version (1) |
 | `svc` | Service name — ignore packets where this ≠ `weighsoft-lw` |
-| `id` | Stable-ish board id (chip id hex) |
-| `host` | WiFi hostname |
-| `ip` | IPv4 to push weight to |
+| `id` | Stable board id (chip id hex) — **use this to confirm you found the right board**, it survives DHCP moves |
+| `host` | WiFi hostname — also reachable as `esp8266-relayboard.local` |
+| `ip` | IPv4 to push weight to. **Changes over time** (example above is illustrative) — re-read it from the announce rather than hardcoding, and never trust a remembered IP: another device can take it, answer ping, and serve nothing |
 | `http` | HTTP port (80) |
 | `rest` | Path for `POST` weight |
 | `ws` | WebSocket path for live weight |
