@@ -44,6 +44,9 @@ param(
 $ErrorActionPreference = "Stop"
 $BaseUrl = $BaseUrl.TrimEnd("/")
 
+# Ring size from LIVE_WEIGHT_MAX_TX. A full log stops growing, which must not read as a miss.
+$LiveWeightMaxTx = 40
+
 $script:PassCount = 0
 $script:FailCount = 0
 $script:SkipCount = 0
@@ -256,6 +259,33 @@ $weightBody = @{
 }
 $postLw = Invoke-BoardRequest -Method POST -Path "/rest/liveWeight" -Body $weightBody
 [void](Assert-Status -Id "QA-005" -Response $postLw -Expected @(200) -OkDetail "POST /rest/liveWeight 200")
+
+# QA-013 an on-screen "Next" must RECORD the weigh, not just bump the counter.
+# 2026-08-10: it did not. A DI press logged via handleDiAction; the REST/UI path bumped
+# the count and recorded nothing, so every weigh done from the screen was lost.
+$txBefore = 0
+$txPre = Invoke-BoardRequest -Method GET -Path "/rest/liveWeightTransactions"
+if ($txPre.StatusCode -eq 200 -and $null -ne $txPre.Json.count) {
+  $txBefore = [int]$txPre.Json.count
+}
+$trig = Invoke-BoardRequest -Method POST -Path "/rest/liveWeight" -Body @{ trigger_action = "next" }
+if ($trig.StatusCode -ne 200) {
+  Write-CheckResult -Id "QA-013" -Status "FAIL" -Detail ("trigger_action=next returned {0}" -f $trig.StatusCode)
+}
+else {
+  Start-Sleep -Milliseconds 1500   # the board defers the file write to its main loop
+  $txPost = Invoke-BoardRequest -Method GET -Path "/rest/liveWeightTransactions"
+  $txAfter = if ($txPost.StatusCode -eq 200 -and $null -ne $txPost.Json.count) { [int]$txPost.Json.count } else { -1 }
+  if ($txAfter -gt $txBefore) {
+    Write-CheckResult -Id "QA-013" -Status "PASS" -Detail ("on-screen Next logged the weigh ({0} -> {1})" -f $txBefore, $txAfter)
+  }
+  elseif ($txBefore -ge $LiveWeightMaxTx -and $txAfter -eq $txBefore) {
+    Write-CheckResult -Id "QA-013" -Status "PASS" -Detail ("log full at {0}, ring held steady - not a miss" -f $txAfter)
+  }
+  else {
+    Write-CheckResult -Id "QA-013" -Status "FAIL" -Detail ("on-screen Next did NOT log the weigh ({0} -> {1}). Weighs done from the screen are being lost." -f $txBefore, $txAfter)
+  }
+}
 
 # QA-006 guest product select
 if ($selectPlu) {
