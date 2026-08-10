@@ -386,7 +386,8 @@ else {
 Write-Host ("-" * 56)
 $color = if ($script:FailCount -gt 0) { "Red" } else { "Green" }
 Write-Host ("SUMMARY  PASS={0}  FAIL={1}  SKIP={2}" -f $script:PassCount, $script:FailCount, $script:SkipCount) -ForegroundColor $color
-Write-Host "Human still: RT-007 DI physical, RT-008 printer ticket, Product LIVE Sand/Rock/Water in browser."
+Write-Host "Human still: RT-008 printer ticket (needs a printer on the LAN)."
+Write-Host "Signed off: RT-007 DI physical (2026-08-10), Product LIVE catalog in browser."
 Write-Host "See docs/QA-OPERATOR-CHECKLIST.md"
 Write-Host ""
 
