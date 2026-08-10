@@ -185,6 +185,35 @@ password: [
 ]
 ```
 
+## Never commit device config
+
+`/data/config/` is written by the board at runtime and holds live credentials —
+WiFi password, JWT secret, user passwords, AP/OTA/MQTT passwords. It is
+gitignored. Do not remove that rule, and do not `git add -f` anything under it.
+
+This is not theoretical. On **2026-04-23** commit `de2104e` published
+`data/config/wifiSettings.json` containing a real password for SSID
+`Weighsoft`. The file was deleted in `e78061f`, but **deleting a file does not
+remove it from history** — the commit is still reachable on four pushed
+branches (`ALLinOneEspSerialdevice`, `SerialReaderWriter`,
+`pi-usb-reader-and-dashboard`, `serialReader`).
+
+Audited 2026-08-10 — the other credential-shaped values in history are upstream
+`esp8266-react` placeholders (Rick Watson, 2018–2020): `admin`/`guest`,
+`esp-react` for AP/OTA, and the `test.mosquitto.org` demo MQTT account. Those
+are public example values, not Weighsoft secrets. **The Weighsoft SSID password
+is the only genuine leak.**
+
+### If a credential reaches history
+
+1. **Rotate it.** This is the only step that actually works. Assume the old
+   value is public from the moment it is pushed.
+2. Confirm `/data/config/` is still gitignored so it cannot recur.
+3. History rewriting (`git filter-repo`, BFG) is **optional and secondary**. It
+   force-pushes every affected branch, breaks every existing clone, and still
+   leaves the old objects reachable by SHA on the host and in any fork or clone
+   already taken. It never substitutes for rotation.
+
 ## Default Credentials
 
 **CRITICAL**: Change these immediately in production!
@@ -193,6 +222,11 @@ password: [
 |----------|----------|------|------------|
 | admin | admin | Admin | CRITICAL |
 | guest | guest | User | HIGH |
+
+**Lab board status 2026-08-10:** still `admin`/`admin`. Anyone on the same WiFi
+can sign in as admin and change relay maps, printer target, and the product
+catalog. Acceptable on a closed bench; **not** acceptable once a board ships to
+a customer site.
 
 ### Changing Defaults
 

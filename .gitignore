@@ -4,6 +4,12 @@
 *Thumbs.db
 /data/www
 /lib/framework/WWWData.h
+
+# Device runtime config - NEVER commit. These are written by the board and hold
+# live credentials: wifiSettings.json (WiFi password), securitySettings.json
+# (JWT secret + user passwords), apSettings/otaSettings/mqttSettings (passwords).
+# A WiFi password reached the published history this way once already (2026-04-23).
+/data/config/
 /interface/build
 /interface/node_modules
 /interface/.eslintcache

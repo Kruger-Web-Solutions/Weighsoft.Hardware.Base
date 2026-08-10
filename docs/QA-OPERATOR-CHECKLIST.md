@@ -46,6 +46,11 @@ board. The board's own id is **`97cbc0`** (last 6 of its MAC) and never changes.
 - [ ] Enable network print; set printer IP/port.
 - [ ] Trigger Print or DI Print; confirm ESC/POS ticket on the printer.
 
+## Before handing a board to a customer
+
+- [ ] Admin and guest passwords changed off `admin` / `guest` (see `docs/SECURITY.md`).
+- [ ] No file under `data/config/` has been force-added to git.
+
 ## Sign-off
 
 | Check | Who | Date | Result |
