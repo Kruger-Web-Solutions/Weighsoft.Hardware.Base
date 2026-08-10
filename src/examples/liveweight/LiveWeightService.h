@@ -91,6 +91,7 @@ class LiveWeightService : public StatefulService<LiveWeightState> {
   uint8_t _lastDrivenZone;
   String _pendingAction;
   bool _printPending;
+  bool _txPending;
   unsigned long _lastSerialPublishMs;
 
 #if FT_ENABLED(FT_MQTT)

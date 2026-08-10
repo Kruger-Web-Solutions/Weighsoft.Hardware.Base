@@ -66,6 +66,10 @@ class LiveWeightState {
   uint16_t printerPort;
   // Runtime-only: set by update() when trigger_action=print; service sends TCP then clears.
   bool printRequested;
+  // Runtime-only: set by update() when trigger_action=next; service logs the weigh then clears.
+  // A DI press logs directly from handleDiAction; REST has to defer, because file I/O must not
+  // run inside the AsyncWebServer handler.
+  bool nextRequested;
 
   static String normalizeAction(const String& action) {
     String v = action;
@@ -282,6 +286,7 @@ class LiveWeightState {
         if (a == "next") {
           state.count++;
           state.statusMessage = "Next piece";
+          state.nextRequested = true;  // must log the weigh, same as a DI press
         } else if (a == "start") {
           state.jobRunning = true;
           state.statusMessage = "Job started";

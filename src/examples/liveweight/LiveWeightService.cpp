@@ -89,6 +89,7 @@ LiveWeightService::LiveWeightService(AsyncWebServer* server,
     _lastDrivenZone(255),
     _pendingAction(""),
     _printPending(false),
+    _txPending(false),
     _lastSerialPublishMs(0) {
 #if FT_ENABLED(FT_MQTT)
   _mqttBasePath = SettingValue::format("weighsoft/liveWeight/#{unique_id}");
@@ -107,6 +108,12 @@ LiveWeightService::LiveWeightService(AsyncWebServer* server,
         // Queue print from REST trigger_action — never block AsyncWebServer disconnect path
         if (_state.printRequested) {
           _printPending = true;
+        }
+        // Same for the weigh log. A DI press logs directly in handleDiAction; a REST/UI "next"
+        // reached here doing nothing, so on-screen Next incremented the count but recorded
+        // no transaction. File I/O is deferred to loop() for the same reason print is.
+        if (_state.nextRequested) {
+          _txPending = true;
         }
         if (originId == "serial_hw" || originId == "http" || originId == "mqtt" || originId.startsWith("websocket")) {
           if (configChanged()) {
@@ -195,6 +202,7 @@ void LiveWeightService::begin() {
   _state.printerIp = "";
   _state.printerPort = 9100;
   _state.printRequested = false;
+  _state.nextRequested = false;
   _state.weight = "";
   _state.lastLine = "";
   _state.timestamp = 0;
@@ -230,6 +238,16 @@ void LiveWeightService::loop() {
   if (_printPending) {
     _printPending = false;
     sendNetworkPrint();
+  }
+  if (_txPending) {
+    _txPending = false;
+    update(
+        [&](LiveWeightState& state) {
+          state.nextRequested = false;
+          return StateUpdateResult::CHANGED;
+        },
+        "next_logged");
+    appendTransaction("next");
   }
   if (_state.source == LIVE_WEIGHT_SOURCE_SERIAL) {
     readSerialLine();
