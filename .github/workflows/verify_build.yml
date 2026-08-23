@@ -11,24 +11,27 @@ on:
 jobs:
   build:
 
+    # This repo is PUBLIC and the org runner group does not allow public repos
+    # (correct: fork PRs must never run on our VMs). Stays GitHub-hosted unless the
+    # repo is made private, at which point switch to [self-hosted, Linux, X64, weighsoft-qa].
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - name: Cache pip
-      uses: actions/cache@v2
+      uses: actions/cache@v4
       with:
         path: ~/.cache/pip
         key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
         restore-keys: |
           ${{ runner.os }}-pip-
     - name: Cache PlatformIO
-      uses: actions/cache@v2
+      uses: actions/cache@v4
       with:
         path: ~/.platformio
         key: ${{ runner.os }}-${{ hashFiles('**/lockfiles') }}
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v5
     - name: Install PlatformIO
       run: |
         python -m pip install --upgrade pip
