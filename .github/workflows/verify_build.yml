@@ -11,7 +11,10 @@ on:
 jobs:
   build:
 
-    runs-on: [self-hosted, Linux, X64, weighsoft-qa]
+    # This repo is PUBLIC and the org runner group does not allow public repos
+    # (correct: fork PRs must never run on our VMs). Stays GitHub-hosted unless the
+    # repo is made private, at which point switch to [self-hosted, Linux, X64, weighsoft-qa].
+    runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v2
