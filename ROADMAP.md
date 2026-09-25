@@ -77,18 +77,15 @@ Neither is merged into `master`.
 
 ## Security: do this first
 
-- **Rhyno: change the WiFi passwords that have been committed to this repository.** This repository is public, so treat every committed password as known to anyone. The list of affected networks is kept in the private Scale Models project records, not here.
-- Until they are changed, do not share build output or `compile_commands.json` from any branch. A build copies the factory WiFi password into both.
+- This repository is public. Security follow-ups that involve real credentials are tracked in the private project records, not here. The general rules are in [docs/SECURITY.md](docs/SECURITY.md).
 - Replace the lab login `admin` / `admin` before any board goes to a customer.
 
 ---
 
 ## Agent work that needs no hardware
 
-- [x] CI fix written (`a4713ae`, `intelhex`). *Not proven until CI runs on a pull request.*
-- [x] `.gitignore` rule for device config (`data/config/`) and `compile_commands.json`. **Done for `master` only, once this branch is merged.** No device branch has it. It cannot stop a file git already tracks.
-- [ ] Bring that rule to `RelayBoardEspBuildIn` and `SerialReaderWriter`. For the relay line, the `data/config/` part already sits unmerged on branch `security/gitignore-device-config-and-credential-note` (`7ac9bd5`, 2026-08-10).
-- [ ] Stop tracking generated build files and device config on the device branches (`git rm --cached`), after the WiFi passwords are changed. Removing a file does not remove it from history.
+- [x] CI fix written (`intelhex`). *Not proven until CI runs on a pull request.*
+- [x] `.gitignore` rule for device config (`data/config/`) and `compile_commands.json` on `master`.
 - [x] Correct docs that named branches which do not exist (`serial2`, `display35`).
 - [ ] Make CI build the device branches too. Today it only runs for `master`.
 - [ ] Add automated firmware tests. None exist on any branch.
@@ -113,7 +110,7 @@ A branch existing does not mean it is in use. Where no record says what a branch
 |---|---|---|
 | `master` | 2026-08-23 | Shared framework + LED demo |
 | `RelayBoardEspBuildIn` | 2026-08-10 | Relay line. 71 commits not on `master` |
-| `security/gitignore-device-config-and-credential-note` | 2026-08-10 | 1 commit (`7ac9bd5`) not on `RelayBoardEspBuildIn`: the `data/config/` ignore rule. Not merged |
+| `security/gitignore-device-config-and-credential-note` | 2026-08-10 | 1 commit (`7ac9bd5`), a `.gitignore` change. Not merged |
 | `sprint-c/phase-1-4-discovery` | 2026-08-09 | Fully inside `RelayBoardEspBuildIn` |
 | `sprint-c/phase-2-discovery-json-fix` | 2026-08-09 | Fully inside `RelayBoardEspBuildIn` |
 | `sprint-c/phase-2-discovery-rest-probe` | 2026-08-09 | Fully inside `RelayBoardEspBuildIn` |
