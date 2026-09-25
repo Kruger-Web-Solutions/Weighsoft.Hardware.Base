@@ -17,9 +17,10 @@ At the start of a new chat, plan, or newly scoped task:
 Use these defaults:
 
 - `master` for shared framework, repo-wide docs, and cross-integration changes
-- `serial2` for serial integration work
-- `display` for display integration work
+- `RelayBoardEspBuildIn` for relay board and Live Weight work
+- `SerialReaderWriter` for serial integration work, the TFT screen (including 3.5 inch) and all new 16x2 character LCD work (`lcddisplay`)
 - `weighingboard` for weighing and load-cell work
-- `display35` for 3.5 inch display work
+- `display` holds the original 16x2 LCD code, before it was ported to `SerialReaderWriter`; confirm with the user before any new work there
+- There is no `serial2` or `display35` branch
 
 If the request does not clearly fit an existing branch, say that explicitly and discuss whether a new integration baseline is needed before proceeding.

@@ -33,8 +33,11 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v5
     - name: Install PlatformIO
+      # intelhex: espressif32 >= 6.12 ships esptool 4.9+, which imports intelhex
+      # when it builds bootloader.bin. PlatformIO does not install it, so the
+      # node32s build failed with "No module named 'intelhex'" (run 32662931921).
       run: |
         python -m pip install --upgrade pip
-        pip install --upgrade platformio
+        pip install --upgrade platformio intelhex
     - name: Run PlatformIO
       run: pio run -e esp12e -e node32s

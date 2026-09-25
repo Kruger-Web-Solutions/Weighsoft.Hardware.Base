@@ -9,10 +9,10 @@ Reference: @docs/INTEGRATION-WORKFLOW.md
 
 Long-lived integration branches in this repo are:
 
-- `serial2`
-- `display`
+- `RelayBoardEspBuildIn`
+- `SerialReaderWriter`
 - `weighingboard`
-- `display35`
+- `display`
 
 Use `master` for shared framework and repo-wide documentation work.
 
@@ -27,10 +27,11 @@ Use `master` for shared framework and repo-wide documentation work.
 ## Branch Selection
 
 - `master` for shared framework, architecture, and repo docs
-- `serial2` for serial integration work
-- `display` for display integration work
+- `RelayBoardEspBuildIn` for relay board and Live Weight work
+- `SerialReaderWriter` for serial integration work, the TFT screen (including 3.5 inch) and all new 16x2 character LCD work (`lcddisplay`)
 - `weighingboard` for weighing and load-cell work
-- `display35` for 3.5 inch display work
+- `display` holds the original 16x2 LCD code, before it was ported to `SerialReaderWriter`; confirm with the user before any new work there
+- There is no `serial2` or `display35` branch
 
 ## Reference
 
