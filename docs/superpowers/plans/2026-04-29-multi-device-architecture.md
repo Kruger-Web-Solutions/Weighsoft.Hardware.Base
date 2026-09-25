@@ -1,5 +1,13 @@
 # Multi-Device Architecture HTML Implementation Plan
 
+> **Status: BUILT 2026-04-29 (docs page only). Browser checks and Task 14 not done.**
+> This plan built one documentation page, `docs/multi-device-architecture.html`. It changed no firmware.
+>
+> Checked on 2026-09-24 against the page on `master`:
+> - **Ticked:** every build step and commit step in Tasks 0–13. Each has its commit on `master` (`ada4272` fonts, `6348626` skeleton, through `11f521c` reduced motion), and the page holds what the step describes.
+> - **Not ticked:** the "open in a browser" check in Tasks 1–13, and all of Task 14. No result for any browser check was ever recorded, so they stay open.
+> - **Static re-check (file read only, no browser):** 1 H1, 9 H2, 3 H3; all 9 section anchors present; 8 diagram `<title>`s (one per use case); title-block has 5 rows; no external URLs other than the SVG namespace; both fonts are in `docs/assets/fonts/`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build a single self-contained `docs/multi-device-architecture.html` page that visually documents how the three Weighsoft ESP32 firmware variants (Serial Reader, Display, Serial Writer) compose into larger systems via 8 use case diagrams.
@@ -83,13 +91,13 @@ Color palette (Blueprint Cyanotype — overrides the spec's surface colors):
 
 The page is dark, technical, offline-capable. Two distinctive fonts replace the system stack: JetBrains Mono Bold for headings/designation codes/title-block, IBM Plex Sans Condensed Regular for body. Both are open source (OFL).
 
-- [ ] **Step 1: Create the fonts directory**
+- [x] **Step 1: Create the fonts directory**
 
 ```bash
 mkdir -p docs/assets/fonts
 ```
 
-- [ ] **Step 2: Download JetBrains Mono Bold woff2**
+- [x] **Step 2: Download JetBrains Mono Bold woff2**
 
 ```bash
 curl -L -o docs/assets/fonts/JetBrainsMono-Bold.woff2 \
@@ -102,7 +110,7 @@ Expected: file exists, ~80KB, non-empty. Verify:
 ls -lh docs/assets/fonts/JetBrainsMono-Bold.woff2
 ```
 
-- [ ] **Step 3: Download IBM Plex Sans Condensed Regular woff2**
+- [x] **Step 3: Download IBM Plex Sans Condensed Regular woff2**
 
 ```bash
 curl -L -o docs/assets/fonts/IBMPlexSansCondensed-Regular.woff2 \
@@ -117,7 +125,7 @@ ls -lh docs/assets/fonts/IBMPlexSansCondensed-Regular.woff2
 
 If either curl returns an HTML error page instead of a woff2 file (check the file size — under 5KB is suspect), find the current release tag at https://github.com/JetBrains/JetBrainsMono/releases or https://github.com/IBM/plex/releases and substitute the version into the URL above. Do not fall back to a CDN — the page must render offline.
 
-- [ ] **Step 4: Commit the fonts**
+- [x] **Step 4: Commit the fonts**
 
 ```bash
 git add docs/assets/fonts/JetBrainsMono-Bold.woff2 docs/assets/fonts/IBMPlexSansCondensed-Regular.woff2
@@ -131,7 +139,7 @@ git commit -m "docs(serialWriter): self-host JetBrains Mono Bold and IBM Plex Sa
 **Files:**
 - Create: `docs/multi-device-architecture.html`
 
-- [ ] **Step 1: Create the file with the Blueprint skeleton**
+- [x] **Step 1: Create the file with the Blueprint skeleton**
 
 Write the entire file content below. The page will render with a deep oxide-blue background, a faint 24px blueprint grid, a fixed engineering-drawing title-block in the bottom-right corner, a sticky monospace nav, and 9 empty sections (the device reference + 8 use case anchors). No diagrams yet — they're added in later tasks.
 
@@ -469,7 +477,7 @@ Expected:
 - A fixed engineering title-block hovers in the bottom-right corner with `Drawing / Rev / Date / Scale / Project` rows.
 - DevTools Console is clean.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add docs/multi-device-architecture.html
@@ -483,7 +491,7 @@ git commit -m "docs(serialWriter): scaffold multi-device-architecture.html with 
 **Files:**
 - Modify: `docs/multi-device-architecture.html` (CSS + Device Reference section body)
 
-- [ ] **Step 1: Add device-card CSS rules to the `<style>` block**
+- [x] **Step 1: Add device-card CSS rules to the `<style>` block**
 
 The cards are styled like schematic component data-sheet entries: sharp 90° corners, a 1px ink border on the device's channel color, a designation code in the top-right (R-01 / D-01 / W-01), and L-shaped corner brackets in two diagonal corners drawn with two pseudo-elements.
 
@@ -607,7 +615,7 @@ Insert these rules immediately before the `@media (max-width: 720px)` block at t
 }
 ```
 
-- [ ] **Step 2: Replace the Device Reference section body**
+- [x] **Step 2: Replace the Device Reference section body**
 
 Replace the existing `<section id="device-reference">…</section>` block with:
 
@@ -694,7 +702,7 @@ Expected:
 - List items use `─` dash bullets, code chips use the mono font with hairline borders.
 - Cards collapse to a single column when the browser is narrowed below 900px.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add docs/multi-device-architecture.html
@@ -708,7 +716,7 @@ git commit -m "docs(serialWriter): add device reference cards"
 **Files:**
 - Modify: `docs/multi-device-architecture.html` (`<style>` block only)
 
-- [ ] **Step 1: Add diagram CSS rules**
+- [x] **Step 1: Add diagram CSS rules**
 
 These primitives apply uniformly to every diagram in Tasks 4–11. The eight diagrams keep their topology and coordinates; they inherit this visual language. Key choices:
 
@@ -854,7 +862,7 @@ body[data-reduced-motion] .flow-path { stroke-dashoffset: 0; transition: none; }
 
 Reload. Expected: page looks identical to the end of Task 2 (no diagrams yet — these styles are unused so far). Console shows no errors. The new CSS rules don't apply visibly until Task 4 inserts the first SVG.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add docs/multi-device-architecture.html
@@ -874,7 +882,7 @@ git commit -m "docs(serialWriter): add reusable diagram CSS primitives"
 - Node-RED at x=700, y=140 (size 140w × 60h).
 - Three flow paths from each Reader's right edge (x=280, y=70/170/270) curving to Node-RED's left edge (x=700, y=170).
 
-- [ ] **Step 1: Replace the Use Case A section content**
+- [x] **Step 1: Replace the Use Case A section content**
 
 Replace the existing `<section id="use-case-a">…</section>` block with:
 
@@ -958,7 +966,7 @@ Expected:
 - Three blue paths from Readers to Node-RED, each labeled `HTTP POST`.
 - Blue dots travel left-to-right along each path continuously.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add docs/multi-device-architecture.html
@@ -980,7 +988,7 @@ git commit -m "docs(serialWriter): add Use Case A diagram (multiple readers to N
 - Path Reader → Display: from (320, 150) curve up to (620, 70).
 - Path Reader → Writer:  from (320, 190) curve down to (620, 270).
 
-- [ ] **Step 1: Replace the Use Case B section content**
+- [x] **Step 1: Replace the Use Case B section content**
 
 ```html
   <section id="use-case-b">
@@ -1033,7 +1041,7 @@ git commit -m "docs(serialWriter): add Use Case A diagram (multiple readers to N
 Reload, jump to "B".
 Expected: Reader in center with Scale on its left. Green Display top-right, amber Writer bottom-right. Green dots travel up to Display, amber dots travel down to Writer. Pills label `WS` and `HTTP poll`.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add docs/multi-device-architecture.html
@@ -1047,7 +1055,7 @@ git commit -m "docs(serialWriter): add Use Case B diagram (reader serving displa
 **Files:**
 - Modify: `docs/multi-device-architecture.html` (Use Case C `<section>`)
 
-- [ ] **Step 1: Replace the Use Case C section content**
+- [x] **Step 1: Replace the Use Case C section content**
 
 ```html
   <section id="use-case-c">
@@ -1099,7 +1107,7 @@ git commit -m "docs(serialWriter): add Use Case B diagram (reader serving displa
 
 Reload, jump to "C". Expected: Reader center, Display upper-right (green flow), Node-RED lower-right (red flow). Both flows animate simultaneously.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add docs/multi-device-architecture.html
@@ -1113,7 +1121,7 @@ git commit -m "docs(serialWriter): add Use Case C diagram (reader as monitor and
 **Files:**
 - Modify: `docs/multi-device-architecture.html` (Use Case D `<section>`)
 
-- [ ] **Step 1: Replace the Use Case D section content**
+- [x] **Step 1: Replace the Use Case D section content**
 
 ```html
   <section id="use-case-d">
@@ -1175,7 +1183,7 @@ git commit -m "docs(serialWriter): add Use Case C diagram (reader as monitor and
 
 Reload, jump to "D". Expected: Reader on left, three Displays stacked on right, three green flows animating.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add docs/multi-device-architecture.html
@@ -1189,7 +1197,7 @@ git commit -m "docs(serialWriter): add Use Case D diagram (multi-display fan-out
 **Files:**
 - Modify: `docs/multi-device-architecture.html` (Use Case E `<section>`)
 
-- [ ] **Step 1: Replace the Use Case E section content**
+- [x] **Step 1: Replace the Use Case E section content**
 
 ```html
   <section id="use-case-e">
@@ -1231,7 +1239,7 @@ git commit -m "docs(serialWriter): add Use Case D diagram (multi-display fan-out
 
 Reload, jump to "E". Expected: Three boxes in a horizontal line — red Node-RED, amber Writer, purple Printer/PLC. Single red flow with `HTTP POST` pill.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add docs/multi-device-architecture.html
@@ -1245,7 +1253,7 @@ git commit -m "docs(serialWriter): add Use Case E diagram (Node-RED commanding w
 **Files:**
 - Modify: `docs/multi-device-architecture.html` (Use Case F `<section>`)
 
-- [ ] **Step 1: Replace the Use Case F section content**
+- [x] **Step 1: Replace the Use Case F section content**
 
 ```html
   <section id="use-case-f">
@@ -1317,7 +1325,7 @@ git commit -m "docs(serialWriter): add Use Case E diagram (Node-RED commanding w
 
 Reload, jump to "F". Expected: cyan Broker in the center, blue Reader on its left, three subscribers stacked on the right (green Display, amber Writer, red Node-RED), four flow paths animating.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add docs/multi-device-architecture.html
@@ -1331,7 +1339,7 @@ git commit -m "docs(serialWriter): add Use Case F diagram (MQTT broker hub)"
 **Files:**
 - Modify: `docs/multi-device-architecture.html` (Use Case G `<section>`)
 
-- [ ] **Step 1: Replace the Use Case G section content**
+- [x] **Step 1: Replace the Use Case G section content**
 
 ```html
   <section id="use-case-g">
@@ -1380,7 +1388,7 @@ git commit -m "docs(serialWriter): add Use Case F diagram (MQTT broker hub)"
 
 Reload, jump to "G". Expected: 5 boxes in a horizontal line with a single solid + dashed-overlay flow line and dots traveling end-to-end without stopping.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add docs/multi-device-architecture.html
@@ -1394,7 +1402,7 @@ git commit -m "docs(serialWriter): add Use Case G diagram (serial WiFi bridge)"
 **Files:**
 - Modify: `docs/multi-device-architecture.html` (Use Case H `<section>`)
 
-- [ ] **Step 1: Replace the Use Case H section content**
+- [x] **Step 1: Replace the Use Case H section content**
 
 ```html
   <section id="use-case-h">
@@ -1466,7 +1474,7 @@ git commit -m "docs(serialWriter): add Use Case G diagram (serial WiFi bridge)"
 
 Reload, jump to "H". Expected: Reader on left, four boxes stacked on right (green, amber, red, pink). Four flows in distinct colors animating. Mobile box has the pink border.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add docs/multi-device-architecture.html
@@ -1486,7 +1494,7 @@ This task wires up three behaviors in a single script block:
 2. **Path-draw reveal** — on first entry, each `.flow-path` in the entering section animates `stroke-dashoffset` from its full path length down to 0 over 800ms, then the dots become visible.
 3. **Packet-train cloning** — at startup, each `<circle class="flow-dot">` is replaced with a 3-circle train (`lead` / `mid` / `trail`) so each animated dot drags a fading phosphor trail.
 
-- [ ] **Step 1: Insert the script just before `</body>`**
+- [x] **Step 1: Insert the script just before `</body>`**
 
 ```html
 <script>
@@ -1600,7 +1608,7 @@ Expected:
 - The corresponding nav letter (A–H) gains the active style (cyan-on-dark inverted) as each section scrolls into view.
 - Console shows no errors. (If `getTotalLength()` warns on Firefox for off-screen paths, the catch block silences it harmlessly.)
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add docs/multi-device-architecture.html
@@ -1614,7 +1622,7 @@ git commit -m "docs(serialWriter): add path-draw reveal, packet-train dots, acti
 **Files:**
 - Modify: `docs/multi-device-architecture.html` (extend the existing `<script>` block)
 
-- [ ] **Step 1: Add a second IIFE inside the same `<script>` block**
+- [x] **Step 1: Add a second IIFE inside the same `<script>` block**
 
 Insert this block immediately above the closing `</script>` tag (i.e. after the IntersectionObserver IIFE):
 
@@ -1658,7 +1666,7 @@ Reload (some browsers don't pick up the change live). Expected:
 
 Toggle the preference back off and reload — dots return.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add docs/multi-device-architecture.html

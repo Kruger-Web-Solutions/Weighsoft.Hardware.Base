@@ -2,10 +2,19 @@
 
 OTA updates **are supported** and have been used successfully on this project. Use this guide when uploading firmware wirelessly to ESP32-S3 (or other OTA-capable envs).
 
+> **Which branch:** the `esp32s3` env and `partitions_ble_ota.csv` below are on the `SerialReaderWriter` branch. They are **not** on `master`.
+
 ## When OTA Is Available
 
-- **ESP32-S3** (env `esp32s3`): ✅ OTA supported — 8MB flash, partition scheme `partitions_ble_ota.csv` with dual app slots.
-- **node32s** (4MB ESP32 with BLE): ❌ OTA not supported — see [CONFIGURATION.md](CONFIGURATION.md#ota-limitations-on-4mb-esp32-with-ble).
+On `master` (see `platformio.ini`):
+
+- **node32s** (4MB ESP32 with BLE, `partitions_ble.csv`): ❌ OTA not possible — one app slot, no OTA slot. See [PLATFORM-GPIO.md](PLATFORM-GPIO.md#partition-scheme-differences).
+- **esp32dev** (`partitions_custom.csv`): the layout has two 1.5MB OTA app slots. OTA on this env is not recorded as tested.
+- **esp12e** (ESP8266): no partition CSV. OTA on this env is not recorded as tested on `master`.
+
+On the `SerialReaderWriter` branch:
+
+- **ESP32-S3** (env `esp32s3`): ✅ OTA supported — partition scheme `partitions_ble_ota.csv` with dual app slots.
 
 ## Device-Side Setup
 
@@ -18,7 +27,7 @@ OTA updates **are supported** and have been used successfully on this project. U
 
 The device must be powered on, on the same network as your PC, and have OTA enabled for uploads to succeed.
 
-## platformio.ini (ESP32-S3)
+## platformio.ini (ESP32-S3, `SerialReaderWriter` branch)
 
 For OTA upload, the **esp32s3** env must use `espota` and match the device OTA port and password:
 

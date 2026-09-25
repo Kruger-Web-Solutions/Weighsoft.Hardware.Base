@@ -11,6 +11,8 @@ A professional hardware interface framework for weighbridge and IoT projects bui
 
 Designed to work with the PlatformIO IDE with [limited setup](#getting-started). Please read below for setup, build and upload instructions.
 
+> **Project status (2026-09-24):** see [ROADMAP.md](ROADMAP.md). `master` holds the shared framework and the LED demo only. Device work lives on the `RelayBoardEspBuildIn` and `SerialReaderWriter` branches, which are not merged into `master`.
+
 ## Table of Contents
 
 - [Features](#features)
@@ -81,8 +83,8 @@ All features are [configurable at compile-time](#selecting-features) to optimize
 
 ```bash
 # Clone repository
-git clone https://github.com/your-org/weighsoft-hardware-ui.git
-cd weighsoft-hardware-ui
+git clone https://github.com/Kruger-Web-Solutions/Weighsoft.Hardware.Base.git
+cd Weighsoft.Hardware.Base
 
 # Install PlatformIO (if not installed)
 pip install platformio
@@ -98,12 +100,14 @@ For detailed instructions, see the sections below.
 
 ### Repository Workflow
 
-`master` is the shared framework baseline. Integration implementations live on dedicated long-lived branches:
+`master` is the shared framework baseline (framework + LED demo). Integration implementations live on dedicated long-lived branches. These are the integration branches the docs point to (they exist on GitHub as of 2026-09-24; whether each is still in active use is not recorded):
 
-- `serial2`
-- `display`
-- `weighingboard`
-- `display35`
+- `RelayBoardEspBuildIn` - relay board (4 relays, 2 inputs) and Live Weight operator screens. Last commit 2026-08-10.
+- `SerialReaderWriter` - serial Reader / Writer / Diagnostics firmware, plus the TFT screen (including the 3.5 inch `esp32dev_tft` board), the 16x2 character LCD (`lcddisplay`) and remote-weight options. Last commit 2026-07-16.
+- `weighingboard` - load-cell weighing board. Last commit 2026-04-29.
+- `display` - the original 16x2 LCD code, before it was ported to `SerialReaderWriter` as `lcddisplay`. Last commit 2026-04-29.
+
+There is no `serial2` or `display35` branch. Other branches exist too. `serialReader` and `ALLinOneEspSerialdevice` are fully inside `SerialReaderWriter`. `serial`, `serialWriter` and `espReadWriteRHYNO` hold work that `SerialReaderWriter` does not have; they are not merged and their status is not decided. The full list with dates is in [ROADMAP.md](ROADMAP.md#every-branch-on-github).
 
 When you need to extend one of these integrations, branch from the matching integration branch and do the implementation on a separate task branch. Do not implement directly on `master` or directly on the long-lived integration branch.
 
@@ -179,12 +183,12 @@ By default, the project is configured to serve the interface from PROGMEM.
 
 The interface will consume ~150k of program space which can be problematic if you already have a large binary artefact or if you have added large dependencies to the interface. The ESP32 binaries are fairly large in there simplest form so the addition of the interface resources requires us to use special partitioning for the ESP32.
 
-When building using the "node32s" profile, the project uses the custom [min_spiffs.csv](https://github.com/espressif/arduino-esp32/blob/master/tools/partitions/min_spiffs.csv) partitioning mode. You may want to disable this if you are manually uploading the file system image:
+When building using the "node32s" profile, the project uses the custom [partitions_ble.csv](partitions_ble.csv) layout: one 3.25MB app slot and a 640KB filesystem, with **no OTA slot** (so node32s firmware cannot be updated over the air). You may want to change this if you are manually uploading the file system image:
 
 
 ```ini
 [env:node32s]
-board_build.partitions = min_spiffs.csv
+board_build.partitions = partitions_ble.csv
 platform = espressif32
 board = node32s
 ```
@@ -767,6 +771,7 @@ esp8266React.getWiFiSettingsService()->addUpdateHandler(
 - Ensure PlatformIO is up to date: `pio upgrade`
 - Clean build: `pio run -t clean`
 - Check [platformio.ini](platformio.ini) for correct board configuration
+- ESP32 build stops with `No module named 'intelhex'`: newer ESP32 platform versions need this Python package. Install it into the Python that runs PlatformIO: `pip install intelhex` (PlatformIO IDE: `~/.platformio/penv/bin/python -m pip install intelhex`; on Windows `%USERPROFILE%\.platformio\penv\Scripts\python.exe -m pip install intelhex`)
 
 **Upload Errors:**
 - Verify USB connection and correct port in PlatformIO
@@ -778,7 +783,7 @@ esp8266React.getWiFiSettingsService()->addUpdateHandler(
 - Check WiFi credentials in [factory_settings.ini](factory_settings.ini)
 - Verify 2.4GHz network (5GHz not supported)
 
-For more help, see [documentation](docs/) or [open an issue](https://github.com/your-org/weighsoft-hardware-ui/issues).
+For more help, see [documentation](docs/) or [open an issue](https://github.com/Kruger-Web-Solutions/Weighsoft.Hardware.Base/issues).
 
 ## Contributing
 
@@ -786,7 +791,7 @@ We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.
 
 ### Development Workflow
 
-1. Start from `master` for shared work, or from `serial2`, `display`, `weighingboard`, or `display35` for integration-specific work
+1. Start from `master` for shared work, or from `RelayBoardEspBuildIn`, `SerialReaderWriter`, `weighingboard`, or `display` for integration-specific work
 2. Create a separate task branch from that base branch
 3. Do not implement directly on `master` or the long-lived integration branch
 4. Commit your changes following the repo conventions

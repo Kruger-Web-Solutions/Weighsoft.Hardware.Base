@@ -10,10 +10,10 @@ On `master`, the baseline reference example is:
 
 Additional integration baselines live on their own long-lived branches:
 
-- `serial2` - serial integration
-- `display` - display integration
+- `RelayBoardEspBuildIn` - relay board and Live Weight integration
+- `SerialReaderWriter` - serial Reader / Writer / Diagnostics integration (also the TFT screen, including 3.5 inch, and new 16x2 character LCD work in `lcddisplay`)
 - `weighingboard` - weighing / load-cell integration
-- `display35` - 3.5 inch display integration
+- `display` - the original 16x2 LCD code, before it was ported to `SerialReaderWriter` as `lcddisplay`
 
 Use [INTEGRATION-WORKFLOW.md](INTEGRATION-WORKFLOW.md) before starting if you need one of those integrations.
 
@@ -23,7 +23,7 @@ Before copying templates or writing code:
 
 1. Decide whether your work is shared or integration-specific.
 2. Start from `master` for shared framework work.
-3. Start from `serial2`, `display`, `weighingboard`, or `display35` when the work belongs to an existing integration.
+3. Start from `RelayBoardEspBuildIn`, `SerialReaderWriter`, `weighingboard`, or `display` when the work belongs to an existing integration.
 4. Create a separate task branch from that base branch.
 5. Do not implement directly on the long-lived integration branch.
 
@@ -46,7 +46,7 @@ The **LED Example Project** (`src/examples/led/` and `interface/src/examples/led
 
 ### Serial Example - For Data Sources
 
-The serial integration branch (`serial2`) demonstrates:
+The serial integration branch (`SerialReaderWriter`) demonstrates:
 
 - **Read-only streaming**: Data flows from hardware → channels
 - **Line-based parsing**: Handles newline-delimited text data
@@ -59,7 +59,7 @@ The serial integration branch (`serial2`) demonstrates:
 - Read-only data streams
 - Log monitoring and data collection
 
-Start from the `serial2` branch if your implementation matches this pattern.
+Start from the `SerialReaderWriter` branch if your implementation matches this pattern.
 
 **See**: `docs/LED-EXAMPLE.md` for the baseline walkthrough and `docs/DESIGN-PATTERNS.md` Pattern 11 for architecture.
 
@@ -99,8 +99,8 @@ For controllable devices (LED pattern):
 4. Update MQTT topics and BLE UUIDs
 5. Implement device-specific hardware control
 
-For data sources (Serial pattern on `serial2`):
-1. Switch to `serial2` or branch from it
+For data sources (Serial pattern on `SerialReaderWriter`):
+1. Switch to `SerialReaderWriter` or branch from it
 2. Copy `src/examples/serial/` → `src/examples/mysensor/`
 3. Rename classes: `SerialService` → `MySensorService`
 4. Modify state struct for your data format
