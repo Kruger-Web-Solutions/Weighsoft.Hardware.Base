@@ -5,7 +5,8 @@
 #if FT_ENABLED(FT_WSOFT)
 
 // W-Soft web options (Waveshare ESP32-S3 4.3 + DJB over RS485, env wsoft_waveshare43).
-// Only options the W-Soft web services own: publish interval and the MQTT topic/name/id.
+// Only options the W-Soft web services own: publish interval, the MQTT status topic and the
+// Home Assistant discovery name/id (like the LED example).
 // Approval, the Hub pairing code, Wi-Fi and OTA are NOT here (USB / framework pages).
 // Validation and defaults live in lib/wsoft_core (wsoft_settings), host-tested.
 
@@ -86,6 +87,9 @@ class WSoftSettingsService : public StatefulService<WSoftSettings> {
   uint32_t publishIntervalMs();
   // Empty when MQTT is switched off for W-Soft.
   String mqttStatusTopic();
+  // Home Assistant discovery name and unique id, placeholders expanded.
+  String mqttName();
+  String mqttUniqueId();
 
  private:
   HttpEndpoint<WSoftSettings> _httpEndpoint;

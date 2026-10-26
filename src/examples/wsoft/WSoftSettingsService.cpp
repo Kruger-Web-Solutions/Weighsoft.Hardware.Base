@@ -44,4 +44,16 @@ String WSoftSettingsService::mqttStatusTopic() {
   return topic;
 }
 
+String WSoftSettingsService::mqttName() {
+  String name;
+  read([&](const WSoftSettings& s) { name = SettingValue::format(String(s.data.mqtt_name)); });
+  return name;
+}
+
+String WSoftSettingsService::mqttUniqueId() {
+  String uid;
+  read([&](const WSoftSettings& s) { uid = SettingValue::format(String(s.data.mqtt_unique_id)); });
+  return uid;
+}
+
 #endif  // FT_WSOFT

@@ -107,3 +107,8 @@ laptop or a self-hosted runner.
 | 3 | post | push wsoft-waveshare43 (now 035fc12) | DONE | ls-remote |
 | 4 | spike (bench laptop) | core 3.1.1 build of ALLinOne + W-Soft env | IN-FLIGHT | – |
 | 5 | builder | option B on 035fc12 | DONE_WITH_CONCERNS | 8 commits 66e5235..3bc4ae2; host tests 15+17+9 pass; byte-identity + unifdef OK; interface build OK; gitleaks clean; pio never run here |
+| 6 | post | draft PR #27 into wsoft-waveshare43 | DONE | PR #27 |
+| 7 | reviewer | diff 035fc12..c3f1d54 | FIX FIRST (1 blocking, 4 should-fix, 9 nits) | byte-identity, unifdef, legal rules, one RS485 master, gitleaks PASS |
+| 8 | builder (fix) | B1 lib_ignore wsoft_esp in other envs; S1 watchdog skips Wi-Fi rule under FT_WSOFT; S2 FT_UPLOAD_FIRMWARE=0; S3 mqtt_name/unique_id wired to Home Assistant discovery (LED pattern); N7 retained clear on disable/topic change; N1 FT_WSOFT default; N3 comment; docs S4/N5/N6/N8 | DONE, unbuilt | prove on bench: `pio run -e nodemcu_esp32 -e esp32s3 -e wsoft_waveshare43`, `pio test -e native` |
+
+Open: N8 (weight on MQTT during DJB alarm) is a product call for Rhyno. S4 (no CI job for host tests) recorded as a gap in the docs.

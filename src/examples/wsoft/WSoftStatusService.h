@@ -58,12 +58,16 @@ class WSoftStatusService : public StatefulService<WSoftStatus> {
 #if FT_ENABLED(FT_MQTT)
   MqttPub<WSoftStatus> _mqttPub;
   AsyncMqttClient* _mqttClient;
+  // Last topics published to, so they can be cleared when MQTT is switched off or moved.
+  String _statusTopic;
+  String _discoveryTopic;
 #endif
   WSoftSettingsService* _settingsService;
   unsigned long _lastPublishMs = 0;
   unsigned long _lastCleanupMs = 0;
 
   void configureMqtt();
+  void publishDiscovery(const String& statusTopic);
   static void screenTask(void* param);
 };
 

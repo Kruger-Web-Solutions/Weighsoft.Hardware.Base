@@ -35,14 +35,17 @@ unifdef -UWSOFT_ON_BASE lib/wsoft_esp/src/hub.cpp | diff -q - <(git -C ../weighs
 2. `pio run -e wsoft_waveshare43` — **this is the core-3 spike.** The framework has only been
    built on Arduino-ESP32 2.0.x. If it fails, record the error; do not pin library versions
    by guessing. When it builds, pin `ESP32Async/AsyncTCP` and `ESP32Async/ESPAsyncWebServer`
-   to the versions that worked.
+   to the versions that worked. Also build two other envs to prove nothing else broke:
+   `pio run -e nodemcu_esp32 -e esp32s3` (`wsoft_esp` is in `lib_ignore` for every env but
+   this one).
 3. Plug the board's **UART** USB port (CH343, `COM11` on the bench) and flash:
    `pio run -e wsoft_waveshare43 -t upload`. (The `upload_port` in the env says `COM11`.)
    Flashing is an ASKED gate: only with Rhyno's go.
 4. `pio device monitor -b 115200`. Expect `[9/10] W-Soft services loaded OK`, `display ready`,
    then `DJB ... LIVE` lines.
 5. Wi-Fi: join the AP `Weighsoft-Esp-NEW` (password in `factory_settings.ini`), open
-   `http://192.168.4.1`, log in, set Wi-Fi under **Wi-Fi Connection**. Change the admin password.
+   `http://192.168.4.1`, log in, set Wi-Fi under **Wi-Fi Connection**. **Required:** change the
+   admin password and the AP password. The factory ones are in this public repo.
 6. Open **W-Soft → Live**. Check the screen journey on the panel and on the page:
 
    | Bench action | Panel | Live page |
@@ -52,6 +55,9 @@ unifdef -UWSOFT_ON_BASE lib/wsoft_esp/src/hub.cpp | diff -q - <(git -C ../weighs
    | Pull the RS485 cable | `NO SIGNAL`, `----` | `No reply`, then `No signal`; weight `----` (null) |
    | DJB alarm | `DJB ALARM` | `DJB alarm` chip |
    | Approval OFF (default) | `NOT FOR TRADE`, `APPROVAL OFF` | `Not for trade`, Approval OFF |
+
+   If the page stays on `Starting` forever, the panel failed to start (the screen loop stops
+   before its first poll). Check the serial log for `display_ready` / panel errors.
 
 7. Hub pairing (if needed): over USB send `HUB PAIR <code>` then `HUB SAVE`.
 
@@ -92,10 +98,19 @@ Options:
 | `publish_interval_ms` | 1000 | Clamped to 250..60000 |
 | `mqtt_enabled` | true | MQTT itself is off until the broker is set on the MQTT page |
 | `mqtt_base_path` | `weighsoft/wsoft/#{unique_id}` | ≤ 96 chars, no spaces or `+`, `#` only as `#{...}` |
-| `mqtt_name` | `wsoft-#{unique_id}` | ≤ 48 chars |
-| `mqtt_unique_id` | `wsoft-#{unique_id}` | ≤ 48 chars, no spaces |
+| `mqtt_name` | `wsoft-#{unique_id}` | ≤ 48 chars. Home Assistant entity name |
+| `mqtt_unique_id` | `wsoft-#{unique_id}` | ≤ 48 chars, no spaces. Home Assistant unique id |
 
 MQTT topic: `<mqtt_base_path>/status`, retained, same JSON as the Live view.
+
+Home Assistant discovery (like the LED example): a retained weight sensor in grams at
+`homeassistant/sensor/<mqtt_unique_id>/weight/config`, reading `weight_g` from the status topic.
+`weight_g` is null with no valid, fresh weight, so the entity shows unknown. When MQTT is
+switched off or the topic changes, the old status and discovery messages are cleared (empty
+retained message), so no stale weight stays on the broker.
+
+`weight_g` is still sent while the DJB alarm is set (with `alarm: true`). This matches the panel.
+Whether a weight during an alarm should go out on MQTT is open for Rhyno.
 
 ## 5. How it runs
 
@@ -117,4 +132,12 @@ MQTT topic: `<mqtt_base_path>/status`, retained, same JSON as the Live view.
 - `default_16MB.csv` is not a project file, so `scripts/clear_otadata.py` skips the otadata
   erase. After an OTA update, a USB flash may boot the older slot; erase flash if that happens.
 - The W-Soft menu shows on every board (like the other device menus); on other boards its
-  pages get 404.
+  pages get 404. The reverse is also true: on the W-Soft board the Serial, Diagnostics and
+  Weight Forwarder menus show, and their pages get 404 (those services own Serial1 and are
+  not created here).
+- Web firmware upload is off on this board (`FT_UPLOAD_FIRMWARE=0`): flash over USB only, so
+  nobody on the AP can load other firmware.
+- The app watchdog does not restart this board for lost Wi-Fi (an offline site still weighs);
+  it still restarts on low heap.
+- No CI job runs `pio test -e native` yet; `verify_build.yml` only runs for PRs into `master`
+  (and on GitHub-hosted runners, a pre-existing gap). Run the host tests by hand.

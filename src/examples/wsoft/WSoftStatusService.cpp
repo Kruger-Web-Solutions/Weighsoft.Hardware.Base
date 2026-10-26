@@ -134,11 +134,42 @@ void WSoftStatusService::loop() {
 void WSoftStatusService::configureMqtt() {
 #if FT_ENABLED(FT_MQTT)
   String topic = _settingsService->mqttStatusTopic();
-  _mqttPub.setPubTopic(topic);
+  String discovery = topic.length() ? "homeassistant/sensor/" + _settingsService->mqttUniqueId() + "/weight/config" : "";
   if (_mqttClient->connected()) {
+    // An empty retained message removes the old state and the Home Assistant entity.
+    if (_statusTopic.length() && _statusTopic != topic) {
+      _mqttClient->publish(_statusTopic.c_str(), 0, true, "");
+    }
+    if (_discoveryTopic.length() && _discoveryTopic != discovery) {
+      _mqttClient->publish(_discoveryTopic.c_str(), 0, true, "");
+    }
+    _statusTopic = topic;
+    _discoveryTopic = discovery;
+    if (topic.length()) publishDiscovery(topic);
     Serial.printf("[WSoft] MQTT status topic: %s\n", topic.length() ? topic.c_str() : "(off)");
   }
+  _mqttPub.setPubTopic(topic);
 #endif
 }
+
+#if FT_ENABLED(FT_MQTT)
+// Home Assistant auto-discovery, like the LED example: one weight sensor in grams.
+// weight_g is null when there is no valid, fresh weight, so the entity shows unknown.
+void WSoftStatusService::publishDiscovery(const String& statusTopic) {
+  DynamicJsonDocument doc(512);
+  doc["name"] = _settingsService->mqttName();
+  doc["unique_id"] = _settingsService->mqttUniqueId();
+  doc["stat_t"] = statusTopic;
+  doc["unit_of_meas"] = "g";
+  doc["dev_cla"] = "weight";
+  doc["stat_cla"] = "measurement";
+  doc["val_tpl"] = "{{ value_json.weight_g }}";
+  String payload;
+  serializeJson(doc, payload);
+  _mqttClient->publish(_discoveryTopic.c_str(), 0, true, payload.c_str());
+}
+#else
+void WSoftStatusService::publishDiscovery(const String&) {}
+#endif
 
 #endif  // FT_WSOFT
