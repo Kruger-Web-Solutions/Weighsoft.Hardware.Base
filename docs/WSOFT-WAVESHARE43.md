@@ -146,5 +146,9 @@ Whether a weight during an alarm should go out on MQTT is open for Rhyno.
   nobody on the AP can load other firmware.
 - The app watchdog does not restart this board for lost Wi-Fi (an offline site still weighs);
   it still restarts on low heap.
+- The core-2 envs are pinned to `espressif32@6.13.0` (Arduino 2.0.17). Unpinned, a fresh
+  PlatformIO install now resolves Arduino-ESP32 3.3.x and `nodemcu_esp32` fails on BLE.
+  Bench 26 Oct 2026 on the pin: nodemcu_esp32 RAM 20.0 % / flash 75.9 %, esp32s3 RAM 19.3 % /
+  flash 68.1 %.
 - No CI job runs `pio test -e native` yet; `verify_build.yml` only runs for PRs into `master`
   (and on GitHub-hosted runners, a pre-existing gap). Run the host tests by hand.
