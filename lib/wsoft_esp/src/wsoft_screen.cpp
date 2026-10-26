@@ -8,6 +8,7 @@
 #include "fonts.h"
 #include "hub.h"
 #include "screen_rle.h"
+#include "wsoft_screen.h"
 
 using namespace esp_panel::board;
 using namespace esp_panel::drivers;
@@ -340,7 +341,43 @@ static Reading reading;
 static int fails = FAILS_BEFORE_NO_SIGNAL;
 static uint32_t polls = 0;
 
-void setup() {
+// ---------- snapshot for the web services (Hardware.Base, M3) ----------
+
+static portMUX_TYPE snapshot_lock = portMUX_INITIALIZER_UNLOCKED;
+static WSoftSnapshot snapshot;
+
+static void publish_snapshot(const Reading &r, bool fresh, TradeCheck check, HubState hub) {
+  WSoftSnapshot next;
+  next.valid = true;
+  next.display_ready = display_ready;
+  next.linked = r.linked;
+  next.fresh = fresh;
+  next.alarm = r.alarm;
+  next.value = r.value;
+  next.decimals = r.decimals;
+  next.unit = r.unit;
+  next.approval_on = approval_on();
+  next.stable = approval_stable();
+  next.trade_check = check;
+  next.audit_counter = approval_audit_counter();
+  next.last_trade_seq = approval_last_trade_weight().seq;
+  next.trade_queue = (uint32_t)approval_pending();
+  next.hub_online = hub == HUB_ONLINE;
+  strlcpy(next.hub_text, hub_state_text(hub), sizeof next.hub_text);
+  next.polls = polls;
+  next.updated_ms = millis();
+  portENTER_CRITICAL(&snapshot_lock);
+  snapshot = next;
+  portEXIT_CRITICAL(&snapshot_lock);
+}
+
+void wsoft_screen_snapshot(WSoftSnapshot *out) {
+  portENTER_CRITICAL(&snapshot_lock);
+  *out = snapshot;
+  portEXIT_CRITICAL(&snapshot_lock);
+}
+
+void wsoft_screen_setup() {
   // UART0 is the CH343 port on this board: TX GPIO43, RX GPIO44.
   Serial0.begin(115200, SERIAL_8N1, 44, 43);
   log_line("weigh screen boot");
@@ -351,9 +388,12 @@ void setup() {
   approval_begin();
   hub_begin();
   if (display_ready) render(reading);
+  portENTER_CRITICAL(&snapshot_lock);
+  snapshot.display_ready = display_ready;
+  portEXIT_CRITICAL(&snapshot_lock);
 }
 
-void loop() {
+void wsoft_screen_loop() {
   static uint32_t last_poll = 0;
   static HubState shown_hub = HUB_SETUP;
   hub_handle_serial(Serial0);
@@ -402,6 +442,7 @@ void loop() {
   hub_set_health(next.linked, next.linked ? weight : "", next.alarm);
 
   HubState hub = hub_state();
+  publish_snapshot(next, fresh, check, hub);
   static TradeCheck shown_check = TRADE_OFF;
   static uint32_t shown_audit = 0, shown_seq = 0;
   uint32_t audit = approval_audit_counter(), seq = approval_last_trade_weight().seq;
