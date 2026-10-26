@@ -1,8 +1,12 @@
 #include "hub.h"
 #include "approval.h"
+#ifndef WSOFT_ON_BASE
 #include "ota_secret.h"
+#endif
 
+#ifndef WSOFT_ON_BASE
 #include <ArduinoOTA.h>
+#endif
 #include <HTTPClient.h>
 #include <Preferences.h>
 #include <WiFi.h>
@@ -86,8 +90,13 @@ static void load_config() {
   ota_pass = prefs.getString("ota", "");
   String code = prefs.getString("pair", "");
   prefs.end();
+#ifndef WSOFT_ON_BASE
   if (ota_pass.length() < 8) ota_pass = WAVESHARE_OTA_PASSWORD;
   configured = !wifi_ssid.isEmpty() && !code.isEmpty() && load_pairing(code);
+#else
+  // H3/H4 (Hardware.Base): the framework owns Wi-Fi and OTA, so only the pairing code is needed here.
+  configured = !code.isEmpty() && load_pairing(code);
+#endif
 }
 
 // ---------- USB provisioning ----------
@@ -107,6 +116,7 @@ void hub_handle_serial(Stream &port) {
     }
     String command = line;
     line = "";
+#ifndef WSOFT_ON_BASE
     if (command.startsWith("HUB WIFI ")) {
       pending_ssid = command.substring(9);
       port.println("HUB_OK wifi name stored");
@@ -116,6 +126,11 @@ void hub_handle_serial(Stream &port) {
     } else if (command.startsWith("HUB OTA ")) {
       pending_ota = command.substring(8);
       port.println(pending_ota.length() >= 8 ? "HUB_OK ota password stored" : "HUB_ERR ota password too short");
+#else
+    // H7 (Hardware.Base): Wi-Fi and OTA are set in the web interface. Nothing is stored or echoed.
+    if (command.startsWith("HUB WIFI ") || command.startsWith("HUB PASS ") || command.startsWith("HUB OTA ")) {
+      port.println("HUB_ERR not used on this build: set Wi-Fi and OTA in the web interface");
+#endif
     } else if (command.startsWith("HUB PAIR ")) {
       pending_pair = command.substring(9);
       pending_pair.trim();
@@ -248,6 +263,7 @@ static void send_heartbeat() {
 }
 
 static void hub_task(void *) {
+#ifndef WSOFT_ON_BASE
   WiFi.onEvent(
       [](WiFiEvent_t, WiFiEventInfo_t info) {
         Serial0.printf("HUB wifi refused reason=%d\n", info.wifi_sta_disconnected.reason);
@@ -257,6 +273,7 @@ static void hub_task(void *) {
   WiFi.setSleep(false);
   WiFi.begin(wifi_ssid.c_str(), wifi_pass.c_str());
   configTime(0, 0, "pool.ntp.org", "time.google.com");
+#endif
 
   uint32_t next = 0;
   uint32_t next_report = 0;
@@ -265,6 +282,7 @@ static void hub_task(void *) {
       next_report = millis() + 10000;
       Serial0.printf("HUB state=%s wifi_status=%d ip=%s clock=%ld\n", hub_state_text(state), (int)WiFi.status(),
                      WiFi.localIP().toString().c_str(), (long)time(nullptr));
+#ifndef WSOFT_ON_BASE
       if (WiFi.status() != WL_CONNECTED) {
         WiFi.disconnect();
         int found = WiFi.scanNetworks();
@@ -279,6 +297,7 @@ static void hub_task(void *) {
         WiFi.scanDelete();
         WiFi.begin(wifi_ssid.c_str(), wifi_pass.c_str());
       }
+#endif
     }
     if (WiFi.status() != WL_CONNECTED) {
       state = HUB_NO_WIFI;
@@ -307,6 +326,7 @@ static void hub_task(void *) {
 static bool ota_started = false;
 
 void hub_ota_poll() {
+#ifndef WSOFT_ON_BASE
   if (WiFi.status() != WL_CONNECTED || ota_pass.length() < 8) return;
   if (!ota_started) {
     ArduinoOTA.setHostname("waveshare-bench");
@@ -324,6 +344,7 @@ void hub_ota_poll() {
     Serial0.printf("HUB ota ready ip=%s\n", WiFi.localIP().toString().c_str());
   }
   ArduinoOTA.handle();
+#endif
 }
 
 bool hub_ota_busy() {
@@ -336,7 +357,11 @@ void hub_begin() {
   load_config();
   if (!configured) {
     state = HUB_SETUP;
+#ifndef WSOFT_ON_BASE
     Serial0.println("HUB not configured: send HUB WIFI / HUB PASS / HUB PAIR / HUB SAVE over USB");
+#else
+    Serial0.println("HUB not configured: send HUB PAIR / HUB SAVE over USB (Wi-Fi is set in the web interface)");
+#endif
     return;
   }
   Serial0.printf("HUB configured for %s key %s\n", hub_url.c_str(), key_id.c_str());
