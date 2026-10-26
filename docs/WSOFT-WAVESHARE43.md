@@ -127,7 +127,13 @@ Whether a weight during an alarm should go out on MQTT is open for Rhyno.
 
 ## 6. Known gaps
 
-- Built on the bench (26 Oct 2026); not yet flashed or run on the board.
+- Flashed on the bench board (26 Oct 2026, COM10, no backup of the old firmware). The first
+  flash boot-looped: on core 3 `sntp_stop()` asserts without the lwIP core lock, and the
+  framework calls it at boot when there is no Wi-Fi. `NTPSettingsService` now takes the lock
+  (same pattern as the core's `configTime()`), and `WiFiSettingsService` skips
+  `WiFi.mode(WIFI_MODE_MAX)`, which core 3 rejects. After that: 0 reboots in 105 s.
+- The board's COM10 port is the ESP32-S3 USB-Serial-JTAG (boot ROM and `ESP_LOG` only). The
+  app's `Serial` log goes to UART0, the board's other USB-C port.
 - Framework OTA is off (`FACTORY_OTA_ENABLED=false`). If it is switched on later, the screen
   keeps polling during an upload: `hub_ota_busy()` only knows W-Soft's own OTA.
 - `default_16MB.csv` is not a project file, so `scripts/clear_otadata.py` skips the otadata
