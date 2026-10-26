@@ -14,6 +14,11 @@ class JsonUtils {
     }
     readIP(root, key, ip, defaultIp);
   }
+  // Arduino-ESP32 3.x can build an IPAddress from text, so a string-literal default would
+  // match both overloads above and below; this one picks the String overload.
+  static void readIP(JsonObject& root, const String& key, IPAddress& ip, const char* def) {
+    readIP(root, key, ip, String(def));
+  }
   static void readIP(JsonObject& root, const String& key, IPAddress& ip, const IPAddress& defaultIp = INADDR_NONE) {
     if (!root[key].is<String>() || !ip.fromString(root[key].as<String>())) {
       ip = defaultIp;
