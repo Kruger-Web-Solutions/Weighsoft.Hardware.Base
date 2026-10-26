@@ -32,10 +32,11 @@ unifdef -UWSOFT_ON_BASE lib/wsoft_esp/src/hub.cpp | diff -q - <(git -C ../weighs
 ## 2. Bench steps (laptop, not the cloud container)
 
 1. `pio test -e native` — host tests (trade logic, live view, settings). Needs `g++` on PATH.
-2. `pio run -e wsoft_waveshare43` — **this is the core-3 spike.** The framework has only been
-   built on Arduino-ESP32 2.0.x. If it fails, record the error; do not pin library versions
-   by guessing. When it builds, pin `ESP32Async/AsyncTCP` and `ESP32Async/ESPAsyncWebServer`
-   to the versions that worked. Also build two other envs to prove nothing else broke:
+2. `pio run -e wsoft_waveshare43` — builds on Arduino-ESP32 3.1.1 (bench, 26 Oct 2026:
+   RAM 16.6 %, flash 35.0 %; ESPAsyncWebServer 3.12.1, AsyncTCP 3.5.0, AsyncMqttClient 0.9.0,
+   ArduinoJson 6.21.6, WebSockets 2.7.3, ESP32_Display_Panel 1.0.5). The framework needed small
+   core-3 fixes (handler casts, WiFi.h / esp_mac.h includes, readIP, mDNS rename), all also
+   valid on core 2. The first build downloads toolchains (~45 min); rebuilds take 3–7 min. Also build two other envs to prove nothing else broke:
    `pio run -e nodemcu_esp32 -e esp32s3` (`wsoft_esp` is in `lib_ignore` for every env but
    this one).
 3. Plug the board's **UART** USB port (CH343, `COM11` on the bench) and flash:
@@ -126,7 +127,7 @@ Whether a weight during an alarm should go out on MQTT is open for Rhyno.
 
 ## 6. Known gaps
 
-- Not built yet: the core-3 spike (step 2) is the first real test of this env.
+- Built on the bench (26 Oct 2026); not yet flashed or run on the board.
 - Framework OTA is off (`FACTORY_OTA_ENABLED=false`). If it is switched on later, the screen
   keeps polling during an upload: `hub_ota_busy()` only knows W-Soft's own OTA.
 - `default_16MB.csv` is not a project file, so `scripts/clear_otadata.py` skips the otadata
