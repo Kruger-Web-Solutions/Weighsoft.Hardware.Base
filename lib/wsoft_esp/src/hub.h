@@ -20,13 +20,18 @@ const char *hub_state_text(HubState state);
 
 // For the web page. The pairing secret and signing key are never exposed.
 bool hub_configured();
-const String &hub_address();
+// Address the box is sending to now. A code can list several LAN addresses of the Hub; the box
+// moves to the next one when the Hub gives no answer at all.
+const char *hub_address();
+uint8_t hub_address_count();               // 1 for an old single-address code
+const char *hub_address_at(uint8_t index);  // "" past the end
 const String &hub_key_id();
 int hub_last_status();  // last HTTP status from the Hub, 0 before the first try
 bool hub_clock_valid();
 bool hub_clock_from_hub();  // true when the time came from the Hub (no internet time)
 
 // Checks and stores a pairing code. The caller restarts the box so it takes effect.
-HubCodeResult hub_save_code(const char *code);
+// On success *saved_hub_url (if given) gets the first address the box will use.
+HubCodeResult hub_save_code(const char *code, String *saved_hub_url = nullptr);
 // Forgets the pairing code (Wi-Fi and everything else stay). The caller restarts the box.
 void hub_forget_code();

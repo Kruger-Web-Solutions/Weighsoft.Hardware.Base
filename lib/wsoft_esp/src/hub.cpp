@@ -29,7 +29,12 @@ static const uint32_t TRADE_QUEUE_MS = 2000;
 static const time_t CLOCK_VALID_AFTER = 1700000000;
 
 static Preferences prefs;
-static String wifi_ssid, wifi_pass, hub_url, key_id, ota_pass;
+static String wifi_ssid, wifi_pass, key_id, ota_pass;
+// Hub addresses from the pairing code (LAN ones only, see hub_pairing.h). Filled once before the
+// hub task starts and fixed until a restart; only the index of the one in use changes.
+static char hub_urls[HUB_URLS_MAX][HUB_URL_MAX + 1];
+static HubFailover failover = {1, 0};    // changed by the hub task only
+static volatile uint8_t active_url = 0;  // copy of failover.active for the web task
 static uint8_t signing_key[32];
 static bool configured = false;
 static volatile HubState state = HUB_SETUP;
@@ -45,16 +50,44 @@ static char health_weight[24] = "";
 // ---------- pairing code ----------
 
 // Decoding and checking live in lib/wsoft_core (hub_pairing), host-tested.
+// HubPairing is about 1 KB, so each caller keeps a static one instead of using its task's stack.
+// Called once from hub_begin(), before the hub task exists.
 static bool load_pairing(const String &code) {
   static HubPairing pairing;
   if (hub_code_parse(code.c_str(), &pairing) != HUB_CODE_OK) return false;
 
   // The HMAC key is sha256(pairing secret); the Hub stores only that digest.
   mbedtls_sha256(pairing.secret, HUB_SECRET_LEN, signing_key, 0);
-  hub_url = pairing.hub_url;
+  memcpy(hub_urls, pairing.hub_urls, sizeof hub_urls);
+  hub_failover_begin(&failover, pairing.hub_url_count);
+  active_url = failover.active;
   key_id = pairing.key_id;
   memset(&pairing, 0, sizeof pairing);
   return true;
+}
+
+// USB "HUB PAIR" only checks the code; "HUB SAVE" stores it and restarts. The running link is
+// never changed under the hub task.
+static bool usb_code_valid(const String &code) {
+  static HubPairing check;
+  HubCodeResult result = hub_code_parse(code.c_str(), &check);
+  memset(&check, 0, sizeof check);
+  return result == HUB_CODE_OK;
+}
+
+static const char *active_hub_url() {
+  return hub_urls[failover.active];
+}
+
+// A Hub that gave no answer at all (status <= 0) may be down on this network only: try its next
+// address next time. Any HTTP answer, even an error, means this address works.
+static void record_hub_answer(int status) {
+  uint8_t before = failover.active;
+  hub_failover_result(&failover, status > 0);
+  active_url = failover.active;
+  if (failover.active != before) {
+    Serial0.printf("HUB no answer from %s, trying %s\n", hub_urls[before], hub_urls[failover.active]);
+  }
 }
 
 static void load_config() {
@@ -108,7 +141,7 @@ void hub_handle_serial(Stream &port) {
     } else if (command.startsWith("HUB PAIR ")) {
       pending_pair = command.substring(9);
       pending_pair.trim();
-      port.println(load_pairing(pending_pair) ? "HUB_OK pairing code valid" : "HUB_ERR pairing code invalid");
+      port.println(usb_code_valid(pending_pair) ? "HUB_OK pairing code valid" : "HUB_ERR pairing code invalid");
     } else if (command == "HUB SAVE") {
       prefs.begin("hub", false);
       if (!pending_ssid.isEmpty()) prefs.putString("ssid", pending_ssid);
@@ -212,8 +245,9 @@ static void send_heartbeat() {
 
   HTTPClient http;
   http.setTimeout(8000);
-  if (!http.begin(hub_url + "/api/v1/ingest/heartbeats")) {
+  if (!http.begin(String(active_hub_url()) + "/api/v1/ingest/heartbeats")) {
     state = HUB_UNREACHABLE;
+    record_hub_answer(0);
     return;
   }
   http.addHeader("Content-Type", "application/json");
@@ -225,6 +259,7 @@ static void send_heartbeat() {
   String reply = status > 0 ? http.getString() : http.errorToString(status);
   http.end();
   last_status = status;
+  record_hub_answer(status);
 
   if (status == 202) {
     state = HUB_ONLINE;
@@ -247,12 +282,16 @@ static const uint32_t CLOCK_RETRY_MS = 5000;
 static void set_clock_from_hub() {
   HTTPClient http;
   http.setTimeout(5000);
-  if (!http.begin(hub_url + "/api/v1/health")) return;
+  if (!http.begin(String(active_hub_url()) + "/api/v1/health")) {
+    record_hub_answer(0);
+    return;
+  }
   const char *wanted[] = {"Date"};
   http.collectHeaders(wanted, 1);
   int status = http.GET();
   String date = status > 0 ? http.header("Date") : String();
   http.end();
+  record_hub_answer(status);
 
   time_t now = 0;
   if (!hub_parse_http_date(date.c_str(), &now) || now < CLOCK_VALID_AFTER) {
@@ -374,7 +413,8 @@ void hub_begin() {
 #endif
     return;
   }
-  Serial0.printf("HUB configured for %s key %s\n", hub_url.c_str(), key_id.c_str());
+  Serial0.printf("HUB configured for %s (%u address%s) key %s\n", hub_urls[0], (unsigned)failover.count,
+                 failover.count == 1 ? "" : "es", key_id.c_str());
   xTaskCreatePinnedToCore(hub_task, "hub", 8192, nullptr, 1, nullptr, 0);
 }
 
@@ -391,15 +431,24 @@ HubState hub_state() {
 }
 
 // ---------- web page (src/examples/wsoft/WSoftHubService) ----------
-// hub_url and key_id are set once in hub_begin() and only change after a restart,
-// so the web server task may read them.
+// The address list and key_id are set once in hub_begin() and only change after a restart, so the
+// web server task may read them. The address in use changes at runtime: it is a one-byte index
+// (active_url) into that fixed list, so a read is never torn.
 
 bool hub_configured() {
   return configured;
 }
 
-const String &hub_address() {
-  return hub_url;
+const char *hub_address() {
+  return hub_urls[active_url];
+}
+
+uint8_t hub_address_count() {
+  return failover.count;
+}
+
+const char *hub_address_at(uint8_t index) {
+  return index < failover.count ? hub_urls[index] : "";
 }
 
 const String &hub_key_id() {
@@ -418,9 +467,11 @@ bool hub_clock_from_hub() {
   return clock_from_hub;
 }
 
-HubCodeResult hub_save_code(const char *code) {
-  HubPairing check;
+HubCodeResult hub_save_code(const char *code, String *saved_hub_url) {
+  // Static: HubPairing is about 1 KB and this runs on the web server task. Only that task calls it.
+  static HubPairing check;
   HubCodeResult result = hub_code_parse(code, &check);
+  if (result == HUB_CODE_OK && saved_hub_url) *saved_hub_url = check.hub_url;
   memset(&check, 0, sizeof check);
   if (result != HUB_CODE_OK) return result;
   // Stored trimmed, exactly as USB "HUB PAIR" + "HUB SAVE" would store it.
