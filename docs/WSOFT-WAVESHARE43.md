@@ -12,21 +12,21 @@ other devices here.
 
 | Part | Path | Notes |
 |---|---|---|
-| Pure logic (host-tested) | `lib/wsoft_core/` | `trade_logic.*` (identical), `wsoft_view.*`, `wsoft_settings.*` |
-| ESP firmware | `lib/wsoft_esp/` | `approval.*`, `hub.h`, `fonts.h`, `screen_rle.h` identical; `hub.cpp` guarded; `wsoft_screen.cpp` = old `main.cpp` |
-| Services | `src/examples/wsoft/` | `WSoftStatusService` (live), `WSoftSettingsService` (options) |
+| Pure logic (host-tested) | `lib/wsoft_core/` | `trade_logic.*` (identical), `wsoft_view.*`, `wsoft_settings.*`, `hub_pairing.*` (Hub code check, clock from the Hub) |
+| ESP firmware | `lib/wsoft_esp/` | `approval.*`, `fonts.h`, `screen_rle.h` identical; `hub.h` + `hub.cpp` extended for the Hub tab (31 Oct 2026, see section 7); `wsoft_screen.cpp` = old `main.cpp` |
+| Services | `src/examples/wsoft/` | `WSoftStatusService` (live), `WSoftSettingsService` (options), `WSoftHubService` (Hub link) |
 | Wiring | `src/main.cpp` | under `FT_WSOFT` only |
-| Web pages | `interface/src/project/wsoft/` | menu **W-Soft**: Live, Settings (admin), Information |
+| Web pages | `interface/src/project/wsoft/` | menu **W-Soft**: Live, Settings (admin), Hub (admin), Calibrate (admin), Information |
 | Build | `platformio.ini` | `[env:wsoft_waveshare43]`, `[env:native]` |
 
 Check that the copied files still match the source:
 
 ```bash
-for f in approval.cpp approval.h hub.h fonts.h screen_rle.h; do
+for f in approval.cpp approval.h fonts.h screen_rle.h; do
   git -C ../weighsoft.wsoft show cfcd012:esp/src/$f | diff -q - lib/wsoft_esp/src/$f; done
 for f in trade_logic.cpp trade_logic.h; do
   git -C ../weighsoft.wsoft show cfcd012:esp/src/$f | diff -q - lib/wsoft_core/src/$f; done
-unifdef -UWSOFT_ON_BASE lib/wsoft_esp/src/hub.cpp | diff -q - <(git -C ../weighsoft.wsoft show cfcd012:esp/src/hub.cpp)
+# hub.h and hub.cpp no longer match cfcd012 on purpose (Hub tab, 31 Oct 2026).
 ```
 
 ## 2. Bench steps (laptop, not the cloud container)
@@ -36,9 +36,17 @@ unifdef -UWSOFT_ON_BASE lib/wsoft_esp/src/hub.cpp | diff -q - <(git -C ../weighs
    RAM 16.6 %, flash 35.0 %; ESPAsyncWebServer 3.12.1, AsyncTCP 3.5.0, AsyncMqttClient 0.9.0,
    ArduinoJson 6.21.6, WebSockets 2.7.3, ESP32_Display_Panel 1.0.5). The framework needed small
    core-3 fixes (handler casts, WiFi.h / esp_mac.h includes, readIP, mDNS rename), all also
-   valid on core 2. The first build downloads toolchains (~45 min); rebuilds take 3–7 min. Also build two other envs to prove nothing else broke:
+   valid on core 2. The first build downloads toolchains (~45 min). Also build two other envs to prove nothing else broke:
    `pio run -e nodemcu_esp32 -e esp32s3` (`wsoft_esp` is in `lib_ignore` for every env but
    this one).
+   **Before you build (bench laptop, measured 31 Oct 2026):** a build is either about 2 min
+   or about 30 min, and which one is known before it starts. PlatformIO deletes the env's
+   build folder, so every one of about 320 files recompiles, when a `.c/.cpp/.h` file was
+   added or removed under `include/`, `src/` or `lib/`, when `platformio.ini` changed, or on
+   a new env. Otherwise only the changed files recompile. Run **one build per folder at a
+   time**: a second `pio run` in the same folder collides with the first. A build that is
+   killed before it ends loses its record of finished files and the next run is nearly
+   full again. See `docs/aar/aar-2026-10-31-wsoft-two-hour-build.md`.
 3. Plug the board's **UART** USB port (CH343, `COM11` on the bench) and flash:
    `pio run -e wsoft_waveshare43 -t upload`. (The `upload_port` in the env says `COM11`.)
    Flashing is an ASKED gate: only with Rhyno's go.
@@ -60,7 +68,9 @@ unifdef -UWSOFT_ON_BASE lib/wsoft_esp/src/hub.cpp | diff -q - <(git -C ../weighs
    If the page stays on `Starting` forever, the panel failed to start (the screen loop stops
    before its first poll). Check the serial log for `display_ready` / panel errors.
 
-7. Hub pairing (if needed): over USB send `HUB PAIR <code>` then `HUB SAVE`.
+7. Hub link: open the box's web page, **W-Soft › Hub**, paste the code from the Hub, click
+   **Link to Hub**. The box restarts and shows `HUB ONLINE` (section 7). USB `HUB PAIR` +
+   `HUB SAVE` still works as a backup.
 
 ## 3. USB commands (UART0, 115200 8N1)
 
@@ -144,6 +154,25 @@ Whether a weight during an alarm should go out on MQTT is open for Rhyno.
 
 ## 6. Known gaps
 
+- **The ESP's Wi-Fi link is slow and the cause is NOT yet known (bench, 31 Oct 2026).** Most
+  of the time the ESP answers ping in 222-307 ms on average (up to 1.4 s) and serves its web page
+  at 2.8-15 KB/s, while other hosts on the same LAN answer in 1-3 ms. Effect: a Wi-Fi firmware
+  update stalls ("premature end", 1-24 %) and the web pages load slowly. Measurements so far,
+  not yet explained together:
+  - 20:1x, a build that never started the panel: ping 5 ms, 745 KB/s, and a Wi-Fi update to it
+    completed.
+  - 21:09, panel deleted at the start of an update: the upload ran in bursts and stalled (11 %).
+  - 21:27, a boot that never started the panel ("update mode", not committed): ping 307 ms,
+    15 KB/s, and updates still failed.
+  So the panel alone does not explain it; the Wi-Fi network "W-Soft" (the access point, its
+  channel, other traffic) is an equal suspect. Wi-Fi power saving is already off
+  (`WiFiSettingsService`). Next: an independent check of the access point and a test of the
+  same board on a different access point. Until then flash over USB.
+- **After a successful Wi-Fi update the board boots from `app1`.** A plain
+  `esptool write_flash 0x10000` then writes `app0`, which the bootloader ignores. Use
+  `pio run -e wsoft_waveshare43 -t upload` (it rewrites the boot selection), or erase `otadata`
+  first: `esptool.py --chip esp32s3 --port COMx erase_region 0xe000 0x2000`.
+
 - Flashed on the bench board (26 Oct 2026, COM10, no backup of the old firmware). The first
   flash boot-looped: on core 3 `sntp_stop()` asserts without the lwIP core lock, and the
   framework calls it at boot when there is no Wi-Fi. `NTPSettingsService` now takes the lock
@@ -151,8 +180,13 @@ Whether a weight during an alarm should go out on MQTT is open for Rhyno.
   `WiFi.mode(WIFI_MODE_MAX)`, which core 3 rejects. After that: 0 reboots in 105 s.
 - The board's COM10 port is the ESP32-S3 USB-Serial-JTAG (boot ROM and `ESP_LOG` only). The
   app's `Serial` log goes to UART0, the board's other USB-C port.
-- Framework OTA is off (`FACTORY_OTA_ENABLED=false`). If it is switched on later, the screen
-  keeps polling during an upload: `hub_ota_busy()` only knows W-Soft's own OTA.
+- Framework OTA is off by default (`FACTORY_OTA_ENABLED=false`). Jurien chose (31 Oct 2026) to
+  allow network flashing: an admin switches it on at **System › OTA Settings** (Enable + Save).
+  The password stays the factory one on office prototypes (Jurien, 31 Oct). Before a site
+  install, set private OTA and admin passwords: both factory ones are in this public repo. Flash from the laptop:
+  `python <platformio>/packages/framework-arduinoespressif32/tools/espota.py -i <ESP IP> -p 8266
+  -a <password> -f .pio/build/wsoft_waveshare43/firmware.bin -r`. The screen keeps polling during
+  an upload: `hub_ota_busy()` only knows W-Soft's own OTA.
 - `default_16MB.csv` is not a project file, so `scripts/clear_otadata.py` skips the otadata
   erase. After an OTA update, a USB flash may boot the older slot; erase flash if that happens.
 - The W-Soft menu shows on every board (like the other device menus); on other boards its
@@ -169,3 +203,82 @@ Whether a weight during an alarm should go out on MQTT is open for Rhyno.
   flash 68.1 %.
 - No CI job runs `pio test -e native` yet; `verify_build.yml` only runs for PRs into `master`
   (and on GitHub-hosted runners, a pre-existing gap). Run the host tests by hand.
+
+## 7. Link to the Hub from the web page (added 31 Oct 2026)
+
+```
+Hub (laptop browser)                       W-Soft web page (admin)
+Devices › New pairing code › Copy  ──────▶ W-Soft › Hub › paste › Link to Hub
+                                                  │ code checked, saved to NVS "hub/pair"
+                                                  ▼ box restarts
+                                           HUB CLOCK → (time from the Hub) → HUB ONLINE
+```
+
+- **Endpoints** (`src/examples/wsoft/WSoftHubService.*`, admin JWT):
+  `GET /rest/wsoftHub` (state, Hub address, key id, last Hub status, clock; never the secret),
+  `POST /rest/wsoftHub {"code": "..."}` (400 + message for a bad code; 200 then restart),
+  `DELETE /rest/wsoftHub` (forget the code, restart).
+- **Same storage as USB.** The web page writes the same NVS key that `HUB PAIR` + `HUB SAVE`
+  writes, and the same heartbeat code runs. Approval is not on the web page: it stays USB only.
+- **Clock without internet.** The Hub rejects a signature more than 300 s off its own clock.
+  When the box has no valid time (no internet NTP, e.g. the bench TOTOLINK), it asks the Hub:
+  `GET <hub>/api/v1/health` every 5 s and sets its clock from the reply's `Date` header. NTP
+  still wins when it works. The page shows "clock set from the Hub".
+- **Hub address.** The code carries the address the Hub page was opened with. The page warns when
+  it is a Tailscale `100.64–127.x` address or `localhost`: the box can't reach those. Open the Hub
+  with the laptop's LAN address (e.g. `http://192.168.1.x:8095`) before making the code.
+- **Host tests:** `test/test_hub_pairing` (real Hub-format codes made like
+  `Weighsoft.Indicator.Hub server/src/registry/registry.ts`, test secret only).
+
+## 8. Calibrate tab (added 31 Oct 2026)
+
+**W-Soft › Calibrate** (admin) walks through Zero → Span → Check using `POST /rest/djb`
+(`field: "ad"`, channel 1). Zero sends `0`. Span sends the test weight as display digits
+(weight × 10^decimals, e.g. 2.000 kg with 3 decimals = `2000`), per the Supmeter manual's
+"Calibrating Weight" range. Each step asks to confirm: the old calibration is overwritten.
+Refused while approval is on or the DJB is not linked. **Not yet bench-confirmed:** check the
+first span against the reading; stop if it is 10× or 1000× off.
+
+## 9. Saving weighings (added 31 Oct 2026)
+
+```
+load on ──► still for N s ──► AUTO-SAVE (once) ──► take the load off (back to 0) ──► ready again
+                 │
+                 └─► or tap SAVE (screen) / Save (W-Soft › Live) once it is still for 1 s
+```
+
+- **Settings** (W-Soft › Settings › Saving weighings, admin): *Auto-save* on/off (default off)
+  and *Stable for N seconds* (default 3, clamped 1–30). Stored in `/config/wsoftSettings.json`
+  as `auto_save` and `auto_save_stable_s`.
+- **Rules** (`lib/wsoft_core/src/save_logic.*`, host tests `test/test_save_logic`): stable =
+  fresh, unchanged value/decimals/unit (same as the trade rule); a failed poll restarts the
+  clock. Manual SAVE needs 1 s still (the operator is watching); auto-save waits N s. One save
+  per load: the next one only after a fresh reading ≤ 0. Blocked reasons: `moving`, `alarm`,
+  `no_signal`, `stale`, `empty`, `saved` (this load is done), `unit` (no kg meaning or more
+  than 5 kg decimals), `no_clock`, `queue_full`.
+- **Screen.** SAVE button in the right of the ZONE box (GT911 touch from the ESP32_Display_Panel
+  board config; started like `Board::begin()` does it). Green = a tap saves; grey = not now.
+  The line under the approval line shows `READY`, `MOVING`, `EMPTY`, `SAVED n`, `QUEUE FULL`
+  ... and `AUTO nS` when auto-save is on. Serial log: `SAVE seq=... weight=... auto|button`.
+  If touch does not start, the log says so and the web Save still works.
+- **Web** (`src/examples/wsoft/WSoftStatusService.*`, any logged-in user):
+  `POST /rest/wsoftSave` (200 `{ok,seq,weight_text}`, 409 `{ok:false,reason}`, 503 `busy`),
+  `GET /rest/wsoftSave` (last 10 since start-up plus what still waits, newest first, sent or
+  waiting). The status WebSocket/MQTT adds `save_can`, `save_reason`, `save_auto`,
+  `save_auto_s`, `save_last_seq`, `save_last_text`, `save_queue`, `save_hub_status`.
+- **Flash queue** (`lib/wsoft_esp/src/save_queue.*`, NVS namespace `wsave`): 32 weighings,
+  written before they count, so a power cut keeps them. Full = SAVE refused (`QUEUE FULL`),
+  never a drop.
+- **To the Hub** (`hub.cpp`): oldest first, signed `POST /api/v1/ingest/weighings` (same
+  signing as the heartbeat), one a second. Body: `weighing_id` `wsoft-<mac>-<series>-<seq>`
+  (series is random per flash life, so a wiped box never reuses an id), `committed_at` UTC,
+  `gross_kg` = `net_kg` = the exact reading in decimal kg (Hub PR #78: up to 5.5 digits, never
+  rounded), `tare_kg` 0, `basis` `GS`, `payload` `{source:"wsoft", seq, value, decimals, unit,
+  trade, auto_saved}`. 201 or 200 (duplicate) = delivered. 409/429/5xx/no network: retry after
+  5 s, doubling to 60 s. Other 4xx (e.g. 400, 401): kept, logged, tried again every 60 s.
+  Nothing is sent during a firmware upload. No Hub paired = they wait in the queue.
+- **Approval.** Unchanged. With approval ON the trade weight still goes out in the heartbeat as
+  before; a saved weighing is extra and carries `trade: true`. With approval OFF it carries
+  `trade: false` (not for trade).
+- **Not yet bench-confirmed:** the touch button (GT911 coordinates on this panel), the auto-save
+  feel at 3 s, and both weighings showing on the test Hub.

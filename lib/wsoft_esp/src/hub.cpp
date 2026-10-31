@@ -1,5 +1,6 @@
 #include "hub.h"
 #include "approval.h"
+#include "save_queue.h"
 #ifndef WSOFT_ON_BASE
 #include "ota_secret.h"
 #endif
@@ -11,9 +12,10 @@
 #include <Preferences.h>
 #include <WiFi.h>
 #include <esp_random.h>
-#include <mbedtls/base64.h>
+#include <hub_pairing.h>
 #include <mbedtls/md.h>
 #include <mbedtls/sha256.h>
+#include <sys/time.h>
 #include <time.h>
 
 // Must match server/src/signing/codec.ts in Weighsoft.Indicator.Hub.
@@ -33,6 +35,8 @@ static uint8_t signing_key[32];
 static bool configured = false;
 static volatile HubState state = HUB_SETUP;
 static volatile bool ota_busy = false;
+static volatile int last_status = 0;          // last HTTP status from the Hub (0 = none yet)
+static volatile bool clock_from_hub = false;  // clock was set from the Hub's Date header
 
 static portMUX_TYPE health_lock = portMUX_INITIALIZER_UNLOCKED;
 static bool health_linked = false;
@@ -41,45 +45,16 @@ static char health_weight[24] = "";
 
 // ---------- pairing code ----------
 
-static bool base64_decode(String text, uint8_t *out, size_t capacity, size_t *length) {
-  text.replace('-', '+');
-  text.replace('_', '/');
-  while (text.length() % 4) text += '=';
-  return mbedtls_base64_decode(out, capacity, length, (const uint8_t *)text.c_str(), text.length()) == 0;
-}
-
-// The Hub emits compact JSON with plain string values, so a key lookup is enough here.
-static String json_string(const String &json, const char *key) {
-  String needle = String("\"") + key + "\":\"";
-  int start = json.indexOf(needle);
-  if (start < 0) return "";
-  start += needle.length();
-  int end = json.indexOf('"', start);
-  return end < 0 ? "" : json.substring(start, end);
-}
-
+// Decoding and checking live in lib/wsoft_core (hub_pairing), host-tested.
 static bool load_pairing(const String &code) {
-  static uint8_t decoded[512];
-  size_t length = 0;
-  if (!base64_decode(code, decoded, sizeof decoded - 1, &length)) return false;
-  decoded[length] = 0;
-  String json = (const char *)decoded;
-
-  String url = json_string(json, "hub_url");
-  String id = json_string(json, "key_id");
-  uint8_t secret[48];
-  size_t secret_length = 0;
-  if (url.isEmpty() || id.isEmpty() ||
-      !base64_decode(json_string(json, "secret"), secret, sizeof secret, &secret_length) || secret_length != 32) {
-    return false;
-  }
-  while (url.endsWith("/")) url.remove(url.length() - 1);
+  static HubPairing pairing;
+  if (hub_code_parse(code.c_str(), &pairing) != HUB_CODE_OK) return false;
 
   // The HMAC key is sha256(pairing secret); the Hub stores only that digest.
-  mbedtls_sha256(secret, secret_length, signing_key, 0);
-  memset(secret, 0, sizeof secret);
-  hub_url = url;
-  key_id = id;
+  mbedtls_sha256(pairing.secret, HUB_SECRET_LEN, signing_key, 0);
+  hub_url = pairing.hub_url;
+  key_id = pairing.key_id;
+  memset(&pairing, 0, sizeof pairing);
   return true;
 }
 
@@ -250,6 +225,7 @@ static void send_heartbeat() {
   int status = http.POST(body);
   String reply = status > 0 ? http.getString() : http.errorToString(status);
   http.end();
+  last_status = status;
 
   if (status == 202) {
     state = HUB_ONLINE;
@@ -260,6 +236,80 @@ static void send_heartbeat() {
     state = HUB_UNREACHABLE;
   }
   Serial0.printf("HUB heartbeat status=%d %s\n", status, reply.substring(0, 120).c_str());
+}
+
+// ---------- saved weighings (save_queue.cpp) ----------
+// One signed POST /api/v1/ingest/weighings per saved weighing, oldest first, same signing as the
+// heartbeat. 201 stored or 200 duplicate: delivered. Anything else: it stays queued (never dropped)
+// and the next try waits (save_retry_ms in lib/wsoft_core, host-tested).
+
+static SaveSendOutcome send_weighing() {
+  SavedWeighing w;
+  if (!save_oldest(&w)) return SAVE_SEND_DELIVERED;
+  static char body[512];
+  if (save_weighing_body(w, save_id_prefix(), body, sizeof body) == 0) {
+    // Not expected: a weighing is only saved with a valid clock and a kg value the Hub takes.
+    Serial0.printf("HUB weighing seq=%lu cannot be built, kept in the queue\n", (unsigned long)w.seq);
+    save_hub_result(0);
+    return SAVE_SEND_REJECTED;
+  }
+  String payload = body;
+
+  time_t now = time(nullptr);
+  uint8_t nonce_bytes[16];
+  esp_fill_random(nonce_bytes, sizeof nonce_bytes);
+  String nonce = hex(nonce_bytes, sizeof nonce_bytes);
+  String timestamp = String((unsigned long)now);
+
+  HTTPClient http;
+  http.setTimeout(8000);
+  if (!http.begin(hub_url + "/api/v1/ingest/weighings")) {
+    save_hub_result(-1);
+    return SAVE_SEND_RETRY;
+  }
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("X-ScaleModels-Key-Id", key_id);
+  http.addHeader("X-ScaleModels-Timestamp", timestamp);
+  http.addHeader("X-ScaleModels-Nonce", nonce);
+  http.addHeader("X-ScaleModels-Signature", sign(timestamp, nonce, payload));
+  int status = http.POST(payload);
+  String reply = status > 0 ? http.getString() : http.errorToString(status);
+  http.end();
+
+  save_hub_result(status);
+  SaveSendOutcome outcome = save_send_outcome(status);
+  if (outcome == SAVE_SEND_DELIVERED) save_delivered(w.seq);
+  Serial0.printf("HUB weighing seq=%lu status=%d %s\n", (unsigned long)w.seq, status, reply.substring(0, 120).c_str());
+  return outcome;
+}
+
+// ---------- clock from the Hub ----------
+// The Hub checks each signature against its own clock (300 s window), so the Hub's clock is the
+// one that matters. Its health route is public and every Node reply carries a Date header.
+// Used only while the box has no valid time; NTP still wins whenever it works.
+
+static const uint32_t CLOCK_RETRY_MS = 5000;
+
+static void set_clock_from_hub() {
+  HTTPClient http;
+  http.setTimeout(5000);
+  if (!http.begin(hub_url + "/api/v1/health")) return;
+  const char *wanted[] = {"Date"};
+  http.collectHeaders(wanted, 1);
+  int status = http.GET();
+  String date = status > 0 ? http.header("Date") : String();
+  http.end();
+
+  time_t now = 0;
+  if (!hub_parse_http_date(date.c_str(), &now) || now < CLOCK_VALID_AFTER) {
+    Serial0.printf("HUB clock from hub failed status=%d\n", status);
+    return;
+  }
+  // The Date header has whole seconds; the 300 s window leaves plenty of room.
+  struct timeval tv = {now, 0};
+  settimeofday(&tv, nullptr);
+  clock_from_hub = true;
+  Serial0.printf("HUB clock set from hub: %s\n", date.c_str());
 }
 
 static void hub_task(void *) {
@@ -277,6 +327,9 @@ static void hub_task(void *) {
 
   uint32_t next = 0;
   uint32_t next_report = 0;
+  uint32_t next_clock_try = 0;
+  uint32_t next_weighing = 0;
+  uint32_t weighing_failures = 0;
   for (;;) {
     if ((int32_t)(millis() - next_report) >= 0) {
       next_report = millis() + 10000;
@@ -306,14 +359,25 @@ static void hub_task(void *) {
     }
     if (time(nullptr) < CLOCK_VALID_AFTER) {
       state = HUB_NO_CLOCK;
+      // A bench or site network often has no internet time. Ask the Hub instead.
+      if ((int32_t)(millis() - next_clock_try) >= 0) {
+        next_clock_try = millis() + CLOCK_RETRY_MS;
+        set_clock_from_hub();
+      }
       vTaskDelay(pdMS_TO_TICKS(1000));
       continue;
     }
     // A heartbeat uses the same network stack as a firmware upload. Leave it until the upload finishes.
-    if ((int32_t)(millis() - next) >= 0 && !ota_busy) {
+    if ((int32_t)(millis() - next) >= 0 && !hub_ota_busy()) {
       send_heartbeat();
       uint32_t wait = state != HUB_ONLINE ? RETRY_MS : approval_pending() > 0 ? TRADE_QUEUE_MS : HEARTBEAT_MS;
       next = millis() + wait;
+    }
+    // Saved weighings, oldest first, paced and backed off so a refusing Hub is never hammered.
+    if ((int32_t)(millis() - next_weighing) >= 0 && !hub_ota_busy() && save_pending() > 0) {
+      SaveSendOutcome outcome = send_weighing();
+      weighing_failures = outcome == SAVE_SEND_DELIVERED ? 0 : weighing_failures + 1;
+      next_weighing = millis() + save_retry_ms(outcome, weighing_failures);
     }
     vTaskDelay(pdMS_TO_TICKS(250));
   }
@@ -347,7 +411,15 @@ void hub_ota_poll() {
 #endif
 }
 
+#ifdef WSOFT_ON_BASE
+// On Base the framework's OTASettingsService runs the Wi-Fi upload (lib/framework).
+extern volatile bool framework_ota_busy;
+#endif
+
 bool hub_ota_busy() {
+#ifdef WSOFT_ON_BASE
+  if (framework_ota_busy) return true;
+#endif
   return ota_busy;
 }
 
@@ -360,7 +432,7 @@ void hub_begin() {
 #ifndef WSOFT_ON_BASE
     Serial0.println("HUB not configured: send HUB WIFI / HUB PASS / HUB PAIR / HUB SAVE over USB");
 #else
-    Serial0.println("HUB not configured: send HUB PAIR / HUB SAVE over USB (Wi-Fi is set in the web interface)");
+    Serial0.println("HUB not configured: paste the Hub pairing code on the web page (W-Soft > Hub), or send HUB PAIR / HUB SAVE over USB");
 #endif
     return;
   }
@@ -378,6 +450,56 @@ void hub_set_health(bool linked, const char *weight, bool alarm) {
 
 HubState hub_state() {
   return state;
+}
+
+// ---------- web page (src/examples/wsoft/WSoftHubService) ----------
+// hub_url and key_id are set once in hub_begin() and only change after a restart,
+// so the web server task may read them.
+
+bool hub_configured() {
+  return configured;
+}
+
+const String &hub_address() {
+  return hub_url;
+}
+
+const String &hub_key_id() {
+  return key_id;
+}
+
+int hub_last_status() {
+  return last_status;
+}
+
+bool hub_clock_valid() {
+  return time(nullptr) >= CLOCK_VALID_AFTER;
+}
+
+bool hub_clock_from_hub() {
+  return clock_from_hub;
+}
+
+HubCodeResult hub_save_code(const char *code) {
+  HubPairing check;
+  HubCodeResult result = hub_code_parse(code, &check);
+  memset(&check, 0, sizeof check);
+  if (result != HUB_CODE_OK) return result;
+  // Stored trimmed, exactly as USB "HUB PAIR" + "HUB SAVE" would store it.
+  String trimmed = code;
+  trimmed.trim();
+  prefs.begin("hub", false);
+  prefs.putString("pair", trimmed);
+  prefs.end();
+  Serial0.println("HUB pairing code saved from the web page, restarting");
+  return HUB_CODE_OK;
+}
+
+void hub_forget_code() {
+  prefs.begin("hub", false);
+  prefs.remove("pair");
+  prefs.end();
+  Serial0.println("HUB pairing removed from the web page, restarting");
 }
 
 const char *hub_state_text(HubState s) {

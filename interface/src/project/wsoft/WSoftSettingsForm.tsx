@@ -43,10 +43,61 @@ const WSoftSettingsForm: FC = () => {
           level="info"
           message={
             'Wi-Fi, MQTT broker, NTP and OTA are on the framework pages. ' +
-            'Approval and Hub pairing are set with a USB cable only.'
+            'Hub pairing is on the Hub tab. Approval is set with a USB cable only.'
           }
           my={2}
         />
+        <Typography variant="h6">
+          Saving weighings
+        </Typography>
+        <BlockFormControlLabel
+          control={
+            <Checkbox
+              name="auto_save"
+              checked={data.auto_save}
+              onChange={updateFormValue}
+            />
+          }
+          label="Auto-save: save each load once it is still"
+        />
+        <ValidatedTextField
+          fieldErrors={fieldErrors}
+          name="auto_save_stable_s"
+          label="Stable for (seconds)"
+          fullWidth
+          variant="outlined"
+          value={numberValue(data.auto_save_stable_s)}
+          type="number"
+          onChange={updateFormValue}
+          margin="normal"
+          helperText={
+            'How long the weight must stay still before it is saved (1 to 30 s). ' +
+            'One save per load: take the load off before the next one. SAVE on the screen works either way.'
+          }
+        />
+        <BlockFormControlLabel
+          control={
+            <Checkbox
+              name="save_ignore_alarm"
+              checked={!!data.save_ignore_alarm}
+              onChange={updateFormValue}
+            />
+          }
+          label="Test mode: save even when the DJB shows an alarm"
+        />
+        {data.save_ignore_alarm && (
+          <MessageBox
+            level="warning"
+            message={
+              'For bench testing only. Weighings saved during a DJB alarm are marked "djb_alarm" on the Hub. ' +
+              'Has no effect while approval is ON.'
+            }
+            my={1}
+          />
+        )}
+        <Typography variant="h6" sx={{ mt: 2 }}>
+          Live page and MQTT
+        </Typography>
         <ValidatedTextField
           fieldErrors={fieldErrors}
           name="publish_interval_ms"

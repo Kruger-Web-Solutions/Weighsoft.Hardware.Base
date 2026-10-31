@@ -49,11 +49,42 @@ bool sameView(const WSoftSnapshot& a, const WSoftSnapshot& b) {
          strncmp(a.hub_text, b.hub_text, sizeof a.hub_text) == 0;
 }
 
+bool sameSave(const SaveStatus& a, const SaveStatus& b) {
+  return a.check == b.check && a.auto_on == b.auto_on && a.auto_stable_s == b.auto_stable_s &&
+         a.last.seq == b.last.seq && a.queue == b.queue && a.hub_status == b.hub_status;
+}
+
+// "12.3 kg"
+void weightText(int32_t value, int decimals, int unit, char* out, size_t size) {
+  format_weight(value, decimals, out, size);
+  const char* text = weight_unit_text(unit);
+  if (text[0] != '\0') {
+    strlcat(out, " ", size);
+    strlcat(out, text, size);
+  }
+}
+
 }  // namespace
 
 void WSoftStatus::read(WSoftStatus& status, JsonObject& root) {
   JsonObjectSink sink(root);
   wsoft_view_write(status.snapshot, sink);
+
+  const SaveStatus& save = status.save;
+  root["save_can"] = save.can_save;
+  root["save_reason"] = save_check_text(save.check);
+  root["save_auto"] = save.auto_on;
+  root["save_auto_s"] = save.auto_stable_s;
+  root["save_last_seq"] = save.last.seq;
+  if (save.last.valid) {
+    char text[24];
+    weightText(save.last.value, save.last.decimals, save.last.unit, text, sizeof text);
+    root["save_last_text"] = String(text);
+  } else {
+    root["save_last_text"] = (const char*)nullptr;
+  }
+  root["save_queue"] = save.queue;
+  root["save_hub_status"] = save.hub_status;
 }
 
 WSoftStatusService::WSoftStatusService(AsyncWebServer* server,
@@ -65,16 +96,18 @@ WSoftStatusService::WSoftStatusService(AsyncWebServer* server,
                   server,
                   WSOFT_STATUS_ENDPOINT_PATH,
                   securityManager,
-                  AuthenticationPredicates::IS_AUTHENTICATED),
+                  AuthenticationPredicates::IS_AUTHENTICATED,
+                  WSOFT_STATUS_BUFFER_SIZE),
     _webSocket(WSoftStatus::read,
                this,
                server,
                WSOFT_STATUS_SOCKET_PATH,
                securityManager,
-               AuthenticationPredicates::IS_AUTHENTICATED),
+               AuthenticationPredicates::IS_AUTHENTICATED,
+               WSOFT_STATUS_BUFFER_SIZE),
 #if FT_ENABLED(FT_MQTT)
     // Retained, so a subscriber that joins later still sees the current state.
-    _mqttPub(WSoftStatus::read, this, mqttClient, "", true),
+    _mqttPub(WSoftStatus::read, this, mqttClient, "", true, WSOFT_STATUS_BUFFER_SIZE),
     _mqttClient(mqttClient),
 #endif
     _settingsService(settingsService) {
@@ -85,6 +118,15 @@ WSoftStatusService::WSoftStatusService(AsyncWebServer* server,
       256);
   djbHandler->setMethod(HTTP_POST);
   server->addHandler(djbHandler);
+  // Any logged-in user may save, like pressing SAVE on the screen.
+  server->on(WSOFT_SAVE_ENDPOINT_PATH,
+             HTTP_POST,
+             securityManager->wrapRequest(std::bind(&WSoftStatusService::handleSave, this, std::placeholders::_1),
+                                          AuthenticationPredicates::IS_AUTHENTICATED));
+  server->on(WSOFT_SAVE_ENDPOINT_PATH,
+             HTTP_GET,
+             securityManager->wrapRequest(std::bind(&WSoftStatusService::handleSaveList, this, std::placeholders::_1),
+                                          AuthenticationPredicates::IS_AUTHENTICATED));
 #if FT_ENABLED(FT_MQTT)
   _mqttClient->onConnect(std::bind(&WSoftStatusService::configureMqtt, this));
   // Topic or MQTT on/off changed on the settings page.
@@ -163,6 +205,67 @@ void WSoftStatusService::handleDjb(AsyncWebServerRequest* request, JsonVariant& 
   request->send(response);
 }
 
+void WSoftStatusService::handleSave(AsyncWebServerRequest* request) {
+  SaveCheck check = SAVE_NO_SIGNAL;
+  uint32_t seq = 0;
+  if (!save_request(WSOFT_SAVE_WAIT_MS, &check, &seq)) {
+    request->send(503, "application/json", "{\"ok\":false,\"reason\":\"busy\"}");
+    return;
+  }
+  AsyncJsonResponse* response = new AsyncJsonResponse(false, 256);
+  JsonObject root = response->getRoot().to<JsonObject>();
+  bool saved = check == SAVE_OK && seq != 0;
+  root["ok"] = saved;
+  if (saved) {
+    root["seq"] = seq;
+    SaveStatus status;
+    save_status(&status);
+    if (status.last.valid && status.last.seq == seq) {
+      char text[24];
+      weightText(status.last.value, status.last.decimals, status.last.unit, text, sizeof text);
+      root["weight_text"] = String(text);
+    }
+  } else {
+    root["reason"] = save_check_text(check);
+  }
+  response->setCode(saved ? 200 : 409);
+  response->setLength();
+  request->send(response);
+}
+
+void WSoftStatusService::handleSaveList(AsyncWebServerRequest* request) {
+  SavedWeighing recent[SAVE_RECENT_MAX];
+  uint32_t queued_from = 0;
+  size_t count = save_recent(recent, SAVE_RECENT_MAX, &queued_from);
+  SaveStatus status;
+  save_status(&status);
+
+  AsyncJsonResponse* response = new AsyncJsonResponse(false, 2560);
+  JsonObject root = response->getRoot().to<JsonObject>();
+  root["queue"] = status.queue;
+  root["hub_status"] = status.hub_status;
+  JsonArray list = root.createNestedArray("recent");
+  for (size_t i = 0; i < count; i++) {
+    const SavedWeighing& w = recent[i];
+    JsonObject item = list.createNestedObject();
+    item["seq"] = w.seq;
+    char text[24];
+    weightText(w.value, w.decimals, w.unit, text, sizeof text);
+    item["weight_text"] = String(text);
+    char when[32];
+    if (save_time_text(w.at, when, sizeof when)) {
+      item["at"] = String(when);
+    } else {
+      item["at"] = (const char*)nullptr;
+    }
+    item["auto_saved"] = w.auto_saved;
+    item["trade"] = w.trade;
+    item["delivered"] = queued_from == 0 || w.seq < queued_from;
+  }
+  response->setLength();
+  request->send(response);
+}
+
 void WSoftStatusService::begin() {
   Serial.println(F("[WSoft] Starting W-Soft screen (RS485 Serial1 RX15/TX16)..."));
   wsoft_screen_setup();
@@ -201,10 +304,13 @@ void WSoftStatusService::loop() {
 
   WSoftSnapshot latest;
   wsoft_screen_snapshot(&latest);
+  SaveStatus latestSave;
+  save_status(&latestSave);
   update(
       [&](WSoftStatus& status) {
-        bool changed = !sameView(status.snapshot, latest);
+        bool changed = !sameView(status.snapshot, latest) || !sameSave(status.save, latestSave);
         status.snapshot = latest;
+        status.save = latestSave;
         return changed ? StateUpdateResult::CHANGED : StateUpdateResult::UNCHANGED;
       },
       "wsoft_screen");

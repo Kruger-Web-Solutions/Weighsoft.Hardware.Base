@@ -5,7 +5,7 @@
 // maps JSON to WSoftSettingsInput and back.
 //
 // Deliberately NOT here: approval ON/OFF (USB technician only), the Hub pairing code
-// (USB only), Wi-Fi and OTA (framework settings pages).
+// (Hub tab, hub_pairing.h + WSoftHubService), Wi-Fi and OTA (framework settings pages).
 
 #include <stddef.h>
 #include <stdint.h>
@@ -13,6 +13,11 @@
 static const uint32_t WSOFT_PUBLISH_MIN_MS = 250;  // the screen polls the DJB every 250 ms
 static const uint32_t WSOFT_PUBLISH_MAX_MS = 60000;
 static const uint32_t WSOFT_PUBLISH_DEFAULT_MS = 1000;
+
+// Auto-save: a load held still this many seconds is saved once (save_logic.h).
+static const uint32_t WSOFT_AUTO_SAVE_MIN_S = 1;
+static const uint32_t WSOFT_AUTO_SAVE_MAX_S = 30;
+static const uint32_t WSOFT_AUTO_SAVE_DEFAULT_S = 3;
 
 static const size_t WSOFT_MQTT_PATH_MAX = 96;  // + "/status" stays under the framework's 128-byte topic cap
 static const size_t WSOFT_MQTT_ID_MAX = 48;
@@ -28,6 +33,11 @@ struct WSoftSettingsData {
   char mqtt_base_path[WSOFT_MQTT_PATH_MAX + 1];
   char mqtt_name[WSOFT_MQTT_ID_MAX + 1];
   char mqtt_unique_id[WSOFT_MQTT_ID_MAX + 1];
+  bool auto_save;              // default off
+  uint32_t auto_save_stable_s;  // 1..30, default 3
+  // Bench testing only: let a save through while the DJB reports an alarm. Ignored while
+  // approval is ON (a trade weight is never taken from a box in alarm). Default off.
+  bool save_ignore_alarm;
 };
 
 // One field per option. A missing field (has_* false or a null string) takes its default:
@@ -40,6 +50,12 @@ struct WSoftSettingsInput {
   const char *mqtt_base_path = nullptr;
   const char *mqtt_name = nullptr;
   const char *mqtt_unique_id = nullptr;
+  bool has_auto_save = false;
+  bool auto_save = false;
+  bool has_auto_save_stable_s = false;
+  int64_t auto_save_stable_s = 0;
+  bool has_save_ignore_alarm = false;
+  bool save_ignore_alarm = false;
 };
 
 enum WSoftSettingsResult { WSOFT_SETTINGS_UNCHANGED, WSOFT_SETTINGS_CHANGED, WSOFT_SETTINGS_ERROR };
@@ -47,7 +63,7 @@ enum WSoftSettingsResult { WSOFT_SETTINGS_UNCHANGED, WSOFT_SETTINGS_CHANGED, WSO
 void wsoft_settings_defaults(WSoftSettingsData *s);
 
 // Validates and applies. On ERROR nothing in *s changes. The publish interval is
-// clamped into [MIN, MAX] (the branch's style for numbers); a bad topic or name is
+// clamped into [MIN, MAX] (the branch's style for numbers), and so is the auto-save time; a bad topic or name is
 // an ERROR because there is no safe value to clamp it to.
 WSoftSettingsResult wsoft_settings_update(const WSoftSettingsInput &in, WSoftSettingsData *s);
 
