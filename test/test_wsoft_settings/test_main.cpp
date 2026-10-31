@@ -84,6 +84,68 @@ void test_interval_is_clamped_both_ways() {
   TEST_ASSERT_EQUAL_UINT32(WSOFT_PUBLISH_MAX_MS, s.publish_interval_ms);
 }
 
+// ---------- auto-save ----------
+
+void test_auto_save_defaults_off_with_three_seconds() {
+  WSoftSettingsData s = defaults();
+  TEST_ASSERT_FALSE(s.auto_save);
+  TEST_ASSERT_EQUAL_UINT32(3, s.auto_save_stable_s);
+}
+
+void test_auto_save_update_applies_and_reports_changed() {
+  WSoftSettingsData s = defaults();
+  WSoftSettingsInput in;
+  in.has_auto_save = true;
+  in.auto_save = true;
+  in.has_auto_save_stable_s = true;
+  in.auto_save_stable_s = 7;
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_CHANGED, wsoft_settings_update(in, &s));
+  TEST_ASSERT_TRUE(s.auto_save);
+  TEST_ASSERT_EQUAL_UINT32(7, s.auto_save_stable_s);
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_UNCHANGED, wsoft_settings_update(in, &s));
+}
+
+void test_auto_save_time_is_clamped_both_ways() {
+  WSoftSettingsData s = defaults();
+  WSoftSettingsInput in;
+  in.has_auto_save_stable_s = true;
+  in.auto_save_stable_s = 0;
+  wsoft_settings_update(in, &s);
+  TEST_ASSERT_EQUAL_UINT32(WSOFT_AUTO_SAVE_MIN_S, s.auto_save_stable_s);
+  in.auto_save_stable_s = -3;
+  wsoft_settings_update(in, &s);
+  TEST_ASSERT_EQUAL_UINT32(1, s.auto_save_stable_s);
+  in.auto_save_stable_s = 31;
+  wsoft_settings_update(in, &s);
+  TEST_ASSERT_EQUAL_UINT32(WSOFT_AUTO_SAVE_MAX_S, s.auto_save_stable_s);
+  in.auto_save_stable_s = 30;
+  wsoft_settings_update(in, &s);
+  TEST_ASSERT_EQUAL_UINT32(30, s.auto_save_stable_s);
+}
+
+void test_missing_auto_save_fields_fall_back_to_defaults() {
+  WSoftSettingsData s = defaults();
+  s.auto_save = true;
+  s.auto_save_stable_s = 12;
+  WSoftSettingsInput in;
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_CHANGED, wsoft_settings_update(in, &s));
+  TEST_ASSERT_FALSE(s.auto_save);
+  TEST_ASSERT_EQUAL_UINT32(3, s.auto_save_stable_s);
+}
+
+void test_bad_topic_keeps_the_old_auto_save() {
+  WSoftSettingsData s = defaults();
+  s.auto_save = true;
+  s.auto_save_stable_s = 9;
+  WSoftSettingsInput in;
+  in.has_auto_save = true;
+  in.auto_save = false;
+  in.mqtt_base_path = "a/+/b";
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_ERROR, wsoft_settings_update(in, &s));
+  TEST_ASSERT_TRUE(s.auto_save);
+  TEST_ASSERT_EQUAL_UINT32(9, s.auto_save_stable_s);
+}
+
 static void expect_topic_rejected(const char *topic) {
   WSoftSettingsData s = defaults();
   s.publish_interval_ms = 4000;
@@ -151,5 +213,10 @@ int main(int, char **) {
   RUN_TEST(test_bad_topics_are_rejected_without_change);
   RUN_TEST(test_topic_at_max_length_is_accepted);
   RUN_TEST(test_bad_names_are_rejected);
+  RUN_TEST(test_auto_save_defaults_off_with_three_seconds);
+  RUN_TEST(test_auto_save_update_applies_and_reports_changed);
+  RUN_TEST(test_auto_save_time_is_clamped_both_ways);
+  RUN_TEST(test_missing_auto_save_fields_fall_back_to_defaults);
+  RUN_TEST(test_bad_topic_keeps_the_old_auto_save);
   return UNITY_END();
 }
