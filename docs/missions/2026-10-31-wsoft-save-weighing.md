@@ -71,7 +71,12 @@ checks (host tests, interface build) → laptop build → bench demo. Start now:
 | # | Agent | Ticket | Status |
 |---|---|---|---|
 | 1 | builder (general-purpose) | full slice on claude/project-thread-21cbr9 | DONE_WITH_CONCERNS (b556145..80e52ef; ESP code not compiled in cloud) |
-| 2 | laptop build (Remote Control) | pio run -e wsoft_waveshare43_ota, then flash | IN-FLIGHT |
+| 2 | laptop build (Remote Control) | pio run -e wsoft_waveshare43_ota, then flash | DONE (253bff7 built SUCCESS, firmware.bin 2,344,528 B, USB-flashed COM10 14:1x, hash verified, /rest/wsoftSave answers) |
+| 3 | bench demo (Jurien) | SUCCESS 1-7 on the bench + Hub | IN-FLIGHT |
+
+Notes: a parallel manual build at 12:58 clashed in the same .pio folder and forced a full rebuild
+(~45 min); a Remote Control restart cut the next run off near the end. Rule for next time: one build
+per folder, announced before it starts.
 
 SITREP 1 (12:25): host tests 6/6 suites green (re-run by command post: all OK); interface build green;
 touch GT911 from board config (SDA 8/SCL 9/INT 4); weighing_id wsoft-<mac>-<series>-<seq>;
