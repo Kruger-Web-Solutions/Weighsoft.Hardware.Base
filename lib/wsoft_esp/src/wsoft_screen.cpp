@@ -288,6 +288,158 @@ static bool read_long(uint16_t start, int32_t *value) {
   return true;
 }
 
+static Reading reading;
+
+// One queued register transaction. The HTTP handler waits; only this task touches Serial1.
+static const int JOB_IDLE = 0;
+static const int JOB_QUEUED = 1;
+static const int JOB_RUNNING = 2;
+static const int JOB_DONE = 3;
+
+static portMUX_TYPE job_lock = portMUX_INITIALIZER_UNLOCKED;
+static volatile int job_state = JOB_IDLE;
+static WsoftDjbPlan job_plan;
+static WsoftDjbResult job_result;
+
+static void fill_ids(const WsoftDjbPlan *plan, WsoftDjbResult *out) {
+  out->slave = slave;
+  out->doc = plan->doc;
+  out->pdu = plan->pdu;
+  out->command = plan->command;
+  out->value = plan->value;
+}
+
+static void run_job(const WsoftDjbPlan *plan, WsoftDjbResult *out) {
+  memset(out, 0, sizeof *out);
+  fill_ids(plan, out);
+  if (!reading.linked) {
+    strlcpy(out->error, "not_linked", sizeof out->error);
+    return;
+  }
+
+  uint8_t request[16];
+  size_t request_len = wsoft_djb_build(slave, plan, request, sizeof request);
+  if (request_len == 0) {
+    strlcpy(out->error, "build", sizeof out->error);
+    return;
+  }
+  wsoft_djb_hex(request, request_len, out->request_hex, sizeof out->request_hex);
+
+  while (Serial1.available()) Serial1.read();
+  Serial1.write(request, request_len);
+  Serial1.flush();
+  out->sent = true;
+
+  size_t expected = plan->write ? 8 : 9;
+  uint8_t reply[32];
+  size_t got = 0;
+  uint32_t deadline = millis() + 200;
+  while (got < expected && (int32_t)(deadline - millis()) > 0) {
+    if (Serial1.available()) {
+      if (got < sizeof reply) reply[got] = (uint8_t)Serial1.read();
+      else Serial1.read();
+      got++;
+      if (got >= 2 && (reply[1] & 0x80)) expected = 5;
+    } else {
+      delay(1);
+    }
+  }
+  if (got > sizeof reply) got = sizeof reply;
+  wsoft_djb_hex(reply, got, out->reply_hex, sizeof out->reply_hex);
+
+  int32_t value = plan->value;
+  uint8_t exception = 0;
+  int status = wsoft_djb_parse(reply, got, slave, plan->command, plan->pdu, &value, &exception);
+  if (status == 0) {
+    out->ok = true;
+    out->value = value;
+    if (plan->alarm) {
+      out->alarm_valid = true;
+      out->alarm_raw = (uint32_t)value;
+      wsoft_djb_alarm_bits(value, &out->alarm);
+    }
+    return;
+  }
+  const char *error = "mismatch";
+  if (status == 1) error = got == 0 ? "no_reply" : "short";
+  else if (status == 2) error = "crc";
+  else if (status == 3) {
+    error = "exception";
+    out->exception = exception;
+  }
+  strlcpy(out->error, error, sizeof out->error);
+}
+
+static void service_job() {
+  if (hub_ota_busy()) return;
+  WsoftDjbPlan plan;
+  portENTER_CRITICAL(&job_lock);
+  if (job_state != JOB_QUEUED) {
+    portEXIT_CRITICAL(&job_lock);
+    return;
+  }
+  plan = job_plan;
+  job_state = JOB_RUNNING;
+  portEXIT_CRITICAL(&job_lock);
+
+  WsoftDjbResult result;
+  run_job(&plan, &result);
+  // A following poll needs a short gap on the bus after this frame.
+  delay(5);
+
+  portENTER_CRITICAL(&job_lock);
+  job_result = result;
+  job_state = JOB_DONE;
+  portEXIT_CRITICAL(&job_lock);
+}
+
+bool wsoft_screen_djb(const WsoftDjbPlan *plan, WsoftDjbResult *out, uint32_t timeout_ms) {
+  if (out == nullptr) return false;
+  memset(out, 0, sizeof *out);
+  if (plan == nullptr || !plan->ok) {
+    strlcpy(out->error, "bad_plan", sizeof out->error);
+    return false;
+  }
+  portENTER_CRITICAL(&job_lock);
+  if (job_state != JOB_IDLE) {
+    portEXIT_CRITICAL(&job_lock);
+    strlcpy(out->error, "busy", sizeof out->error);
+    return false;
+  }
+  job_plan = *plan;
+  job_state = JOB_QUEUED;
+  portEXIT_CRITICAL(&job_lock);
+
+  uint32_t start = millis();
+  for (;;) {
+    portENTER_CRITICAL(&job_lock);
+    int state = job_state;
+    if (state == JOB_DONE) {
+      *out = job_result;
+      job_state = JOB_IDLE;
+      portEXIT_CRITICAL(&job_lock);
+      return true;
+    }
+    portEXIT_CRITICAL(&job_lock);
+
+    uint32_t elapsed = millis() - start;
+    if (state == JOB_QUEUED && elapsed > timeout_ms) {
+      portENTER_CRITICAL(&job_lock);
+      if (job_state == JOB_QUEUED) {
+        job_state = JOB_IDLE;
+        portEXIT_CRITICAL(&job_lock);
+        strlcpy(out->error, "timeout", sizeof out->error);
+        return false;
+      }
+      portEXIT_CRITICAL(&job_lock);
+    } else if (elapsed > timeout_ms + 1000) {
+      strlcpy(out->error, "timeout", sizeof out->error);
+      return false;
+    }
+    delay(5);
+  }
+}
+
 // ---------- main ----------
 
 static bool start_display() {
@@ -337,7 +489,6 @@ static bool start_display() {
 }
 
 static bool display_ready = false;
-static Reading reading;
 static int fails = FAILS_BEFORE_NO_SIGNAL;
 static uint32_t polls = 0;
 
@@ -398,6 +549,7 @@ void wsoft_screen_loop() {
   static HubState shown_hub = HUB_SETUP;
   hub_handle_serial(Serial0);
   hub_ota_poll();
+  service_job();
   if (hub_ota_busy() || !display_ready || millis() - last_poll < POLL_MS) return;
   last_poll = millis();
 

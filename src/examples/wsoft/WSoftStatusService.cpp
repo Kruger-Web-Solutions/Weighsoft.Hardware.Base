@@ -4,7 +4,10 @@
 #include <examples/wsoft/WSoftStatusService.h>
 
 #include <limits.h>
+#include <stdio.h>
+#include <string.h>
 
+#include <wsoft_djb.h>
 #include <wsoft_screen.h>
 
 namespace {
@@ -75,6 +78,13 @@ WSoftStatusService::WSoftStatusService(AsyncWebServer* server,
     _mqttClient(mqttClient),
 #endif
     _settingsService(settingsService) {
+  AsyncCallbackJsonWebHandler* djbHandler = new AsyncCallbackJsonWebHandler(
+      WSOFT_DJB_ENDPOINT_PATH,
+      securityManager->wrapCallback(std::bind(&WSoftStatusService::handleDjb, this, std::placeholders::_1, std::placeholders::_2),
+                                    AuthenticationPredicates::IS_ADMIN),
+      256);
+  djbHandler->setMethod(HTTP_POST);
+  server->addHandler(djbHandler);
 #if FT_ENABLED(FT_MQTT)
   _mqttClient->onConnect(std::bind(&WSoftStatusService::configureMqtt, this));
   // Topic or MQTT on/off changed on the settings page.
@@ -82,6 +92,75 @@ WSoftStatusService::WSoftStatusService(AsyncWebServer* server,
 #else
   (void)mqttClient;
 #endif
+}
+
+void WSoftStatusService::handleDjb(AsyncWebServerRequest* request, JsonVariant& json) {
+  if (!json.is<JsonObject>()) {
+    request->send(400, "application/json", "{\"ok\":false,\"error\":\"json\"}");
+    return;
+  }
+  JsonObject body = json.as<JsonObject>();
+  const char* op = body["op"] | "";
+  const char* field = body["field"] | "";
+  bool has_channel = body.containsKey("channel");
+  int channel = body["channel"] | 0;
+  bool has_value = body.containsKey("value");
+  long raw_value = 0;
+  if (has_value) {
+    if (!body["value"].is<long>() && !body["value"].is<int>()) {
+      request->send(400, "application/json", "{\"ok\":false,\"error\":\"bad_value\"}");
+      return;
+    }
+    raw_value = body["value"].as<long>();
+  }
+
+  WsoftDjbPlan plan;
+  if (!wsoft_djb_plan(op, field, channel, has_channel, (int32_t)raw_value, has_value, &plan)) {
+    char message[80];
+    snprintf(message, sizeof message, "{\"ok\":false,\"error\":\"%s\"}", plan.error);
+    request->send(400, "application/json", message);
+    return;
+  }
+
+  WsoftDjbResult result;
+  bool finished = wsoft_screen_djb(&plan, &result, 2000);
+  int code = 200;
+  if (!finished) {
+    code = strcmp(result.error, "busy") == 0 ? 409 : 504;
+  } else if (!result.ok && !result.sent) {
+    code = 409;
+  }
+
+  AsyncJsonResponse* response = new AsyncJsonResponse(false, 768);
+  JsonObject root = response->getRoot().to<JsonObject>();
+  root["ok"] = finished && result.ok;
+  root["sent"] = result.sent;
+  if (result.error[0]) root["error"] = result.error;
+  if (finished) {
+    root["slave"] = result.slave;
+    root["doc"] = result.doc;
+    root["pdu"] = result.pdu;
+    root["command"] = result.command;
+    root["value"] = (long)result.value;
+    root["request_hex"] = result.request_hex;
+    root["reply_hex"] = result.reply_hex;
+    if (result.exception) root["exception"] = result.exception;
+    if (result.alarm_valid) {
+      char hex[9];
+      snprintf(hex, sizeof hex, "%08X", result.alarm_raw);
+      root["alarm_raw"] = (long)result.value;
+      root["alarm_raw_hex"] = hex;
+      JsonObject bits = root.createNestedObject("alarm_bits");
+      bits["parameter_changed"] = result.alarm.parameter_changed;
+      bits["software_match"] = result.alarm.software_match;
+      bits["adc_failure"] = result.alarm.adc_failure;
+      bits["over_range"] = result.alarm.over_range;
+      bits["eeprom"] = result.alarm.eeprom;
+    }
+  }
+  response->setCode(code);
+  response->setLength();
+  request->send(response);
 }
 
 void WSoftStatusService::begin() {
