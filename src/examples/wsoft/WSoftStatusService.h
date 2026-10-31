@@ -10,7 +10,9 @@
 // copies that snapshot in loop() and pushes it out when it changes, at most once per
 // publish interval (WSoftSettingsService).
 //
-// There is no write path: approval is switched only with a USB cable (APPROVAL ON/OFF).
+// Approval is switched only with a USB cable (APPROVAL ON/OFF).
+// POST /rest/djb (admin) reads and writes DJB registers. The screen task owns Serial1
+// and runs that one transaction; this service only queues it.
 
 #include <HttpEndpoint.h>
 #include <WebSocketTxRx.h>
@@ -25,6 +27,7 @@
 class AsyncMqttClient;
 
 #define WSOFT_STATUS_ENDPOINT_PATH "/rest/wsoftStatus"
+#define WSOFT_DJB_ENDPOINT_PATH "/rest/djb"
 #define WSOFT_STATUS_SOCKET_PATH "/ws/wsoftStatus"
 #define WSOFT_STATUS_WS_CLEANUP_MS 5000UL
 
@@ -68,6 +71,7 @@ class WSoftStatusService : public StatefulService<WSoftStatus> {
 
   void configureMqtt();
   void publishDiscovery(const String& statusTopic);
+  void handleDjb(AsyncWebServerRequest* request, JsonVariant& json);
   static void screenTask(void* param);
 };
 

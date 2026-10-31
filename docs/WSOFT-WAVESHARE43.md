@@ -84,6 +84,7 @@ Approval has no web, MQTT or BLE write path. That is on purpose.
 | Path | Who | What |
 |---|---|---|
 | `GET /rest/wsoftStatus` | logged-in user | Live view (JSON below) |
+| `POST /rest/djb` | admin | One DJB register read or write (below). The screen task runs it on Serial1 |
 | WebSocket `/ws/wsoftStatus` | logged-in user | Same JSON, pushed when it changes |
 | `GET/POST /rest/wsoftSettings` | admin | Options; a bad topic or name returns 400 and keeps the old values |
 | WebSocket `/ws/wsoftSettings` | admin | Same options |
@@ -93,6 +94,22 @@ Live JSON fields: `ready`, `display_ready`, `link` (`starting` / `no_signal` / `
 `alarm` / `live`), `linked`, `weight_g` (whole grams, **null** when not linked or the last poll
 failed), `weight_text`, `unit`, `decimals`, `stable`, `alarm`, `approval_on`, `for_trade`,
 `trade_check`, `audit_counter`, `last_trade_seq`, `trade_queue`, `hub`, `hub_online`, `polls`.
+
+`POST /rest/djb` body: `{"op":"read","channel":1,"field":"weight"}`,
+`{"op":"write","channel":1,"field":"ad","value":0}`, or `{"op":"read","field":"unit"}`.
+`field` is `ad`, `weight`, `alarm` (channel 1–16), or `unused`, `unit`, `decimal`,
+`division`, `stability_range`, `stability_time`, `zero_track_limit`, `zero_track_time`,
+`zero_display`, `sampling`, `filter1`, `filter2`, `address`, `baud`, `byte_order`,
+`com1_mode`. Addresses are the 41xxx map. Signed long, byte order 4321. Weight and alarm
+are read-only. Alarm reads add `alarm_raw_hex` and `alarm_bits` (high-word bits 0, 1, 13,
+14, 15). Sampling and both filters are the raw long. Any call is refused (409
+`not_linked`) while the scale is not linked, and every write is refused (409 `approval_on`)
+while approval is on: an `ad` write is a calibration (0 zero, CW > 0 load) and the scale
+parameters are metrological. Out-of-range writes return 400 `ad_range` / `range`: `ad`
+0..1000000, `unit` 0..3, `decimal` 0..4, `address` 1..10 (the link scan range), `baud`
+0..2, `byte_order` 0 and `com1_mode` 1 (the poll needs both). Writing `address` or `baud`
+drops the link until the scan finds the scale again. After a write the poll re-reads unit
+and decimals at once.
 
 Options:
 
