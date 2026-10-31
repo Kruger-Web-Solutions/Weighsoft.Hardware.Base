@@ -1,4 +1,4 @@
-STATUS: IN-FLIGHT
+STATUS: DONE (builder; PR not opened yet)
 
 # Ticket: ESP accepts a multi-address Hub pairing code (S5, 2026-10-31)
 
@@ -49,3 +49,18 @@ lib/wsoft_esp/src/hub.h, lib/wsoft_esp/src/hub.cpp, src/examples/wsoft/WSoftHubS
 interface/src/project/wsoft/WSoftHub.tsx, interface/src/project/wsoft/types.ts, this file.
 
 ## SITREP (builder)
+10:56Z · intel packet commit+push · 7de6c32 · exit 0
+11:03Z · core parse+failover commit, host tests 20/20 · b9e2ab1 · exit 0
+11:53Z · ESP failover + web status commit · b2695c0 · exit 0
+11:53Z · UI address list commit · c39c6c8 · exit 0
+11:53Z · host tests (WSL g++, [env:native] flags) 20/20 · c39c6c8 · exit 0
+11:53Z · pio run -e wsoft_waveshare43 SUCCESS (RAM 17.6%, Flash 35.5%, interface npm build ok) · c39c6c8 · exit 0
+11:53Z · push by explicit URL · c39c6c8 · exit 0
+
+RED -> GREEN: at 16e331a the full test file fails to compile (19 errors, new API missing) and
+test_code_opened_over_tailscale_still_gives_a_lan_address FAILS (got http://100.123.233.77:8090);
+at c39c6c8 all 20 tests pass.
+
+Micro-AAR: planned list + failover + UI; got that plus USB HUB PAIR made check-only (it rewrote
+the live link under the hub task). Lesson: the first pio run on a fresh pioarduino platform failed
+in a package postinstall (WinError 2); a plain re-run installed and built cleanly.
