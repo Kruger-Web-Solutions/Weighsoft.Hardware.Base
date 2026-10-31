@@ -44,8 +44,17 @@ void OTASettingsService::configureArduinoOTA() {
     _arduinoOTA = new ArduinoOTAClass;
     _arduinoOTA->setPort(_state.port);
     _arduinoOTA->setPassword(_state.password.c_str());
+#ifdef ESP32
+    // The ESP32 default is a 1 s wait per data chunk. One slow Wi-Fi moment then aborts the upload
+    // part-way (the PC sees "connection forcibly closed", about 20%). Give each chunk 10 s.
+    _arduinoOTA->setTimeout(10000);
+#endif
     _arduinoOTA->onStart([]() {
       framework_ota_busy = true;
+#ifdef ESP32
+      // Wi-Fi power saving delays incoming packets; keep the radio awake for the upload.
+      WiFi.setSleep(false);
+#endif
       Serial.println(F("Starting"));
     });
     _arduinoOTA->onEnd([]() { Serial.println(F("\r\nEnd")); });

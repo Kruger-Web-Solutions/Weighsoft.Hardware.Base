@@ -368,7 +368,7 @@ static void hub_task(void *) {
       continue;
     }
     // A heartbeat uses the same network stack as a firmware upload. Leave it until the upload finishes.
-    if ((int32_t)(millis() - next) >= 0 && !ota_busy) {
+    if ((int32_t)(millis() - next) >= 0 && !hub_ota_busy()) {
       send_heartbeat();
       uint32_t wait = state != HUB_ONLINE ? RETRY_MS : approval_pending() > 0 ? TRADE_QUEUE_MS : HEARTBEAT_MS;
       next = millis() + wait;
