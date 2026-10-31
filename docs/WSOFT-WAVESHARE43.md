@@ -154,6 +154,20 @@ Whether a weight during an alarm should go out on MQTT is open for Rhyno.
 
 ## 6. Known gaps
 
+- **The running screen starves Wi-Fi (bench, 31 Oct 2026).** With the RGB panel running, the
+  ESP answers ping in 222-304 ms on average (up to 1 s) and serves its web page at about 2.8 KB/s;
+  other hosts on the same LAN answer in 1-3 ms. The same firmware with the panel not started
+  answers in 5 ms and serves 745 KB/s. Wi-Fi power saving is already off
+  (`WiFiSettingsService`), so that is not the cause. Effect: a Wi-Fi firmware update stalls
+  (36 KB in 27 s, then "premature end") and the web pages load slowly. A Wi-Fi update that
+  arrives while the panel is not running completes. Fix still to do: stop or slow the panel
+  during an update (and look at panel clock / bounce buffer / Wi-Fi buffers in internal RAM for
+  normal use). Until then flash over USB.
+- **After a successful Wi-Fi update the board boots from `app1`.** A plain
+  `esptool write_flash 0x10000` then writes `app0`, which the bootloader ignores. Use
+  `pio run -e wsoft_waveshare43 -t upload` (it rewrites the boot selection), or erase `otadata`
+  first: `esptool.py --chip esp32s3 --port COMx erase_region 0xe000 0x2000`.
+
 - Flashed on the bench board (26 Oct 2026, COM10, no backup of the old firmware). The first
   flash boot-looped: on core 3 `sntp_stop()` asserts without the lwIP core lock, and the
   framework calls it at boot when there is no Wi-Fi. `NTPSettingsService` now takes the lock
