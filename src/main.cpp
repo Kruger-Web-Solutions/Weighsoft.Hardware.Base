@@ -11,6 +11,7 @@
 #include <examples/lcddisplay/LcdDisplayService.h>
 #include <examples/wsoft/WSoftSettingsService.h>
 #include <examples/wsoft/WSoftStatusService.h>
+#include <examples/wsoft/WSoftHubService.h>
 #include "VersionService.h"
 #include "UartModeService.h"
 #include "BoardDisplayService.h"
@@ -142,6 +143,7 @@ LcdDisplayService* lcdDisplayService;
 #if FT_ENABLED(FT_WSOFT)
 WSoftSettingsService* wsoftSettingsService;
 WSoftStatusService* wsoftStatusService;
+WSoftHubService* wsoftHubService;
 #endif
 
 void setup() {
@@ -323,6 +325,8 @@ void setup() {
       wsoftSettingsService
       );
   wsoftStatusService->begin();
+  // Hub tab: paste the pairing code from the Hub (admins only).
+  wsoftHubService = new WSoftHubService(server, esp8266React->getSecurityManager());
   Serial.println(F("[9/10] W-Soft services loaded OK"));
 #endif
 

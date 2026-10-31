@@ -19,14 +19,20 @@ const WSoftInfo: FC = () => (
       </ListItem>
       <ListItem>
         <ListItemText
+          primary="Hub (admin)"
+          secondary="Paste the pairing code from the Hub to link this box. Shows whether the Hub hears it."
+        />
+      </ListItem>
+      <ListItem>
+        <ListItemText
           primary="USB cable (technician)"
-          secondary="APPROVAL STATUS / LOG / ON / OFF and HUB PAIR / SAVE / CLEAR. Approval is never switched from here."
+          secondary="APPROVAL STATUS / LOG / ON / OFF, and HUB PAIR / SAVE / CLEAR as a backup. Approval is never switched from here."
         />
       </ListItem>
     </List>
     <Alert severity="info" sx={{ mt: 2 }}>
       Endpoints: GET /rest/wsoftStatus · WebSocket /ws/wsoftStatus · MQTT &lt;base path&gt;/status ·
-      GET/POST /rest/wsoftSettings (admin)
+      GET/POST /rest/wsoftSettings (admin) · GET/POST/DELETE /rest/wsoftHub (admin)
     </Alert>
   </SectionContent>
 );

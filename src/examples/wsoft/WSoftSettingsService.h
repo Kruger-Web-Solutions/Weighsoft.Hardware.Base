@@ -7,7 +7,8 @@
 // W-Soft web options (Waveshare ESP32-S3 4.3 + DJB over RS485, env wsoft_waveshare43).
 // Only options the W-Soft web services own: publish interval, the MQTT status topic and the
 // Home Assistant discovery name/id (like the LED example).
-// Approval, the Hub pairing code, Wi-Fi and OTA are NOT here (USB / framework pages).
+// Approval (USB only), the Hub pairing code (Hub tab, WSoftHubService), Wi-Fi and OTA
+// (framework pages) are NOT here.
 // Validation and defaults live in lib/wsoft_core (wsoft_settings), host-tested.
 
 #include <HttpEndpoint.h>

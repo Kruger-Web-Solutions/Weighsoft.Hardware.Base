@@ -12,21 +12,21 @@ other devices here.
 
 | Part | Path | Notes |
 |---|---|---|
-| Pure logic (host-tested) | `lib/wsoft_core/` | `trade_logic.*` (identical), `wsoft_view.*`, `wsoft_settings.*` |
-| ESP firmware | `lib/wsoft_esp/` | `approval.*`, `hub.h`, `fonts.h`, `screen_rle.h` identical; `hub.cpp` guarded; `wsoft_screen.cpp` = old `main.cpp` |
-| Services | `src/examples/wsoft/` | `WSoftStatusService` (live), `WSoftSettingsService` (options) |
+| Pure logic (host-tested) | `lib/wsoft_core/` | `trade_logic.*` (identical), `wsoft_view.*`, `wsoft_settings.*`, `hub_pairing.*` (Hub code check, clock from the Hub) |
+| ESP firmware | `lib/wsoft_esp/` | `approval.*`, `fonts.h`, `screen_rle.h` identical; `hub.h` + `hub.cpp` extended for the Hub tab (31 Oct 2026, see section 7); `wsoft_screen.cpp` = old `main.cpp` |
+| Services | `src/examples/wsoft/` | `WSoftStatusService` (live), `WSoftSettingsService` (options), `WSoftHubService` (Hub link) |
 | Wiring | `src/main.cpp` | under `FT_WSOFT` only |
-| Web pages | `interface/src/project/wsoft/` | menu **W-Soft**: Live, Settings (admin), Information |
+| Web pages | `interface/src/project/wsoft/` | menu **W-Soft**: Live, Settings (admin), Hub (admin), Information |
 | Build | `platformio.ini` | `[env:wsoft_waveshare43]`, `[env:native]` |
 
 Check that the copied files still match the source:
 
 ```bash
-for f in approval.cpp approval.h hub.h fonts.h screen_rle.h; do
+for f in approval.cpp approval.h fonts.h screen_rle.h; do
   git -C ../weighsoft.wsoft show cfcd012:esp/src/$f | diff -q - lib/wsoft_esp/src/$f; done
 for f in trade_logic.cpp trade_logic.h; do
   git -C ../weighsoft.wsoft show cfcd012:esp/src/$f | diff -q - lib/wsoft_core/src/$f; done
-unifdef -UWSOFT_ON_BASE lib/wsoft_esp/src/hub.cpp | diff -q - <(git -C ../weighsoft.wsoft show cfcd012:esp/src/hub.cpp)
+# hub.h and hub.cpp no longer match cfcd012 on purpose (Hub tab, 31 Oct 2026).
 ```
 
 ## 2. Bench steps (laptop, not the cloud container)
@@ -60,7 +60,9 @@ unifdef -UWSOFT_ON_BASE lib/wsoft_esp/src/hub.cpp | diff -q - <(git -C ../weighs
    If the page stays on `Starting` forever, the panel failed to start (the screen loop stops
    before its first poll). Check the serial log for `display_ready` / panel errors.
 
-7. Hub pairing (if needed): over USB send `HUB PAIR <code>` then `HUB SAVE`.
+7. Hub link: open the box's web page, **W-Soft › Hub**, paste the code from the Hub, click
+   **Link to Hub**. The box restarts and shows `HUB ONLINE` (section 7). USB `HUB PAIR` +
+   `HUB SAVE` still works as a backup.
 
 ## 3. USB commands (UART0, 115200 8N1)
 
@@ -152,3 +154,29 @@ Whether a weight during an alarm should go out on MQTT is open for Rhyno.
   flash 68.1 %.
 - No CI job runs `pio test -e native` yet; `verify_build.yml` only runs for PRs into `master`
   (and on GitHub-hosted runners, a pre-existing gap). Run the host tests by hand.
+
+## 7. Link to the Hub from the web page (added 31 Oct 2026)
+
+```
+Hub (laptop browser)                       W-Soft web page (admin)
+Devices › New pairing code › Copy  ──────▶ W-Soft › Hub › paste › Link to Hub
+                                                  │ code checked, saved to NVS "hub/pair"
+                                                  ▼ box restarts
+                                           HUB CLOCK → (time from the Hub) → HUB ONLINE
+```
+
+- **Endpoints** (`src/examples/wsoft/WSoftHubService.*`, admin JWT):
+  `GET /rest/wsoftHub` (state, Hub address, key id, last Hub status, clock; never the secret),
+  `POST /rest/wsoftHub {"code": "..."}` (400 + message for a bad code; 200 then restart),
+  `DELETE /rest/wsoftHub` (forget the code, restart).
+- **Same storage as USB.** The web page writes the same NVS key that `HUB PAIR` + `HUB SAVE`
+  writes, and the same heartbeat code runs. Approval is not on the web page: it stays USB only.
+- **Clock without internet.** The Hub rejects a signature more than 300 s off its own clock.
+  When the box has no valid time (no internet NTP, e.g. the bench TOTOLINK), it asks the Hub:
+  `GET <hub>/api/v1/health` every 5 s and sets its clock from the reply's `Date` header. NTP
+  still wins when it works. The page shows "clock set from the Hub".
+- **Hub address.** The code carries the address the Hub page was opened with. The page warns when
+  it is a Tailscale `100.64–127.x` address or `localhost`: the box can't reach those. Open the Hub
+  with the laptop's LAN address (e.g. `http://192.168.1.x:8095`) before making the code.
+- **Host tests:** `test/test_hub_pairing` (real Hub-format codes made like
+  `Weighsoft.Indicator.Hub server/src/registry/registry.ts`, test secret only).

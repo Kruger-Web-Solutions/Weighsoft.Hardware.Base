@@ -37,3 +37,28 @@ export interface WSoftSettings {
   publish_interval_min_ms?: number;
   publish_interval_max_ms?: number;
 }
+
+// Mirrors src/examples/wsoft/WSoftHubService.cpp (GET /rest/wsoftHub). Admin only.
+export interface WSoftHubStatus {
+  configured: boolean;
+  /** Same words as the box's screen: "HUB ONLINE", "HUB OFFLINE", "HUB CLOCK", ... */
+  state: string;
+  online: boolean;
+  hub_url?: string;
+  key_id?: string;
+  /** Set when the Hub address can't work from this box (Tailscale or localhost). */
+  warning?: string;
+  /** Last HTTP status from the Hub; 0 before the first try. */
+  last_status: number;
+  clock_valid: boolean;
+  clock_from_hub: boolean;
+}
+
+// POST /rest/wsoftHub answer.
+export interface WSoftHubPairResult {
+  ok: boolean;
+  message: string;
+  hub_url?: string;
+  warning?: string;
+  restarting?: boolean;
+}
