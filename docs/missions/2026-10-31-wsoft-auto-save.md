@@ -1,6 +1,6 @@
 # Mission: W-Soft auto-save, stable timer and on-screen SAVE button
 
-STATUS: WAITING (scope choice A/B/C asked 31 Oct 2026 12:09 UTC)
+STATUS: SUPERSEDED by docs/missions/2026-10-31-wsoft-save-weighing.md (same request, filed first by the coordinator with the Hub question already answered: saves go to the Hub via /api/v1/ingest/weighings). No work was dispatched from this brief.
 
 ## MISSION BRIEF
 
