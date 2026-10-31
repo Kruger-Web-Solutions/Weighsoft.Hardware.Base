@@ -7,6 +7,7 @@
 #include "approval.h"
 #include "fonts.h"
 #include "hub.h"
+#include "save_queue.h"
 #include "screen_rle.h"
 #include "wsoft_screen.h"
 
@@ -44,9 +45,21 @@ static const uint16_t RED = 0xC1C6;
 static const uint16_t HEADER_OK = 0x7EF2;
 static const uint16_t HEADER_BAD = 0xFB2C;
 static const uint16_t WHITE = 0xFFFF;
+static const uint16_t BUTTON_OFF = 0xDEFB;  // light grey: SAVE not possible now
+
+// SAVE button, in the right of the ZONE box (the zone text ends by x 600). The hit area is a
+// little bigger than the drawing for a gloved finger.
+static const int SAVE_X0 = 608, SAVE_Y0 = 366, SAVE_X1 = 744, SAVE_Y1 = 426;
+static const int SAVE_HIT_PAD = 12;
+// Under the approval line: auto-save on the left, the save state on the right.
+static const int SAVE_LINE_Y = 188;
+static const uint32_t SAVED_SHOW_MS = 3000;
+static const uint32_t TOUCH_MS = 40;
 
 static Board *board = nullptr;
 static LCD *lcd = nullptr;
+// GT911 from the board config (ESP_PANEL_BOARD_TOUCH_CONTROLLER); nullptr when it did not start.
+static esp_panel::drivers::Touch *touch_device = nullptr;
 static uint16_t *background = nullptr;
 static uint16_t *frame = nullptr;
 
@@ -185,6 +198,47 @@ static void draw_approval() {
   draw_text(MID, 760, 152, line, MUTED, RIGHT);
 }
 
+// SAVE button and the save line (save_queue.h). Green: a tap saves now. Grey: why not.
+static bool saved_recently(const SaveStatus &s) {
+  return s.last.valid && millis() - s.last_saved_ms < SAVED_SHOW_MS;
+}
+
+static void draw_save() {
+  SaveStatus s;
+  save_status(&s);
+  fill_rect(SAVE_X0, SAVE_Y0, SAVE_X1, SAVE_Y1, s.can_save ? GREEN : BUTTON_OFF);
+  draw_text(MID, (SAVE_X0 + SAVE_X1) / 2, SAVE_Y0 + (SAVE_Y1 - SAVE_Y0 - MID.height) / 2, "SAVE",
+            s.can_save ? WHITE : MUTED, CENTER);
+
+  char line[24];
+  uint16_t color = YELLOW;
+  if (saved_recently(s) || (s.check == SAVE_DONE && s.last.valid)) {
+    snprintf(line, sizeof line, "SAVED %lu", (unsigned long)s.last.seq);
+    color = GREEN;
+  } else {
+    const char *why = "CHECK";
+    switch (s.check) {
+      case SAVE_OK: why = "READY"; color = GREEN; break;
+      case SAVE_NO_SIGNAL: why = "NO SIGNAL"; break;
+      case SAVE_STALE: why = "NO REPLY"; break;
+      case SAVE_ALARM: why = "ALARM"; break;
+      case SAVE_MOTION: why = "MOVING"; break;
+      case SAVE_EMPTY: why = "EMPTY"; color = MUTED; break;
+      case SAVE_DONE: why = "SAVED"; color = GREEN; break;
+      case SAVE_UNIT: why = "NO KG UNIT"; break;
+      case SAVE_NO_CLOCK: why = "NO CLOCK"; break;
+      case SAVE_QUEUE_FULL: why = "QUEUE FULL"; color = RED; break;
+    }
+    strlcpy(line, why, sizeof line);
+  }
+  draw_text(MID, 760, SAVE_LINE_Y, line, color, RIGHT);
+  if (s.auto_on) {
+    char text[16];
+    snprintf(text, sizeof text, "AUTO %luS", (unsigned long)s.auto_stable_s);
+    draw_text(MID, 480, SAVE_LINE_Y, text, MUTED);
+  }
+}
+
 static void render(const Reading &r) {
   memcpy(frame, background, SCREEN_W * SCREEN_H * sizeof(uint16_t));
 
@@ -225,6 +279,7 @@ static void render(const Reading &r) {
     draw_text(MID, 430, 394, zone, zone_color);
   }
   draw_approval();
+  draw_save();
 
   lcd->drawBitmap(0, 0, SCREEN_W, SCREEN_H, reinterpret_cast<const uint8_t *>(frame), 1000);
 }
@@ -499,6 +554,67 @@ static bool start_display() {
   return true;
 }
 
+// Touch is in the board config (GT911 on I2C, the CH422G's bus; reset through the expander), but
+// board->begin() is not used here, so start it the way Board::begin() does, after the LCD.
+static void start_touch() {
+  esp_panel::drivers::Touch *device = board->getTouch();
+  if (device == nullptr) {
+    log_line("touch not in the board config: SAVE only from the web page");
+    return;
+  }
+  const BoardConfig &config = board->getConfig();
+  BoardConfig::FunctionStageCallback pre = config.stage_callbacks[BoardConfig::STAGE_CALLBACK_PRE_TOUCH_BEGIN];
+  if (pre != nullptr && !pre(board)) {
+    log_line("touch pre-begin failed");
+    return;
+  }
+  if (!device->begin()) {
+    log_line("touch begin failed");
+    return;
+  }
+  if (config.touch.has_value()) {
+    device->swapXY(config.touch->pre_process.swap_xy);
+    device->mirrorX(config.touch->pre_process.mirror_x);
+    device->mirrorY(config.touch->pre_process.mirror_y);
+  }
+  touch_device = device;
+  log_line("touch ready");
+}
+
+// One SAVE per press: a press counts when a finger lands on the button, and the next one only
+// after the screen has been untouched for two reads in a row.
+static void poll_touch() {
+  static uint32_t last_read = 0;
+  static bool down = false;
+  static int empty_reads = 0;
+  static int failed_reads = 0;
+  if (touch_device == nullptr || millis() - last_read < TOUCH_MS) return;
+  last_read = millis();
+
+  esp_panel::drivers::TouchPoint point;
+  int found = touch_device->readPoints(&point, 1, 0);
+  if (found < 0) {
+    if (++failed_reads >= 25) {
+      touch_device = nullptr;
+      log_line("touch reads keep failing: touch off until restart, SAVE from the web page");
+    }
+    return;
+  }
+  failed_reads = 0;
+  if (found == 0) {
+    if (down && ++empty_reads >= 2) down = false;
+    return;
+  }
+  empty_reads = 0;
+  if (down) return;
+  down = true;
+  if (point.x >= SAVE_X0 - SAVE_HIT_PAD && point.x < SAVE_X1 + SAVE_HIT_PAD && point.y >= SAVE_Y0 - SAVE_HIT_PAD &&
+      point.y < SAVE_Y1 + SAVE_HIT_PAD) {
+    Serial0.printf("SAVE pressed on the screen x=%d y=%d\n", point.x, point.y);
+    save_press();
+  }
+}
+
 static bool display_ready = false;
 static int fails = FAILS_BEFORE_NO_SIGNAL;
 static uint32_t polls = 0;
@@ -547,7 +663,9 @@ void wsoft_screen_setup() {
 
   display_ready = start_display();
   log_line(display_ready ? "display ready" : "display failed");
+  if (display_ready) start_touch();
   approval_begin();
+  save_begin();
   hub_begin();
   if (display_ready) render(reading);
   portENTER_CRITICAL(&snapshot_lock);
@@ -561,7 +679,9 @@ void wsoft_screen_loop() {
   hub_handle_serial(Serial0);
   hub_ota_poll();
   service_job();
-  if (hub_ota_busy() || !display_ready || millis() - last_poll < POLL_MS) return;
+  if (hub_ota_busy() || !display_ready) return;
+  poll_touch();
+  if (millis() - last_poll < POLL_MS) return;
   last_poll = millis();
 
   Reading next = reading;
@@ -589,6 +709,8 @@ void wsoft_screen_loop() {
   }
 
   TradeCheck check = approval_update(next.linked, fresh, next.alarm, next.value, next.decimals, next.unit);
+  // Keeping a weighing is separate from the trade path above and changes nothing in it.
+  save_update(next.linked, fresh, next.alarm, next.value, next.decimals, next.unit);
 
   if (next.linked && polls % 4 == 1) {
     Serial0.printf("DJB slave=%u baud=%lu ", slave, (unsigned long)SCAN_BAUDS[baud_index]);
@@ -614,7 +736,20 @@ void wsoft_screen_loop() {
   shown_check = check;
   shown_audit = audit;
   shown_seq = seq;
-  if (approval_changed || next.linked != reading.linked || next.value != reading.value || next.alarm != reading.alarm ||
+  SaveStatus saving;
+  save_status(&saving);
+  static SaveCheck shown_save = SAVE_NO_SIGNAL;
+  static uint32_t shown_saved_seq = 0, shown_auto_s = 0;
+  static bool shown_recent = false, shown_auto = false;
+  bool recent = saved_recently(saving);
+  bool save_changed = saving.check != shown_save || saving.last.seq != shown_saved_seq || recent != shown_recent ||
+                      saving.auto_on != shown_auto || saving.auto_stable_s != shown_auto_s;
+  shown_save = saving.check;
+  shown_saved_seq = saving.last.seq;
+  shown_recent = recent;
+  shown_auto = saving.auto_on;
+  shown_auto_s = saving.auto_stable_s;
+  if (approval_changed || save_changed || next.linked != reading.linked || next.value != reading.value || next.alarm != reading.alarm ||
       next.decimals != reading.decimals || next.unit != reading.unit || hub != shown_hub || polls == 1) {
     reading = next;
     shown_hub = hub;

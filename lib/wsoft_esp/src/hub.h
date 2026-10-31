@@ -3,7 +3,8 @@
 #include <Arduino.h>
 #include <hub_pairing.h>
 
-// Sends signed heartbeats to the Weighsoft Indicator Hub (docs/adr/0003 in that repo).
+// Sends signed heartbeats to the Weighsoft Indicator Hub (docs/adr/0003 in that repo), and the
+// weighings saved on the W-Soft (save_queue.h) with signed POST /api/v1/ingest/weighings.
 // The pairing code is kept in flash (NVS). It is set from the W-Soft web page (Hub tab,
 // admins only, src/examples/wsoft/WSoftHubService) or over USB ("HUB PAIR" + "HUB SAVE").
 // Approval stays USB only (approval.cpp).

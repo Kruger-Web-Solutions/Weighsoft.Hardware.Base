@@ -1,5 +1,6 @@
 #include "hub.h"
 #include "approval.h"
+#include "save_queue.h"
 #ifndef WSOFT_ON_BASE
 #include "ota_secret.h"
 #endif
@@ -237,6 +238,51 @@ static void send_heartbeat() {
   Serial0.printf("HUB heartbeat status=%d %s\n", status, reply.substring(0, 120).c_str());
 }
 
+// ---------- saved weighings (save_queue.cpp) ----------
+// One signed POST /api/v1/ingest/weighings per saved weighing, oldest first, same signing as the
+// heartbeat. 201 stored or 200 duplicate: delivered. Anything else: it stays queued (never dropped)
+// and the next try waits (save_retry_ms in lib/wsoft_core, host-tested).
+
+static SaveSendOutcome send_weighing() {
+  SavedWeighing w;
+  if (!save_oldest(&w)) return SAVE_SEND_DELIVERED;
+  static char body[512];
+  if (save_weighing_body(w, save_id_prefix(), body, sizeof body) == 0) {
+    // Not expected: a weighing is only saved with a valid clock and a kg value the Hub takes.
+    Serial0.printf("HUB weighing seq=%lu cannot be built, kept in the queue\n", (unsigned long)w.seq);
+    save_hub_result(0);
+    return SAVE_SEND_REJECTED;
+  }
+  String payload = body;
+
+  time_t now = time(nullptr);
+  uint8_t nonce_bytes[16];
+  esp_fill_random(nonce_bytes, sizeof nonce_bytes);
+  String nonce = hex(nonce_bytes, sizeof nonce_bytes);
+  String timestamp = String((unsigned long)now);
+
+  HTTPClient http;
+  http.setTimeout(8000);
+  if (!http.begin(hub_url + "/api/v1/ingest/weighings")) {
+    save_hub_result(-1);
+    return SAVE_SEND_RETRY;
+  }
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("X-ScaleModels-Key-Id", key_id);
+  http.addHeader("X-ScaleModels-Timestamp", timestamp);
+  http.addHeader("X-ScaleModels-Nonce", nonce);
+  http.addHeader("X-ScaleModels-Signature", sign(timestamp, nonce, payload));
+  int status = http.POST(payload);
+  String reply = status > 0 ? http.getString() : http.errorToString(status);
+  http.end();
+
+  save_hub_result(status);
+  SaveSendOutcome outcome = save_send_outcome(status);
+  if (outcome == SAVE_SEND_DELIVERED) save_delivered(w.seq);
+  Serial0.printf("HUB weighing seq=%lu status=%d %s\n", (unsigned long)w.seq, status, reply.substring(0, 120).c_str());
+  return outcome;
+}
+
 // ---------- clock from the Hub ----------
 // The Hub checks each signature against its own clock (300 s window), so the Hub's clock is the
 // one that matters. Its health route is public and every Node reply carries a Date header.
@@ -282,6 +328,8 @@ static void hub_task(void *) {
   uint32_t next = 0;
   uint32_t next_report = 0;
   uint32_t next_clock_try = 0;
+  uint32_t next_weighing = 0;
+  uint32_t weighing_failures = 0;
   for (;;) {
     if ((int32_t)(millis() - next_report) >= 0) {
       next_report = millis() + 10000;
@@ -324,6 +372,12 @@ static void hub_task(void *) {
       send_heartbeat();
       uint32_t wait = state != HUB_ONLINE ? RETRY_MS : approval_pending() > 0 ? TRADE_QUEUE_MS : HEARTBEAT_MS;
       next = millis() + wait;
+    }
+    // Saved weighings, oldest first, paced and backed off so a refusing Hub is never hammered.
+    if ((int32_t)(millis() - next_weighing) >= 0 && !hub_ota_busy() && save_pending() > 0) {
+      SaveSendOutcome outcome = send_weighing();
+      weighing_failures = outcome == SAVE_SEND_DELIVERED ? 0 : weighing_failures + 1;
+      next_weighing = millis() + save_retry_ms(outcome, weighing_failures);
     }
     vTaskDelay(pdMS_TO_TICKS(250));
   }
