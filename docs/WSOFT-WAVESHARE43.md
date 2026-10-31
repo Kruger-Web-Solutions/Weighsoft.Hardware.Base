@@ -1,0 +1,171 @@
+# W-Soft weigh screen on Hardware.Base (`wsoft_waveshare43`)
+
+Waveshare ESP32-S3-Touch-LCD-4.3 + DJB-M1X junction box over RS485.
+The W-Soft firmware logic comes unchanged from Weighsoft.WSoft `esp/src` @ `cfcd012`.
+This branch wraps it in framework services so it has a web page, WebSocket and MQTT like the
+other devices here.
+
+> Nothing on this device is legal for trade. That needs NRCS approval and on-site verification.
+> Approval stays OFF until Rhyno switches it on, with a USB cable.
+
+## 1. What is where
+
+| Part | Path | Notes |
+|---|---|---|
+| Pure logic (host-tested) | `lib/wsoft_core/` | `trade_logic.*` (identical), `wsoft_view.*`, `wsoft_settings.*` |
+| ESP firmware | `lib/wsoft_esp/` | `approval.*`, `hub.h`, `fonts.h`, `screen_rle.h` identical; `hub.cpp` guarded; `wsoft_screen.cpp` = old `main.cpp` |
+| Services | `src/examples/wsoft/` | `WSoftStatusService` (live), `WSoftSettingsService` (options) |
+| Wiring | `src/main.cpp` | under `FT_WSOFT` only |
+| Web pages | `interface/src/project/wsoft/` | menu **W-Soft**: Live, Settings (admin), Information |
+| Build | `platformio.ini` | `[env:wsoft_waveshare43]`, `[env:native]` |
+
+Check that the copied files still match the source:
+
+```bash
+for f in approval.cpp approval.h hub.h fonts.h screen_rle.h; do
+  git -C ../weighsoft.wsoft show cfcd012:esp/src/$f | diff -q - lib/wsoft_esp/src/$f; done
+for f in trade_logic.cpp trade_logic.h; do
+  git -C ../weighsoft.wsoft show cfcd012:esp/src/$f | diff -q - lib/wsoft_core/src/$f; done
+unifdef -UWSOFT_ON_BASE lib/wsoft_esp/src/hub.cpp | diff -q - <(git -C ../weighsoft.wsoft show cfcd012:esp/src/hub.cpp)
+```
+
+## 2. Bench steps (laptop, not the cloud container)
+
+1. `pio test -e native` — host tests (trade logic, live view, settings). Needs `g++` on PATH.
+2. `pio run -e wsoft_waveshare43` — builds on Arduino-ESP32 3.1.1 (bench, 26 Oct 2026:
+   RAM 16.6 %, flash 35.0 %; ESPAsyncWebServer 3.12.1, AsyncTCP 3.5.0, AsyncMqttClient 0.9.0,
+   ArduinoJson 6.21.6, WebSockets 2.7.3, ESP32_Display_Panel 1.0.5). The framework needed small
+   core-3 fixes (handler casts, WiFi.h / esp_mac.h includes, readIP, mDNS rename), all also
+   valid on core 2. The first build downloads toolchains (~45 min); rebuilds take 3–7 min. Also build two other envs to prove nothing else broke:
+   `pio run -e nodemcu_esp32 -e esp32s3` (`wsoft_esp` is in `lib_ignore` for every env but
+   this one).
+3. Plug the board's **UART** USB port (CH343, `COM11` on the bench) and flash:
+   `pio run -e wsoft_waveshare43 -t upload`. (The `upload_port` in the env says `COM11`.)
+   Flashing is an ASKED gate: only with Rhyno's go.
+4. `pio device monitor -b 115200`. Expect `[9/10] W-Soft services loaded OK`, `display ready`,
+   then `DJB ... LIVE` lines.
+5. Wi-Fi: join the AP `Weighsoft-Esp-NEW` (password in `factory_settings.ini`), open
+   `http://192.168.4.1`, log in, set Wi-Fi under **Wi-Fi Connection**. **Required:** change the
+   admin password and the AP password. The factory ones are in this public repo.
+6. Open **W-Soft → Live**. Check the screen journey on the panel and on the page:
+
+   | Bench action | Panel | Live page |
+   |---|---|---|
+   | Power on | boot, then the weigh screen | `link: starting`, then `live` |
+   | Load on the scale | weight + gauge | weight text and grams |
+   | Pull the RS485 cable | `NO SIGNAL`, `----` | `No reply`, then `No signal`; weight `----` (null) |
+   | DJB alarm | `DJB ALARM` | `DJB alarm` chip |
+   | Approval OFF (default) | `NOT FOR TRADE`, `APPROVAL OFF` | `Not for trade`, Approval OFF |
+
+   If the page stays on `Starting` forever, the panel failed to start (the screen loop stops
+   before its first poll). Check the serial log for `display_ready` / panel errors.
+
+7. Hub pairing (if needed): over USB send `HUB PAIR <code>` then `HUB SAVE`.
+
+## 3. USB commands (UART0, 115200 8N1)
+
+| Command | What it does on this build |
+|---|---|
+| `APPROVAL STATUS` | Prints ON/OFF, audit counter, trade check, next sequence, queue size |
+| `APPROVAL LOG` | Prints the last approval switches |
+| `APPROVAL ON <technician> <reason>` | Switches approval on (logged, audit counter +1) |
+| `APPROVAL OFF <technician> <reason>` | Switches approval off (logged, audit counter +1) |
+| `HUB PAIR <code>` | Checks a Hub pairing code and holds it |
+| `HUB SAVE` | Saves the held pairing code to flash and restarts |
+| `HUB CLEAR` | Forgets the Hub settings and restarts |
+| `HUB WIFI` / `HUB PASS` / `HUB OTA` | **No-op here.** Replies `HUB_ERR not used on this build`. Use the web pages |
+
+Approval has no web, MQTT or BLE write path. That is on purpose.
+
+## 4. Web, WebSocket and MQTT
+
+| Path | Who | What |
+|---|---|---|
+| `GET /rest/wsoftStatus` | logged-in user | Live view (JSON below) |
+| `POST /rest/djb` | admin | One DJB register read or write (below). The screen task runs it on Serial1 |
+| WebSocket `/ws/wsoftStatus` | logged-in user | Same JSON, pushed when it changes |
+| `GET/POST /rest/wsoftSettings` | admin | Options; a bad topic or name returns 400 and keeps the old values |
+| WebSocket `/ws/wsoftSettings` | admin | Same options |
+| File `/config/wsoftSettings.json` | – | Saved options (LittleFS) |
+
+Live JSON fields: `ready`, `display_ready`, `link` (`starting` / `no_signal` / `no_reply` /
+`alarm` / `live`), `linked`, `weight_g` (whole grams, **null** when not linked or the last poll
+failed), `weight_text`, `unit`, `decimals`, `stable`, `alarm`, `approval_on`, `for_trade`,
+`trade_check`, `audit_counter`, `last_trade_seq`, `trade_queue`, `hub`, `hub_online`, `polls`.
+
+`POST /rest/djb` body: `{"op":"read","channel":1,"field":"weight"}`,
+`{"op":"write","channel":1,"field":"ad","value":0}`, or `{"op":"read","field":"unit"}`.
+`field` is `ad`, `weight`, `alarm` (channel 1–16), or `unused`, `unit`, `decimal`,
+`division`, `stability_range`, `stability_time`, `zero_track_limit`, `zero_track_time`,
+`zero_display`, `sampling`, `filter1`, `filter2`, `address`, `baud`, `byte_order`,
+`com1_mode`. Addresses are the 41xxx map. Signed long, byte order 4321. Weight and alarm
+are read-only. Alarm reads add `alarm_raw_hex` and `alarm_bits` (high-word bits 0, 1, 13,
+14, 15). Sampling and both filters are the raw long. Any call is refused (409
+`not_linked`) while the scale is not linked, and every write is refused (409 `approval_on`)
+while approval is on: an `ad` write is a calibration (0 zero, CW > 0 load) and the scale
+parameters are metrological. Out-of-range writes return 400 `ad_range` / `range`: `ad`
+0..1000000, `unit` 0..3, `decimal` 0..4, `address` 1..10 (the link scan range), `baud`
+0..2, `byte_order` 0 and `com1_mode` 1 (the poll needs both). Writing `address` or `baud`
+drops the link until the scan finds the scale again. After a write the poll re-reads unit
+and decimals at once.
+
+Options:
+
+| Option | Default | Rule |
+|---|---|---|
+| `publish_interval_ms` | 1000 | Clamped to 250..60000 |
+| `mqtt_enabled` | true | MQTT itself is off until the broker is set on the MQTT page |
+| `mqtt_base_path` | `weighsoft/wsoft/#{unique_id}` | ≤ 96 chars, no spaces or `+`, `#` only as `#{...}` |
+| `mqtt_name` | `wsoft-#{unique_id}` | ≤ 48 chars. Home Assistant entity name |
+| `mqtt_unique_id` | `wsoft-#{unique_id}` | ≤ 48 chars, no spaces. Home Assistant unique id |
+
+MQTT topic: `<mqtt_base_path>/status`, retained, same JSON as the Live view.
+
+Home Assistant discovery (like the LED example): a retained weight sensor in grams at
+`homeassistant/sensor/<mqtt_unique_id>/weight/config`, reading `weight_g` from the status topic.
+`weight_g` is null with no valid, fresh weight, so the entity shows unknown. When MQTT is
+switched off or the topic changes, the old status and discovery messages are cleared (empty
+retained message), so no stale weight stays on the broker.
+
+`weight_g` is still sent while the DJB alarm is set (with `alarm: true`). This matches the panel.
+Whether a weight during an alarm should go out on MQTT is open for Rhyno.
+
+## 5. How it runs
+
+- The W-Soft screen loop (Modbus poll, up to ~600 ms, plus panel draw, up to ~1 s) runs in its
+  own FreeRTOS task on core 1 (8 KB stack, 5 ms pause per pass). The Arduino loop keeps the web
+  server, MQTT and the framework moving.
+- After every poll the screen task writes a snapshot under a spinlock. `WSoftStatusService::loop()`
+  copies it and publishes only when something changed, at most once per publish interval.
+- The framework owns Wi-Fi, NTP and OTA (`-D WSOFT_ON_BASE`). Approval and the Hub queue still
+  use NVS (`Preferences`, namespaces `approval` and `hub`) beside the framework's LittleFS.
+- RS485 is `Serial1` RX15/TX16 and belongs to W-Soft. The Serial1 services of this branch are
+  not created on this board.
+
+## 6. Known gaps
+
+- Flashed on the bench board (26 Oct 2026, COM10, no backup of the old firmware). The first
+  flash boot-looped: on core 3 `sntp_stop()` asserts without the lwIP core lock, and the
+  framework calls it at boot when there is no Wi-Fi. `NTPSettingsService` now takes the lock
+  (same pattern as the core's `configTime()`), and `WiFiSettingsService` skips
+  `WiFi.mode(WIFI_MODE_MAX)`, which core 3 rejects. After that: 0 reboots in 105 s.
+- The board's COM10 port is the ESP32-S3 USB-Serial-JTAG (boot ROM and `ESP_LOG` only). The
+  app's `Serial` log goes to UART0, the board's other USB-C port.
+- Framework OTA is off (`FACTORY_OTA_ENABLED=false`). If it is switched on later, the screen
+  keeps polling during an upload: `hub_ota_busy()` only knows W-Soft's own OTA.
+- `default_16MB.csv` is not a project file, so `scripts/clear_otadata.py` skips the otadata
+  erase. After an OTA update, a USB flash may boot the older slot; erase flash if that happens.
+- The W-Soft menu shows on every board (like the other device menus); on other boards its
+  pages get 404. The reverse is also true: on the W-Soft board the Serial, Diagnostics and
+  Weight Forwarder menus show, and their pages get 404 (those services own Serial1 and are
+  not created here).
+- Web firmware upload is off on this board (`FT_UPLOAD_FIRMWARE=0`): flash over USB only, so
+  nobody on the AP can load other firmware.
+- The app watchdog does not restart this board for lost Wi-Fi (an offline site still weighs);
+  it still restarts on low heap.
+- The core-2 envs are pinned to `espressif32@6.13.0` (Arduino 2.0.17). Unpinned, a fresh
+  PlatformIO install now resolves Arduino-ESP32 3.3.x and `nodemcu_esp32` fails on BLE.
+  Bench 26 Oct 2026 on the pin: nodemcu_esp32 RAM 20.0 % / flash 75.9 %, esp32s3 RAM 19.3 % /
+  flash 68.1 %.
+- No CI job runs `pio test -e native` yet; `verify_build.yml` only runs for PRs into `master`
+  (and on GitHub-hosted runners, a pre-existing gap). Run the host tests by hand.

@@ -9,6 +9,8 @@
 #include <examples/remoteweight/RemoteWeightService.h>
 #include <examples/tftdisplay/TftWeightDisplayService.h>
 #include <examples/lcddisplay/LcdDisplayService.h>
+#include <examples/wsoft/WSoftSettingsService.h>
+#include <examples/wsoft/WSoftStatusService.h>
 #include "VersionService.h"
 #include "UartModeService.h"
 #include "BoardDisplayService.h"
@@ -137,6 +139,10 @@ TftWeightDisplayService* tftWeightDisplayService;
 #if FT_ENABLED(FT_DISPLAY_LCD)
 LcdDisplayService* lcdDisplayService;
 #endif
+#if FT_ENABLED(FT_WSOFT)
+WSoftSettingsService* wsoftSettingsService;
+WSoftStatusService* wsoftStatusService;
+#endif
 
 void setup() {
   // start serial and filesystem
@@ -205,6 +211,9 @@ void setup() {
   ledExampleService->begin();
   Serial.println(F("[6/10] LED example loaded OK"));
 
+#if !FT_ENABLED(FT_WSOFT)
+  // W-Soft (FT_WSOFT) owns Serial1 for its RS485 DJB link, so none of the Serial1
+  // services below are created on that board (one RS485 master).
   Serial.println(F("[7/10] Initializing Serial monitor service..."));
   delay(500);  // ESP32-S3: Delay before SerialService initialization
   serialService = new SerialService(
@@ -273,6 +282,7 @@ void setup() {
       uartModeService
       );
   boardDisplayService->begin();
+#endif  // !FT_WSOFT
 
   // Sync AP SSID to the current UART mode at boot
   syncApSsidToMode(esp8266React->getAPSettingsService(), uartModeService);
@@ -283,6 +293,7 @@ void setup() {
     if (mdnsService) mdnsService->refresh();
   }, false);
 
+#if !FT_ENABLED(FT_WSOFT)
   Serial.println(F("[9/10] Initializing Weight Forwarder service..."));
   weightForwarderService = new WeightForwarderService(
       server,
@@ -293,6 +304,27 @@ void setup() {
       );
   weightForwarderService->begin();
   Serial.println(F("[9/10] Weight Forwarder service loaded OK"));
+#endif  // !FT_WSOFT
+
+#if FT_ENABLED(FT_WSOFT)
+  // W-Soft weigh screen (Waveshare ESP32-S3 4.3 + DJB over RS485): options first,
+  // then the live status service, which starts the screen task.
+  Serial.println(F("[9/10] Initializing W-Soft services..."));
+  wsoftSettingsService = new WSoftSettingsService(
+      server,
+      esp8266React->getFS(),
+      esp8266React->getSecurityManager()
+      );
+  wsoftSettingsService->begin();
+  wsoftStatusService = new WSoftStatusService(
+      server,
+      esp8266React->getSecurityManager(),
+      esp8266React->getMqttClient(),
+      wsoftSettingsService
+      );
+  wsoftStatusService->begin();
+  Serial.println(F("[9/10] W-Soft services loaded OK"));
+#endif
 
 #if FT_ENABLED(FT_REMOTE_WEIGHT)
   // ESP-to-ESP weight receiver: accepts weight POSTs from a remote Forwarder
@@ -413,6 +445,7 @@ void loop() {
   // run the framework's loop function
   esp8266React->loop();
 
+#if !FT_ENABLED(FT_WSOFT)
   // read serial data
   serialService->loop();
   if (knownWritersService) knownWritersService->loop();
@@ -426,6 +459,11 @@ void loop() {
 
   // process weight forwarding
   weightForwarderService->loop();
+#endif
+
+#if FT_ENABLED(FT_WSOFT)
+  if (wsoftStatusService) wsoftStatusService->loop();
+#endif
 
 #if FT_ENABLED(FT_REMOTE_WEIGHT)
   if (remoteWeightService) remoteWeightService->loop();

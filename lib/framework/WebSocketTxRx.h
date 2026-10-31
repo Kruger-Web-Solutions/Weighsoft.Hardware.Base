@@ -44,7 +44,9 @@ class WebSocketConnector {
                                  std::placeholders::_5,
                                  std::placeholders::_6));
     _server->addHandler(&_webSocket);
-    _server->on(webSocketPath, HTTP_GET, std::bind(&WebSocketConnector::forbidden, this, std::placeholders::_1));
+    _server->on(webSocketPath,
+                HTTP_GET,
+                ArRequestHandlerFunction(std::bind(&WebSocketConnector::forbidden, this, std::placeholders::_1)));
   }
 
   WebSocketConnector(StatefulService<T>* statefulService,

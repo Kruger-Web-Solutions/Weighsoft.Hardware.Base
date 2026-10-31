@@ -7,6 +7,7 @@ import Diagnostics from '../examples/diagnostics/Diagnostics';
 import WeightForwarder from '../examples/weightforwarder/WeightForwarder';
 import RemoteWeightMonitor from '../examples/remoteweight/RemoteWeightMonitor';
 import LcdDisplay from '../examples/lcddisplay/LcdDisplay';
+import WSoft from './wsoft/WSoft';
 
 const ProjectRouting: FC = () => {
   return (
@@ -39,6 +40,10 @@ const ProjectRouting: FC = () => {
         // Character-LCD display device
       }
       <Route path="lcd-display/*" element={<LcdDisplay />} />
+      {
+        // W-Soft weigh screen (Waveshare 4.3 + DJB over RS485, env wsoft_waveshare43)
+      }
+      <Route path="wsoft/*" element={<WSoft />} />
     </Routes>
   );
 };

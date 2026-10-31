@@ -57,7 +57,11 @@ void MdnsBrowser::scan() {
 
   for (int i = 0; i < n; i++) {
     String hostname = MDNS.hostname(i);
+#if defined(ESP_ARDUINO_VERSION_MAJOR) && ESP_ARDUINO_VERSION_MAJOR >= 3
+    IPAddress ip   = MDNS.address(i);  // renamed in Arduino-ESP32 3.x
+#else
     IPAddress ip   = MDNS.IP(i);
+#endif
     uint16_t port  = MDNS.port(i);
 
     // TXT records — empty string if not present.
