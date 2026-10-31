@@ -211,3 +211,47 @@ Devices › New pairing code › Copy  ──────▶ W-Soft › Hub › 
 "Calibrating Weight" range. Each step asks to confirm: the old calibration is overwritten.
 Refused while approval is on or the DJB is not linked. **Not yet bench-confirmed:** check the
 first span against the reading; stop if it is 10× or 1000× off.
+
+## 9. Saving weighings (added 31 Oct 2026)
+
+```
+load on ──► still for N s ──► AUTO-SAVE (once) ──► take the load off (back to 0) ──► ready again
+                 │
+                 └─► or tap SAVE (screen) / Save (W-Soft › Live) once it is still for 1 s
+```
+
+- **Settings** (W-Soft › Settings › Saving weighings, admin): *Auto-save* on/off (default off)
+  and *Stable for N seconds* (default 3, clamped 1–30). Stored in `/config/wsoftSettings.json`
+  as `auto_save` and `auto_save_stable_s`.
+- **Rules** (`lib/wsoft_core/src/save_logic.*`, host tests `test/test_save_logic`): stable =
+  fresh, unchanged value/decimals/unit (same as the trade rule); a failed poll restarts the
+  clock. Manual SAVE needs 1 s still (the operator is watching); auto-save waits N s. One save
+  per load: the next one only after a fresh reading ≤ 0. Blocked reasons: `moving`, `alarm`,
+  `no_signal`, `stale`, `empty`, `saved` (this load is done), `unit` (no kg meaning or more
+  than 5 kg decimals), `no_clock`, `queue_full`.
+- **Screen.** SAVE button in the right of the ZONE box (GT911 touch from the ESP32_Display_Panel
+  board config; started like `Board::begin()` does it). Green = a tap saves; grey = not now.
+  The line under the approval line shows `READY`, `MOVING`, `EMPTY`, `SAVED n`, `QUEUE FULL`
+  ... and `AUTO nS` when auto-save is on. Serial log: `SAVE seq=... weight=... auto|button`.
+  If touch does not start, the log says so and the web Save still works.
+- **Web** (`src/examples/wsoft/WSoftStatusService.*`, any logged-in user):
+  `POST /rest/wsoftSave` (200 `{ok,seq,weight_text}`, 409 `{ok:false,reason}`, 503 `busy`),
+  `GET /rest/wsoftSave` (last 10 since start-up plus what still waits, newest first, sent or
+  waiting). The status WebSocket/MQTT adds `save_can`, `save_reason`, `save_auto`,
+  `save_auto_s`, `save_last_seq`, `save_last_text`, `save_queue`, `save_hub_status`.
+- **Flash queue** (`lib/wsoft_esp/src/save_queue.*`, NVS namespace `wsave`): 32 weighings,
+  written before they count, so a power cut keeps them. Full = SAVE refused (`QUEUE FULL`),
+  never a drop.
+- **To the Hub** (`hub.cpp`): oldest first, signed `POST /api/v1/ingest/weighings` (same
+  signing as the heartbeat), one a second. Body: `weighing_id` `wsoft-<mac>-<series>-<seq>`
+  (series is random per flash life, so a wiped box never reuses an id), `committed_at` UTC,
+  `gross_kg` = `net_kg` = the exact reading in decimal kg (Hub PR #78: up to 5.5 digits, never
+  rounded), `tare_kg` 0, `basis` `GS`, `payload` `{source:"wsoft", seq, value, decimals, unit,
+  trade, auto_saved}`. 201 or 200 (duplicate) = delivered. 409/429/5xx/no network: retry after
+  5 s, doubling to 60 s. Other 4xx (e.g. 400, 401): kept, logged, tried again every 60 s.
+  Nothing is sent during a firmware upload. No Hub paired = they wait in the queue.
+- **Approval.** Unchanged. With approval ON the trade weight still goes out in the heartbeat as
+  before; a saved weighing is extra and carries `trade: true`. With approval OFF it carries
+  `trade: false` (not for trade).
+- **Not yet bench-confirmed:** the touch button (GT911 coordinates on this panel), the auto-save
+  feel at 3 s, and both weighings showing on the test Hub.
