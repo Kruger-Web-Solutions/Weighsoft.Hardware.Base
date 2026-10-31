@@ -3,6 +3,8 @@
 
 #include <examples/wsoft/WSoftSettingsService.h>
 
+#include <save_queue.h>
+
 // Settings are admin-only, read and write, like the framework's own settings pages.
 WSoftSettingsService::WSoftSettingsService(AsyncWebServer* server, FS* fs, SecurityManager* securityManager) :
     _httpEndpoint(WSoftSettings::read,
@@ -20,14 +22,29 @@ WSoftSettingsService::WSoftSettingsService(AsyncWebServer* server, FS* fs, Secur
                WSOFT_SETTINGS_SOCKET_PATH,
                securityManager,
                AuthenticationPredicates::IS_ADMIN) {
+  // Every saved change (web page or file) reaches the save rules at once.
+  addUpdateHandler([this](const String&) { applyAutoSave(); }, false);
 }
 
 void WSoftSettingsService::begin() {
   _fsPersistence.readFromFS();
-  Serial.printf("[WSoft] Settings loaded: publish=%lums mqtt=%s topic=%s\n",
+  applyAutoSave();
+  Serial.printf("[WSoft] Settings loaded: publish=%lums mqtt=%s topic=%s auto_save=%s %lus\n",
                 (unsigned long)publishIntervalMs(),
                 _state.data.mqtt_enabled ? "on" : "off",
-                WSoftSettings::statusTopic(_state).c_str());
+                WSoftSettings::statusTopic(_state).c_str(),
+                _state.data.auto_save ? "on" : "off",
+                (unsigned long)_state.data.auto_save_stable_s);
+}
+
+void WSoftSettingsService::applyAutoSave() {
+  bool on = false;
+  uint32_t seconds = WSOFT_AUTO_SAVE_DEFAULT_S;
+  read([&](const WSoftSettings& s) {
+    on = s.data.auto_save;
+    seconds = s.data.auto_save_stable_s;
+  });
+  save_set_auto(on, seconds);
 }
 
 uint32_t WSoftSettingsService::publishIntervalMs() {

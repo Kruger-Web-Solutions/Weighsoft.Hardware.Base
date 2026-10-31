@@ -23,6 +23,47 @@ export interface WSoftStatus {
   hub: string;
   hub_online: boolean;
   polls: number;
+  // Saving a weighing (src/examples/wsoft/WSoftStatusService.cpp, WSoftStatus::read).
+  /** A SAVE press now would be accepted. */
+  save_can: boolean;
+  /** "ok", "moving", "alarm", "no_signal", "stale", "empty", "saved", "unit", "no_clock", "queue_full". */
+  save_reason: string;
+  save_auto: boolean;
+  save_auto_s: number;
+  /** 0 when nothing was saved since start-up. */
+  save_last_seq: number;
+  save_last_text: string | null;
+  /** Saved weighings waiting for the Hub. */
+  save_queue: number;
+  /** Last HTTP status from the Hub for a weighing; 0 before the first. */
+  save_hub_status: number;
+}
+
+// POST /rest/wsoftSave answer (200 saved, 409 refused with reason, 503 reason "busy").
+export interface WSoftSaveResult {
+  ok: boolean;
+  seq?: number;
+  weight_text?: string;
+  reason?: string;
+}
+
+// GET /rest/wsoftSave
+export interface WSoftSavedWeighing {
+  seq: number;
+  weight_text: string;
+  /** UTC, e.g. "2026-10-31T12:00:00Z". */
+  at: string | null;
+  auto_saved: boolean;
+  trade: boolean;
+  /** The Hub has it. */
+  delivered: boolean;
+}
+
+export interface WSoftSavedList {
+  queue: number;
+  hub_status: number;
+  /** Newest first, at most 10. */
+  recent: WSoftSavedWeighing[];
 }
 
 // Mirrors src/examples/wsoft/WSoftSettingsService.h (WSoftSettings::read).
@@ -32,10 +73,16 @@ export interface WSoftSettings {
   mqtt_base_path: string;
   mqtt_name: string;
   mqtt_unique_id: string;
+  /** Save a load once it has been still for auto_save_stable_s seconds. */
+  auto_save: boolean;
+  /** 1 to 30 seconds. */
+  auto_save_stable_s: number;
   /** Read-only: base path with placeholders expanded, plus "/status". */
   mqtt_status_topic?: string;
   publish_interval_min_ms?: number;
   publish_interval_max_ms?: number;
+  auto_save_stable_min_s?: number;
+  auto_save_stable_max_s?: number;
 }
 
 // Mirrors src/examples/wsoft/WSoftHubService.cpp (GET /rest/wsoftHub). Admin only.

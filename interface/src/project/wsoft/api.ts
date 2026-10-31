@@ -3,7 +3,8 @@ import { AxiosPromise } from 'axios';
 import { AXIOS, WEB_SOCKET_ROOT } from '../../api/endpoints';
 
 import {
-  WSoftDjbRequest, WSoftDjbResult, WSoftHubPairResult, WSoftHubStatus, WSoftSettings, WSoftStatus
+  WSoftDjbRequest, WSoftDjbResult, WSoftHubPairResult, WSoftHubStatus, WSoftSavedList, WSoftSaveResult, WSoftSettings,
+  WSoftStatus
 } from './types';
 
 export const WSOFT_STATUS_WEBSOCKET_URL = WEB_SOCKET_ROOT + 'wsoftStatus';
@@ -31,4 +32,13 @@ export const unpairWSoftHub = (): AxiosPromise<void> => AXIOS.delete('/wsoftHub'
  * Admin only. One DJB register read or write over RS485. Errors come back as 400/409/504 with
  * the same JSON body ({ ok: false, error }).
  */
+/**
+ * Any logged-in user. Same as SAVE on the screen: 200 when saved, 409 with a reason when not
+ * (moving, empty, already saved, ...), 503 when the screen did not answer in time.
+ */
+export const saveWeighing = (): AxiosPromise<WSoftSaveResult> => AXIOS.post('/wsoftSave');
+
+/** Any logged-in user. The last 10 saved weighings, newest first. */
+export const readSavedWeighings = (): AxiosPromise<WSoftSavedList> => AXIOS.get('/wsoftSave');
+
 export const djb = (request: WSoftDjbRequest): AxiosPromise<WSoftDjbResult> => AXIOS.post('/djb', request);

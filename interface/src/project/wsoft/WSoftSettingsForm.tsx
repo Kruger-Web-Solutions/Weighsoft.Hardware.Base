@@ -47,6 +47,37 @@ const WSoftSettingsForm: FC = () => {
           }
           my={2}
         />
+        <Typography variant="h6">
+          Saving weighings
+        </Typography>
+        <BlockFormControlLabel
+          control={
+            <Checkbox
+              name="auto_save"
+              checked={data.auto_save}
+              onChange={updateFormValue}
+            />
+          }
+          label="Auto-save: save each load once it is still"
+        />
+        <ValidatedTextField
+          fieldErrors={fieldErrors}
+          name="auto_save_stable_s"
+          label="Stable for (seconds)"
+          fullWidth
+          variant="outlined"
+          value={numberValue(data.auto_save_stable_s)}
+          type="number"
+          onChange={updateFormValue}
+          margin="normal"
+          helperText={
+            'How long the weight must stay still before it is saved (1 to 30 s). ' +
+            'One save per load: take the load off before the next one. SAVE on the screen works either way.'
+          }
+        />
+        <Typography variant="h6" sx={{ mt: 2 }}>
+          Live page and MQTT
+        </Typography>
         <ValidatedTextField
           fieldErrors={fieldErrors}
           name="publish_interval_ms"

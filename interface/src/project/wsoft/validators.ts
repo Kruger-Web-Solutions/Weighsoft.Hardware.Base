@@ -26,6 +26,10 @@ export const WSOFT_SETTINGS_VALIDATOR = new Schema({
     { required: true, message: 'Publish interval is required' },
     { type: 'number', min: 250, max: 60000, message: 'Publish interval must be 250 to 60000 ms' }
   ],
+  auto_save_stable_s: [
+    { required: true, message: 'Stable time is required' },
+    { type: 'integer', min: 1, max: 30, message: 'Stable time must be 1 to 30 seconds' }
+  ],
   mqtt_base_path: [
     { required: true, message: 'MQTT base path is required' },
     TOPIC_VALIDATOR
