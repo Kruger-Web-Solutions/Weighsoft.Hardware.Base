@@ -42,6 +42,28 @@ const WSoftCalibrate: FC = () => {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [confirm, setConfirm] = useState<'zero' | 'span'>();
+  const [alarmText, setAlarmText] = useState<string>();
+
+  const readAlarm = async () => {
+    try {
+      const { data: result } = await WSoftApi.djb({ op: 'read', channel: CHANNEL, field: 'alarm' });
+      const bits = result.alarm_bits;
+      if (!result.ok || !bits) {
+        setAlarmText(`Could not read the alarm (${result.error || 'no answer'}).`);
+        return;
+      }
+      const reasons = [
+        bits.adc_failure && 'ADC failure or no load cell',
+        bits.over_range && 'over the ADC range',
+        bits.eeprom && 'EEPROM failure',
+        bits.parameter_changed && 'a parameter was changed',
+        bits.software_match && 'software and hardware match flag'
+      ].filter(Boolean);
+      setAlarmText(reasons.length ? `DJB alarm: ${reasons.join(', ')}.` : 'No alarm bits set now.');
+    } catch (e: any) {
+      setAlarmText(djbError(e, 'Could not read the alarm.'));
+    }
+  };
 
   if (!connected || !data) {
     return (
@@ -65,8 +87,9 @@ const WSoftCalibrate: FC = () => {
       if (response.data.ok) {
         setStep(next);
       } else {
-        const code = response.data.error ?? '';
-        setError(ERROR_TEXT[code] ?? `The DJB did not accept it (${code || 'no answer'}).`);
+        const { error: code = '', request_hex, reply_hex } = response.data;
+        const text = ERROR_TEXT[code] ?? `The DJB did not accept it (${code || 'no answer'}).`;
+        setError(`${text} Sent: ${request_hex || '-'}. Got: ${reply_hex || 'nothing'}.`);
       }
     } catch (e: any) {
       setError(djbError(e, 'The calibration was not sent.'));
@@ -86,6 +109,12 @@ const WSoftCalibrate: FC = () => {
         <Typography variant="body2" color="text.secondary">
           {status.stable ? 'Stable' : 'Not stable'}{status.alarm ? ' · DJB alarm' : ''}
         </Typography>
+        {status.alarm && (
+          <Button size="small" onClick={readAlarm} disabled={!status.linked}>
+            Why the alarm?
+          </Button>
+        )}
+        {alarmText && <Typography variant="body2">{alarmText}</Typography>}
       </Paper>
 
       {status.approval_on && <Alert severity="warning" sx={{ mb: 2 }}>{ERROR_TEXT.approval_on}</Alert>}

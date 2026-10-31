@@ -341,7 +341,8 @@ static void run_job(const WsoftDjbPlan *plan, WsoftDjbResult *out) {
   size_t expected = plan->write ? 8 : 9;
   uint8_t reply[32];
   size_t got = 0;
-  uint32_t deadline = millis() + 200;
+  // A calibration write is answered only after the DJB has saved it, which takes longer than a read.
+  uint32_t deadline = millis() + (plan->write ? 1500 : 200);
   while (got < expected && (int32_t)(deadline - millis()) > 0) {
     if (Serial1.available()) {
       if (got < sizeof reply) reply[got] = (uint8_t)Serial1.read();

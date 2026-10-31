@@ -78,4 +78,15 @@ export interface WSoftDjbResult {
   error?: string;
   value?: number;
   exception?: number;
+  /** The Modbus frames, "01 10 03 EA ..." hex. */
+  request_hex?: string;
+  reply_hex?: string;
+  /** Alarm reads only. */
+  alarm_bits?: {
+    parameter_changed: boolean;
+    software_match: boolean;
+    adc_failure: boolean;
+    over_range: boolean;
+    eeprom: boolean;
+  };
 }
