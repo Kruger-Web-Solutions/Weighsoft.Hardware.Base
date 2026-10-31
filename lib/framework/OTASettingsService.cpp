@@ -1,5 +1,9 @@
 #include <OTASettingsService.h>
 
+// True while a Wi-Fi firmware upload is coming in. Other work (a screen, a bus poll) can check it
+// and step aside so the upload is not starved or cut off.
+volatile bool framework_ota_busy = false;
+
 OTASettingsService::OTASettingsService(AsyncWebServer* server, FS* fs, SecurityManager* securityManager) :
     _httpEndpoint(OTASettings::read, OTASettings::update, this, server, OTA_SETTINGS_SERVICE_PATH, securityManager),
     _fsPersistence(OTASettings::read, OTASettings::update, this, fs, OTA_SETTINGS_FILE),
@@ -26,6 +30,8 @@ void OTASettingsService::loop() {
 }
 
 void OTASettingsService::configureArduinoOTA() {
+  // A Wi-Fi event or settings save during an upload must not tear down the running upload.
+  if (framework_ota_busy) return;
   if (_arduinoOTA) {
 #ifdef ESP32
     _arduinoOTA->end();
@@ -38,12 +44,16 @@ void OTASettingsService::configureArduinoOTA() {
     _arduinoOTA = new ArduinoOTAClass;
     _arduinoOTA->setPort(_state.port);
     _arduinoOTA->setPassword(_state.password.c_str());
-    _arduinoOTA->onStart([]() { Serial.println(F("Starting")); });
+    _arduinoOTA->onStart([]() {
+      framework_ota_busy = true;
+      Serial.println(F("Starting"));
+    });
     _arduinoOTA->onEnd([]() { Serial.println(F("\r\nEnd")); });
     _arduinoOTA->onProgress([](unsigned int progress, unsigned int total) {
       Serial.printf_P(PSTR("Progress: %u%%\r\n"), (progress / (total / 100)));
     });
     _arduinoOTA->onError([](ota_error_t error) {
+      framework_ota_busy = false;
       Serial.printf("Error[%u]: ", error);
       if (error == OTA_AUTH_ERROR)
         Serial.println(F("Auth Failed"));

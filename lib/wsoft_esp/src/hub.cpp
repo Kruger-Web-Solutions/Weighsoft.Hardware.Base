@@ -357,7 +357,15 @@ void hub_ota_poll() {
 #endif
 }
 
+#ifdef WSOFT_ON_BASE
+// On Base the framework's OTASettingsService runs the Wi-Fi upload (lib/framework).
+extern volatile bool framework_ota_busy;
+#endif
+
 bool hub_ota_busy() {
+#ifdef WSOFT_ON_BASE
+  if (framework_ota_busy) return true;
+#endif
   return ota_busy;
 }
 
