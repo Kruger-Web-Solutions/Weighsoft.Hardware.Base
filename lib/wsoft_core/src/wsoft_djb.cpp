@@ -31,8 +31,29 @@ static const uint16_t PARAM_DOC[] = {
     41203, 41205, 41207, 41209,
 };
 
-static const int32_t AD_MIN = -1000000;
+// An AD write is a calibration: 0 is zero calibration, CW > 0 is load calibration.
+static const int32_t AD_MIN = 0;
 static const int32_t AD_MAX = 1000000;
+// The screen's link scan only searches slaves 1..10, so a higher address would lose the scale.
+static const int32_t ADDRESS_MAX = 10;
+
+struct Limit {
+  WsoftDjbField field;
+  int32_t min;
+  int32_t max;
+};
+
+// Writes that would cut the link or that the live poll cannot read are refused.
+// byte_order stays 4321 and com1_mode stays Modbus RTU because the poll needs both.
+static const Limit LIMITS[] = {
+    {WSOFT_DJB_AD, AD_MIN, AD_MAX},
+    {WSOFT_DJB_UNIT, 0, 3},
+    {WSOFT_DJB_DECIMAL, 0, 4},
+    {WSOFT_DJB_ADDRESS, 1, ADDRESS_MAX},
+    {WSOFT_DJB_BAUD, 0, 2},
+    {WSOFT_DJB_BYTE_ORDER, 0, 0},
+    {WSOFT_DJB_COM1_MODE, 1, 1},
+};
 
 uint16_t wsoft_djb_crc16(const uint8_t *data, size_t length) {
   uint16_t crc = 0xFFFF;
@@ -126,9 +147,13 @@ bool wsoft_djb_plan(const char *op,
     fail(plan, "need_value");
     return false;
   }
-  if (plan->write && plan->field == WSOFT_DJB_AD && (value < AD_MIN || value > AD_MAX)) {
-    fail(plan, "ad_range");
-    return false;
+  if (plan->write) {
+    for (size_t i = 0; i < sizeof LIMITS / sizeof LIMITS[0]; i++) {
+      if (LIMITS[i].field == plan->field && (value < LIMITS[i].min || value > LIMITS[i].max)) {
+        fail(plan, plan->field == WSOFT_DJB_AD ? "ad_range" : "range");
+        return false;
+      }
+    }
   }
   plan->value = plan->write ? value : 0;
   plan->pdu = (uint16_t)(plan->doc - 40001);

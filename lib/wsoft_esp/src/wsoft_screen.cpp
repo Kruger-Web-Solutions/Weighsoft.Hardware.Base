@@ -300,6 +300,8 @@ static portMUX_TYPE job_lock = portMUX_INITIALIZER_UNLOCKED;
 static volatile int job_state = JOB_IDLE;
 static WsoftDjbPlan job_plan;
 static WsoftDjbResult job_result;
+// Set after a write so the next poll re-reads unit and decimals instead of waiting 20 polls.
+static bool format_stale = false;
 
 static void fill_ids(const WsoftDjbPlan *plan, WsoftDjbResult *out) {
   out->slave = slave;
@@ -314,6 +316,12 @@ static void run_job(const WsoftDjbPlan *plan, WsoftDjbResult *out) {
   fill_ids(plan, out);
   if (!reading.linked) {
     strlcpy(out->error, "not_linked", sizeof out->error);
+    return;
+  }
+  // Approval has no web write path: an AD write is a calibration and the scale
+  // parameters are metrological. Writes need approval off (USB APPROVAL OFF).
+  if (plan->write && approval_on()) {
+    strlcpy(out->error, "approval_on", sizeof out->error);
     return;
   }
 
@@ -350,6 +358,7 @@ static void run_job(const WsoftDjbPlan *plan, WsoftDjbResult *out) {
   int32_t value = plan->value;
   uint8_t exception = 0;
   int status = wsoft_djb_parse(reply, got, slave, plan->command, plan->pdu, &value, &exception);
+  if (plan->write) format_stale = true;
   if (status == 0) {
     out->ok = true;
     out->value = value;
@@ -401,7 +410,8 @@ bool wsoft_screen_djb(const WsoftDjbPlan *plan, WsoftDjbResult *out, uint32_t ti
     return false;
   }
   portENTER_CRITICAL(&job_lock);
-  if (job_state != JOB_IDLE) {
+  // DONE with nobody waiting is a result whose caller timed out; it must not block for good.
+  if (job_state != JOB_IDLE && job_state != JOB_DONE) {
     portEXIT_CRITICAL(&job_lock);
     strlcpy(out->error, "busy", sizeof out->error);
     return false;
@@ -554,7 +564,8 @@ void wsoft_screen_loop() {
   last_poll = millis();
 
   Reading next = reading;
-  if (polls++ % 20 == 0) {
+  if (polls++ % 20 == 0 || format_stale) {
+    format_stale = false;
     int32_t decimals, unit;
     if (read_long(REG_DECIMAL, &decimals) && decimals >= 0 && decimals <= 4) next.decimals = decimals;
     if (read_long(REG_WEIGHT_UNIT, &unit) && unit >= 0 && unit <= 3) next.unit = unit;

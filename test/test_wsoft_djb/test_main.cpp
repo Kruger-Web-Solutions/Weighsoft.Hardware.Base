@@ -76,10 +76,40 @@ void test_parameter_addresses() {
     TEST_ASSERT_EQUAL_UINT16(rows[i].doc, plan.doc);
     TEST_ASSERT_EQUAL_UINT16(rows[i].doc - 40001, plan.pdu);
     TEST_ASSERT_EQUAL_UINT8(0x03, plan.command);
-    plan = plan_ok("write", rows[i].name, 0, false, 7, true);
+    // 1 is inside every limit except byte_order (0 only).
+    int32_t value = strcmp(rows[i].name, "byte_order") == 0 ? 0 : 1;
+    plan = plan_ok("write", rows[i].name, 0, false, value, true);
     TEST_ASSERT_EQUAL_UINT8(0x10, plan.command);
-    TEST_ASSERT_EQUAL_INT32(7, plan.value);
+    TEST_ASSERT_EQUAL_INT32(value, plan.value);
   }
+}
+
+void test_link_and_format_limits() {
+  struct Row {
+    const char *name;
+    int32_t low_bad;
+    int32_t low_ok;
+    int32_t high_ok;
+    int32_t high_bad;
+  };
+  const Row rows[] = {
+      {"unit", -1, 0, 3, 4},       {"decimal", -1, 0, 4, 5}, {"address", 0, 1, 10, 11},
+      {"baud", -1, 0, 2, 3},       {"byte_order", -1, 0, 0, 1}, {"com1_mode", 0, 1, 1, 2},
+  };
+  for (size_t i = 0; i < sizeof rows / sizeof rows[0]; i++) {
+    WsoftDjbPlan plan;
+    TEST_ASSERT_FALSE(wsoft_djb_plan("write", rows[i].name, 0, false, rows[i].low_bad, true, &plan));
+    TEST_ASSERT_EQUAL_STRING("range", plan.error);
+    TEST_ASSERT_FALSE(wsoft_djb_plan("write", rows[i].name, 0, false, rows[i].high_bad, true, &plan));
+    TEST_ASSERT_EQUAL_STRING("range", plan.error);
+    TEST_ASSERT_TRUE(wsoft_djb_plan("write", rows[i].name, 0, false, rows[i].low_ok, true, &plan));
+    TEST_ASSERT_TRUE(wsoft_djb_plan("write", rows[i].name, 0, false, rows[i].high_ok, true, &plan));
+    // Reads are never range-checked.
+    TEST_ASSERT_TRUE(wsoft_djb_plan("read", rows[i].name, 0, false, rows[i].high_bad, true, &plan));
+  }
+  // Fields without a known code range stay raw.
+  WsoftDjbPlan plan;
+  TEST_ASSERT_TRUE(wsoft_djb_plan("write", "filter2", 0, false, 1024, true, &plan));
 }
 
 void test_weight_and_alarm_are_read_only() {
@@ -101,6 +131,9 @@ void test_ad_range_and_missing_value() {
   TEST_ASSERT_EQUAL_STRING("ad_range", plan.error);
   TEST_ASSERT_TRUE(wsoft_djb_plan("write", "ad", 2, true, 1000000, true, &plan));
   TEST_ASSERT_EQUAL_UINT16(41013, plan.doc);
+  // 0 is zero calibration, CW > 0 load calibration; a negative CW means nothing.
+  TEST_ASSERT_FALSE(wsoft_djb_plan("write", "ad", 1, true, -1, true, &plan));
+  TEST_ASSERT_EQUAL_STRING("ad_range", plan.error);
 }
 
 void test_read_roundtrip_and_exception() {
@@ -183,6 +216,7 @@ int main(int argc, char **argv) {
   RUN_TEST(test_lc1_zero_ack);
   RUN_TEST(test_channel_addresses);
   RUN_TEST(test_parameter_addresses);
+  RUN_TEST(test_link_and_format_limits);
   RUN_TEST(test_weight_and_alarm_are_read_only);
   RUN_TEST(test_ad_range_and_missing_value);
   RUN_TEST(test_read_roundtrip_and_exception);

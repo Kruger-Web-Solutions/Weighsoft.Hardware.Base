@@ -69,8 +69,10 @@ bool wsoft_djb_doc(WsoftDjbField field, int channel, uint16_t *doc);
 bool wsoft_djb_writable(WsoftDjbField field);
 
 // Fills a plan from the HTTP names. op is "read" or "write". Channel fields need
-// channel. Writes need value. AD writes must be in -1000000..1000000. Sampling and
-// the filters stay raw signed longs (the manuals disagree on the codes).
+// channel. Writes need value. An AD write is a calibration (0 zero, CW > 0 load) and
+// must be in 0..1000000 ("ad_range"). unit 0..3, decimal 0..4, address 1..10 (the
+// link scan range), baud 0..2, byte_order 0 and com1_mode 1, else "range". Sampling
+// and the filters stay raw signed longs (the manuals disagree on the codes).
 bool wsoft_djb_plan(const char *op,
                     const char *field,
                     int channel,

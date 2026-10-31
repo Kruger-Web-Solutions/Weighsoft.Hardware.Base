@@ -147,7 +147,7 @@ void WSoftStatusService::handleDjb(AsyncWebServerRequest* request, JsonVariant& 
     if (result.exception) root["exception"] = result.exception;
     if (result.alarm_valid) {
       char hex[9];
-      snprintf(hex, sizeof hex, "%08X", result.alarm_raw);
+      snprintf(hex, sizeof hex, "%08lX", (unsigned long)result.alarm_raw);
       root["alarm_raw"] = (long)result.value;
       root["alarm_raw_hex"] = hex;
       JsonObject bits = root.createNestedObject("alarm_bits");

@@ -100,8 +100,14 @@ failed), `weight_text`, `unit`, `decimals`, `stable`, `alarm`, `approval_on`, `f
 `zero_display`, `sampling`, `filter1`, `filter2`, `address`, `baud`, `byte_order`,
 `com1_mode`. Addresses are the 41xxx map. Signed long, byte order 4321. Weight and alarm
 are read-only. Alarm reads add `alarm_raw_hex` and `alarm_bits` (high-word bits 0, 1, 13,
-14, 15). Sampling and both filters are the raw long. A write is refused while the scale
-is not linked. Writing `address` or `baud` changes the link. The live weight poll is unchanged.
+14, 15). Sampling and both filters are the raw long. Any call is refused (409
+`not_linked`) while the scale is not linked, and every write is refused (409 `approval_on`)
+while approval is on: an `ad` write is a calibration (0 zero, CW > 0 load) and the scale
+parameters are metrological. Out-of-range writes return 400 `ad_range` / `range`: `ad`
+0..1000000, `unit` 0..3, `decimal` 0..4, `address` 1..10 (the link scan range), `baud`
+0..2, `byte_order` 0 and `com1_mode` 1 (the poll needs both). Writing `address` or `baud`
+drops the link until the scan finds the scale again. After a write the poll re-reads unit
+and decimals at once.
 
 Options:
 
