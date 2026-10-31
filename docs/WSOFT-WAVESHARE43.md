@@ -16,7 +16,7 @@ other devices here.
 | ESP firmware | `lib/wsoft_esp/` | `approval.*`, `fonts.h`, `screen_rle.h` identical; `hub.h` + `hub.cpp` extended for the Hub tab (31 Oct 2026, see section 7); `wsoft_screen.cpp` = old `main.cpp` |
 | Services | `src/examples/wsoft/` | `WSoftStatusService` (live), `WSoftSettingsService` (options), `WSoftHubService` (Hub link) |
 | Wiring | `src/main.cpp` | under `FT_WSOFT` only |
-| Web pages | `interface/src/project/wsoft/` | menu **W-Soft**: Live, Settings (admin), Hub (admin), Information |
+| Web pages | `interface/src/project/wsoft/` | menu **W-Soft**: Live, Settings (admin), Hub (admin), Calibrate (admin), Information |
 | Build | `platformio.ini` | `[env:wsoft_waveshare43]`, `[env:native]` |
 
 Check that the copied files still match the source:
@@ -202,3 +202,12 @@ Devices › New pairing code › Copy  ──────▶ W-Soft › Hub › 
   with the laptop's LAN address (e.g. `http://192.168.1.x:8095`) before making the code.
 - **Host tests:** `test/test_hub_pairing` (real Hub-format codes made like
   `Weighsoft.Indicator.Hub server/src/registry/registry.ts`, test secret only).
+
+## 8. Calibrate tab (added 31 Oct 2026)
+
+**W-Soft › Calibrate** (admin) walks through Zero → Span → Check using `POST /rest/djb`
+(`field: "ad"`, channel 1). Zero sends `0`. Span sends the test weight as display digits
+(weight × 10^decimals, e.g. 2.000 kg with 3 decimals = `2000`), per the Supmeter manual's
+"Calibrating Weight" range. Each step asks to confirm: the old calibration is overwritten.
+Refused while approval is on or the DJB is not linked. **Not yet bench-confirmed:** check the
+first span against the reading; stop if it is 10× or 1000× off.

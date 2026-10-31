@@ -62,3 +62,20 @@ export interface WSoftHubPairResult {
   warning?: string;
   restarting?: boolean;
 }
+
+// POST /rest/djb (src/examples/wsoft/WSoftStatusService.cpp handleDjb). Admin only.
+export interface WSoftDjbRequest {
+  op: 'read' | 'write';
+  field: string;
+  channel?: number;
+  value?: number;
+}
+
+export interface WSoftDjbResult {
+  ok: boolean;
+  sent: boolean;
+  /** e.g. "approval_on", "not_linked", "busy", "ad_range". */
+  error?: string;
+  value?: number;
+  exception?: number;
+}

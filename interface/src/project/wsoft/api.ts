@@ -2,7 +2,9 @@ import { AxiosPromise } from 'axios';
 
 import { AXIOS, WEB_SOCKET_ROOT } from '../../api/endpoints';
 
-import { WSoftHubPairResult, WSoftHubStatus, WSoftSettings, WSoftStatus } from './types';
+import {
+  WSoftDjbRequest, WSoftDjbResult, WSoftHubPairResult, WSoftHubStatus, WSoftSettings, WSoftStatus
+} from './types';
 
 export const WSOFT_STATUS_WEBSOCKET_URL = WEB_SOCKET_ROOT + 'wsoftStatus';
 
@@ -24,3 +26,9 @@ export const pairWSoftHub = (code: string): AxiosPromise<WSoftHubPairResult> =>
 
 /** Admin only. Forgets the Hub link; the box restarts. */
 export const unpairWSoftHub = (): AxiosPromise<void> => AXIOS.delete('/wsoftHub');
+
+/**
+ * Admin only. One DJB register read or write over RS485. Errors come back as 400/409/504 with
+ * the same JSON body ({ ok: false, error }).
+ */
+export const djb = (request: WSoftDjbRequest): AxiosPromise<WSoftDjbResult> => AXIOS.post('/djb', request);
