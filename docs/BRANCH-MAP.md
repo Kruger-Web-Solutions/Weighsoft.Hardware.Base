@@ -69,11 +69,12 @@ commits are in `RelayBoardEspBuildIn`.
 
 ## Known gaps
 
-1. **The relay board on the bench is not on any branch.** On 31 Oct 2026 the relay board at
-   `192.168.1.11` reported an **ESP32** (SDK v5.5.4) with menu *Relay Control, Configuration,
-   MQTT Settings, REST API Test, Console*. No branch, PR or past commit here has that menu.
-   `RelayBoardEspBuildIn` is for the **ESP8266** relay board. The ESP32 relay firmware needs to
-   be pushed from the laptop it was built on, as a new device branch.
+1. **The ESP32 relay board's firmware lives in a separate repo, not in this one.** On 31 Oct 2026
+   the relay board at `192.168.1.11` reported an **ESP32** with menu *Information, Relay Control,
+   Configuration, MQTT Settings, REST API Test*. That exact menu is in
+   `Kruger-Web-Solutions/Weighsoft-Relay-Control` (`main`, env `node32s`), a separate copy of the
+   same ESP8266-React base. `RelayBoardEspBuildIn` here is the **ESP8266** relay board. To follow
+   "one Base, many devices", that repo should become a device branch here.
 2. Duplicate names: `ALLinOneEspSerialdevice` = `wsoft-waveshare43` (same commit), and
    `SerialReaderWriter` only adds a merge commit. Pick one name.
 3. Branches named in older docs that do not exist: `serial2`, `display35`.
