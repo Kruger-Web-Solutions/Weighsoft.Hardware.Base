@@ -48,20 +48,7 @@ class OTASettings {
     settings.enabled = root["enabled"] | FACTORY_OTA_ENABLED;
     settings.port = root["port"] | FACTORY_OTA_PORT;
     settings.password = root["password"] | FACTORY_OTA_PASSWORD;
-#if defined(FT_WSOFT) && FT_WSOFT
-    // W-Soft (trade scale): network flashing only with a private password. The factory one
-    // is in this public repository, so with it anyone on the Wi-Fi could load firmware.
-    // Applies to saves from the page and to the saved file at boot.
-    if (settings.enabled && !isPrivatePassword(settings.password)) {
-      settings.enabled = false;
-      Serial.println(F("OTA kept OFF: set a private password (8+ characters, not the factory one)"));
-    }
-#endif
     return StateUpdateResult::CHANGED;
-  }
-
-  static bool isPrivatePassword(const String& password) {
-    return password.length() >= 8 && password != "esp-react" && password != FACTORY_OTA_PASSWORD;
   }
 };
 
