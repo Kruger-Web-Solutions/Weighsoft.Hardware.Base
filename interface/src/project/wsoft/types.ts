@@ -44,7 +44,10 @@ export interface WSoftHubStatus {
   /** Same words as the box's screen: "HUB ONLINE", "HUB OFFLINE", "HUB CLOCK", ... */
   state: string;
   online: boolean;
+  /** The Hub address the box is sending to now. */
   hub_url?: string;
+  /** Every LAN address of the Hub the box can try, in order (one for an old code). */
+  hub_urls?: string[];
   key_id?: string;
   /** Set when the Hub address can't work from this box (Tailscale or localhost). */
   warning?: string;
