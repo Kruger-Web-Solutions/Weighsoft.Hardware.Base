@@ -154,15 +154,20 @@ Whether a weight during an alarm should go out on MQTT is open for Rhyno.
 
 ## 6. Known gaps
 
-- **The running screen starves Wi-Fi (bench, 31 Oct 2026).** With the RGB panel running, the
-  ESP answers ping in 222-304 ms on average (up to 1 s) and serves its web page at about 2.8 KB/s;
-  other hosts on the same LAN answer in 1-3 ms. The same firmware with the panel not started
-  answers in 5 ms and serves 745 KB/s. Wi-Fi power saving is already off
-  (`WiFiSettingsService`), so that is not the cause. Effect: a Wi-Fi firmware update stalls
-  (36 KB in 27 s, then "premature end") and the web pages load slowly. A Wi-Fi update that
-  arrives while the panel is not running completes. Fix still to do: stop or slow the panel
-  during an update (and look at panel clock / bounce buffer / Wi-Fi buffers in internal RAM for
-  normal use). Until then flash over USB.
+- **The ESP's Wi-Fi link is slow and the cause is NOT yet known (bench, 31 Oct 2026).** Most
+  of the time the ESP answers ping in 222-307 ms on average (up to 1.4 s) and serves its web page
+  at 2.8-15 KB/s, while other hosts on the same LAN answer in 1-3 ms. Effect: a Wi-Fi firmware
+  update stalls ("premature end", 1-24 %) and the web pages load slowly. Measurements so far,
+  not yet explained together:
+  - 20:1x, a build that never started the panel: ping 5 ms, 745 KB/s, and a Wi-Fi update to it
+    completed.
+  - 21:09, panel deleted at the start of an update: the upload ran in bursts and stalled (11 %).
+  - 21:27, a boot that never started the panel ("update mode", not committed): ping 307 ms,
+    15 KB/s, and updates still failed.
+  So the panel alone does not explain it; the Wi-Fi network "W-Soft" (the access point, its
+  channel, other traffic) is an equal suspect. Wi-Fi power saving is already off
+  (`WiFiSettingsService`). Next: an independent check of the access point and a test of the
+  same board on a different access point. Until then flash over USB.
 - **After a successful Wi-Fi update the board boots from `app1`.** A plain
   `esptool write_flash 0x10000` then writes `app0`, which the bootloader ignores. Use
   `pio run -e wsoft_waveshare43 -t upload` (it rewrites the boot selection), or erase `otadata`
