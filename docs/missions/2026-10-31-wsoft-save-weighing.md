@@ -70,4 +70,10 @@ checks (host tests, interface build) → laptop build → bench demo. Start now:
 
 | # | Agent | Ticket | Status |
 |---|---|---|---|
-| 1 | builder (general-purpose) | full slice on claude/project-thread-21cbr9 | IN-FLIGHT |
+| 1 | builder (general-purpose) | full slice on claude/project-thread-21cbr9 | DONE_WITH_CONCERNS (b556145..80e52ef; ESP code not compiled in cloud) |
+| 2 | laptop build (Remote Control) | pio run -e wsoft_waveshare43_ota, then flash | IN-FLIGHT |
+
+SITREP 1 (12:25): host tests 6/6 suites green (re-run by command post: all OK); interface build green;
+touch GT911 from board config (SDA 8/SCL 9/INT 4); weighing_id wsoft-<mac>-<series>-<seq>;
+exact decimal kg; manual SAVE needs 1 s steady, auto-save N s (default off, 3 s).
+Critical path now: laptop compile → flash → bench demo (SUCCESS 7).
