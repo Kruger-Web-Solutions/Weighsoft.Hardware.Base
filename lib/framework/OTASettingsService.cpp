@@ -1,5 +1,9 @@
 #include <OTASettingsService.h>
 
+#ifdef ESP32
+#include <esp_task_wdt.h>
+#endif
+
 // True while a Wi-Fi firmware upload is coming in. Other work (a screen, a bus poll) can check it
 // and step aside so the upload is not starved or cut off.
 volatile bool framework_ota_busy = false;
@@ -54,6 +58,11 @@ void OTASettingsService::configureArduinoOTA() {
 #ifdef ESP32
       // Wi-Fi power saving delays incoming packets; keep the radio awake for the upload.
       WiFi.setSleep(false);
+      // The whole upload runs inside handle() on loopTask, which WatchdogService subscribed to the
+      // task watchdog. Nothing feeds it until the upload ends, so the watchdog reset the chip a few
+      // seconds in (bench log 31 Oct: "task_wdt: loopTask (CPU 1)" at 1%). Unsubscribe for the
+      // upload; a good upload reboots, a failed one subscribes again in onError.
+      esp_task_wdt_delete(NULL);
 #endif
       Serial.println(F("Starting"));
     });
@@ -63,6 +72,9 @@ void OTASettingsService::configureArduinoOTA() {
     });
     _arduinoOTA->onError([](ota_error_t error) {
       framework_ota_busy = false;
+#ifdef ESP32
+      esp_task_wdt_add(NULL);
+#endif
       Serial.printf("Error[%u]: ", error);
       if (error == OTA_AUTH_ERROR)
         Serial.println(F("Auth Failed"));
