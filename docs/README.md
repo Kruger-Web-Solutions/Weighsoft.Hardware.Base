@@ -9,7 +9,7 @@ This documentation provides comprehensive architecture, design patterns, API ref
 ### For Developers
 
 1. **New to the framework?** Start with [ARCHITECTURE.md](ARCHITECTURE.md)
-2. **Need to know which branch to use?** Read [INTEGRATION-WORKFLOW.md](INTEGRATION-WORKFLOW.md)
+2. **Need to know which branch to use?** Read [BRANCH-MAP.md](BRANCH-MAP.md), then [INTEGRATION-WORKFLOW.md](INTEGRATION-WORKFLOW.md)
 3. **Need to understand the system?** Review the C4 diagrams
 4. **Want to add features?** Follow the [EXTENSION-GUIDE.md](EXTENSION-GUIDE.md)
 5. **Need API docs?** See [API-REFERENCE.md](API-REFERENCE.md)
@@ -60,6 +60,7 @@ This documentation provides comprehensive architecture, design patterns, API ref
 | Document | Description |
 |----------|-------------|
 | [INTEGRATION-WORKFLOW.md](INTEGRATION-WORKFLOW.md) | Branch strategy for `master` and long-lived integration branches |
+| [BRANCH-MAP.md](BRANCH-MAP.md) | Every branch: which device it builds, build env, web menu, state |
 | [EXTENSION-GUIDE.md](EXTENSION-GUIDE.md) | Step-by-step guide to add custom features |
 | [DEVICE-TEMPLATE-GUIDE.md](DEVICE-TEMPLATE-GUIDE.md) | Quick start checklist for new device projects |
 | [LED-EXAMPLE.md](LED-EXAMPLE.md) | LED control example - template for controllable devices |
