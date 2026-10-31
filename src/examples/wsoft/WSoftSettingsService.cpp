@@ -39,12 +39,14 @@ void WSoftSettingsService::begin() {
 
 void WSoftSettingsService::applyAutoSave() {
   bool on = false;
+  bool ignoreAlarm = false;
   uint32_t seconds = WSOFT_AUTO_SAVE_DEFAULT_S;
   read([&](const WSoftSettings& s) {
     on = s.data.auto_save;
     seconds = s.data.auto_save_stable_s;
+    ignoreAlarm = s.data.save_ignore_alarm;
   });
-  save_set_auto(on, seconds);
+  save_set_auto(on, seconds, ignoreAlarm);
 }
 
 uint32_t WSoftSettingsService::publishIntervalMs() {

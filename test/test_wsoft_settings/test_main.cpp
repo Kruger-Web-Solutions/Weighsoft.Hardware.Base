@@ -92,6 +92,19 @@ void test_auto_save_defaults_off_with_three_seconds() {
   TEST_ASSERT_EQUAL_UINT32(3, s.auto_save_stable_s);
 }
 
+void test_save_ignore_alarm_defaults_off_and_applies() {
+  WSoftSettingsData s = defaults();
+  TEST_ASSERT_FALSE(s.save_ignore_alarm);
+  WSoftSettingsInput in;
+  in.has_save_ignore_alarm = true;
+  in.save_ignore_alarm = true;
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_CHANGED, wsoft_settings_update(in, &s));
+  TEST_ASSERT_TRUE(s.save_ignore_alarm);
+  WSoftSettingsInput none;
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_CHANGED, wsoft_settings_update(none, &s));
+  TEST_ASSERT_FALSE(s.save_ignore_alarm);
+}
+
 void test_auto_save_update_applies_and_reports_changed() {
   WSoftSettingsData s = defaults();
   WSoftSettingsInput in;
@@ -217,6 +230,7 @@ int main(int, char **) {
   RUN_TEST(test_auto_save_update_applies_and_reports_changed);
   RUN_TEST(test_auto_save_time_is_clamped_both_ways);
   RUN_TEST(test_missing_auto_save_fields_fall_back_to_defaults);
+  RUN_TEST(test_save_ignore_alarm_defaults_off_and_applies);
   RUN_TEST(test_bad_topic_keeps_the_old_auto_save);
   return UNITY_END();
 }

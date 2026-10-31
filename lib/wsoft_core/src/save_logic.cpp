@@ -164,9 +164,10 @@ size_t save_weighing_body(const SavedWeighing &w, const char *id_prefix, char *o
   int written = snprintf(out, size,
                          "{\"weighing_id\":\"%s\",\"committed_at\":\"%s\",\"gross_kg\":%s,\"tare_kg\":0,"
                          "\"net_kg\":%s,\"basis\":\"GS\",\"payload\":{\"source\":\"wsoft\",\"seq\":%lu,"
-                         "\"value\":%ld,\"decimals\":%d,\"unit\":%d,\"trade\":%s,\"auto_saved\":%s}}",
+                         "\"value\":%ld,\"decimals\":%d,\"unit\":%d,\"trade\":%s,\"auto_saved\":%s,\"djb_alarm\":%s}}",
                          id, when, kg, kg, (unsigned long)w.seq, (long)w.value, w.decimals, w.unit,
-                         w.trade ? "true" : "false", w.auto_saved ? "true" : "false");
+                         w.trade ? "true" : "false", w.auto_saved ? "true" : "false",
+                         w.djb_alarm ? "true" : "false");
   if (written < 0 || (size_t)written >= size) {
     out[0] = '\0';
     return 0;

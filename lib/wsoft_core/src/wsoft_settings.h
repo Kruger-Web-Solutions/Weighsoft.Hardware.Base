@@ -35,6 +35,9 @@ struct WSoftSettingsData {
   char mqtt_unique_id[WSOFT_MQTT_ID_MAX + 1];
   bool auto_save;              // default off
   uint32_t auto_save_stable_s;  // 1..30, default 3
+  // Bench testing only: let a save through while the DJB reports an alarm. Ignored while
+  // approval is ON (a trade weight is never taken from a box in alarm). Default off.
+  bool save_ignore_alarm;
 };
 
 // One field per option. A missing field (has_* false or a null string) takes its default:
@@ -51,6 +54,8 @@ struct WSoftSettingsInput {
   bool auto_save = false;
   bool has_auto_save_stable_s = false;
   int64_t auto_save_stable_s = 0;
+  bool has_save_ignore_alarm = false;
+  bool save_ignore_alarm = false;
 };
 
 enum WSoftSettingsResult { WSOFT_SETTINGS_UNCHANGED, WSOFT_SETTINGS_CHANGED, WSOFT_SETTINGS_ERROR };

@@ -33,7 +33,8 @@ struct SaveStatus {
 void save_begin();
 
 // From WSoftSettingsService (start-up and every settings change). Any task.
-void save_set_auto(bool on, uint32_t stable_s);
+// ignore_djb_alarm: bench test mode (W-Soft Settings), has no effect while approval is ON.
+void save_set_auto(bool on, uint32_t stable_s, bool ignore_djb_alarm);
 
 // Screen task, after every DJB poll. fresh is false when the poll failed (carried-over value).
 SaveCheck save_update(bool linked, bool fresh, bool alarm, int32_t value, int decimals, int unit);

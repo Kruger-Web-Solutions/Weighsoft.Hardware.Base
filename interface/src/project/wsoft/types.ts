@@ -77,6 +77,8 @@ export interface WSoftSettings {
   auto_save: boolean;
   /** 1 to 30 seconds. */
   auto_save_stable_s: number;
+  /** Bench test mode: save even while the DJB reports an alarm (ignored when approval is ON). */
+  save_ignore_alarm: boolean;
   /** Read-only: base path with placeholders expanded, plus "/status". */
   mqtt_status_topic?: string;
   publish_interval_min_ms?: number;

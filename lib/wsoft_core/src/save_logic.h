@@ -88,6 +88,7 @@ struct SavedWeighing {
   int64_t at = 0;  // unix seconds (UTC)
   bool trade = false;
   bool auto_saved = false;
+  bool djb_alarm = false;  // saved in bench test mode while the DJB reported an alarm
 };
 
 // Saved weighings waiting for the Hub, oldest first. Full means refuse new saves, never overwrite.

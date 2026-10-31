@@ -13,6 +13,7 @@ static portMUX_TYPE lock = portMUX_INITIALIZER_UNLOCKED;
 
 // Shared with the web and Hub tasks, so read and written under the lock.
 static bool auto_on = false;
+static bool ignore_alarm = false;  // bench test mode, never with approval ON
 static uint32_t auto_stable_s = 3;
 static SaveCheck check = SAVE_NO_SIGNAL;
 static SaveQueue queue;
@@ -48,6 +49,7 @@ struct StoredSave {
 
 static const uint32_t FLAG_TRADE = 1;
 static const uint32_t FLAG_AUTO = 2;
+static const uint32_t FLAG_DJB_ALARM = 4;
 
 static void slot_key(uint32_t index, char *key, size_t size) {
   snprintf(key, size, "q%lu", (unsigned long)(index % SaveQueue::CAPACITY));
@@ -87,6 +89,7 @@ void save_begin() {
     w.at = s.at;
     w.trade = (s.flags & FLAG_TRADE) != 0;
     w.auto_saved = (s.flags & FLAG_AUTO) != 0;
+    w.djb_alarm = (s.flags & FLAG_DJB_ALARM) != 0;
     if (w.seq >= next_seq) next_seq = w.seq + 1;
   }
   prefs.end();
@@ -103,9 +106,10 @@ void save_begin() {
   Serial0.printf("SAVE ready id=%s next_seq=%lu queued=%u\n", id_prefix, (unsigned long)next_seq, (unsigned)count);
 }
 
-void save_set_auto(bool on, uint32_t stable_s) {
+void save_set_auto(bool on, uint32_t stable_s, bool ignore_djb_alarm) {
   portENTER_CRITICAL(&lock);
   auto_on = on;
+  ignore_alarm = ignore_djb_alarm;
   auto_stable_s = stable_s;
   portEXIT_CRITICAL(&lock);
 }
@@ -139,7 +143,7 @@ static void store(const SavedWeighing &w) {
   portEXIT_CRITICAL(&lock);
 
   StoredSave s = {w.seq, w.value, w.decimals, w.unit, w.at,
-                  (w.trade ? FLAG_TRADE : 0) | (w.auto_saved ? FLAG_AUTO : 0)};
+                  (w.trade ? FLAG_TRADE : 0) | (w.auto_saved ? FLAG_AUTO : 0) | (w.djb_alarm ? FLAG_DJB_ALARM : 0)};
   char key[8];
   slot_key(head + count - 1, key, sizeof key);
   prefs.begin(NVS_NAMESPACE, false);
@@ -159,9 +163,13 @@ SaveCheck save_update(bool linked, bool fresh, bool alarm, int32_t value, int de
   bool on = auto_on;
   uint32_t stable_ms = auto_stable_s * 1000;
   bool full = queue.full();
+  bool skip_alarm = ignore_alarm;
   portEXIT_CRITICAL(&lock);
 
-  SaveInput in = {linked, fresh, alarm, value, decimals, unit, millis(), (int64_t)time(nullptr),
+  // Bench test mode lets a save through a DJB alarm, but never while approval is ON.
+  bool alarm_ignored = alarm && skip_alarm && !approval_on();
+  bool effective_alarm = alarm && !alarm_ignored;
+  SaveInput in = {linked, fresh, effective_alarm, value, decimals, unit, millis(), (int64_t)time(nullptr),
                   on, stable_ms, manual, full};
   SaveDecision d = engine.update(in);
 
@@ -175,6 +183,7 @@ SaveCheck save_update(bool linked, bool fresh, bool alarm, int32_t value, int de
     w.at = in.now_unix;
     w.trade = approval_on();
     w.auto_saved = d.automatic;
+    w.djb_alarm = alarm_ignored;
     store(w);
   }
 

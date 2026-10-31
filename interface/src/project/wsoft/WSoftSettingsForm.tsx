@@ -75,6 +75,26 @@ const WSoftSettingsForm: FC = () => {
             'One save per load: take the load off before the next one. SAVE on the screen works either way.'
           }
         />
+        <BlockFormControlLabel
+          control={
+            <Checkbox
+              name="save_ignore_alarm"
+              checked={!!data.save_ignore_alarm}
+              onChange={updateFormValue}
+            />
+          }
+          label="Test mode: save even when the DJB shows an alarm"
+        />
+        {data.save_ignore_alarm && (
+          <MessageBox
+            level="warning"
+            message={
+              'For bench testing only. Weighings saved during a DJB alarm are marked "djb_alarm" on the Hub. ' +
+              'Has no effect while approval is ON.'
+            }
+            my={1}
+          />
+        )}
         <Typography variant="h6" sx={{ mt: 2 }}>
           Live page and MQTT
         </Typography>

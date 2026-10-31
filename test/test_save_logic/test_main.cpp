@@ -354,8 +354,21 @@ void test_body_matches_the_hub_contract() {
   TEST_ASSERT_EQUAL_STRING(
       "{\"weighing_id\":\"wsoft-a1b2c3d4e5f6-0badf00d-5\",\"committed_at\":\"2025-10-31T12:00:00Z\","
       "\"gross_kg\":12.3,\"tare_kg\":0,\"net_kg\":12.3,\"basis\":\"GS\",\"payload\":{\"source\":\"wsoft\","
-      "\"seq\":5,\"value\":123,\"decimals\":1,\"unit\":1,\"trade\":false,\"auto_saved\":true}}",
+      "\"seq\":5,\"value\":123,\"decimals\":1,\"unit\":1,\"trade\":false,\"auto_saved\":true,"
+      "\"djb_alarm\":false}}",
       body);
+}
+
+void test_body_marks_a_save_taken_during_a_djb_alarm() {
+  SavedWeighing w = weighing(6);
+  w.value = 123;
+  w.decimals = 1;
+  w.unit = 1;
+  w.at = 1761912000;
+  w.djb_alarm = true;
+  char body[512];
+  TEST_ASSERT_TRUE(save_weighing_body(w, "p", body, sizeof body) > 0);
+  TEST_ASSERT_NOT_NULL(strstr(body, "\"djb_alarm\":true}}"));
 }
 
 void test_body_is_refused_without_clock_or_room() {
@@ -417,6 +430,7 @@ int main() {
   RUN_TEST(test_manual_save_on_empty_scale_is_refused);
   RUN_TEST(test_no_signal_blocks);
   RUN_TEST(test_alarm_blocks);
+  RUN_TEST(test_body_marks_a_save_taken_during_a_djb_alarm);
   RUN_TEST(test_queue_full_refuses_and_keeps_the_load_unsaved);
   RUN_TEST(test_no_clock_blocks);
   RUN_TEST(test_unit_without_kg_meaning_blocks);

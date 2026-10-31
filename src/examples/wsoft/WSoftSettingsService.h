@@ -38,6 +38,7 @@ class WSoftSettings {
     root["mqtt_unique_id"] = settings.data.mqtt_unique_id;
     root["auto_save"] = settings.data.auto_save;
     root["auto_save_stable_s"] = settings.data.auto_save_stable_s;
+    root["save_ignore_alarm"] = settings.data.save_ignore_alarm;
   }
 
   // Stored fields plus the resolved status topic, for the settings page.
@@ -64,6 +65,10 @@ class WSoftSettings {
     if (root["mqtt_enabled"].is<bool>()) {
       in.has_mqtt_enabled = true;
       in.mqtt_enabled = root["mqtt_enabled"].as<bool>();
+    }
+    if (root["save_ignore_alarm"].is<bool>()) {
+      in.has_save_ignore_alarm = true;
+      in.save_ignore_alarm = root["save_ignore_alarm"].as<bool>();
     }
     if (root["auto_save"].is<bool>()) {
       in.has_auto_save = true;
