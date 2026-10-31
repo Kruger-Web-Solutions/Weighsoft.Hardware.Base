@@ -36,9 +36,17 @@ for f in trade_logic.cpp trade_logic.h; do
    RAM 16.6 %, flash 35.0 %; ESPAsyncWebServer 3.12.1, AsyncTCP 3.5.0, AsyncMqttClient 0.9.0,
    ArduinoJson 6.21.6, WebSockets 2.7.3, ESP32_Display_Panel 1.0.5). The framework needed small
    core-3 fixes (handler casts, WiFi.h / esp_mac.h includes, readIP, mDNS rename), all also
-   valid on core 2. The first build downloads toolchains (~45 min); rebuilds take 3–7 min. Also build two other envs to prove nothing else broke:
+   valid on core 2. The first build downloads toolchains (~45 min). Also build two other envs to prove nothing else broke:
    `pio run -e nodemcu_esp32 -e esp32s3` (`wsoft_esp` is in `lib_ignore` for every env but
    this one).
+   **Before you build (bench laptop, measured 31 Oct 2026):** a build is either about 2 min
+   or about 30 min, and which one is known before it starts. PlatformIO deletes the env's
+   build folder, so every one of about 320 files recompiles, when a `.c/.cpp/.h` file was
+   added or removed under `include/`, `src/` or `lib/`, when `platformio.ini` changed, or on
+   a new env. Otherwise only the changed files recompile. Run **one build per folder at a
+   time**: a second `pio run` in the same folder collides with the first. A build that is
+   killed before it ends loses its record of finished files and the next run is nearly
+   full again. See `docs/aar/aar-2026-10-31-wsoft-two-hour-build.md`.
 3. Plug the board's **UART** USB port (CH343, `COM11` on the bench) and flash:
    `pio run -e wsoft_waveshare43 -t upload`. (The `upload_port` in the env says `COM11`.)
    Flashing is an ASKED gate: only with Rhyno's go.
