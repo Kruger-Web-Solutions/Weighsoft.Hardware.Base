@@ -19,8 +19,10 @@ CONSTRAINTS:  - Jurien 31 Oct 12:08 UTC: auto-save on/off + stable-time setting 
                 not full; never drop a queued weight). Approval OFF: marked not-for-trade.
               - A failed or stale poll is never a weight; DJB alarm blocks a save.
               - One save per load: after a save, re-arm only when the scale returns to empty.
-              - Hub contract is fixed: signed POST /api/v1/ingest/weighings, integer kg fields,
-                weighing_id idempotent (Hub CLAUDE.md #2, #3, #4). Do not change the Hub here.
+              - Hub contract is fixed: signed POST /api/v1/ingest/weighings, weighing_id
+                idempotent. Hub PR #78 (merged + deployed 31 Oct) accepts decimal kg, up to
+                5 digits . 5 decimals, stored exactly: send the exact reading as decimal kg.
+                Do not change the Hub here.
               - Never invent protocol, pinout or calibration. Touch pins/driver come from the
                 ESP32_Display_Panel board config already used; if touch is not in that config,
                 stop and report.
@@ -48,13 +50,13 @@ SUCCESS:      1. (OWNER-CONFIRMED) W-Soft › Settings has an Auto-save switch a
                  both appear on the test Hub.
 ASSUMPTIONS:  | assumption | conf | blast radius if wrong |
               | Board config exposes GT911 touch via board->getTouch() | M | medium: touch button deferred, web + auto-save still ship |
-              | Hub kg fields take whole kg; exact reading goes in payload (decision card, recommended) | M | low: payload mapping change only |
+              | Hub accepts decimal kg (PR #78, confirmed by Jurien + coordinator 12:10) | H | low |
               | Device clock is valid (set from Hub Date header) for committed_at | H | medium: saves wait for clock |
               | Flash queue of 32 entries is enough between Hub contacts | H | low |
 MISSION:      weighsoft-op-feature
-DEFERRED:     - Hub stores grams instead of whole kg (only if Jurien picks that option).
+DEFERRED:     - none for Hub units (resolved by Hub PR #78).
               - Wi-Fi OTA reliability check (fix 9d2199c pushed; verify on next Wi-Fi flash).
-GATES:        - Kg mapping choice: ASKED (decision card to Jurien; build proceeds on recommended)
+GATES:        - Kg mapping: resolved 12:10 (Jurien: Hub already takes 5.5 decimal kg)
               - Push to branch claude/project-thread-21cbr9 (draft PR #29): TOLD
               - Flash to bench ESP: TOLD (Jurien flashes on the laptop)
               DEMO: required — touch SAVE and auto-save are watchable on the bench and the Hub.
