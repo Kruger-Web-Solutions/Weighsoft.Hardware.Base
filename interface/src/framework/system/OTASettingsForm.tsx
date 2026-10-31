@@ -65,6 +65,7 @@ const OTASettingsForm: FC = () => {
           value={data.password}
           onChange={updateFormValue}
           margin="normal"
+          helperText="Use a private password of 8 or more characters. The factory password is public."
         />
         <ButtonRow mt={1}>
           <Button startIcon={<SaveIcon />} disabled={saving} variant="contained" color="primary" type="submit" onClick={validateAndSubmit}>

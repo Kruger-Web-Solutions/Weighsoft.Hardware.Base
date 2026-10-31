@@ -153,8 +153,14 @@ Whether a weight during an alarm should go out on MQTT is open for Rhyno.
   `WiFi.mode(WIFI_MODE_MAX)`, which core 3 rejects. After that: 0 reboots in 105 s.
 - The board's COM10 port is the ESP32-S3 USB-Serial-JTAG (boot ROM and `ESP_LOG` only). The
   app's `Serial` log goes to UART0, the board's other USB-C port.
-- Framework OTA is off (`FACTORY_OTA_ENABLED=false`). If it is switched on later, the screen
-  keeps polling during an upload: `hub_ota_busy()` only knows W-Soft's own OTA.
+- Framework OTA is off by default (`FACTORY_OTA_ENABLED=false`). Jurien chose (31 Oct 2026) to
+  allow network flashing: an admin switches it on at **System › OTA Settings** with a private
+  password. On this build the firmware keeps OTA OFF while the password is the public factory
+  one or shorter than 8 characters (`OTASettings::update`, `FT_WSOFT` only). Change the factory
+  admin password too, or anyone on the Wi-Fi can switch OTA on. Flash from the laptop:
+  `python <platformio>/packages/framework-arduinoespressif32/tools/espota.py -i <ESP IP> -p 8266
+  -a <password> -f .pio/build/wsoft_waveshare43/firmware.bin -r`. The screen keeps polling during
+  an upload: `hub_ota_busy()` only knows W-Soft's own OTA.
 - `default_16MB.csv` is not a project file, so `scripts/clear_otadata.py` skips the otadata
   erase. After an OTA update, a USB flash may boot the older slot; erase flash if that happens.
 - The W-Soft menu shows on every board (like the other device menus); on other boards its
