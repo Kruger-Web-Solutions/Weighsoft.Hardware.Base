@@ -9,6 +9,8 @@
 
 A professional hardware interface framework for weighbridge and IoT projects built on ESP8266/ESP32 platforms with responsive React front-end and Material-UI. Designed for Weighsoft solutions requiring reliable, secure, and scalable hardware control.
 
+> **New here (human or AI agent)?** Read [AGENTS.md](AGENTS.md) and [docs/BRANCH-MAP.md](docs/BRANCH-MAP.md) first. Each device has its own branch; `master` is only the framework.
+
 Designed to work with the PlatformIO IDE with [limited setup](#getting-started). Please read below for setup, build and upload instructions.
 
 ## Table of Contents
