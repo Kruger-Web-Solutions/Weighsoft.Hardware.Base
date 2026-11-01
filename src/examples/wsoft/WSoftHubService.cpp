@@ -33,9 +33,12 @@ void WSoftHubService::status(AsyncWebServerRequest* request) {
   root["online"] = hub_state() == HUB_ONLINE;
   if (configured) {
     // Not secret: the key id travels in every request header. The secret never leaves the box.
-    root["hub_url"] = hub_address();
+    const char* in_use = hub_address();
+    root["hub_url"] = in_use;  // the address in use now
+    JsonArray all = root.createNestedArray("hub_urls");
+    for (uint8_t i = 0; i < hub_address_count(); i++) all.add(hub_address_at(i));
     root["key_id"] = hub_key_id();
-    HubUrlHint hint = hub_url_hint(hub_address().c_str());
+    HubUrlHint hint = hub_url_hint(in_use);
     if (hint != HUB_URL_FINE) root["warning"] = hub_url_hint_text(hint);
   }
   root["last_status"] = hub_last_status();
@@ -47,18 +50,16 @@ void WSoftHubService::status(AsyncWebServerRequest* request) {
 
 void WSoftHubService::pair(AsyncWebServerRequest* request, JsonVariant& json) {
   const char* code = json.is<JsonObject>() ? json["code"].as<const char*>() : nullptr;
-  HubCodeResult result = hub_save_code(code);
+  String saved_hub_url;
+  HubCodeResult result = hub_save_code(code, &saved_hub_url);
 
   AsyncJsonResponse* response = new AsyncJsonResponse(false, 768);
   JsonObject root = response->getRoot();
   root["ok"] = result == HUB_CODE_OK;
   root["message"] = hub_code_result_text(result);
   if (result == HUB_CODE_OK) {
-    HubPairing parsed;
-    hub_code_parse(code, &parsed);
-    root["hub_url"] = String(parsed.hub_url);
-    HubUrlHint hint = hub_url_hint(parsed.hub_url);
-    memset(&parsed, 0, sizeof parsed);
+    root["hub_url"] = saved_hub_url;
+    HubUrlHint hint = hub_url_hint(saved_hub_url.c_str());
     if (hint != HUB_URL_FINE) root["warning"] = hub_url_hint_text(hint);
     root["restarting"] = true;
     response->setCode(200);

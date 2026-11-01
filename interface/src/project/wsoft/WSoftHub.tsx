@@ -25,6 +25,10 @@ const STATE_HELP: Record<string, string> = {
   'HUB SETUP': 'Not linked yet. Paste a pairing code below.'
 };
 
+// The Hub's other LAN addresses from the pairing code, without the one in use.
+const otherAddresses = (status: WSoftHubStatus): string[] =>
+  (status.hub_urls ?? []).filter((url) => url !== status.hub_url);
+
 const WSoftHub: FC = () => {
   const [status, setStatus] = useState<WSoftHubStatus>();
   const [loadError, setLoadError] = useState<string>();
@@ -104,7 +108,12 @@ const WSoftHub: FC = () => {
 
       {status.configured && (
         <Box mb={2}>
-          <Typography variant="body2">Hub address: <b>{status.hub_url}</b></Typography>
+          <Typography variant="body2">Sending to: <b>{status.hub_url}</b></Typography>
+          {otherAddresses(status).length > 0 && (
+            <Typography variant="body2" color="text.secondary">
+              Other Hub addresses, tried in turn if this one stops answering: {otherAddresses(status).join(', ')}
+            </Typography>
+          )}
           <Typography variant="body2">Key: {status.key_id}</Typography>
           <Typography variant="body2">
             Last Hub answer: {status.last_status ? status.last_status : 'none yet'}
@@ -120,7 +129,7 @@ const WSoftHub: FC = () => {
       </Typography>
       <Typography variant="body2" paragraph>
         On the Hub: Devices, then New pairing code, then Copy code. Paste it here.
-        Open the Hub with an address this box can reach (for example 192.168.1.x), not a Tailscale 100.x address.
+        A code from an up-to-date Hub lists every Hub address; this box uses the local network ones.
       </Typography>
       <TextField
         label="Pairing code"

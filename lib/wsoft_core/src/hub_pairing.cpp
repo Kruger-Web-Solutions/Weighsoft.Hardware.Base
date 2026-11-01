@@ -91,7 +91,72 @@ bool hub_base64url_decode(const char *text, size_t text_len, uint8_t *out, size_
   return true;
 }
 
-HubCodeResult hub_code_parse(const char *code, HubPairing *out) {
+namespace {
+
+// Strips trailing slashes. False unless it is an http(s):// address with something after the scheme.
+bool clean_hub_url(char *url) {
+  if (!(starts_with(url, "http://") || starts_with(url, "https://"))) return false;
+  size_t len = strlen(url);
+  while (len > 0 && url[len - 1] == '/') url[--len] = 0;
+  return len > strlen("https://");
+}
+
+bool is_lan_address(const char *url) {
+  return hub_url_hint(url) == HUB_URL_FINE;
+}
+
+// Adds url to the list unless it is not a LAN address, already listed, or the list is full.
+void keep_lan_address(HubPairing *p, const char *url) {
+  if (!is_lan_address(url) || p->hub_url_count >= HUB_URLS_MAX) return;
+  for (uint8_t i = 0; i < p->hub_url_count; i++) {
+    if (strcmp(p->hub_urls[i], url) == 0) return;
+  }
+  memcpy(p->hub_urls[p->hub_url_count], url, strlen(url) + 1);
+  p->hub_url_count++;
+}
+
+// Reads "hub_urls":["...","..."] (plain strings, what the Hub emits). Entries that are not
+// usable (too long, escaped, not http(s)) are skipped; a broken list just ends early.
+void read_hub_urls_array(const char *json, HubPairing *p) {
+  static const char NEEDLE[] = "\"hub_urls\":[";
+  const char *cursor = strstr(json, NEEDLE);
+  if (!cursor) return;
+  cursor += sizeof NEEDLE - 1;
+  char url[HUB_URL_MAX + 1];
+  for (;;) {
+    while (is_space(*cursor)) cursor++;
+    if (*cursor != '"') return;
+    const char *start = cursor + 1;
+    const char *end = strchr(start, '"');
+    if (!end) return;
+    size_t len = (size_t)(end - start);
+    if (len < sizeof url && !memchr(start, '\\', len)) {
+      memcpy(url, start, len);
+      url[len] = 0;
+      if (clean_hub_url(url)) keep_lan_address(p, url);
+    }
+    cursor = end + 1;
+    while (is_space(*cursor)) cursor++;
+    if (*cursor != ',') return;
+    cursor++;
+  }
+}
+
+// Fills hub_urls with the LAN addresses this box can use, hub_url first among them.
+// No LAN address at all: the list is just hub_url, exactly as before "hub_urls" existed.
+void read_lan_addresses(const char *json, HubPairing *p) {
+  p->hub_url_count = 0;
+  read_hub_urls_array(json, p);
+  keep_lan_address(p, p->hub_url);  // an older Hub's single address, or one missing from the list
+  if (p->hub_url_count == 0) {
+    memcpy(p->hub_urls[0], p->hub_url, sizeof p->hub_url);
+    p->hub_url_count = 1;
+    return;
+  }
+  memcpy(p->hub_url, p->hub_urls[0], sizeof p->hub_url);
+}
+
+HubCodeResult parse_into(const char *code, HubPairing *p) {
   if (!code) return HUB_CODE_EMPTY;
   while (is_space(*code)) code++;
   size_t len = strlen(code);
@@ -106,18 +171,14 @@ HubCodeResult hub_code_parse(const char *code, HubPairing *out) {
   json[json_len] = 0;
   if (json_len < 2 || json[0] != '{' || strlen(json) != json_len) return HUB_CODE_NOT_JSON;
 
-  HubPairing p;
-  memset(&p, 0, sizeof p);
-  if (!json_string(json, "hub_url", p.hub_url, sizeof p.hub_url) ||
-      !(starts_with(p.hub_url, "http://") || starts_with(p.hub_url, "https://"))) {
+  memset(p, 0, sizeof *p);
+  if (!json_string(json, "hub_url", p->hub_url, sizeof p->hub_url) || !clean_hub_url(p->hub_url)) {
     return HUB_CODE_NO_URL;
   }
-  size_t url_len = strlen(p.hub_url);
-  while (url_len > 0 && p.hub_url[url_len - 1] == '/') p.hub_url[--url_len] = 0;
-  if (url_len <= strlen("https://")) return HUB_CODE_NO_URL;
+  read_lan_addresses(json, p);
 
-  if (!json_string(json, "key_id", p.key_id, sizeof p.key_id) || p.key_id[0] == 0) return HUB_CODE_NO_KEY;
-  if (!json_string(json, "device_id", p.device_id, sizeof p.device_id)) p.device_id[0] = 0;
+  if (!json_string(json, "key_id", p->key_id, sizeof p->key_id) || p->key_id[0] == 0) return HUB_CODE_NO_KEY;
+  if (!json_string(json, "device_id", p->device_id, sizeof p->device_id)) p->device_id[0] = 0;
 
   char secret_text[64];
   size_t secret_len = 0;
@@ -130,14 +191,22 @@ HubCodeResult hub_code_parse(const char *code, HubPairing *out) {
     memset(json, 0, sizeof json);
     return HUB_CODE_BAD_SECRET;
   }
-  memcpy(p.secret, secret, HUB_SECRET_LEN);
+  memcpy(p->secret, secret, HUB_SECRET_LEN);
   memset(secret, 0, sizeof secret);
   memset(secret_text, 0, sizeof secret_text);
   memset(json, 0, sizeof json);
-
-  if (out) *out = p;
-  memset(&p, 0, sizeof p);
   return HUB_CODE_OK;
+}
+
+}  // namespace
+
+HubCodeResult hub_code_parse(const char *code, HubPairing *out) {
+  // Checking only (out == nullptr) still needs somewhere to put the fields.
+  HubPairing check_only;
+  HubPairing *p = out ? out : &check_only;
+  HubCodeResult result = parse_into(code, p);
+  if (result != HUB_CODE_OK || p == &check_only) memset(p, 0, sizeof *p);
+  return result;
 }
 
 const char *hub_code_result_text(HubCodeResult result) {
@@ -194,4 +263,14 @@ bool hub_parse_http_date(const char *text, time_t *out) {
   long days = days_from_civil(year, m + 1, day);
   *out = (time_t)(days * 86400L + hh * 3600L + mm * 60L + ss);
   return true;
+}
+
+void hub_failover_begin(HubFailover *failover, uint8_t count) {
+  failover->count = count > 0 ? count : 1;
+  failover->active = 0;
+}
+
+void hub_failover_result(HubFailover *failover, bool reached) {
+  if (reached || failover->count <= 1) return;
+  failover->active = (uint8_t)((failover->active + 1) % failover->count);
 }

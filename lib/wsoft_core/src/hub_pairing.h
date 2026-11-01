@@ -6,6 +6,8 @@
 // The pairing code is what the Hub shows once under Devices > New pairing code
 // (Weighsoft.Indicator.Hub server/src/registry): base64url of compact JSON
 // {"v":1,"hub_url":"...","organisation_id":"...","device_id":"...","key_id":"...","secret":"<base64url, 32 bytes>"}.
+// Newer Hubs add "hub_urls":["http://...", ...] with every address the Hub listens on. This box
+// keeps only the LAN ones: it cannot join a tailnet (100.64/10) and loopback is itself.
 
 #include <stddef.h>
 #include <stdint.h>
@@ -13,6 +15,7 @@
 
 static const size_t HUB_CODE_MAX = 600;  // same cap as the USB line reader in hub.cpp
 static const size_t HUB_URL_MAX = 160;
+static const uint8_t HUB_URLS_MAX = 4;  // LAN addresses kept from "hub_urls"; extra ones are ignored
 static const size_t HUB_KEY_ID_MAX = 80;
 static const size_t HUB_DEVICE_ID_MAX = 80;
 static const size_t HUB_SECRET_LEN = 32;
@@ -29,14 +32,19 @@ enum HubCodeResult {
 };
 
 struct HubPairing {
-  char hub_url[HUB_URL_MAX + 1];  // trailing slashes removed
+  char hub_url[HUB_URL_MAX + 1];  // trailing slashes removed; the first LAN address when the code lists several
+  // Addresses to try, in order. Always at least one: an old single-address code, or a code with
+  // no LAN address at all, gives a list of just hub_url (and hub_url_hint warns about it).
+  char hub_urls[HUB_URLS_MAX][HUB_URL_MAX + 1];
+  uint8_t hub_url_count;
   char key_id[HUB_KEY_ID_MAX + 1];
   char device_id[HUB_DEVICE_ID_MAX + 1];  // may be empty
   uint8_t secret[HUB_SECRET_LEN];         // raw pairing secret; the HMAC key is sha256(secret)
 };
 
 // Trims spaces and line breaks around the code, then decodes and checks it.
-// On success fills *out. Never logs anything.
+// On success fills *out; on failure *out is cleared. out may be nullptr to only check the code.
+// Never logs anything.
 HubCodeResult hub_code_parse(const char *code, HubPairing *out);
 
 // Short English text for the web page.
@@ -60,3 +68,14 @@ const char *hub_url_hint_text(HubUrlHint hint);
 // into Unix seconds. Returns false if it is not that format. Used to set the clock from the
 // Hub when the network has no internet time.
 bool hub_parse_http_date(const char *text, time_t *out);
+
+// Which Hub address to use. Moves to the next address only when the Hub gave no answer at all
+// (HTTP status <= 0: refused, timed out, no route). Any HTTP status, even 401 or 503, means the
+// address works, so the box stays on it. Wraps around to the first address.
+struct HubFailover {
+  uint8_t count;   // addresses in the list (at least 1)
+  uint8_t active;  // index of the address in use
+};
+
+void hub_failover_begin(HubFailover *failover, uint8_t count);
+void hub_failover_result(HubFailover *failover, bool reached);
