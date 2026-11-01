@@ -298,7 +298,7 @@ static SaveSendOutcome send_weighing() {
 
   HTTPClient http;
   http.setTimeout(8000);
-  if (!http.begin(hub_url + "/api/v1/ingest/weighings")) {
+  if (!http.begin(String(active_hub_url()) + "/api/v1/ingest/weighings")) {
     save_hub_result(-1);
     return SAVE_SEND_RETRY;
   }
