@@ -131,6 +131,9 @@ void test_http_date_from_the_hub_sets_the_clock() {
   TEST_ASSERT_EQUAL_INT64(1767225600LL, (long long)t);
   TEST_ASSERT_TRUE(hub_parse_http_date("Thu, 29 Feb 2028 12:00:00 GMT", &t));
   TEST_ASSERT_EQUAL_INT64(1835438400LL, (long long)t);
+  // Past 2038: must not wrap where long is 32-bit (ESP32).
+  TEST_ASSERT_TRUE(hub_parse_http_date("Sun, 01 Jan 2040 00:00:00 GMT", &t));
+  TEST_ASSERT_EQUAL_INT64(2208988800LL, (long long)t);
 }
 
 void test_bad_http_dates_are_refused() {

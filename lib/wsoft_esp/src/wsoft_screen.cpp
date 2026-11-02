@@ -679,8 +679,9 @@ void wsoft_screen_loop() {
   hub_handle_serial(Serial0);
   hub_ota_poll();
   service_job();
-  if (hub_ota_busy() || !display_ready) return;
-  poll_touch();
+  if (hub_ota_busy()) return;
+  // A failed display only stops the drawing: the scale is still read, saved and sent to the Hub.
+  if (display_ready) poll_touch();
   if (millis() - last_poll < POLL_MS) return;
   last_poll = millis();
 
@@ -725,7 +726,8 @@ void wsoft_screen_loop() {
   format_weight(next.value, next.decimals, weight, sizeof weight);
   strlcat(weight, " ", sizeof weight);
   strlcat(weight, weight_unit_text(next.unit), sizeof weight);
-  hub_set_health(next.linked, next.linked ? weight : "", next.alarm);
+  // Only a weight read on this poll goes to the Hub: a failed poll is never a weight.
+  hub_set_health(next.linked, fresh ? weight : "", next.alarm);
 
   HubState hub = hub_state();
   publish_snapshot(next, fresh, check, hub);
@@ -753,6 +755,6 @@ void wsoft_screen_loop() {
       next.decimals != reading.decimals || next.unit != reading.unit || hub != shown_hub || polls == 1) {
     reading = next;
     shown_hub = hub;
-    render(reading);
+    if (display_ready) render(reading);
   }
 }

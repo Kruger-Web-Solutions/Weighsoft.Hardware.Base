@@ -119,7 +119,8 @@ void hub_handle_serial(Stream &port) {
     char ch = port.read();
     if (ch == '\r') continue;
     if (ch != '\n') {
-      if (line.length() < 600) line += ch;
+      // Room for the longest command word plus a full HUB_CODE_MAX pairing code.
+      if (line.length() < HUB_CODE_MAX + 16) line += ch;
       continue;
     }
     String command = line;

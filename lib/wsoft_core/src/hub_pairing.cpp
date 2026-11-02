@@ -260,8 +260,9 @@ bool hub_parse_http_date(const char *text, time_t *out) {
       mm < 0 || ss < 0) {
     return false;
   }
-  long days = days_from_civil(year, m + 1, day);
-  *out = (time_t)(days * 86400L + hh * 3600L + mm * 60L + ss);
+  // 64-bit sums: long is 32-bit on the ESP32, which would wrap for any date from 2038 on.
+  int64_t days = days_from_civil(year, m + 1, day);
+  *out = (time_t)(days * 86400LL + hh * 3600LL + mm * 60LL + ss);
   return true;
 }
 

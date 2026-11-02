@@ -61,7 +61,9 @@ void approval_begin() {
   prefs.begin("approval", true);
   on = prefs.getBool("on", false);
   audit_counter = prefs.getUInt("audit", 0);
-  engine = TradeEngine(prefs.getUInt("seq", 1));
+  // A power cut can land after a slot is counted but before "seq" moves on, so the next number
+  // is also taken past every queued one (as save_begin does). The Hub drops a reused seq.
+  uint32_t next_seq = prefs.getUInt("seq", 1);
   uint32_t head = prefs.getUInt("qhead", 0);
   size_t count = prefs.getUInt("qcount", 0);
   static TradeWeight slots[TradeQueue::CAPACITY];
@@ -77,8 +79,10 @@ void approval_begin() {
     w.decimals = s.decimals;
     w.unit = s.unit;
     w.at = s.at;
+    if (s.seq >= next_seq) next_seq = s.seq + 1;
   }
   prefs.end();
+  engine = TradeEngine(next_seq);
   queue.restore(head, count, slots);
   check = on ? TRADE_MOTION : TRADE_OFF;
   print_status(Serial0);
