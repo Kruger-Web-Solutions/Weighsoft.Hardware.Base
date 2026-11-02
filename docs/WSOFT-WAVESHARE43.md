@@ -203,6 +203,20 @@ Whether a weight during an alarm should go out on MQTT is open for Rhyno.
   flash 68.1 %.
 - No CI job runs `pio test -e native` yet; `verify_build.yml` only runs for PRs into `master`
   (and on GitHub-hosted runners, a pre-existing gap). Run the host tests by hand.
+- **No CI job builds the firmware either.** PR #30 merged a Hub failover change that did not
+  compile (`hub_url` renamed) and every check stayed green. Build `wsoft_waveshare43` on the
+  laptop before merging.
+- **Open from the PR #30 review (2 Nov 2026), not fixed yet:**
+  - `WSoftStatusService` `handleDjb` / `handleSave` wait up to about 3 s inside the async web
+    server, so other requests and WebSocket pushes stall. Needs an async reply (202 + poll).
+  - A weighing the Hub refuses for good (another 4xx) stays at the head of the save queue,
+    so later weighings wait behind it and, after 32 saves, SAVE says `QUEUE FULL`. Needs a
+    choice: a dead-letter slot or a skip shown on screen. A weighing is never silently dropped.
+  - An unreadable trade-queue slot in flash comes back as `seq=0`. If it is the last one in a
+    heartbeat batch, the ack covers nothing and the trade queue never drains.
+  - The live poll in `wsoft_screen.cpp` has its own Modbus CRC and frame code instead of the
+    tested `wsoft_djb_*`, with no exception-frame handling.
+  - The ring queue, stability tracker and flash storage are copied between save and trade.
 
 ## 7. Link to the Hub from the web page (added 31 Oct 2026)
 
