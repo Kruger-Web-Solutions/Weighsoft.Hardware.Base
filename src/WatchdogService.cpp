@@ -1,5 +1,7 @@
 #include "WatchdogService.h"
 
+#include <Features.h>
+
 #include <ArduinoJson.h>
 #include <WiFi.h>
 #include <esp_system.h>
@@ -121,6 +123,11 @@ void WatchdogService::loop() {
 
 bool WatchdogService::isHealthy() const {
   if (ESP.getFreeHeap() < LOW_HEAP_BYTES) return false;
+#if FT_ENABLED(FT_WSOFT)
+  // A W-Soft screen weighs with no network at all (offline site). Only low heap
+  // restarts it; a Wi-Fi restart would drop the operator back to the boot screen.
+  return true;
+#endif
   if (WiFi.status() == WL_CONNECTED) return true;
   // STA is down but if a client is paired with our SoftAP, the user can still
   // reach us at 192.168.4.1 to triage — that counts as healthy.

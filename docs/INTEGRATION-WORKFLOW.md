@@ -4,14 +4,10 @@
 
 This repository uses `master` as the shared framework baseline and keeps major hardware integrations on their own long-lived branches.
 
-Current integration branches:
+Current integration branches: see **[BRANCH-MAP.md](BRANCH-MAP.md)** for every branch, the device it
+targets, its build env, its web menu and its state (updated 31 October 2026).
 
-- `serial2` - serial integration baseline
-- `display` - display integration baseline
-- `weighingboard` - load-cell / weighing integration baseline
-- `display35` - 3.5 inch display integration baseline
-
-The older `serial` branch may still exist as historical reference, but new serial implementation work should start from `serial2`.
+The branches `serial2` and `display35` named in earlier versions of this file do not exist.
 
 ## Working Rules
 

@@ -21,8 +21,10 @@ WiFiSettingsService::WiFiSettingsService(AsyncWebServer* server, FS* fs, Securit
   WiFi.persistent(false);
   WiFi.setAutoReconnect(false);
 #ifdef ESP32
-  // Init the wifi driver on ESP32
+  // Init the wifi driver on ESP32. Core 3 rejects WIFI_MODE_MAX ("Could not set mode! 258").
+#if !defined(ESP_ARDUINO_VERSION_MAJOR) || ESP_ARDUINO_VERSION_MAJOR < 3
   WiFi.mode(WIFI_MODE_MAX);
+#endif
   WiFi.mode(WIFI_MODE_NULL);
   WiFi.onEvent(
       std::bind(&WiFiSettingsService::onStationModeDisconnected, this, std::placeholders::_1, std::placeholders::_2),

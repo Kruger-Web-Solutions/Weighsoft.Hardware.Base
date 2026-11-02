@@ -7,6 +7,7 @@ import BuildIcon from '@mui/icons-material/Build';
 import SendIcon from '@mui/icons-material/Send';
 import MonitorWeightIcon from '@mui/icons-material/Monitor';
 import TvIcon from '@mui/icons-material/Tv';
+import ScaleIcon from '@mui/icons-material/Scale';
 
 import { PROJECT_PATH } from '../api/env';
 import LayoutMenuItem from '../components/layout/LayoutMenuItem';
@@ -19,6 +20,7 @@ const ProjectMenu: FC = () => (
     <LayoutMenuItem icon={SendIcon} label="Weight Forwarder" to={`/${PROJECT_PATH}/weightforwarder`} />
     <LayoutMenuItem icon={MonitorWeightIcon} label="Remote Weight" to={`/${PROJECT_PATH}/remote-weight`} />
     <LayoutMenuItem icon={TvIcon} label="LCD Display" to={`/${PROJECT_PATH}/lcd-display`} />
+    <LayoutMenuItem icon={ScaleIcon} label="W-Soft" to={`/${PROJECT_PATH}/wsoft`} />
   </List>
 );
 

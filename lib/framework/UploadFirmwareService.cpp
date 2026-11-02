@@ -4,15 +4,15 @@ UploadFirmwareService::UploadFirmwareService(AsyncWebServer* server, SecurityMan
     _securityManager(securityManager) {
   server->on(UPLOAD_FIRMWARE_PATH,
              HTTP_POST,
-             std::bind(&UploadFirmwareService::uploadComplete, this, std::placeholders::_1),
-             std::bind(&UploadFirmwareService::handleUpload,
+             ArRequestHandlerFunction(std::bind(&UploadFirmwareService::uploadComplete, this, std::placeholders::_1)),
+             ArUploadHandlerFunction(std::bind(&UploadFirmwareService::handleUpload,
                        this,
                        std::placeholders::_1,
                        std::placeholders::_2,
                        std::placeholders::_3,
                        std::placeholders::_4,
                        std::placeholders::_5,
-                       std::placeholders::_6));
+                       std::placeholders::_6)));
 #ifdef ESP8266
   Update.runAsync(true);
 #endif

@@ -34,7 +34,9 @@ class HttpGetEndpoint {
                   const String& servicePath,
                   size_t bufferSize = DEFAULT_BUFFER_SIZE) :
       _stateReader(stateReader), _statefulService(statefulService), _bufferSize(bufferSize) {
-    server->on(servicePath.c_str(), HTTP_GET, std::bind(&HttpGetEndpoint::fetchSettings, this, std::placeholders::_1));
+    server->on(servicePath.c_str(),
+               HTTP_GET,
+               ArRequestHandlerFunction(std::bind(&HttpGetEndpoint::fetchSettings, this, std::placeholders::_1)));
   }
 
  protected:

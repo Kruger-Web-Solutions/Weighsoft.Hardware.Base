@@ -61,5 +61,10 @@
 #define FT_DISPLAY_LCD 0
 #endif
 
+// W-Soft weigh screen (Waveshare ESP32-S3 4.3, env wsoft_waveshare43)
+#ifndef FT_WSOFT
+#define FT_WSOFT 0
+#endif
+
 
 #endif

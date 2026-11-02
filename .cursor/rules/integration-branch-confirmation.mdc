@@ -23,3 +23,5 @@ Use these defaults:
 - `display35` for 3.5 inch display work
 
 If the request does not clearly fit an existing branch, say that explicitly and discuss whether a new integration baseline is needed before proceeding.
+
+Before proposing a branch, read `AGENTS.md` and `docs/BRANCH-MAP.md`: they list every device branch and which firmware runs on each bench device.

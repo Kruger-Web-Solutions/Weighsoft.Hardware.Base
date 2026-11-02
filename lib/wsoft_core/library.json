@@ -1,0 +1,8 @@
+{
+  "name": "wsoft_core",
+  "version": "0.1.0",
+  "description": "W-Soft pure logic: trade-weight rules, live view and settings validation. No Arduino or framework headers, so it builds in host tests.",
+  "build": {
+    "srcDir": "src"
+  }
+}

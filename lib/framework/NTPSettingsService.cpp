@@ -1,5 +1,31 @@
 #include <NTPSettingsService.h>
 
+#if defined(ESP32) && defined(ESP_ARDUINO_VERSION_MAJOR) && ESP_ARDUINO_VERSION_MAJOR >= 3 && \
+    defined(CONFIG_LWIP_TCPIP_CORE_LOCKING)
+#include <esp_netif.h>
+#include <lwip/priv/tcpip_priv.h>
+#define NTP_NEEDS_CORE_LOCK 1
+#endif
+
+// Core 3 asserts (and reboots) when sntp_stop() runs without the lwIP core lock.
+// Same locking pattern as the core's own configTime() in esp32-hal-time.c.
+static void stopSntp() {
+#ifdef NTP_NEEDS_CORE_LOCK
+  esp_netif_init();
+  bool locked = false;
+  if (!sys_thread_tcpip(LWIP_CORE_LOCK_QUERY_HOLDER)) {
+    LOCK_TCPIP_CORE();
+    locked = true;
+  }
+  sntp_stop();
+  if (locked) {
+    UNLOCK_TCPIP_CORE();
+  }
+#else
+  sntp_stop();
+#endif
+}
+
 NTPSettingsService::NTPSettingsService(AsyncWebServer* server, FS* fs, SecurityManager* securityManager) :
     _httpEndpoint(NTPSettings::read, NTPSettings::update, this, server, NTP_SETTINGS_SERVICE_PATH, securityManager),
     _fsPersistence(NTPSettings::read, NTPSettings::update, this, fs, NTP_SETTINGS_FILE),
@@ -67,7 +93,7 @@ void NTPSettingsService::configureNTP() {
 #elif defined(ESP8266)
     setTZ(_state.tzFormat.c_str());
 #endif
-    sntp_stop();
+    stopSntp();
   }
 }
 

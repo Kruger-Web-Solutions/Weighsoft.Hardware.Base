@@ -1,5 +1,10 @@
 #include <SettingValue.h>
 
+// esp_read_mac / ESP_MAC_WIFI_STA moved to esp_mac.h in Arduino-ESP32 3.x.
+#if defined(ESP32) && defined(ESP_ARDUINO_VERSION_MAJOR) && ESP_ARDUINO_VERSION_MAJOR >= 3
+#include <esp_mac.h>
+#endif
+
 namespace SettingValue {
 
 #ifdef ESP32
