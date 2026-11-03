@@ -81,4 +81,4 @@ mirrored; the controller ships inverted). If a batch shows a dark background, se
 - GPIO2 is the screen's DC line, so the LED example drives the blue RGB LED (GPIO17) here.
 - Host tests ran in the cloud with a stand-in Unity (the PlatformIO registry was not
   reachable there); run `pio test -e native` on the laptop for the real runner.
-- 4 MB flash: the app slot is 1.75 MB (`partitions_4mb_ota.csv`).
+- 4 MB flash: single-app `partitions_ble.csv` (3.25 MB app, no OTA). The ~2.0 MB build does not fit the 1.75 MB slots of `partitions_4mb_ota.csv`. Update over USB.
