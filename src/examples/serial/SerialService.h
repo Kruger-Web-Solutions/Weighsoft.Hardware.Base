@@ -25,9 +25,14 @@ class KnownWritersService;
 #define SERIAL_CONFIG_FILE "/config/serialConfig.json"
 
 // ESP32 Serial1 pins — product standard: GPIO18 (RX), GPIO17 (TX) on all ESP32 targets in this repo
+// A board env may move them (-D SERIAL2_RX_PIN=.. -D SERIAL2_TX_PIN=..), e.g. the CYD's CN1 pads.
 #define SERIAL_PORT Serial1
+#ifndef SERIAL2_RX_PIN
 #define SERIAL2_RX_PIN 18
+#endif
+#ifndef SERIAL2_TX_PIN
 #define SERIAL2_TX_PIN 17
+#endif
 
 // Completed UART lines queued here; `loop()` publishes at most this many per second to REST/WS/MQTT.
 #ifndef SERIAL_MAX_COMPLETE_LINES_PER_SEC

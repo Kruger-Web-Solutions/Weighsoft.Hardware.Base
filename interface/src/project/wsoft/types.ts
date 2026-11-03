@@ -23,7 +23,11 @@ export interface WSoftStatus {
   hub: string;
   hub_online: boolean;
   polls: number;
+  /** rs485 = DJB junction box over Modbus; rs232 = a scale line read by the Serial reader. */
+  source: WSoftSource;
 }
+
+export type WSoftSource = 'rs485' | 'rs232';
 
 // Mirrors src/examples/wsoft/WSoftSettingsService.h (WSoftSettings::read).
 export interface WSoftSettings {
@@ -32,6 +36,10 @@ export interface WSoftSettings {
   mqtt_base_path: string;
   mqtt_name: string;
   mqtt_unique_id: string;
+  /** Where the weight comes from. Saving a new source restarts the board. */
+  source: WSoftSource;
+  /** Read-only: false on boards without RS232 wiring (the Waveshare). */
+  rs232_available?: boolean;
   /** Read-only: base path with placeholders expanded, plus "/status". */
   mqtt_status_topic?: string;
   publish_interval_min_ms?: number;

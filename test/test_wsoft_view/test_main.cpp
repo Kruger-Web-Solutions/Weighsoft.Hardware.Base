@@ -201,8 +201,50 @@ void test_full_view_field_order_is_stable() {
       "{\"ready\":true,\"display_ready\":true,\"link\":\"live\",\"linked\":true,\"weight_g\":1520,"
       "\"weight_text\":\"1.520 kg\",\"unit\":\"kg\",\"decimals\":3,\"stable\":false,\"alarm\":false,"
       "\"approval_on\":false,\"for_trade\":false,\"trade_check\":\"approval_off\",\"audit_counter\":0,"
-      "\"last_trade_seq\":0,\"trade_queue\":0,\"hub\":\"HUB ONLINE\",\"hub_online\":true,\"polls\":9}",
+      "\"last_trade_seq\":0,\"trade_queue\":0,\"hub\":\"HUB ONLINE\",\"hub_online\":true,\"polls\":9,"
+      "\"source\":\"rs485\"}",
       view(s).c_str());
+}
+
+// ---------- RS232 weight text ----------
+
+void test_rs232_source_is_reported() {
+  WSoftSnapshot s = live(1520);
+  s.rs232 = true;
+  TEST_ASSERT_TRUE(has(view(s), "\"source\":\"rs232\""));
+}
+
+void test_weight_text_parses_sign_digits_and_decimals() {
+  int32_t v = 0;
+  int d = -1;
+  TEST_ASSERT_TRUE(wsoft_parse_weight_text("12.345", &v, &d));
+  TEST_ASSERT_EQUAL_INT32(12345, v);
+  TEST_ASSERT_EQUAL_INT(3, d);
+  TEST_ASSERT_TRUE(wsoft_parse_weight_text("  -0.50 ", &v, &d));
+  TEST_ASSERT_EQUAL_INT32(-50, v);
+  TEST_ASSERT_EQUAL_INT(2, d);
+  TEST_ASSERT_TRUE(wsoft_parse_weight_text("+1520", &v, &d));
+  TEST_ASSERT_EQUAL_INT32(1520, v);
+  TEST_ASSERT_EQUAL_INT(0, d);
+  TEST_ASSERT_TRUE(wsoft_parse_weight_text("1,5", &v, &d));
+  TEST_ASSERT_EQUAL_INT32(15, v);
+  TEST_ASSERT_EQUAL_INT(1, d);
+}
+
+void test_weight_text_rejects_non_weights_without_change() {
+  int32_t v = 77;
+  int d = 9;
+  TEST_ASSERT_FALSE(wsoft_parse_weight_text("", &v, &d));
+  TEST_ASSERT_FALSE(wsoft_parse_weight_text("   ", &v, &d));
+  TEST_ASSERT_FALSE(wsoft_parse_weight_text("-", &v, &d));
+  TEST_ASSERT_FALSE(wsoft_parse_weight_text("12.3kg", &v, &d));
+  TEST_ASSERT_FALSE(wsoft_parse_weight_text("1.2.3", &v, &d));
+  TEST_ASSERT_FALSE(wsoft_parse_weight_text("--5", &v, &d));
+  TEST_ASSERT_FALSE(wsoft_parse_weight_text("1.23456", &v, &d));
+  TEST_ASSERT_FALSE(wsoft_parse_weight_text("99999999999", &v, &d));
+  TEST_ASSERT_FALSE(wsoft_parse_weight_text(nullptr, &v, &d));
+  TEST_ASSERT_EQUAL_INT32(77, v);
+  TEST_ASSERT_EQUAL_INT(9, d);
 }
 
 int main(int, char **) {
@@ -224,5 +266,8 @@ int main(int, char **) {
   RUN_TEST(test_approval_off_by_default_is_not_for_trade);
   RUN_TEST(test_trade_ok_is_for_trade_with_seq_and_audit);
   RUN_TEST(test_full_view_field_order_is_stable);
+  RUN_TEST(test_rs232_source_is_reported);
+  RUN_TEST(test_weight_text_parses_sign_digits_and_decimals);
+  RUN_TEST(test_weight_text_rejects_non_weights_without_change);
   return UNITY_END();
 }

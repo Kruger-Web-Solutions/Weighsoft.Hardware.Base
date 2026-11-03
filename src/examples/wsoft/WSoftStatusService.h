@@ -50,7 +50,8 @@ class WSoftStatusService : public StatefulService<WSoftStatus> {
                      AsyncMqttClient* mqttClient,
                      WSoftSettingsService* settingsService);
 
-  // Runs the W-Soft screen setup (Serial1 RS485 on RX15/TX16, panel, approval, Hub)
+  // Runs the W-Soft screen setup (RS485 on Serial1, or the RS232 scale through the Serial
+  // reader when the settings say so; panel, approval, Hub)
   // and then starts the screen task.
   void begin();
   void loop();

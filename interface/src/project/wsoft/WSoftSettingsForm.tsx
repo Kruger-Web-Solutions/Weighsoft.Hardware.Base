@@ -1,7 +1,7 @@
 import { FC, useState } from 'react';
 import { ValidateFieldsError } from 'async-validator';
 
-import { Button, Checkbox, Typography } from '@mui/material';
+import { Button, Checkbox, MenuItem, Typography } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
 
 import {
@@ -47,6 +47,26 @@ const WSoftSettingsForm: FC = () => {
           }
           my={2}
         />
+        {data.rs232_available && (
+          <ValidatedTextField
+            fieldErrors={fieldErrors}
+            name="source"
+            label="Weight comes from"
+            value={data.source}
+            fullWidth
+            select
+            variant="outlined"
+            onChange={updateFormValue}
+            margin="normal"
+            helperText={
+              'RS232: set the speed and the weight pattern on the Serial page. ' +
+              'Saving a new choice restarts the board.'
+            }
+          >
+            <MenuItem value="rs485">Junction box (RS485)</MenuItem>
+            <MenuItem value="rs232">RS232 scale</MenuItem>
+          </ValidatedTextField>
+        )}
         <ValidatedTextField
           fieldErrors={fieldErrors}
           name="publish_interval_ms"

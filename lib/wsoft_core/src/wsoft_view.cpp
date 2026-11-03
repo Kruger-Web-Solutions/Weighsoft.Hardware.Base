@@ -86,4 +86,32 @@ void wsoft_view_write(const WSoftSnapshot &s, WSoftJsonSink &out) {
   out.put_str("hub", s.hub_text);
   out.put_bool("hub_online", s.hub_online);
   out.put_int("polls", s.polls);
+  out.put_str("source", s.rs232 ? "rs232" : "rs485");
+}
+
+bool wsoft_parse_weight_text(const char *text, int32_t *value, int *decimals) {
+  if (text == nullptr) return false;
+  const char *p = text;
+  while (*p == ' ') p++;
+  bool negative = false;
+  if (*p == '+' || *p == '-') negative = *p++ == '-';
+  int64_t magnitude = 0;
+  int digits = 0, places = -1;
+  for (; *p; p++) {
+    if (*p >= '0' && *p <= '9') {
+      if (places >= 0 && ++places > 4) return false;
+      magnitude = magnitude * 10 + (*p - '0');
+      if (magnitude > INT32_MAX) return false;
+      digits++;
+    } else if ((*p == '.' || *p == ',') && places < 0) {
+      places = 0;
+    } else {
+      break;
+    }
+  }
+  while (*p == ' ') p++;
+  if (*p != '\0' || digits == 0) return false;
+  *value = (int32_t)(negative ? -magnitude : magnitude);
+  *decimals = places < 0 ? 0 : places;
+  return true;
 }

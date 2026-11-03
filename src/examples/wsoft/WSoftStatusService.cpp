@@ -164,8 +164,10 @@ void WSoftStatusService::handleDjb(AsyncWebServerRequest* request, JsonVariant& 
 }
 
 void WSoftStatusService::begin() {
-  Serial.println(F("[WSoft] Starting W-Soft screen (RS485 Serial1 RX15/TX16)..."));
-  wsoft_screen_setup();
+  bool rs232 = _settingsService->source() == WSOFT_SOURCE_RS232;
+  Serial.println(rs232 ? F("[WSoft] Starting W-Soft screen (RS232 scale via the Serial reader)...")
+                       : F("[WSoft] Starting W-Soft screen (RS485 DJB on Serial1)..."));
+  wsoft_screen_setup(rs232);
   xTaskCreatePinnedToCore(screenTask,
                           "wsoftScreen",
                           WSOFT_SCREEN_TASK_STACK,

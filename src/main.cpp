@@ -11,6 +11,9 @@
 #include <examples/lcddisplay/LcdDisplayService.h>
 #include <examples/wsoft/WSoftSettingsService.h>
 #include <examples/wsoft/WSoftStatusService.h>
+#if FT_ENABLED(FT_WSOFT)
+#include <wsoft_screen.h>
+#endif
 #include "VersionService.h"
 #include "UartModeService.h"
 #include "BoardDisplayService.h"
@@ -142,6 +145,20 @@ LcdDisplayService* lcdDisplayService;
 #if FT_ENABLED(FT_WSOFT)
 WSoftSettingsService* wsoftSettingsService;
 WSoftStatusService* wsoftStatusService;
+// The source read at boot; the loop restarts the board when the settings page changes it.
+WSoftSource wsoftBootSource = WSOFT_SOURCE_RS485;
+
+// RS232 mode: hands the Serial reader's extracted weight to the W-Soft screen task.
+static bool wsoftReadSerialLine(char* weight, size_t size, uint32_t* receivedMs) {
+  if (serialService == nullptr) return false;
+  bool have = false;
+  serialService->read([&](const SerialState& state) {
+    have = state.timestamp != 0;
+    strlcpy(weight, state.weight.c_str(), size);
+    *receivedMs = (uint32_t)state.timestamp;
+  });
+  return have;
+}
 #endif
 
 void setup() {
@@ -316,6 +333,23 @@ void setup() {
       esp8266React->getSecurityManager()
       );
   wsoftSettingsService->begin();
+  wsoftBootSource = wsoftSettingsService->source();
+  if (wsoftBootSource == WSOFT_SOURCE_RS232) {
+    // RS232 scale: the existing Serial reader owns Serial1 (its page sets baud, format
+    // and the weight pattern); W-Soft reads the weight it extracts. No RS485 poll.
+    serialService = new SerialService(
+        server,
+        esp8266React->getFS(),
+        esp8266React->getSecurityManager(),
+        esp8266React->getMqttClient()
+#if FT_ENABLED(FT_BLE)
+        ,nullptr
+#endif
+        );
+    serialService->begin();
+    wsoft_screen_set_line_reader(wsoftReadSerialLine);
+    Serial.println(F("[9/10] W-Soft source: RS232 scale (Serial reader)"));
+  }
   wsoftStatusService = new WSoftStatusService(
       server,
       esp8266React->getSecurityManager(),
@@ -462,7 +496,20 @@ void loop() {
 #endif
 
 #if FT_ENABLED(FT_WSOFT)
+  if (serialService) serialService->loop();
   if (wsoftStatusService) wsoftStatusService->loop();
+  // RS485 and RS232 share Serial1, so a new source starts cleanly after a restart.
+  {
+    static unsigned long sourceChangedMs = 0;
+    if (wsoftSettingsService && wsoftSettingsService->source() != wsoftBootSource) {
+      if (sourceChangedMs == 0) {
+        sourceChangedMs = millis();
+        Serial.println(F("[WSoft] Source changed: restarting in 2 s"));
+      } else if (millis() - sourceChangedMs > 2000UL) {
+        ESP.restart();
+      }
+    }
+  }
 #endif
 
 #if FT_ENABLED(FT_REMOTE_WEIGHT)

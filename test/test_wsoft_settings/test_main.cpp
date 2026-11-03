@@ -140,6 +140,26 @@ void test_bad_names_are_rejected() {
   TEST_ASSERT_EQUAL_STRING("wsoft-#{unique_id}", s.mqtt_unique_id);
 }
 
+void test_source_defaults_to_rs485_and_takes_rs232() {
+  WSoftSettingsData s = defaults();
+  TEST_ASSERT_EQUAL(WSOFT_SOURCE_RS485, s.source);
+  WSoftSettingsInput in;
+  in.source = "rs232";
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_CHANGED, wsoft_settings_update(in, &s));
+  TEST_ASSERT_EQUAL(WSOFT_SOURCE_RS232, s.source);
+  TEST_ASSERT_EQUAL_STRING("rs232", wsoft_source_text(s.source));
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_UNCHANGED, wsoft_settings_update(in, &s));
+}
+
+void test_bad_source_is_rejected_without_change() {
+  WSoftSettingsData s = defaults();
+  s.source = WSOFT_SOURCE_RS232;
+  WSoftSettingsInput in;
+  in.source = "rs422";
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_ERROR, wsoft_settings_update(in, &s));
+  TEST_ASSERT_EQUAL(WSOFT_SOURCE_RS232, s.source);
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_defaults);
@@ -151,5 +171,7 @@ int main(int, char **) {
   RUN_TEST(test_bad_topics_are_rejected_without_change);
   RUN_TEST(test_topic_at_max_length_is_accepted);
   RUN_TEST(test_bad_names_are_rejected);
+  RUN_TEST(test_source_defaults_to_rs485_and_takes_rs232);
+  RUN_TEST(test_bad_source_is_rejected_without_change);
   return UNITY_END();
 }
