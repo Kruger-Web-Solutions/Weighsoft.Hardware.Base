@@ -4,19 +4,19 @@
 
 This repository uses `master` as the shared framework baseline and keeps major hardware integrations on their own long-lived branches.
 
-Current integration branches:
+Integration branches the docs point to (they exist on GitHub as of 2026-09-24; whether each is still in active use is not recorded):
 
-- `serial2` - serial integration baseline
-- `display` - display integration baseline
+- `RelayBoardEspBuildIn` - relay board and Live Weight integration baseline
+- `SerialReaderWriter` - serial Reader / Writer / Diagnostics baseline; also holds the TFT screen (including the 3.5 inch `esp32dev_tft` board), the 16x2 character LCD (`lcddisplay`) and remote-weight options
 - `weighingboard` - load-cell / weighing integration baseline
-- `display35` - 3.5 inch display integration baseline
+- `display` - the original 16x2 LCD code, before it was ported to `SerialReaderWriter` as `lcddisplay`
 
-The older `serial` branch may still exist as historical reference, but new serial implementation work should start from `serial2`.
+There is no `serial2` or `display35` branch. Serial work starts from `SerialReaderWriter`; 3.5 inch display work is the `esp32dev_tft` board on `SerialReaderWriter`; new 16x2 LCD work is `lcddisplay` on `SerialReaderWriter`. `serialReader` and `ALLinOneEspSerialdevice` are fully inside `SerialReaderWriter`. `serial`, `serialWriter` and `espReadWriteRHYNO` hold work that `SerialReaderWriter` does not have (for example WiFi fixes on `espReadWriteRHYNO`); they are not merged and their status is not decided. See [../ROADMAP.md](../ROADMAP.md) for the status of each line and the full branch list.
 
 ## Working Rules
 
 1. Do not implement directly on `master`.
-2. Do not implement directly on `serial2`, `display`, `weighingboard`, or `display35`.
+2. Do not implement directly on `RelayBoardEspBuildIn`, `SerialReaderWriter`, `weighingboard`, or `display`.
 3. Choose the branch that already matches the integration you want to extend.
 4. Create a separate working branch from that base branch for each task.
 5. Merge the task branch back into the matching integration branch when the work is complete.
@@ -53,7 +53,7 @@ git pull
 git switch -c feature/weighingboard-calibration-audit
 ```
 
-Use the same pattern for `serial2`, `display`, or `display35`.
+Use the same pattern for `RelayBoardEspBuildIn`, `SerialReaderWriter`, or `display`.
 
 ## Documentation Expectations
 
@@ -78,7 +78,7 @@ Examples:
 - `docs/repo-workflow`
 - `feature/display-brightness-controls`
 - `feature/weighingboard-stability-fix`
-- `fix/serial2-buffering`
+- `fix/serialreaderwriter-buffering`
 
 Keep the branch name tied to the target integration when the work is not shared.
 

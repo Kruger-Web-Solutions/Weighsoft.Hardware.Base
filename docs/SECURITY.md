@@ -185,6 +185,31 @@ password: [
 ]
 ```
 
+## Never commit device config
+
+`/data/config/` is written by the board at runtime and holds live credentials —
+WiFi password, JWT secret, user passwords, AP/OTA/MQTT passwords. It is
+gitignored. Do not remove that rule, and do not `git add -f` anything under it.
+`compile_commands.json` is gitignored for the same reason: it copies every
+build flag from `factory_settings.ini`, passwords included.
+
+A password committed to git stays readable in the history even after the file
+is deleted, and this repository is public. Treat any committed password as
+known to anyone and change it. The values from upstream `esp8266-react`
+(Rick Watson, 2018–2020) — `admin`/`guest`, `esp-react` for AP/OTA, and the
+`test.mosquitto.org` demo MQTT account — are public example values, not
+Weighsoft secrets.
+
+### If a credential reaches history
+
+1. **Rotate it.** This is the only step that actually works. Assume the old
+   value is public from the moment it is pushed.
+2. Confirm `/data/config/` is still gitignored so it cannot recur.
+3. History rewriting (`git filter-repo`, BFG) is **optional and secondary**. It
+   force-pushes every affected branch, breaks every existing clone, and still
+   leaves the old objects reachable by SHA on the host and in any fork or clone
+   already taken. It never substitutes for rotation.
+
 ## Default Credentials
 
 **CRITICAL**: Change these immediately in production!
@@ -193,6 +218,11 @@ password: [
 |----------|----------|------|------------|
 | admin | admin | Admin | CRITICAL |
 | guest | guest | User | HIGH |
+
+Boards flashed with the defaults can be signed in to as admin by anyone on the
+same WiFi, who can then change relay maps, the printer target and the product
+catalog. Acceptable on a closed bench only; change the defaults before a board
+goes to a customer site.
 
 ### Changing Defaults
 
@@ -320,6 +350,8 @@ topic read homeassistant/status
 - [ ] Disable serial console in production
 - [ ] Set OTA password
 - [ ] Regular firmware updates
+- [ ] No file under `data/config/` has been force-added to git
+- [ ] No real WiFi password in `factory_settings.ini` (leave `FACTORY_WIFI_PASSWORD` empty and set WiFi on the board)
 
 ### Development vs Production
 

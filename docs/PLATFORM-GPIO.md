@@ -257,9 +257,9 @@ build_flags =
 
 | Platform | Flash Size | Partition Scheme | OTA Support | Notes |
 |----------|------------|------------------|-------------|-------|
-| ESP8266 | 4MB | `min_spiffs.csv` | ✅ Yes | 2x 1.9MB app slots |
+| ESP8266 (esp12e) | 4MB | None (ESP8266 does not use a partition CSV; `platformio.ini` sets no layout, so the board default applies) | Not recorded as tested | See [OTA-UPLOAD.md](OTA-UPLOAD.md) |
 | ESP32 (node32s) | 4MB | `partitions_ble.csv` | ❌ No | Single 3.3MB app (BLE enabled) |
-| ESP32-S3 | 8MB | `partitions_ble_ota.csv` | ✅ Yes | 2x 2.5MB app slots (BLE + OTA) |
+| ESP32-S3 (`SerialReaderWriter` branch only) | 8MB | `partitions_ble_ota.csv` | ✅ Yes | 2x 2.5MB app slots (BLE + OTA) |
 
 **Why no OTA on 4MB ESP32 with BLE?**
 

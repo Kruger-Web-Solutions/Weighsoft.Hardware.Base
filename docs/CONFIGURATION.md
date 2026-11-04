@@ -31,7 +31,7 @@ board_build.filesystem = littlefs
 [env:node32s]             # ESP32 specific
 platform = espressif32
 board = node32s
-board_build.partitions = min_spiffs.csv
+board_build.partitions = partitions_ble.csv
 board_build.filesystem = littlefs
 ```
 
@@ -245,20 +245,19 @@ board_build.filesystem = littlefs
 
 ```ini
 [env:node32s]
-board_build.partitions = min_spiffs.csv
+board_build.partitions = partitions_ble.csv
 platform = espressif32
 board = node32s
 board_build.filesystem = littlefs
 ```
 
-**Partitions** (min_spiffs.csv):
+**Partitions** (`partitions_ble.csv` in the repo root - one app slot, **no OTA**):
 ```
-# Name,   Type, SubType, Offset,  Size
-nvs,      data, nvs,     0x9000,  0x5000
-otadata,  data, ota,     0xe000,  0x2000
-app0,     app,  ota_0,   0x10000, 0x1E0000
-app1,     app,  ota_1,   0x1F0000,0x1E0000
-spiffs,   data, spiffs,  0x3D0000,0x30000
+# Name,   Type, SubType, Offset,  Size, Flags
+nvs,      data, nvs,     0x9000,  0x6000,
+phy_init, data, phy,     0xf000,  0x1000,
+factory,  app,  factory, 0x10000, 0x340000,
+spiffs,   data, spiffs,  0x350000,0xA0000,
 ```
 
 **Memory**:

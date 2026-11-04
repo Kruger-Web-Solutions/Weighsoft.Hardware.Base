@@ -6,7 +6,7 @@ This guide provides a step-by-step checklist for adding a new device project to 
 
 **Estimated Time**: 30-60 minutes for a complete device implementation (backend + frontend + documentation)
 
-Before starting, choose the correct base branch. `master` is the shared baseline; integration-specific baselines live on `serial2`, `display`, `weighingboard`, and `display35`. Do the implementation work on a separate task branch, not directly on those long-lived branches. See [INTEGRATION-WORKFLOW.md](INTEGRATION-WORKFLOW.md).
+Before starting, choose the correct base branch. `master` is the shared baseline; integration-specific baselines live on `RelayBoardEspBuildIn`, `SerialReaderWriter`, `weighingboard`, and `display`. Do the implementation work on a separate task branch, not directly on those long-lived branches. See [INTEGRATION-WORKFLOW.md](INTEGRATION-WORKFLOW.md).
 
 ## Choose Your Template
 
@@ -54,7 +54,7 @@ Before starting, decide which pattern fits your device:
 - Backend: `src/examples/serial/`
 - Frontend: `interface/src/examples/serial/`
 
-This template is maintained on the `serial2` integration branch rather than on `master`.
+This template is maintained on the `SerialReaderWriter` integration branch rather than on `master`.
 
 ## 10-Step Implementation Checklist
 
@@ -65,7 +65,7 @@ This template is maintained on the `serial2` integration branch rather than on `
 ```bash
 # For controllable devices (LED pattern)
 cp -r src/examples/led src/examples/mydevice
-# OR for data sources (Serial pattern on serial2 branch)
+# OR for data sources (Serial pattern on the SerialReaderWriter branch)
 cp -r src/examples/serial src/examples/mydevice
 ```
 
@@ -510,7 +510,7 @@ Without this guide (first time):
 ## Reference Implementations
 
 - **LED Example**: `src/examples/led/`, `interface/src/examples/led/`
-- **Serial Example**: `serial2` branch, `src/examples/serial/`, `interface/src/examples/serial/`
+- **Serial Example**: `SerialReaderWriter` branch, `src/examples/serial/`, `interface/src/examples/serial/`
 - **Extension Guide**: `docs/EXTENSION-GUIDE.md`
 - **Frontend Patterns**: `docs/FRONTEND-PATTERNS.md`
 - **Design Patterns**: `docs/DESIGN-PATTERNS.md`
