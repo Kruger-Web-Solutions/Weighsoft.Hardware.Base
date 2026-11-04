@@ -60,7 +60,11 @@ unifdef -UWSOFT_ON_BASE lib/wsoft_esp/src/hub.cpp | diff -q - <(git -C ../weighs
    If the page stays on `Starting` forever, the panel failed to start (the screen loop stops
    before its first poll). Check the serial log for `display_ready` / panel errors.
 
-7. Hub pairing (if needed): over USB send `HUB PAIR <code>` then `HUB SAVE`.
+7. Hub pairing (if needed): web page **W-Soft > Hub** (admin): paste the key from the Hub
+   (Devices > the device > New pairing code > Copy code), press **Connect**. The board
+   restarts and the status chip should turn `HUB ONLINE`. Or over USB: `HUB PAIR <code>`
+   then `HUB SAVE`. `GET /rest/wsoftHub` shows the Hub address and ids only; the key is
+   write-only. The key holds the board's signing secret, so only admins see this tab.
 
 ## 3. USB commands (UART0, 115200 8N1)
 

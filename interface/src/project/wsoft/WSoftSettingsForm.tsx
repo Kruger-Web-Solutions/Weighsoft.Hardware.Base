@@ -43,7 +43,7 @@ const WSoftSettingsForm: FC = () => {
           level="info"
           message={
             'Wi-Fi, MQTT broker, NTP and OTA are on the framework pages. ' +
-            'Approval and Hub pairing are set with a USB cable only.'
+            'Hub pairing is on the Hub tab. Approval is set with a USB cable only.'
           }
           my={2}
         />

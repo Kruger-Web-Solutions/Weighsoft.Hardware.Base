@@ -7,6 +7,9 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <RestartService.h>
+
+#include <hub_web.h>
 #include <wsoft_djb.h>
 #include <wsoft_screen.h>
 
@@ -85,6 +88,17 @@ WSoftStatusService::WSoftStatusService(AsyncWebServer* server,
       256);
   djbHandler->setMethod(HTTP_POST);
   server->addHandler(djbHandler);
+  server->on(WSOFT_HUB_ENDPOINT_PATH,
+             HTTP_GET,
+             securityManager->wrapRequest(std::bind(&WSoftStatusService::readHub, this, std::placeholders::_1),
+                                          AuthenticationPredicates::IS_ADMIN));
+  AsyncCallbackJsonWebHandler* hubHandler = new AsyncCallbackJsonWebHandler(
+      WSOFT_HUB_ENDPOINT_PATH,
+      securityManager->wrapCallback(std::bind(&WSoftStatusService::updateHub, this, std::placeholders::_1, std::placeholders::_2),
+                                    AuthenticationPredicates::IS_ADMIN),
+      1024);
+  hubHandler->setMethod(HTTP_POST);
+  server->addHandler(hubHandler);
 #if FT_ENABLED(FT_MQTT)
   _mqttClient->onConnect(std::bind(&WSoftStatusService::configureMqtt, this));
   // Topic or MQTT on/off changed on the settings page.
@@ -92,6 +106,56 @@ WSoftStatusService::WSoftStatusService(AsyncWebServer* server,
 #else
   (void)mqttClient;
 #endif
+}
+
+namespace {
+
+// Hub link as JSON. Only the address and ids: the pairing key itself never leaves the board.
+void sendHub(AsyncWebServerRequest* request, int code, bool restarting, const char* error) {
+  HubWebInfo info;
+  hub_web_info(&info);
+  AsyncJsonResponse* response = new AsyncJsonResponse(false, 512);
+  JsonObject root = response->getRoot().to<JsonObject>();
+  root["ok"] = error == nullptr;
+  if (error != nullptr) root["error"] = error;
+  root["paired"] = info.paired;
+  root["state"] = hub_state_text(info.state);
+  root["online"] = info.state == HUB_ONLINE;
+  root["hub_url"] = const_cast<char*>(info.hub_url);
+  root["key_id"] = const_cast<char*>(info.key_id);
+  root["device_id"] = const_cast<char*>(info.device_id);
+  root["last_status"] = info.last_status;
+  root["last_age_s"] = info.last_age_s;
+  root["restarting"] = restarting;
+  response->setCode(code);
+  response->setLength();
+  request->send(response);
+}
+
+}  // namespace
+
+void WSoftStatusService::readHub(AsyncWebServerRequest* request) {
+  sendHub(request, 200, false, nullptr);
+}
+
+// {"action":"connect","code":"<pairing key>"} or {"action":"disconnect"}.
+void WSoftStatusService::updateHub(AsyncWebServerRequest* request, JsonVariant& json) {
+  const char* action = json["action"] | "";
+  if (strcmp(action, "connect") == 0) {
+    WsoftHubCodeError error = hub_web_save(json["code"] | "");
+    if (error != WSOFT_HUB_CODE_OK) {
+      sendHub(request, 400, false, wsoft_hub_code_error_text(error));
+      return;
+    }
+  } else if (strcmp(action, "disconnect") == 0) {
+    hub_web_forget();
+  } else {
+    sendHub(request, 400, false, "Unknown action.");
+    return;
+  }
+  // The Hub task reads the key once at boot, so restart once the reply has gone out.
+  request->onDisconnect(RestartService::restartNow);
+  sendHub(request, 200, true, nullptr);
 }
 
 void WSoftStatusService::handleDjb(AsyncWebServerRequest* request, JsonVariant& json) {

@@ -5,7 +5,7 @@
 // maps JSON to WSoftSettingsInput and back.
 //
 // Deliberately NOT here: approval ON/OFF (USB technician only), the Hub pairing code
-// (USB only), Wi-Fi and OTA (framework settings pages).
+// (NVS, via USB or the Hub tab: wsoft_hub_code.h / hub_web.h), Wi-Fi and OTA (framework pages).
 
 #include <stddef.h>
 #include <stdint.h>
