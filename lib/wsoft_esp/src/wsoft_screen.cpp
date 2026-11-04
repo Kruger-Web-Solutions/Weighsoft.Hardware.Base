@@ -525,52 +525,103 @@ static bool start_display() {
   return tft.width() == CYD_W;
 }
 
+// Free fonts are anti-alias free but smooth-edged at size; they ignore the text background,
+// so each section clears its own box. Sections only redraw when their text changes, which
+// stops the flicker of clearing and redrawing the whole screen every poll.
+static void cyd_free(const char *text, int x, int y, const GFXfont *font, uint16_t fg, uint8_t datum) {
+  tft.setFreeFont(font);
+  tft.setTextDatum(datum);
+  tft.setTextColor(fg);
+  tft.drawString(text, x, y);
+}
+
 static void cyd_text(const char *text, int x, int y, int font, uint16_t fg, uint16_t bg, uint8_t datum) {
   tft.setTextDatum(datum);
   tft.setTextColor(fg, bg);
   tft.drawString(text, x, y, font);
 }
 
-// Header (link + hub), the weight, the gross line with the zone, then the trade band.
-static void render(const Reading &r) {
-  HubState hub = hub_state();
-  tft.fillRect(0, 0, CYD_W, 26, INK);
-  cyd_text("W-SOFT", 6, 5, 2, WHITE, INK, TL_DATUM);
-  const char *link = !r.linked ? "NO SIGNAL" : r.alarm ? "DJB ALARM" : rs232_mode ? "RS232 LIVE" : "RS485 LIVE";
-  cyd_text(link, CYD_W - 6, 5, 2, r.linked && !r.alarm ? HEADER_OK : HEADER_BAD, INK, TR_DATUM);
-  cyd_text(hub_state_text(hub), 164, 5, 2, hub == HUB_ONLINE ? HEADER_OK : HEADER_BAD, INK, TC_DATUM);
+// True (and remembers the new key) when a section's content changed since the last draw.
+static bool cyd_changed(char *last, size_t size, const char *key) {
+  if (strncmp(last, key, size) == 0) return false;
+  strlcpy(last, key, size);
+  return true;
+}
 
-  tft.fillRect(0, 26, CYD_W, 140, PAPER);
-  char value[16] = "----", gross[24] = "----";
-  const char *unit = "";
-  const char *zone = "NO DJB REPLY";
-  uint16_t zone_color = RED;
+// Layout (320 x 240):
+//   0- 32  header: W-SOFT, link state with a colour dot
+//  32-150  the weight, as big as it fits, unit beside it
+// 150-176  status line (zone or why there is no weight)
+// 176-212  trade band, full width
+// 212-240  footer: why not for trade, hub state, audit counter
+static void render(const Reading &r) {
+  static char last_head[32], last_weight[40], last_status[32], last_band[4], last_foot[64];
+  char key[64];
+
+  const char *link = !r.linked ? "NO SIGNAL" : r.alarm ? "DJB ALARM" : rs232_mode ? "RS232 LIVE" : "RS485 LIVE";
+  bool link_ok = r.linked && !r.alarm;
+  if (cyd_changed(last_head, sizeof last_head, link)) {
+    tft.fillRect(0, 0, CYD_W, 32, INK);
+    cyd_free("W-SOFT", 10, 16, &FreeSansBold12pt7b, WHITE, ML_DATUM);
+    cyd_free(link, CYD_W - 10, 16, &FreeSansBold9pt7b, link_ok ? HEADER_OK : HEADER_BAD, MR_DATUM);
+    int dot_x = CYD_W - 18 - tft.textWidth(link);
+    tft.fillCircle(dot_x, 16, 5, link_ok ? HEADER_OK : HEADER_BAD);
+  }
+
+  char value[16] = "----";
+  const char *unit = "kg";
   if (r.linked) {
     format_weight(r.value, r.decimals, value, sizeof value);
     unit = weight_unit_text(r.unit);
-    snprintf(gross, sizeof gross, "%s %s", value, unit);
-    zone = zone_of(r, &zone_color);
   }
-  // Font 7 is the 48 px seven-segment face: digits, '.', '-' only, like a scale display.
-  cyd_text(value, 252, 50, 7, r.linked ? INK : MUTED, PAPER, TR_DATUM);
-  cyd_text(unit, 258, 74, 4, MUTED, PAPER, TL_DATUM);
-  cyd_text(gross, 10, 128, 2, r.linked ? INK : MUTED, PAPER, TL_DATUM);
-  if (!r.linked && rs232_mode) zone = "NO SCALE LINE";
-  cyd_text(zone, CYD_W - 10, 124, 4, zone_color, PAPER, TR_DATUM);
+  snprintf(key, sizeof key, "%s|%s|%d", value, unit, r.linked ? 1 : 0);
+  if (cyd_changed(last_weight, sizeof last_weight, key)) {
+    tft.fillRect(0, 32, CYD_W, 118, PAPER);
+    uint16_t ink = r.linked ? INK : MUTED;
+    // Font 8 is the 75 px digit face; fall back to font 7 (48 px seven-segment) when too wide.
+    int font = tft.textWidth(value, 8) <= 236 ? 8 : 7;
+    tft.setTextPadding(0);
+    cyd_text(value, 252, 94, font, ink, PAPER, MR_DATUM);
+    cyd_free(unit, 262, 120, &FreeSansBold12pt7b, MUTED, BL_DATUM);
+  }
+
+  const char *status = "";
+  uint16_t status_color = MUTED;
+  if (!r.linked) {
+    status = rs232_mode ? "NO SCALE LINE" : "NO DJB REPLY";
+    status_color = RED;
+  } else {
+    status = zone_of(r, &status_color);
+  }
+  snprintf(key, sizeof key, "%s|%u", status, status_color);
+  if (cyd_changed(last_status, sizeof last_status, key)) {
+    tft.fillRect(0, 150, CYD_W, 26, PAPER);
+    cyd_free(status, CYD_W / 2, 162, &FreeSansBold9pt7b, status_color, MC_DATUM);
+  }
 
   TradeCheck check = approval_check();
   bool trade = check == TRADE_OK;
-  uint16_t band = trade ? GREEN : RED;
-  tft.fillRect(0, 166, CYD_W, 40, band);
-  cyd_text(trade ? "TRADE CHECKS ON" : "NOT FOR TRADE", CYD_W / 2, 173, 4, WHITE, band, TC_DATUM);
+  if (cyd_changed(last_band, sizeof last_band, trade ? "1" : "0")) {
+    uint16_t band = trade ? GREEN : RED;
+    tft.fillRect(0, 176, CYD_W, 36, band);
+    cyd_free(trade ? "TRADE CHECKS ON" : "NOT FOR TRADE", CYD_W / 2, 194, &FreeSansBold12pt7b, WHITE, MC_DATUM);
+  }
 
-  tft.fillRect(0, 206, CYD_W, 34, PAPER);
   char line[24];
-  uint16_t color;
-  const char *why = trade_line(check, line, sizeof line, &color);
-  cyd_text(why, 10, 216, 2, color, PAPER, TL_DATUM);
-  snprintf(line, sizeof line, "AUDIT %lu", (unsigned long)approval_audit_counter());
-  cyd_text(line, CYD_W - 10, 216, 2, MUTED, PAPER, TR_DATUM);
+  uint16_t why_color;
+  const char *why = trade_line(check, line, sizeof line, &why_color);
+  char why_text[24];
+  strlcpy(why_text, why, sizeof why_text);
+  HubState hub = hub_state();
+  char audit[20];
+  snprintf(audit, sizeof audit, "AUDIT %lu", (unsigned long)approval_audit_counter());
+  snprintf(key, sizeof key, "%s|%u|%s|%s", why_text, why_color, hub_state_text(hub), audit);
+  if (cyd_changed(last_foot, sizeof last_foot, key)) {
+    tft.fillRect(0, 212, CYD_W, 28, PAPER);
+    cyd_free(why_text, 8, 226, &FreeSans9pt7b, why_color, ML_DATUM);
+    cyd_free(hub_state_text(hub), CYD_W / 2 + 10, 226, &FreeSans9pt7b, hub == HUB_ONLINE ? GREEN : MUTED, MC_DATUM);
+    cyd_free(audit, CYD_W - 8, 226, &FreeSans9pt7b, MUTED, MR_DATUM);
+  }
 }
 #else
 static bool start_display() {

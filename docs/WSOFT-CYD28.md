@@ -52,20 +52,24 @@ scale.
 
 | Row | Shows |
 |---|---|
-| Header | `W-SOFT`, Hub state, `RS485 LIVE` / `RS232 LIVE` / `NO SIGNAL` / `DJB ALARM` |
-| Middle | Weight (seven-segment font) and unit; gross line and zone (`OK` / `UNDER` / `OVER` / `ALARM`) |
-| Band | `TRADE CHECKS ON` (green) or `NOT FOR TRADE` (red) |
-| Bottom | Why not for trade (`APPROVAL OFF`, `MOTION`, …) or `SEQ n`; `AUDIT n` |
+| Header (0-32) | `W-SOFT`; link state with a colour dot: `RS485 LIVE` / `RS232 LIVE` / `NO SIGNAL` / `DJB ALARM` |
+| Weight (32-150) | Weight in the 75 px digit font (48 px when too wide) and unit |
+| Status (150-176) | Zone (`OK` / `UNDER` / `OVER` / `ALARM`) or `NO DJB REPLY` / `NO SCALE LINE` |
+| Band (176-212) | `TRADE CHECKS ON` (green) or `NOT FOR TRADE` (red) |
+| Footer (212-240) | Why not for trade (`APPROVAL OFF`, `MOTION`, …) or `SEQ n`; Hub state; `AUDIT n` |
+
+Each row redraws only when its text changes, so the screen does not flicker.
 
 CYD batches use different panel controllers. The env defaults to the TPM408-2.8 bench
-board: `-DST7789_DRIVER=1`, `WSOFT_CYD_ROTATION=3`, `WSOFT_CYD_INVERT=0`.
+board: `-DST7789_DRIVER=1`, `-DTFT_RGB_ORDER=TFT_BGR`, `WSOFT_CYD_ROTATION=3`,
+`WSOFT_CYD_INVERT=0`.
 
 | What the screen shows | Change |
 |---|---|
 | Sideways, cut off, a noisy strip on one side | wrong controller: swap `ST7789_DRIVER` / `ILI9341_DRIVER` |
 | Dark background, light text | flip `WSOFT_CYD_INVERT` |
 | Upside down | `WSOFT_CYD_ROTATION=1` |
-| Red and green swapped | add `-DTFT_RGB_ORDER=TFT_BGR` (or `TFT_RGB`) |
+| Red shows as blue | flip `TFT_RGB_ORDER` between `TFT_BGR` and `TFT_RGB` |
 
 First flash (3 Nov 2026) with ILI9341 + invert on drew sideways, clipped, with an 80 px
 noise strip and a dark background.
