@@ -372,7 +372,7 @@ void hub_begin() {
 #ifndef WSOFT_ON_BASE
     Serial0.println("HUB not configured: send HUB WIFI / HUB PASS / HUB PAIR / HUB SAVE over USB");
 #else
-    Serial0.println("HUB not configured: send HUB PAIR / HUB SAVE over USB (Wi-Fi is set in the web interface)");
+    Serial0.println("HUB not configured: paste the pairing key on the web page W-Soft > Hub, or send HUB PAIR / HUB SAVE over USB");
 #endif
     return;
   }
