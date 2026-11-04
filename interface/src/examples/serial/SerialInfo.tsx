@@ -25,7 +25,7 @@ const SerialInfo: FC = () => {
         </Alert>
       )}
     <Typography variant="body1" paragraph>
-      This service monitors Serial1 (GPIO18 RX / GPIO17 TX on ESP32-S3) and streams the data
+      This service monitors Serial1 (GPIO18 RX / GPIO17 TX on ESP32-S3 boards; GPIO22 RX / GPIO27 TX on the CN1 plug of the 2.8" yellow CYD board) and streams the data
       across all communication channels in real-time. You can configure baud rate,
       data bits, stop bits, parity, and a regex pattern to extract weight values.
     </Typography>
