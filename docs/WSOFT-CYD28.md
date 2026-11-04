@@ -50,15 +50,16 @@ scale.
 
 ## 2. Screen (320 x 240)
 
-| Row | Shows |
-|---|---|
-| Header (0-32) | `W-SOFT`; link state with a colour dot: `RS485 LIVE` / `RS232 LIVE` / `NO SIGNAL` / `DJB ALARM` |
-| Weight (32-150) | Weight in the 75 px digit font (48 px when too wide) and unit |
-| Status (150-176) | Zone (`OK` / `UNDER` / `OVER` / `ALARM`) or `NO DJB REPLY` / `NO SCALE LINE` |
-| Band (176-212) | `TRADE CHECKS ON` (green) or `NOT FOR TRADE` (red) |
-| Footer (212-240) | Why not for trade (`APPROVAL OFF`, `MOTION`, …) or `SEQ n`; Hub state; `AUDIT n` |
+Same design as the Waveshare 4.3" screen (`screen_rle.h`), scaled down, so both boards look alike.
 
-Each row redraws only when its text changes, so the screen does not flicker.
+| Part | Shows |
+|---|---|
+| Header | `LIVE WEIGHT`; Hub state; link state with a colour dot (`RS485 LIVE` / `RS232 LIVE` / `NO SIGNAL` / `DJB ALARM`) |
+| Card, left | `Live Weight`, the target line, the gauge (yellow / green / red) with its needle and zone word |
+| Card, right | Trade band (`TRADE CHECKS ON` green / `NOT FOR TRADE` red), why not for trade or `SEQ n`, `NET` + `AUDIT n`, the NET weight and unit |
+| Bottom boxes | `GROSS` weight; `ZONE` (`OK` / `UNDER` / `OVER` / `ALARM`, or `NO DJB REPLY` / `NO SCALE LINE`) |
+
+The static parts draw once; each live part redraws only when it changes, so the screen does not flicker.
 
 CYD batches use different panel controllers. The env defaults to the TPM408-2.8 bench
 board: `-DST7789_DRIVER=1`, `-DTFT_RGB_ORDER=TFT_BGR`, `WSOFT_CYD_ROTATION=3`,

@@ -512,8 +512,9 @@ bool wsoft_screen_djb(const WsoftDjbPlan *plan, WsoftDjbResult *out, uint32_t ti
 // ---------- CYD panel (320 x 240) ----------
 
 static TFT_eSPI tft;
-static const uint16_t PAPER = 0xFFFF;
 static const int CYD_W = 320;
+
+static void cyd_static();
 
 static bool start_display() {
   tft.init();
@@ -521,13 +522,21 @@ static bool start_display() {
   // explicitly either way, because CYD batches ship with different panel controllers.
   tft.setRotation(WSOFT_CYD_ROTATION);
   tft.invertDisplay(WSOFT_CYD_INVERT ? true : false);
-  tft.fillScreen(PAPER);
+  cyd_static();
   return tft.width() == CYD_W;
 }
 
-// Free fonts are anti-alias free but smooth-edged at size; they ignore the text background,
-// so each section clears its own box. Sections only redraw when their text changes, which
-// stops the flicker of clearing and redrawing the whole screen every poll.
+// The same design as the Waveshare 4.3" screen (screen_rle.h), scaled to 320 x 240:
+// navy header, light page with a white card, title + target line, gauge on the left,
+// trade band + NET weight on the right, GROSS and ZONE boxes along the bottom.
+// The static parts draw once; each live part redraws only when its content changes,
+// so the panel does not flicker. Free fonts ignore the text background, so each live
+// part clears its own box first.
+static const uint16_t PAGE = 0xEF9E;     // light grey page behind the card
+static const uint16_t BORDER = 0xD6BC;   // card and box outline
+static const uint16_t BOX = 0xEF9F;      // pale blue GROSS / ZONE boxes
+static const int GX = 90, GY = 132, GR = 40, GT = 9;  // gauge centre, radius, thickness
+
 static void cyd_free(const char *text, int x, int y, const GFXfont *font, uint16_t fg, uint8_t datum) {
   tft.setFreeFont(font);
   tft.setTextDatum(datum);
@@ -541,92 +550,130 @@ static void cyd_text(const char *text, int x, int y, int font, uint16_t fg, uint
   tft.drawString(text, x, y, font);
 }
 
-// True (and remembers the new key) when a section's content changed since the last draw.
+// True (and remembers the new key) when a part's content changed since the last draw.
 static bool cyd_changed(char *last, size_t size, const char *key) {
   if (strncmp(last, key, size) == 0) return false;
   strlcpy(last, key, size);
   return true;
 }
 
-// Layout (320 x 240):
-//   0- 32  header: W-SOFT, link state with a colour dot
-//  32-150  the weight, as big as it fits, unit beside it
-// 150-176  status line (zone or why there is no weight)
-// 176-212  trade band, full width
-// 212-240  footer: why not for trade, hub state, audit counter
+static void cyd_gauge_arcs() {
+  // TFT_eSPI arcs: 0 degrees is 6 o'clock, clockwise. 90..270 is the top half.
+  tft.drawArc(GX, GY, GR, GR - GT, 90, 150, YELLOW, WHITE, true);
+  tft.drawArc(GX, GY, GR, GR - GT, 150, 210, GREEN, WHITE, true);
+  tft.drawArc(GX, GY, GR, GR - GT, 210, 270, RED, WHITE, true);
+}
+
+static void cyd_static() {
+  tft.fillScreen(PAGE);
+  tft.fillRect(0, 0, CYD_W, 30, INK);
+  cyd_free("LIVE WEIGHT", 10, 15, &FreeSansBold9pt7b, WHITE, ML_DATUM);
+
+  tft.fillRoundRect(6, 36, CYD_W - 12, 198, 8, WHITE);
+  tft.drawRoundRect(6, 36, CYD_W - 12, 198, 8, BORDER);
+  cyd_free("Live Weight", 16, 51, &FreeSansBold9pt7b, INK, ML_DATUM);
+  char target[32];
+  snprintf(target, sizeof target, "Target %.3f-%.3f kg", TARGET_LOW_KG, TARGET_HIGH_KG);
+  cyd_text(target, 16, 64, 2, MUTED, WHITE, TL_DATUM);
+  cyd_gauge_arcs();
+
+  for (int i = 0; i < 2; i++) {
+    int x = i == 0 ? 14 : 164;
+    tft.fillRoundRect(x, 160, 142, 66, 6, BOX);
+    tft.drawRoundRect(x, 160, 142, 66, 6, BORDER);
+    cyd_text(i == 0 ? "GROSS" : "ZONE", x + 8, 166, 2, MUTED, BOX, TL_DATUM);
+  }
+}
+
+static void cyd_box_value(int x, const char *text, uint16_t color) {
+  tft.fillRect(x + 4, 186, 134, 36, BOX);
+  cyd_free(text, x + 8, 206, &FreeSansBold12pt7b, color, ML_DATUM);
+}
+
 static void render(const Reading &r) {
-  static char last_head[32], last_weight[40], last_status[32], last_band[4], last_foot[64];
+  static char last_head[40], last_band[40], last_audit[20], last_weight[40], last_gauge[40], last_boxes[64];
   char key[64];
 
+  // Header, right side: Hub state, then the link state with a colour dot.
+  HubState hub = hub_state();
   const char *link = !r.linked ? "NO SIGNAL" : r.alarm ? "DJB ALARM" : rs232_mode ? "RS232 LIVE" : "RS485 LIVE";
   bool link_ok = r.linked && !r.alarm;
-  if (cyd_changed(last_head, sizeof last_head, link)) {
-    tft.fillRect(0, 0, CYD_W, 32, INK);
-    cyd_free("W-SOFT", 10, 16, &FreeSansBold12pt7b, WHITE, ML_DATUM);
-    cyd_free(link, CYD_W - 10, 16, &FreeSansBold9pt7b, link_ok ? HEADER_OK : HEADER_BAD, MR_DATUM);
-    int dot_x = CYD_W - 18 - tft.textWidth(link);
-    tft.fillCircle(dot_x, 16, 5, link_ok ? HEADER_OK : HEADER_BAD);
+  snprintf(key, sizeof key, "%s|%s", link, hub_state_text(hub));
+  if (cyd_changed(last_head, sizeof last_head, key)) {
+    tft.fillRect(130, 0, CYD_W - 130, 30, INK);
+    cyd_text(link, CYD_W - 8, 8, 2, link_ok ? HEADER_OK : HEADER_BAD, INK, TR_DATUM);
+    int link_left = CYD_W - 8 - tft.textWidth(link, 2);
+    tft.fillCircle(link_left - 8, 15, 4, link_ok ? HEADER_OK : HEADER_BAD);
+    cyd_text(hub_state_text(hub), link_left - 20, 8, 2, hub == HUB_ONLINE ? HEADER_OK : HEADER_BAD, INK, TR_DATUM);
   }
 
-  char value[16] = "----";
-  const char *unit = "kg";
-  if (r.linked) {
-    format_weight(r.value, r.decimals, value, sizeof value);
-    unit = weight_unit_text(r.unit);
-  }
-  snprintf(key, sizeof key, "%s|%s|%d", value, unit, r.linked ? 1 : 0);
-  if (cyd_changed(last_weight, sizeof last_weight, key)) {
-    tft.fillRect(0, 32, CYD_W, 118, PAPER);
-    uint16_t ink = r.linked ? INK : MUTED;
-    // Font 8 is the 75 px digit face; fall back to font 7 (48 px seven-segment) when too wide.
-    int font = tft.textWidth(value, 8) <= 236 ? 8 : 7;
-    tft.setTextPadding(0);
-    cyd_text(value, 252, 94, font, ink, PAPER, MR_DATUM);
-    cyd_free(unit, 262, 120, &FreeSansBold12pt7b, MUTED, BL_DATUM);
-  }
-
-  const char *status = "";
-  uint16_t status_color = MUTED;
-  if (!r.linked) {
-    status = rs232_mode ? "NO SCALE LINE" : "NO DJB REPLY";
-    status_color = RED;
-  } else {
-    status = zone_of(r, &status_color);
-  }
-  snprintf(key, sizeof key, "%s|%u", status, status_color);
-  if (cyd_changed(last_status, sizeof last_status, key)) {
-    tft.fillRect(0, 150, CYD_W, 26, PAPER);
-    cyd_free(status, CYD_W / 2, 162, &FreeSansBold9pt7b, status_color, MC_DATUM);
-  }
-
+  // Top right of the card: the trade band, and why it is not for trade (or the sequence).
   TradeCheck check = approval_check();
   bool trade = check == TRADE_OK;
-  if (cyd_changed(last_band, sizeof last_band, trade ? "1" : "0")) {
-    uint16_t band = trade ? GREEN : RED;
-    tft.fillRect(0, 176, CYD_W, 36, band);
-    cyd_free(trade ? "TRADE CHECKS ON" : "NOT FOR TRADE", CYD_W / 2, 194, &FreeSansBold12pt7b, WHITE, MC_DATUM);
-  }
-
   char line[24];
   uint16_t why_color;
   const char *why = trade_line(check, line, sizeof line, &why_color);
-  char why_text[24];
-  strlcpy(why_text, why, sizeof why_text);
-  HubState hub = hub_state();
+  snprintf(key, sizeof key, "%d|%s|%u", trade ? 1 : 0, why, why_color);
+  if (cyd_changed(last_band, sizeof last_band, key)) {
+    uint16_t band = trade ? GREEN : RED;
+    tft.fillRect(172, 42, 134, 20, band);
+    cyd_text(trade ? "TRADE CHECKS ON" : "NOT FOR TRADE", 239, 45, 2, WHITE, band, TC_DATUM);
+    tft.fillRect(172, 64, 134, 16, WHITE);
+    cyd_text(why, 172, 64, 2, why_color, WHITE, TL_DATUM);
+  }
+
+  // NET label row carries the audit counter on the right.
   char audit[20];
   snprintf(audit, sizeof audit, "AUDIT %lu", (unsigned long)approval_audit_counter());
-  snprintf(key, sizeof key, "%s|%u|%s|%s", why_text, why_color, hub_state_text(hub), audit);
-  if (cyd_changed(last_foot, sizeof last_foot, key)) {
-    tft.fillRect(0, 212, CYD_W, 28, PAPER);
-    cyd_free(why_text, 8, 226, &FreeSans9pt7b, why_color, ML_DATUM);
-    // The Hub state sits in the gap between the two free-font texts, in the narrower
-    // bitmap font 2: in FreeSans9pt it overlapped "APPROVAL OFF" (bench photo 4 Nov 2026).
-    int left_end = 8 + tft.textWidth(why_text);
-    tft.setFreeFont(&FreeSans9pt7b);
-    int right_start = CYD_W - 8 - tft.textWidth(audit);
-    cyd_text(hub_state_text(hub), (left_end + right_start) / 2, 226, 2, hub == HUB_ONLINE ? GREEN : MUTED, PAPER,
-             MC_DATUM);
-    cyd_free(audit, CYD_W - 8, 226, &FreeSans9pt7b, MUTED, MR_DATUM);
+  if (cyd_changed(last_audit, sizeof last_audit, audit)) {
+    tft.fillRect(172, 84, 134, 16, WHITE);
+    cyd_text("NET", 172, 84, 2, MUTED, WHITE, TL_DATUM);
+    cyd_text(audit, 306, 84, 2, MUTED, WHITE, TR_DATUM);
+  }
+
+  char value[16] = "----", gross[24] = "----";
+  const char *unit = "kg";
+  uint16_t zone_color = RED;
+  const char *zone = rs232_mode ? "NO SCALE LINE" : "NO DJB REPLY";
+  if (r.linked) {
+    format_weight(r.value, r.decimals, value, sizeof value);
+    unit = weight_unit_text(r.unit);
+    snprintf(gross, sizeof gross, "%s %s", value, unit);
+    zone = zone_of(r, &zone_color);
+  }
+
+  // NET weight: as big as it fits right-aligned before the unit.
+  snprintf(key, sizeof key, "%s|%s|%d", value, unit, r.linked ? 1 : 0);
+  if (cyd_changed(last_weight, sizeof last_weight, key)) {
+    tft.fillRect(170, 102, 138, 50, WHITE);
+    const GFXfont *big = &FreeSansBold24pt7b;
+    tft.setFreeFont(big);
+    if (tft.textWidth(value) > 104) big = &FreeSansBold18pt7b;
+    cyd_free(value, 276, 128, big, r.linked ? INK : MUTED, MR_DATUM);
+    cyd_text(unit, 280, 126, 2, MUTED, WHITE, TL_DATUM);
+  }
+
+  // Gauge needle and the word under it.
+  int angle = 0;
+  if (r.linked) angle = (int)lroundf(constrain(to_kg(r) / GAUGE_FULL_KG, 0.0f, 1.0f) * 180.0f);
+  snprintf(key, sizeof key, "%d|%d|%s", r.linked ? 1 : 0, angle, r.linked ? zone : "WAITING");
+  if (cyd_changed(last_gauge, sizeof last_gauge, key)) {
+    tft.fillRect(GX - GR, GY - GR + GT, 2 * GR, GR - GT + 24, WHITE);
+    cyd_gauge_arcs();
+    if (r.linked) {
+      float rad = (180.0f - angle) * PI / 180.0f;
+      int len = GR - GT - 4;
+      tft.drawWideLine(GX, GY, GX + cosf(rad) * len, GY - sinf(rad) * len, 4, INK, WHITE);
+      tft.fillCircle(GX, GY, 5, INK);
+    }
+    cyd_text(r.linked ? zone : "WAITING", GX, GY + 6, 2, r.linked ? zone_color : MUTED, WHITE, TC_DATUM);
+  }
+
+  // GROSS and ZONE boxes.
+  snprintf(key, sizeof key, "%s|%s|%u|%d", gross, zone, zone_color, r.linked ? 1 : 0);
+  if (cyd_changed(last_boxes, sizeof last_boxes, key)) {
+    cyd_box_value(14, gross, r.linked ? INK : MUTED);
+    cyd_box_value(164, zone, zone_color);
   }
 }
 #else
