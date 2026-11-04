@@ -619,7 +619,13 @@ static void render(const Reading &r) {
   if (cyd_changed(last_foot, sizeof last_foot, key)) {
     tft.fillRect(0, 212, CYD_W, 28, PAPER);
     cyd_free(why_text, 8, 226, &FreeSans9pt7b, why_color, ML_DATUM);
-    cyd_free(hub_state_text(hub), CYD_W / 2 + 10, 226, &FreeSans9pt7b, hub == HUB_ONLINE ? GREEN : MUTED, MC_DATUM);
+    // The Hub state sits in the gap between the two free-font texts, in the narrower
+    // bitmap font 2: in FreeSans9pt it overlapped "APPROVAL OFF" (bench photo 4 Nov 2026).
+    int left_end = 8 + tft.textWidth(why_text);
+    tft.setFreeFont(&FreeSans9pt7b);
+    int right_start = CYD_W - 8 - tft.textWidth(audit);
+    cyd_text(hub_state_text(hub), (left_end + right_start) / 2, 226, 2, hub == HUB_ONLINE ? GREEN : MUTED, PAPER,
+             MC_DATUM);
     cyd_free(audit, CYD_W - 8, 226, &FreeSans9pt7b, MUTED, MR_DATUM);
   }
 }
