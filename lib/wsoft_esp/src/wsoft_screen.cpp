@@ -815,27 +815,24 @@ static bool poll_djb(Reading *out) {
   return fresh;
 }
 
-// One RS232 pass: the newest line the Serial reader extracted a weight from. Fresh when a
-// new line arrived since the last pass; linked while lines keep coming. The scale sends no
-// DJB alarm, unit or decimals: unit is kg, decimals come from the text.
+// One RS232 pass: the newest weight the Serial reader extracted, stamped when its line
+// arrived. Fresh and linked while that reading is inside the live window, so a 1-2 Hz
+// scale stays fresh between lines and can settle. The scale sends no DJB alarm, unit or
+// decimals: unit is kg, decimals come from the text.
 static bool poll_rs232(Reading *out) {
-  static uint32_t last_stamp = 0;
   char text[24];
   uint32_t stamp = 0;
   bool have = line_reader != nullptr && line_reader(text, sizeof text, &stamp);
   int32_t value;
   int decimals;
   bool parsed = have && wsoft_parse_weight_text(text, &value, &decimals);
-  bool fresh = parsed && stamp != last_stamp;
-  last_stamp = stamp;
+  bool fresh = parsed && millis() - stamp < RS232_STALE_MS;
   out->alarm = false;
   out->unit = 1;
-  if (parsed && millis() - stamp < RS232_STALE_MS) {
-    out->linked = true;
+  out->linked = fresh;
+  if (fresh) {
     out->value = value;
     out->decimals = decimals;
-  } else {
-    out->linked = false;
   }
   return fresh;
 }

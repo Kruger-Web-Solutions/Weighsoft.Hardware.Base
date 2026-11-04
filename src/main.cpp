@@ -151,13 +151,8 @@ WSoftSource wsoftBootSource = WSOFT_SOURCE_RS485;
 // RS232 mode: hands the Serial reader's extracted weight to the W-Soft screen task.
 static bool wsoftReadSerialLine(char* weight, size_t size, uint32_t* receivedMs) {
   if (serialService == nullptr) return false;
-  bool have = false;
-  serialService->read([&](const SerialState& state) {
-    have = state.timestamp != 0;
-    strlcpy(weight, state.weight.c_str(), size);
-    *receivedMs = (uint32_t)state.timestamp;
-  });
-  return have;
+  // Latest-reading slot: newest line at full precision, stamped when it arrived.
+  return serialService->latestWeight(weight, size, receivedMs);
 }
 #endif
 
