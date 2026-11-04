@@ -229,6 +229,10 @@ void test_weight_text_parses_sign_digits_and_decimals() {
   TEST_ASSERT_TRUE(wsoft_parse_weight_text("1,5", &v, &d));
   TEST_ASSERT_EQUAL_INT32(15, v);
   TEST_ASSERT_EQUAL_INT(1, d);
+  // W113 pads between the sign and the digits ("ST,GS,-   2820kg").
+  TEST_ASSERT_TRUE(wsoft_parse_weight_text("-   2820", &v, &d));
+  TEST_ASSERT_EQUAL_INT32(-2820, v);
+  TEST_ASSERT_EQUAL_INT(0, d);
 }
 
 void test_weight_text_rejects_non_weights_without_change() {

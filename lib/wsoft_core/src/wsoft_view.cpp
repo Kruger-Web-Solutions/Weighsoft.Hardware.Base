@@ -95,6 +95,7 @@ bool wsoft_parse_weight_text(const char *text, int32_t *value, int *decimals) {
   while (*p == ' ') p++;
   bool negative = false;
   if (*p == '+' || *p == '-') negative = *p++ == '-';
+  while (*p == ' ') p++;  // W113 pads between sign and digits: "-   2820"
   int64_t magnitude = 0;
   int digits = 0, places = -1;
   for (; *p; p++) {

@@ -368,6 +368,10 @@ String SerialService::extractWeight(const String& line) {
     if (start >= 0 && end > start) {
       String extracted = line.substring(start, end);
       
+      // Indicators such as the W113 pad between sign and digits ("ST,GS,-   2820kg");
+      // toFloat() reads "-   2820" as 0, so drop the spaces first.
+      extracted.replace(" ", "");
+
       // Replace comma with period for locales that use comma as decimal separator
       extracted.replace(',', '.');
       
