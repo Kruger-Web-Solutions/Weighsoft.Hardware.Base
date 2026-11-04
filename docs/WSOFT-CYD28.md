@@ -85,7 +85,7 @@ noise strip and a dark background.
 4. `pio device monitor -b 115200`: expect `weigh screen boot`, `display ready`, then
    `DJB ... LIVE` lines once the RS485 module is wired.
 5. Wi-Fi and passwords: same as the Waveshare guide, section 2 step 5 (AP
-   `Weighsoft-Esp-NEW`, `http://192.168.4.1`, change the admin and AP passwords).
+   `Weighsoft-Esp-Reader` (the name follows the UART mode: `-Reader`, `-Writer`, or `-NEW` when unset; see `composeApSsid` in `src/main.cpp`), `http://192.168.4.1`, change the admin and AP passwords).
 
 ## 4. Known gaps
 
