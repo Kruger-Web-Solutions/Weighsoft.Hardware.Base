@@ -1,7 +1,7 @@
 # W-Soft on the small yellow board (`wsoft_cyd28`)
 
 Sunton ESP32-2432S028 ("Cheap Yellow Display", CYD): ESP32-WROOM-32, 4 MB flash, no PSRAM,
-2.8" 320x240 ILI9341 with XPT2046 touch (touch not used). Same W-Soft code as the Waveshare
+2.8" 320x240 panel (ST7789 on the TPM408-2.8 batch, ILI9341 on older ones) with XPT2046 touch (touch not used). Same W-Soft code as the Waveshare
 build ([WSOFT-WAVESHARE43.md](WSOFT-WAVESHARE43.md)): approval, Hub queue, DJB poll,
 web pages. Only the panel drawing and the pins differ (`WSOFT_BOARD_CYD` in
 `lib/wsoft_esp/src/wsoft_screen.cpp`).
@@ -57,9 +57,18 @@ scale.
 | Band | `TRADE CHECKS ON` (green) or `NOT FOR TRADE` (red) |
 | Bottom | Why not for trade (`APPROVAL OFF`, `MOTION`, …) or `SEQ n`; `AUDIT n` |
 
-Rotation 3 and `invertDisplay(true)` come from the `cyd28` bench notes (rotation 1 is
-mirrored; the controller ships inverted). If a batch shows a dark background, set
-`-D WSOFT_CYD_INVERT=0`.
+CYD batches use different panel controllers. The env defaults to the TPM408-2.8 bench
+board: `-DST7789_DRIVER=1`, `WSOFT_CYD_ROTATION=3`, `WSOFT_CYD_INVERT=0`.
+
+| What the screen shows | Change |
+|---|---|
+| Sideways, cut off, a noisy strip on one side | wrong controller: swap `ST7789_DRIVER` / `ILI9341_DRIVER` |
+| Dark background, light text | flip `WSOFT_CYD_INVERT` |
+| Upside down | `WSOFT_CYD_ROTATION=1` |
+| Red and green swapped | add `-DTFT_RGB_ORDER=TFT_BGR` (or `TFT_RGB`) |
+
+First flash (3 Nov 2026) with ILI9341 + invert on drew sideways, clipped, with an 80 px
+noise strip and a dark background.
 
 ## 3. Build and flash (laptop)
 

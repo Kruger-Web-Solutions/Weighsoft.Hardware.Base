@@ -12,6 +12,12 @@
 // RS485 comes from an external 3.3 V TTL-to-RS485 module with automatic direction on the
 // CN1 connector (GPIO22 / GPIO27), the same free pads the cyd28 env used for its scale UART.
 #include <TFT_eSPI.h>
+#ifndef WSOFT_CYD_ROTATION
+#define WSOFT_CYD_ROTATION 3
+#endif
+#ifndef WSOFT_CYD_INVERT
+#define WSOFT_CYD_INVERT 0
+#endif
 static const int RS485_RX = WSOFT_RS485_RX;
 static const int RS485_TX = WSOFT_RS485_TX;
 #else
@@ -511,12 +517,10 @@ static const int CYD_W = 320;
 
 static bool start_display() {
   tft.init();
-  // CYD: rotation 3 is the unmirrored landscape (rotation 1 mirrors), and the panel
-  // controller ships with inversion on, so it is switched back unless the env says not to.
-  tft.setRotation(3);
-#if WSOFT_CYD_INVERT
-  tft.invertDisplay(true);
-#endif
+  // CYD: rotation 3 is the unmirrored landscape (rotation 1 mirrors). Inversion is set
+  // explicitly either way, because CYD batches ship with different panel controllers.
+  tft.setRotation(WSOFT_CYD_ROTATION);
+  tft.invertDisplay(WSOFT_CYD_INVERT ? true : false);
   tft.fillScreen(PAPER);
   return tft.width() == CYD_W;
 }
