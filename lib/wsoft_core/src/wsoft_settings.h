@@ -5,7 +5,7 @@
 // maps JSON to WSoftSettingsInput and back.
 //
 // Deliberately NOT here: approval ON/OFF (USB technician only), the Hub pairing code
-// (USB only), Wi-Fi and OTA (framework settings pages).
+// (NVS, via USB or the Hub tab: wsoft_hub_code.h / hub_web.h), Wi-Fi and OTA (framework pages).
 
 #include <stddef.h>
 #include <stdint.h>
@@ -22,12 +22,19 @@ static const char *const WSOFT_DEFAULT_MQTT_BASE_PATH = "weighsoft/wsoft/#{uniqu
 static const char *const WSOFT_DEFAULT_MQTT_NAME = "wsoft-#{unique_id}";
 static const char *const WSOFT_DEFAULT_MQTT_UNIQUE_ID = "wsoft-#{unique_id}";
 
+// Where the weight comes from. RS485 = the DJB junction box over Modbus (default).
+// RS232 = a scale indicator that sends a text line; the existing Serial reader service
+// reads it (its own page sets baud and the weight pattern). Both use the same UART, so a
+// board has one or the other, and a change takes effect after a restart.
+enum WSoftSource { WSOFT_SOURCE_RS485 = 0, WSOFT_SOURCE_RS232 = 1 };
+
 struct WSoftSettingsData {
   uint32_t publish_interval_ms;
   bool mqtt_enabled;
   char mqtt_base_path[WSOFT_MQTT_PATH_MAX + 1];
   char mqtt_name[WSOFT_MQTT_ID_MAX + 1];
   char mqtt_unique_id[WSOFT_MQTT_ID_MAX + 1];
+  WSoftSource source;
 };
 
 // One field per option. A missing field (has_* false or a null string) takes its default:
@@ -40,6 +47,8 @@ struct WSoftSettingsInput {
   const char *mqtt_base_path = nullptr;
   const char *mqtt_name = nullptr;
   const char *mqtt_unique_id = nullptr;
+  // "rs485" or "rs232"; anything else is an ERROR.
+  const char *source = nullptr;
 };
 
 enum WSoftSettingsResult { WSOFT_SETTINGS_UNCHANGED, WSOFT_SETTINGS_CHANGED, WSOFT_SETTINGS_ERROR };
@@ -58,3 +67,7 @@ bool wsoft_settings_valid_topic(const char *topic);
 bool wsoft_settings_valid_id(const char *id);
 // Display name: 1..48 printable ASCII chars; inner spaces allowed, no leading/trailing space.
 bool wsoft_settings_valid_name(const char *name);
+
+// "rs485" / "rs232" for the JSON field and the page.
+const char *wsoft_source_text(WSoftSource source);
+bool wsoft_source_parse(const char *text, WSoftSource *source);

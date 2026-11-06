@@ -23,7 +23,11 @@ export interface WSoftStatus {
   hub: string;
   hub_online: boolean;
   polls: number;
+  /** rs485 = DJB junction box over Modbus; rs232 = a scale line read by the Serial reader. */
+  source: WSoftSource;
 }
+
+export type WSoftSource = 'rs485' | 'rs232';
 
 // Mirrors src/examples/wsoft/WSoftSettingsService.h (WSoftSettings::read).
 export interface WSoftSettings {
@@ -32,8 +36,34 @@ export interface WSoftSettings {
   mqtt_base_path: string;
   mqtt_name: string;
   mqtt_unique_id: string;
+  /** Where the weight comes from. Saving a new source restarts the board. */
+  source: WSoftSource;
+  /** Read-only: false on boards without RS232 wiring (the Waveshare). */
+  rs232_available?: boolean;
   /** Read-only: base path with placeholders expanded, plus "/status". */
   mqtt_status_topic?: string;
   publish_interval_min_ms?: number;
   publish_interval_max_ms?: number;
 }
+
+// Mirrors src/examples/wsoft/WSoftStatusService.cpp (sendHub). Admin only.
+// The pairing key is write-only: the board never sends it back.
+export interface WSoftHub {
+  ok: boolean;
+  error?: string;
+  /** A valid pairing key is saved on the board. */
+  paired: boolean;
+  /** HUB SETUP / HUB NO WIFI / HUB CLOCK / HUB ONLINE / HUB REJECTED / HUB OFFLINE */
+  state: string;
+  online: boolean;
+  hub_url: string;
+  key_id: string;
+  device_id: string;
+  /** HTTP status of the last heartbeat; 0 when none was sent since boot. */
+  last_status: number;
+  last_age_s: number;
+  /** True right after connect/disconnect: the board is restarting. */
+  restarting: boolean;
+}
+
+export type WSoftHubAction = { action: 'connect'; code: string } | { action: 'disconnect' };

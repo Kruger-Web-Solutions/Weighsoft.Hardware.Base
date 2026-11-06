@@ -7,7 +7,7 @@
 // W-Soft web options (Waveshare ESP32-S3 4.3 + DJB over RS485, env wsoft_waveshare43).
 // Only options the W-Soft web services own: publish interval, the MQTT status topic and the
 // Home Assistant discovery name/id (like the LED example).
-// Approval, the Hub pairing code, Wi-Fi and OTA are NOT here (USB / framework pages).
+// Approval, the Hub pairing code, Wi-Fi and OTA are NOT here (USB, the Hub tab, framework pages).
 // Validation and defaults live in lib/wsoft_core (wsoft_settings), host-tested.
 
 #include <HttpEndpoint.h>
@@ -20,6 +20,11 @@
 #define WSOFT_SETTINGS_ENDPOINT_PATH "/rest/wsoftSettings"
 #define WSOFT_SETTINGS_SOCKET_PATH "/ws/wsoftSettings"
 #define WSOFT_SETTINGS_FILE "/config/wsoftSettings.json"
+
+// Boards whose env wires the Serial reader's UART for an RS232 scale (the CYD).
+#ifndef WSOFT_HAS_RS232
+#define WSOFT_HAS_RS232 0
+#endif
 
 class WSoftSettings {
  public:
@@ -34,6 +39,7 @@ class WSoftSettings {
     root["mqtt_base_path"] = settings.data.mqtt_base_path;
     root["mqtt_name"] = settings.data.mqtt_name;
     root["mqtt_unique_id"] = settings.data.mqtt_unique_id;
+    root["source"] = wsoft_source_text(settings.data.source);
   }
 
   // Stored fields plus the resolved status topic, for the settings page.
@@ -42,6 +48,7 @@ class WSoftSettings {
     root["mqtt_status_topic"] = statusTopic(settings);
     root["publish_interval_min_ms"] = WSOFT_PUBLISH_MIN_MS;
     root["publish_interval_max_ms"] = WSOFT_PUBLISH_MAX_MS;
+    root["rs232_available"] = WSOFT_HAS_RS232 != 0;
   }
 
   static StateUpdateResult update(JsonObject& root, WSoftSettings& settings) {
@@ -62,6 +69,11 @@ class WSoftSettings {
     in.mqtt_base_path = root["mqtt_base_path"].as<const char*>();
     in.mqtt_name = root["mqtt_name"].as<const char*>();
     in.mqtt_unique_id = root["mqtt_unique_id"].as<const char*>();
+    in.source = root["source"].as<const char*>();
+#if !WSOFT_HAS_RS232
+    // This board has no RS232 wiring: the source stays RS485 whatever is sent.
+    if (in.source != nullptr && strcmp(in.source, "rs485") != 0) return StateUpdateResult::ERROR;
+#endif
 
     switch (wsoft_settings_update(in, &settings.data)) {
       case WSOFT_SETTINGS_CHANGED:
@@ -85,6 +97,8 @@ class WSoftSettingsService : public StatefulService<WSoftSettings> {
   void begin();
 
   uint32_t publishIntervalMs();
+  // RS485 (DJB) or RS232 (scale line). Read at boot; a change takes effect after a restart.
+  WSoftSource source();
   // Empty when MQTT is switched off for W-Soft.
   String mqttStatusTopic();
   // Home Assistant discovery name and unique id, placeholders expanded.

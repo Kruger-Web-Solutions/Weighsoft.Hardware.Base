@@ -35,7 +35,11 @@ const WSoftLive: FC = () => {
           {status.weight_g === null ? 'No weight' : `${status.weight_g} g`}
         </Typography>
         <Box sx={{ mt: 2, display: 'flex', gap: 1, justifyContent: 'center', flexWrap: 'wrap' }}>
-          <Chip label={LINK_LABEL[status.link] ?? status.link} color={linkColor(status.link)} size="small" />
+          <Chip
+            label={status.link === 'live' && status.source === 'rs232' ? 'RS232 live' : LINK_LABEL[status.link] ?? status.link}
+            color={linkColor(status.link)}
+            size="small"
+          />
           <Chip
             label={status.stable ? 'Stable' : 'Not stable'}
             color={status.stable ? 'success' : 'default'}

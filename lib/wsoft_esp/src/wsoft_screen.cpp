@@ -1,14 +1,32 @@
 #include <Arduino.h>
-#include <esp_display_panel.hpp>
-#include <esp_expander_ch422g.hpp>
-#include <esp_heap_caps.h>
 #include <math.h>
 
 #include "approval.h"
-#include "fonts.h"
 #include "hub.h"
-#include "screen_rle.h"
 #include "wsoft_screen.h"
+
+// Two boards share this file. The poll, the Modbus jobs and the snapshot are the same on
+// both; only the panel (start_display, render) and the pins differ.
+#if WSOFT_BOARD_CYD
+// Sunton ESP32-2432S028 ("CYD"): 2.8" 320x240 ILI9341 over SPI, no PSRAM, no RS485 transceiver.
+// RS485 comes from an external 3.3 V TTL-to-RS485 module with automatic direction on the
+// CN1 connector (GPIO22 / GPIO27), the same free pads the cyd28 env used for its scale UART.
+#include <TFT_eSPI.h>
+#ifndef WSOFT_CYD_ROTATION
+#define WSOFT_CYD_ROTATION 3
+#endif
+#ifndef WSOFT_CYD_INVERT
+#define WSOFT_CYD_INVERT 0
+#endif
+static const int RS485_RX = WSOFT_RS485_RX;
+static const int RS485_TX = WSOFT_RS485_TX;
+#else
+#include <esp_display_panel.hpp>
+#include <esp_expander_ch422g.hpp>
+#include <esp_heap_caps.h>
+
+#include "fonts.h"
+#include "screen_rle.h"
 
 using namespace esp_panel::board;
 using namespace esp_panel::drivers;
@@ -17,6 +35,7 @@ using namespace esp_panel::drivers;
 // transceiver output reaches GPIO15, so RX is 15 and TX is 16. Direction switching is automatic.
 static const int RS485_RX = 15;
 static const int RS485_TX = 16;
+#endif
 
 // DJB-M1X Modbus RTU (docs/contracts/djb-m1x-rs485.md): 9600 8N1, slave 1,
 // holding registers are doc address - 40001, signed longs high word first (dF = 4321).
@@ -29,12 +48,23 @@ static const uint32_t ALARM_BLOCKING_MASK = 0xE0000000;  // bits 13-15 of the hi
 
 static const uint32_t POLL_MS = 250;
 static const int FAILS_BEFORE_NO_SIGNAL = 3;
+// RS232: a scale line older than this is no longer live (same 3 s stale rule as the Pi).
+static const uint32_t RS232_STALE_MS = 3000;
+
+static bool rs232_mode = false;
+static WsoftLineReader line_reader = nullptr;
+
+void wsoft_screen_set_line_reader(WsoftLineReader reader) {
+  line_reader = reader;
+}
 
 // Demo target band, matching the static "Target 1.000 - 2.000 kg" line.
 static const float TARGET_LOW_KG = 1.0f;
 static const float TARGET_HIGH_KG = 2.0f;
 static const float GAUGE_FULL_KG = 3.0f;
+#if !WSOFT_BOARD_CYD
 static const int GAUGE_CX = 250, GAUGE_CY = 292, GAUGE_R = 92;
+#endif
 
 static const uint16_t INK = 0x1149;
 static const uint16_t MUTED = 0x6390;
@@ -44,11 +74,6 @@ static const uint16_t RED = 0xC1C6;
 static const uint16_t HEADER_OK = 0x7EF2;
 static const uint16_t HEADER_BAD = 0xFB2C;
 static const uint16_t WHITE = 0xFFFF;
-
-static Board *board = nullptr;
-static LCD *lcd = nullptr;
-static uint16_t *background = nullptr;
-static uint16_t *frame = nullptr;
 
 struct Reading {
   bool linked = false;
@@ -61,6 +86,12 @@ struct Reading {
 static void log_line(const char *message) {
   Serial0.println(message);
 }
+
+#if !WSOFT_BOARD_CYD
+static Board *board = nullptr;
+static LCD *lcd = nullptr;
+static uint16_t *background = nullptr;
+static uint16_t *frame = nullptr;
 
 static void expand_background(uint16_t *pixels) {
   const uint16_t *cursor = SCREEN_RLE;
@@ -147,6 +178,8 @@ static void draw_needle(float fraction) {
   fill_disc(GAUGE_CX, GAUGE_CY, 8, INK);
 }
 
+#endif  // !WSOFT_BOARD_CYD
+
 static float to_kg(const Reading &r) {
   float value = r.value / powf(10.0f, r.decimals);
   if (r.unit == 2) return value * 1000.0f;
@@ -154,6 +187,50 @@ static float to_kg(const Reading &r) {
   return value;
 }
 
+// Why the band says NOT FOR TRADE (approval on), or the sequence of the last trade weight.
+static const char *trade_line(TradeCheck check, char *line, size_t size, uint16_t *color) {
+  if (check == TRADE_OK) {
+    snprintf(line, size, "SEQ %lu", (unsigned long)approval_last_trade_weight().seq);
+    *color = GREEN;
+    return line;
+  }
+  if (check == TRADE_OFF) {
+    *color = MUTED;
+    return "APPROVAL OFF";
+  }
+  *color = YELLOW;
+  switch (check) {
+    case TRADE_NO_SIGNAL: return "NO SIGNAL";
+    case TRADE_STALE: return "NO REPLY";
+    case TRADE_QUEUE_FULL: return "QUEUE FULL";
+    case TRADE_ALARM: return "ALARM";
+    case TRADE_MOTION: return "MOTION";
+    case TRADE_EMPTY: return "EMPTY";
+    case TRADE_NO_CLOCK: return "NO CLOCK";
+    default: return "CHECK";
+  }
+}
+
+// The demo target band: OK, UNDER, OVER, or ALARM when the box reports a blocking alarm.
+static const char *zone_of(const Reading &r, uint16_t *color) {
+  float kg = to_kg(r);
+  if (r.alarm) {
+    *color = RED;
+    return "ALARM";
+  }
+  if (kg < TARGET_LOW_KG) {
+    *color = YELLOW;
+    return "UNDER";
+  }
+  if (kg > TARGET_HIGH_KG) {
+    *color = RED;
+    return "OVER";
+  }
+  *color = GREEN;
+  return "OK";
+}
+
+#if !WSOFT_BOARD_CYD
 // Top right of the card: the trade band, then why it is not for trade (or the sequence), and the audit counter.
 static void draw_approval() {
   TradeCheck check = approval_check();
@@ -162,25 +239,9 @@ static void draw_approval() {
   draw_text(MID, 600, 105, trade ? "TRADE CHECKS ON" : "NOT FOR TRADE", WHITE, CENTER);
 
   char line[24];
-  if (trade) {
-    snprintf(line, sizeof line, "SEQ %lu", (unsigned long)approval_last_trade_weight().seq);
-    draw_text(MID, 440, 152, line, GREEN);
-  } else if (check == TRADE_OFF) {
-    draw_text(MID, 440, 152, "APPROVAL OFF", MUTED);
-  } else {
-    const char *why = "CHECK";
-    switch (check) {
-      case TRADE_NO_SIGNAL: why = "NO SIGNAL"; break;
-      case TRADE_STALE: why = "NO REPLY"; break;
-      case TRADE_QUEUE_FULL: why = "QUEUE FULL"; break;
-      case TRADE_ALARM: why = "ALARM"; break;
-      case TRADE_MOTION: why = "MOTION"; break;
-      case TRADE_EMPTY: why = "EMPTY"; break;
-      case TRADE_NO_CLOCK: why = "NO CLOCK"; break;
-      default: break;
-    }
-    draw_text(MID, 440, 152, why, YELLOW);
-  }
+  uint16_t color;
+  const char *why = trade_line(check, line, sizeof line, &color);
+  draw_text(MID, 440, 152, why, color);
   snprintf(line, sizeof line, "AUDIT %lu", (unsigned long)approval_audit_counter());
   draw_text(MID, 760, 152, line, MUTED, RIGHT);
 }
@@ -203,18 +264,8 @@ static void render(const Reading &r) {
     snprintf(gross, sizeof gross, "%s %s", value, weight_unit_text(r.unit));
 
     float kg = to_kg(r);
-    const char *zone = "OK";
-    uint16_t zone_color = GREEN;
-    if (r.alarm) {
-      zone = "ALARM";
-      zone_color = RED;
-    } else if (kg < TARGET_LOW_KG) {
-      zone = "UNDER";
-      zone_color = YELLOW;
-    } else if (kg > TARGET_HIGH_KG) {
-      zone = "OVER";
-      zone_color = RED;
-    }
+    uint16_t zone_color;
+    const char *zone = zone_of(r, &zone_color);
 
     draw_text(MID, 772, 22, r.alarm ? "DJB ALARM" : "RS485 LIVE", r.alarm ? HEADER_BAD : HEADER_OK, RIGHT);
     draw_needle(kg / GAUGE_FULL_KG);
@@ -228,6 +279,7 @@ static void render(const Reading &r) {
 
   lcd->drawBitmap(0, 0, SCREEN_W, SCREEN_H, reinterpret_cast<const uint8_t *>(frame), 1000);
 }
+#endif  // !WSOFT_BOARD_CYD
 
 // ---------- Modbus RTU ----------
 
@@ -314,6 +366,10 @@ static void fill_ids(const WsoftDjbPlan *plan, WsoftDjbResult *out) {
 static void run_job(const WsoftDjbPlan *plan, WsoftDjbResult *out) {
   memset(out, 0, sizeof *out);
   fill_ids(plan, out);
+  if (rs232_mode) {
+    strlcpy(out->error, "rs232_mode", sizeof out->error);
+    return;
+  }
   if (!reading.linked) {
     strlcpy(out->error, "not_linked", sizeof out->error);
     return;
@@ -452,6 +508,175 @@ bool wsoft_screen_djb(const WsoftDjbPlan *plan, WsoftDjbResult *out, uint32_t ti
 
 // ---------- main ----------
 
+#if WSOFT_BOARD_CYD
+// ---------- CYD panel (320 x 240) ----------
+
+static TFT_eSPI tft;
+static const int CYD_W = 320;
+
+static void cyd_static();
+
+static bool start_display() {
+  tft.init();
+  // CYD: rotation 3 is the unmirrored landscape (rotation 1 mirrors). Inversion is set
+  // explicitly either way, because CYD batches ship with different panel controllers.
+  tft.setRotation(WSOFT_CYD_ROTATION);
+  tft.invertDisplay(WSOFT_CYD_INVERT ? true : false);
+  cyd_static();
+  return tft.width() == CYD_W;
+}
+
+// The same design as the Waveshare 4.3" screen (screen_rle.h), scaled to 320 x 240:
+// navy header, light page with a white card, title + target line, gauge on the left,
+// trade band + NET weight on the right, GROSS and ZONE boxes along the bottom.
+// The static parts draw once; each live part redraws only when its content changes,
+// so the panel does not flicker. Free fonts ignore the text background, so each live
+// part clears its own box first.
+static const uint16_t PAGE = 0xEF9E;     // light grey page behind the card
+static const uint16_t BORDER = 0xD6BC;   // card and box outline
+static const uint16_t BOX = 0xEF9F;      // pale blue GROSS / ZONE boxes
+static const int GX = 90, GY = 132, GR = 40, GT = 9;  // gauge centre, radius, thickness
+
+static void cyd_free(const char *text, int x, int y, const GFXfont *font, uint16_t fg, uint8_t datum) {
+  tft.setFreeFont(font);
+  tft.setTextDatum(datum);
+  tft.setTextColor(fg);
+  tft.drawString(text, x, y);
+}
+
+static void cyd_text(const char *text, int x, int y, int font, uint16_t fg, uint16_t bg, uint8_t datum) {
+  tft.setTextDatum(datum);
+  tft.setTextColor(fg, bg);
+  tft.drawString(text, x, y, font);
+}
+
+// True (and remembers the new key) when a part's content changed since the last draw.
+static bool cyd_changed(char *last, size_t size, const char *key) {
+  if (strncmp(last, key, size) == 0) return false;
+  strlcpy(last, key, size);
+  return true;
+}
+
+static void cyd_gauge_arcs() {
+  // TFT_eSPI arcs: 0 degrees is 6 o'clock, clockwise. 90..270 is the top half.
+  tft.drawArc(GX, GY, GR, GR - GT, 90, 150, YELLOW, WHITE, true);
+  tft.drawArc(GX, GY, GR, GR - GT, 150, 210, GREEN, WHITE, true);
+  tft.drawArc(GX, GY, GR, GR - GT, 210, 270, RED, WHITE, true);
+}
+
+static void cyd_static() {
+  tft.fillScreen(PAGE);
+  tft.fillRect(0, 0, CYD_W, 30, INK);
+  cyd_free("LIVE WEIGHT", 10, 15, &FreeSansBold9pt7b, WHITE, ML_DATUM);
+
+  tft.fillRoundRect(6, 36, CYD_W - 12, 198, 8, WHITE);
+  tft.drawRoundRect(6, 36, CYD_W - 12, 198, 8, BORDER);
+  cyd_free("Live Weight", 16, 51, &FreeSansBold9pt7b, INK, ML_DATUM);
+  char target[32];
+  snprintf(target, sizeof target, "Target %.3f-%.3f kg", TARGET_LOW_KG, TARGET_HIGH_KG);
+  cyd_text(target, 16, 64, 2, MUTED, WHITE, TL_DATUM);
+  cyd_gauge_arcs();
+
+  for (int i = 0; i < 2; i++) {
+    int x = i == 0 ? 14 : 164;
+    tft.fillRoundRect(x, 160, 142, 66, 6, BOX);
+    tft.drawRoundRect(x, 160, 142, 66, 6, BORDER);
+    cyd_text(i == 0 ? "GROSS" : "ZONE", x + 8, 166, 2, MUTED, BOX, TL_DATUM);
+  }
+}
+
+static void cyd_box_value(int x, const char *text, uint16_t color) {
+  tft.fillRect(x + 4, 186, 134, 36, BOX);
+  cyd_free(text, x + 8, 206, &FreeSansBold12pt7b, color, ML_DATUM);
+}
+
+static void render(const Reading &r) {
+  static char last_head[40], last_band[40], last_audit[20], last_weight[40], last_gauge[40], last_boxes[64];
+  char key[64];
+
+  // Header, right side: Hub state, then the link state with a colour dot.
+  HubState hub = hub_state();
+  const char *link = !r.linked ? "NO SIGNAL" : r.alarm ? "DJB ALARM" : rs232_mode ? "RS232 LIVE" : "RS485 LIVE";
+  bool link_ok = r.linked && !r.alarm;
+  snprintf(key, sizeof key, "%s|%s", link, hub_state_text(hub));
+  if (cyd_changed(last_head, sizeof last_head, key)) {
+    tft.fillRect(130, 0, CYD_W - 130, 30, INK);
+    cyd_text(link, CYD_W - 8, 8, 2, link_ok ? HEADER_OK : HEADER_BAD, INK, TR_DATUM);
+    int link_left = CYD_W - 8 - tft.textWidth(link, 2);
+    tft.fillCircle(link_left - 8, 15, 4, link_ok ? HEADER_OK : HEADER_BAD);
+    cyd_text(hub_state_text(hub), link_left - 20, 8, 2, hub == HUB_ONLINE ? HEADER_OK : HEADER_BAD, INK, TR_DATUM);
+  }
+
+  // Top right of the card: the trade band, and why it is not for trade (or the sequence).
+  TradeCheck check = approval_check();
+  bool trade = check == TRADE_OK;
+  char line[24];
+  uint16_t why_color;
+  const char *why = trade_line(check, line, sizeof line, &why_color);
+  snprintf(key, sizeof key, "%d|%s|%u", trade ? 1 : 0, why, why_color);
+  if (cyd_changed(last_band, sizeof last_band, key)) {
+    uint16_t band = trade ? GREEN : RED;
+    tft.fillRect(172, 42, 134, 20, band);
+    cyd_text(trade ? "TRADE CHECKS ON" : "NOT FOR TRADE", 239, 45, 2, WHITE, band, TC_DATUM);
+    tft.fillRect(172, 64, 134, 16, WHITE);
+    cyd_text(why, 172, 64, 2, why_color, WHITE, TL_DATUM);
+  }
+
+  // NET label row carries the audit counter on the right.
+  char audit[20];
+  snprintf(audit, sizeof audit, "AUDIT %lu", (unsigned long)approval_audit_counter());
+  if (cyd_changed(last_audit, sizeof last_audit, audit)) {
+    tft.fillRect(172, 84, 134, 16, WHITE);
+    cyd_text("NET", 172, 84, 2, MUTED, WHITE, TL_DATUM);
+    cyd_text(audit, 306, 84, 2, MUTED, WHITE, TR_DATUM);
+  }
+
+  char value[16] = "----", gross[24] = "----";
+  const char *unit = "kg";
+  uint16_t zone_color = RED;
+  const char *zone = rs232_mode ? "NO SCALE LINE" : "NO DJB REPLY";
+  if (r.linked) {
+    format_weight(r.value, r.decimals, value, sizeof value);
+    unit = weight_unit_text(r.unit);
+    snprintf(gross, sizeof gross, "%s %s", value, unit);
+    zone = zone_of(r, &zone_color);
+  }
+
+  // NET weight: as big as it fits right-aligned before the unit.
+  snprintf(key, sizeof key, "%s|%s|%d", value, unit, r.linked ? 1 : 0);
+  if (cyd_changed(last_weight, sizeof last_weight, key)) {
+    tft.fillRect(170, 102, 138, 50, WHITE);
+    const GFXfont *big = &FreeSansBold24pt7b;
+    tft.setFreeFont(big);
+    if (tft.textWidth(value) > 104) big = &FreeSansBold18pt7b;
+    cyd_free(value, 276, 128, big, r.linked ? INK : MUTED, MR_DATUM);
+    cyd_text(unit, 280, 126, 2, MUTED, WHITE, TL_DATUM);
+  }
+
+  // Gauge needle and the word under it.
+  int angle = 0;
+  if (r.linked) angle = (int)lroundf(constrain(to_kg(r) / GAUGE_FULL_KG, 0.0f, 1.0f) * 180.0f);
+  snprintf(key, sizeof key, "%d|%d|%s", r.linked ? 1 : 0, angle, r.linked ? zone : "WAITING");
+  if (cyd_changed(last_gauge, sizeof last_gauge, key)) {
+    tft.fillRect(GX - GR, GY - GR + GT, 2 * GR, GR - GT + 24, WHITE);
+    cyd_gauge_arcs();
+    if (r.linked) {
+      float rad = (180.0f - angle) * PI / 180.0f;
+      int len = GR - GT - 4;
+      tft.drawWideLine(GX, GY, GX + cosf(rad) * len, GY - sinf(rad) * len, 4, INK, WHITE);
+      tft.fillCircle(GX, GY, 5, INK);
+    }
+    cyd_text(r.linked ? zone : "WAITING", GX, GY + 6, 2, r.linked ? zone_color : MUTED, WHITE, TC_DATUM);
+  }
+
+  // GROSS and ZONE boxes.
+  snprintf(key, sizeof key, "%s|%s|%u|%d", gross, zone, zone_color, r.linked ? 1 : 0);
+  if (cyd_changed(last_boxes, sizeof last_boxes, key)) {
+    cyd_box_value(14, gross, r.linked ? INK : MUTED);
+    cyd_box_value(164, zone, zone_color);
+  }
+}
+#else
 static bool start_display() {
   board = new Board();
   board->init();
@@ -497,6 +722,7 @@ static bool start_display() {
   expand_background(background);
   return true;
 }
+#endif  // WSOFT_BOARD_CYD
 
 static bool display_ready = false;
 static int fails = FAILS_BEFORE_NO_SIGNAL;
@@ -527,6 +753,7 @@ static void publish_snapshot(const Reading &r, bool fresh, TradeCheck check, Hub
   strlcpy(next.hub_text, hub_state_text(hub), sizeof next.hub_text);
   next.polls = polls;
   next.updated_ms = millis();
+  next.rs232 = rs232_mode;
   portENTER_CRITICAL(&snapshot_lock);
   snapshot = next;
   portEXIT_CRITICAL(&snapshot_lock);
@@ -538,11 +765,17 @@ void wsoft_screen_snapshot(WSoftSnapshot *out) {
   portEXIT_CRITICAL(&snapshot_lock);
 }
 
-void wsoft_screen_setup() {
+void wsoft_screen_setup(bool rs232) {
+  rs232_mode = rs232;
+#if WSOFT_BOARD_CYD
+  // UART0 is the CH340 USB port on the CYD (default pins GPIO1 / GPIO3).
+  Serial0.begin(115200);
+#else
   // UART0 is the CH343 port on this board: TX GPIO43, RX GPIO44.
   Serial0.begin(115200, SERIAL_8N1, 44, 43);
-  log_line("weigh screen boot");
-  Serial1.begin(DJB_BAUD, SERIAL_8N1, RS485_RX, RS485_TX);
+#endif
+  log_line(rs232_mode ? "weigh screen boot (RS232 scale)" : "weigh screen boot (RS485 junction box)");
+  if (!rs232_mode) Serial1.begin(DJB_BAUD, SERIAL_8N1, RS485_RX, RS485_TX);
 
   display_ready = start_display();
   log_line(display_ready ? "display ready" : "display failed");
@@ -554,16 +787,9 @@ void wsoft_screen_setup() {
   portEXIT_CRITICAL(&snapshot_lock);
 }
 
-void wsoft_screen_loop() {
-  static uint32_t last_poll = 0;
-  static HubState shown_hub = HUB_SETUP;
-  hub_handle_serial(Serial0);
-  hub_ota_poll();
-  service_job();
-  if (hub_ota_busy() || !display_ready || millis() - last_poll < POLL_MS) return;
-  last_poll = millis();
-
-  Reading next = reading;
+// One RS485 poll of the DJB: unit and decimals every 20 polls, then weight and alarm.
+static bool poll_djb(Reading *out) {
+  Reading &next = *out;
   if (polls++ % 20 == 0 || format_stale) {
     format_stale = false;
     int32_t decimals, unit;
@@ -586,14 +812,56 @@ void wsoft_screen_loop() {
     Serial0.println();
     next_scan_target();
   }
+  return fresh;
+}
+
+// One RS232 pass: the newest weight the Serial reader extracted, stamped when its line
+// arrived. Fresh and linked while that reading is inside the live window, so a 1-2 Hz
+// scale stays fresh between lines and can settle. The scale sends no DJB alarm, unit or
+// decimals: unit is kg, decimals come from the text.
+static bool poll_rs232(Reading *out) {
+  char text[24];
+  uint32_t stamp = 0;
+  bool have = line_reader != nullptr && line_reader(text, sizeof text, &stamp);
+  int32_t value;
+  int decimals;
+  bool parsed = have && wsoft_parse_weight_text(text, &value, &decimals);
+  bool fresh = parsed && millis() - stamp < RS232_STALE_MS;
+  out->alarm = false;
+  out->unit = 1;
+  out->linked = fresh;
+  if (fresh) {
+    out->value = value;
+    out->decimals = decimals;
+  }
+  return fresh;
+}
+
+void wsoft_screen_loop() {
+  static uint32_t last_poll = 0;
+  static HubState shown_hub = HUB_SETUP;
+  hub_handle_serial(Serial0);
+  hub_ota_poll();
+  service_job();
+  if (hub_ota_busy() || !display_ready || millis() - last_poll < POLL_MS) return;
+  last_poll = millis();
+
+  Reading next = reading;
+  bool fresh;
+  if (rs232_mode) {
+    fresh = poll_rs232(&next);
+    polls++;
+  } else {
+    fresh = poll_djb(&next);
+  }
 
   TradeCheck check = approval_update(next.linked, fresh, next.alarm, next.value, next.decimals, next.unit);
 
   if (next.linked && polls % 4 == 1) {
-    Serial0.printf("DJB slave=%u baud=%lu ", slave, (unsigned long)SCAN_BAUDS[baud_index]);
+    if (!rs232_mode) Serial0.printf("DJB slave=%u baud=%lu ", slave, (unsigned long)SCAN_BAUDS[baud_index]);
     char value[16];
     format_weight(next.value, next.decimals, value, sizeof value);
-    Serial0.printf("DJB %s weight=%s %s raw=%ld alarm=%d stable=%d %s\n", next.linked ? "LIVE" : "NO_SIGNAL", value,
+    Serial0.printf("%s %s weight=%s %s raw=%ld alarm=%d stable=%d %s\n", rs232_mode ? "RS232" : "DJB", next.linked ? "LIVE" : "NO_SIGNAL", value,
                    weight_unit_text(next.unit), (long)next.value, next.alarm ? 1 : 0, approval_stable() ? 1 : 0,
                    check == TRADE_OK ? "TRADE_CHECKS_ON" : "NOT_FOR_TRADE");
   }

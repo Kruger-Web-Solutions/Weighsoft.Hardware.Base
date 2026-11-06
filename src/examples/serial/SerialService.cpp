@@ -110,6 +110,43 @@ void SerialService::enqueueCompletedLine(const String& line) {
     _rxCompleteLineQueue.pop_front();
   }
   _rxCompleteLineQueue.push_back(line);
+  recordLatestWeight(line);
+}
+
+// Latest-reading slot for local consumers (the W-Soft screen). Written when the line
+// arrives, not when the publish queue drains, so it carries the real receipt time and
+// is never held back by publishIntervalMs or the 4 lines/s broadcast cap.
+void SerialService::recordLatestWeight(const String& line) {
+  const String text = captureWeightText(line);
+  if (text.length() == 0) {
+    return;
+  }
+  const unsigned long now = millis();
+#ifdef ESP32
+  portENTER_CRITICAL(&_latestMux);
+#endif
+  strlcpy(_latestWeightText, text.c_str(), sizeof _latestWeightText);
+  _latestWeightMs = now;
+  _latestWeightValid = true;
+#ifdef ESP32
+  portEXIT_CRITICAL(&_latestMux);
+#endif
+}
+
+bool SerialService::latestWeight(char* out, size_t size, uint32_t* receivedMs) {
+  if (out == nullptr || size == 0) {
+    return false;
+  }
+#ifdef ESP32
+  portENTER_CRITICAL(&_latestMux);
+#endif
+  const bool valid = _latestWeightValid;
+  strlcpy(out, _latestWeightText, size);
+  if (receivedMs != nullptr) *receivedMs = (uint32_t)_latestWeightMs;
+#ifdef ESP32
+  portEXIT_CRITICAL(&_latestMux);
+#endif
+  return valid;
 }
 
 void SerialService::drainRxLineQueue() {
@@ -338,6 +375,18 @@ void SerialService::applySerialConfig() {
 }
 
 String SerialService::extractWeight(const String& line) {
+  const String extracted = captureWeightText(line);
+  if (extracted.length() == 0) {
+    return "";
+  }
+  // Published value keeps its historic 2-decimal shape for MQTT/WS/BLE consumers.
+  // Local W-Soft display reads latestWeight() instead, which keeps full precision.
+  return String(extracted.toFloat(), 2);
+}
+
+// Returns the regex capture as clean numeric text ("-2820", "1.234"), or "" when the
+// line has no usable number. No float round-trip, so the scale's own precision is kept.
+String SerialService::captureWeightText(const String& line) {
   const String& pattern = _state.regexPattern;
   if (pattern.length() == 0) {
     return "";
@@ -358,9 +407,9 @@ String SerialService::extractWeight(const String& line) {
   
   // Execute the regex match
   reti = regexec(&regex, line.c_str(), 2, matches, 0);
-  regfree(&regex);
   
   if (reti == 0) {
+    regfree(&regex);
     // Match found - extract first capture group if present, otherwise full match
     int start = matches[1].rm_so >= 0 ? matches[1].rm_so : matches[0].rm_so;
     int end = matches[1].rm_eo >= 0 ? matches[1].rm_eo : matches[0].rm_eo;
@@ -368,25 +417,28 @@ String SerialService::extractWeight(const String& line) {
     if (start >= 0 && end > start) {
       String extracted = line.substring(start, end);
       
+      // Indicators such as the W113 pad between sign and digits ("ST,GS,-   2820kg");
+      // toFloat() reads "-   2820" as 0, so drop the spaces first.
+      extracted.replace(" ", "");
+
       // Replace comma with period for locales that use comma as decimal separator
       extracted.replace(',', '.');
       
-      // Convert to float and back to clean up (remove leading zeros, standardize format)
-      float value = extracted.toFloat();
-      
-      // Only return if we actually got a valid number
-      if (value != 0.0f || extracted.indexOf('0') >= 0) {
-        return String(value, 2); // Return with 2 decimal places
+      // Only return text that actually holds a digit
+      for (unsigned int i = 0; i < extracted.length(); i++) {
+        if (isdigit((unsigned char)extracted[i])) {
+          return extracted;
+        }
       }
     }
-  } else if (reti == REG_NOMATCH) {
-    // No match - this is normal, not an error
-  } else {
+    return "";
+  }
+  if (reti != REG_NOMATCH) {
     char error_buffer[100];
     regerror(reti, &regex, error_buffer, sizeof(error_buffer));
     Serial.printf("[Serial] Regex match error: %s\n", error_buffer);
   }
-  
+  regfree(&regex);
   return "";
 }
 

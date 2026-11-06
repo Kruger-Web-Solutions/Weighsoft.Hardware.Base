@@ -8,8 +8,17 @@
 #include "wsoft_djb.h"
 #include "wsoft_view.h"
 
-void wsoft_screen_setup();
+// rs232 = false: the screen task owns Serial1 and polls the DJB over RS485 (Modbus).
+// rs232 = true: the Serial reader service owns Serial1 and reads an RS232 scale's lines;
+// the screen task takes the weight from the line reader below and never opens Serial1.
+void wsoft_screen_setup(bool rs232 = false);
 void wsoft_screen_loop();
+
+// RS232 mode: copies the latest extracted weight text and the millis() it arrived.
+// Returns false when no line has arrived yet. Called from the screen task, so it must
+// be safe across tasks (the Serial reader's StatefulService read lock is).
+typedef bool (*WsoftLineReader)(char *weight, size_t size, uint32_t *received_ms);
+void wsoft_screen_set_line_reader(WsoftLineReader reader);
 
 // Copies the latest snapshot (written by the screen task after every poll).
 // Safe to call from any task; it only takes a short spinlock.

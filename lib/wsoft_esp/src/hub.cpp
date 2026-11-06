@@ -1,5 +1,8 @@
 #include "hub.h"
 #include "approval.h"
+#ifdef WSOFT_ON_BASE
+#include "hub_web.h"
+#endif
 #ifndef WSOFT_ON_BASE
 #include "ota_secret.h"
 #endif
@@ -34,6 +37,11 @@ static bool configured = false;
 static volatile HubState state = HUB_SETUP;
 static volatile bool ota_busy = false;
 
+#ifdef WSOFT_ON_BASE
+static volatile int last_status = 0;
+static volatile uint32_t last_heartbeat_ms = 0;
+
+#endif
 static portMUX_TYPE health_lock = portMUX_INITIALIZER_UNLOCKED;
 static bool health_linked = false;
 static bool health_alarm = false;
@@ -251,6 +259,10 @@ static void send_heartbeat() {
   String reply = status > 0 ? http.getString() : http.errorToString(status);
   http.end();
 
+#ifdef WSOFT_ON_BASE
+  last_status = status;
+  last_heartbeat_ms = millis();
+#endif
   if (status == 202) {
     state = HUB_ONLINE;
     if (trades_through > 0) approval_delivered(trades_through);
@@ -360,7 +372,7 @@ void hub_begin() {
 #ifndef WSOFT_ON_BASE
     Serial0.println("HUB not configured: send HUB WIFI / HUB PASS / HUB PAIR / HUB SAVE over USB");
 #else
-    Serial0.println("HUB not configured: send HUB PAIR / HUB SAVE over USB (Wi-Fi is set in the web interface)");
+    Serial0.println("HUB not configured: paste the pairing key on the web page W-Soft > Hub, or send HUB PAIR / HUB SAVE over USB");
 #endif
     return;
   }
@@ -390,3 +402,50 @@ const char *hub_state_text(HubState s) {
     default: return "HUB SETUP";
   }
 }
+#ifdef WSOFT_ON_BASE
+
+// ---------- web pairing (Hardware.Base) ----------
+// A local Preferences handle: the web server runs in its own task, apart from the USB lines.
+
+WsoftHubCodeError hub_web_save(const char *code) {
+  WsoftHubCode parsed;
+  WsoftHubCodeError error = wsoft_hub_code_parse(code, &parsed);
+  memset(parsed.secret, 0, sizeof parsed.secret);
+  if (error != WSOFT_HUB_CODE_OK) return error;
+  String trimmed = code;
+  trimmed.trim();
+  Preferences store;
+  store.begin("hub", false);
+  store.putString("pair", trimmed);
+  store.end();
+  Serial0.printf("HUB pairing saved from the web page for %s key %s\n", parsed.hub_url, parsed.key_id);
+  return WSOFT_HUB_CODE_OK;
+}
+
+void hub_web_forget() {
+  Preferences store;
+  store.begin("hub", false);
+  store.remove("pair");
+  store.end();
+  Serial0.println("HUB pairing forgotten from the web page");
+}
+
+void hub_web_info(HubWebInfo *out) {
+  memset(out, 0, sizeof *out);
+  Preferences store;
+  store.begin("hub", true);
+  String code = store.getString("pair", "");
+  store.end();
+  WsoftHubCode parsed;
+  if (!code.isEmpty() && wsoft_hub_code_parse(code.c_str(), &parsed) == WSOFT_HUB_CODE_OK) {
+    out->paired = true;
+    strlcpy(out->hub_url, parsed.hub_url, sizeof out->hub_url);
+    strlcpy(out->key_id, parsed.key_id, sizeof out->key_id);
+    strlcpy(out->device_id, parsed.device_id, sizeof out->device_id);
+    memset(parsed.secret, 0, sizeof parsed.secret);
+  }
+  out->state = state;
+  out->last_status = last_status;
+  out->last_age_s = last_heartbeat_ms == 0 ? 0 : (millis() - last_heartbeat_ms) / 1000;
+}
+#endif

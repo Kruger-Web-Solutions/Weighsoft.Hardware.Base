@@ -24,10 +24,17 @@ WSoftSettingsService::WSoftSettingsService(AsyncWebServer* server, FS* fs, Secur
 
 void WSoftSettingsService::begin() {
   _fsPersistence.readFromFS();
-  Serial.printf("[WSoft] Settings loaded: publish=%lums mqtt=%s topic=%s\n",
+  Serial.printf("[WSoft] Settings loaded: source=%s publish=%lums mqtt=%s topic=%s\n",
+                wsoft_source_text(source()),
                 (unsigned long)publishIntervalMs(),
                 _state.data.mqtt_enabled ? "on" : "off",
                 WSoftSettings::statusTopic(_state).c_str());
+}
+
+WSoftSource WSoftSettingsService::source() {
+  WSoftSource source = WSOFT_SOURCE_RS485;
+  read([&](const WSoftSettings& s) { source = s.data.source; });
+  return WSOFT_HAS_RS232 ? source : WSOFT_SOURCE_RS485;
 }
 
 uint32_t WSoftSettingsService::publishIntervalMs() {

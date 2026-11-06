@@ -13,6 +13,19 @@ void wsoft_settings_defaults(WSoftSettingsData *s) {
   copy_text(s->mqtt_base_path, sizeof s->mqtt_base_path, WSOFT_DEFAULT_MQTT_BASE_PATH);
   copy_text(s->mqtt_name, sizeof s->mqtt_name, WSOFT_DEFAULT_MQTT_NAME);
   copy_text(s->mqtt_unique_id, sizeof s->mqtt_unique_id, WSOFT_DEFAULT_MQTT_UNIQUE_ID);
+  s->source = WSOFT_SOURCE_RS485;
+}
+
+const char *wsoft_source_text(WSoftSource source) {
+  return source == WSOFT_SOURCE_RS232 ? "rs232" : "rs485";
+}
+
+bool wsoft_source_parse(const char *text, WSoftSource *source) {
+  if (text == nullptr) return false;
+  if (strcmp(text, "rs485") == 0) *source = WSOFT_SOURCE_RS485;
+  else if (strcmp(text, "rs232") == 0) *source = WSOFT_SOURCE_RS232;
+  else return false;
+  return true;
 }
 
 static bool printable(char c) {
@@ -76,10 +89,11 @@ WSoftSettingsResult wsoft_settings_update(const WSoftSettingsInput &in, WSoftSet
     if (!wsoft_settings_valid_id(in.mqtt_unique_id)) return WSOFT_SETTINGS_ERROR;
     copy_text(next.mqtt_unique_id, sizeof next.mqtt_unique_id, in.mqtt_unique_id);
   }
+  if (in.source != nullptr && !wsoft_source_parse(in.source, &next.source)) return WSOFT_SETTINGS_ERROR;
 
   bool changed = next.publish_interval_ms != s->publish_interval_ms || next.mqtt_enabled != s->mqtt_enabled ||
                  strcmp(next.mqtt_base_path, s->mqtt_base_path) != 0 || strcmp(next.mqtt_name, s->mqtt_name) != 0 ||
-                 strcmp(next.mqtt_unique_id, s->mqtt_unique_id) != 0;
+                 strcmp(next.mqtt_unique_id, s->mqtt_unique_id) != 0 || next.source != s->source;
   *s = next;
   return changed ? WSOFT_SETTINGS_CHANGED : WSOFT_SETTINGS_UNCHANGED;
 }

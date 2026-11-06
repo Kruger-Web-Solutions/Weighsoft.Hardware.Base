@@ -18,6 +18,9 @@ const WSoftInfo: FC = () => (
         <ListItemText primary="Settings (admin)" secondary="Publish interval and the MQTT topic for W-Soft status." />
       </ListItem>
       <ListItem>
+        <ListItemText primary="Hub (admin)" secondary="Connect to the Hub with a pairing key, see the link state, or disconnect." />
+      </ListItem>
+      <ListItem>
         <ListItemText
           primary="USB cable (technician)"
           secondary="APPROVAL STATUS / LOG / ON / OFF and HUB PAIR / SAVE / CLEAR. Approval is never switched from here."
@@ -26,7 +29,7 @@ const WSoftInfo: FC = () => (
     </List>
     <Alert severity="info" sx={{ mt: 2 }}>
       Endpoints: GET /rest/wsoftStatus · WebSocket /ws/wsoftStatus · MQTT &lt;base path&gt;/status ·
-      GET/POST /rest/wsoftSettings (admin)
+      GET/POST /rest/wsoftSettings (admin) · GET/POST /rest/wsoftHub (admin)
     </Alert>
   </SectionContent>
 );

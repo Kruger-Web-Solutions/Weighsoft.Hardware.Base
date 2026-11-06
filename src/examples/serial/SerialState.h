@@ -8,6 +8,17 @@
 #define SERIAL_MIN_BAUDRATE 300
 #define SERIAL_MAX_BAUDRATE 2000000
 
+// Regex used until one is saved. Empty means "extract nothing". The CYD (RS232 scale
+// mode) ships with a generic pattern: the first number in the line, with optional sign
+// and decimals, so W113 and other indicators work without setup. POSIX ERE syntax.
+#ifndef SERIAL_DEFAULT_REGEX
+#if defined(WSOFT_BOARD_CYD) && WSOFT_BOARD_CYD
+#define SERIAL_DEFAULT_REGEX "([-+]?[ ]*[0-9]+([.,][0-9]+)?)"
+#else
+#define SERIAL_DEFAULT_REGEX ""
+#endif
+#endif
+
 // Publish interval (ms) bounds: 0 means "publish as soon as a line is received",
 // any value >0 throttles broadcasts (WS/REST/MQTT/Writers) to at most one per N ms.
 #define SERIAL_PUBLISH_INTERVAL_MAX_MS 60000
@@ -65,7 +76,7 @@ class SerialState {
     uint8_t data = root["data_bits"] | (uint8_t)8;
     uint8_t stop = root["stop_bits"] | (uint8_t)1;
     uint8_t par = root["parity"] | (uint8_t)0;
-    String regex = root["regex_pattern"] | "";
+    String regex = root["regex_pattern"] | SERIAL_DEFAULT_REGEX;
     uint32_t pubInterval = root["publish_interval_ms"] | (uint32_t)0;
 
     if (baud < SERIAL_MIN_BAUDRATE || baud > SERIAL_MAX_BAUDRATE) baud = SERIAL_DEFAULT_BAUDRATE;

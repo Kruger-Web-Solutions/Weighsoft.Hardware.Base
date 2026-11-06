@@ -35,7 +35,14 @@ struct WSoftSnapshot {
   char hub_text[WSOFT_HUB_TEXT_SIZE] = "HUB SETUP";
   uint32_t polls = 0;
   uint32_t updated_ms = 0;     // millis() of the poll this snapshot came from
+  bool rs232 = false;          // weight from an RS232 scale line, not the DJB junction box
 };
+
+// Parses the weight text an RS232 scale sends (after the Serial reader's pattern):
+// optional spaces, optional sign, digits, optional '.' or ',' and up to 4 decimals,
+// optional trailing spaces. value is scaled by decimals, like a DJB reading.
+// Anything else (letters, two signs, empty, too long) is false: never a weight.
+bool wsoft_parse_weight_text(const char *text, int32_t *value, int *decimals);
 
 // Where the view writes its fields. The ESP service maps this onto an ArduinoJson
 // object; the host tests build a JSON string.

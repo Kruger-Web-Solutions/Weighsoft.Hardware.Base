@@ -16,11 +16,17 @@
 // ESP32-S3 has RGB NeoPixel LED on GPIO48 (ESP32-S3-DevKitC-1)
 // ESP32 has built-in LED on GPIO2 (most boards)
 // ESP8266 has built-in LED on GPIO2 (NodeMCU)
+// A board env may set LED_PIN (and LED_ON / LED_OFF) itself, e.g. the CYD, where GPIO2 is
+// the screen's DC line and the LED is the active-low RGB LED.
 #if defined(CONFIG_IDF_TARGET_ESP32S3)
+#ifndef LED_PIN
 #define LED_PIN 48
+#endif
 #define HAS_RGB_LED true
 #else
+#ifndef LED_PIN
 #define LED_PIN 2
+#endif
 #define HAS_RGB_LED false
 #endif
 
@@ -33,7 +39,9 @@
 
 // Note that the built-in LED is on when the pin is low on most NodeMCU boards.
 // This is because the anode is tied to VCC and the cathode to the GPIO 4 (Arduino pin 2).
-#ifdef ESP32
+#if defined(LED_ON) && defined(LED_OFF)
+// set by the board env
+#elif defined(ESP32)
 #define LED_ON 0x1
 #define LED_OFF 0x0
 #elif defined(ESP8266)
