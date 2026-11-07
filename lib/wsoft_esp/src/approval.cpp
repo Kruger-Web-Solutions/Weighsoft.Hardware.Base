@@ -2,6 +2,10 @@
 
 #include <Preferences.h>
 #include <time.h>
+#ifdef WSOFT_ON_BASE
+#include "approval_base.h"
+#include "switches.h"
+#endif
 
 static const int LOG_SLOTS = 8;
 // Queued trade weights sent per heartbeat; the rest follow in the next ones.
@@ -86,16 +90,27 @@ void approval_begin() {
 
 // ---------- technician switch (USB only) ----------
 
+#ifndef WSOFT_ON_BASE
 static void write_change(bool to, const String &technician, const String &reason, Stream &port) {
+#else
+// Hardware.Base: the log line also says where the switch came from (screen, browser, hub, usb).
+static void write_change(bool to, const String &technician, const String &reason, Stream &port,
+                         WsoftSwitchWhere where) {
+#endif
   char when[32];
   format_time(time(nullptr), when, sizeof when);
 
   prefs.begin("approval", false);
   uint32_t counter = prefs.getUInt("audit", 0) + 1;
   uint32_t slot = prefs.getUInt("logn", 0);
+#ifndef WSOFT_ON_BASE
   char entry[160];
   snprintf(entry, sizeof entry, "%lu %s %s->%s by=%s why=%s", (unsigned long)counter, when, on ? "ON" : "OFF",
            to ? "ON" : "OFF", technician.c_str(), reason.c_str());
+#else
+  char entry[WSOFT_SWITCH_LOG_MAX];
+  wsoft_switch_log_line(counter, when, on, to, technician.c_str(), where, reason.c_str(), entry, sizeof entry);
+#endif
   char key[8];
   snprintf(key, sizeof key, "log%lu", (unsigned long)(slot % LOG_SLOTS));
   prefs.putString(key, entry);
@@ -115,6 +130,31 @@ static void write_change(bool to, const String &technician, const String &reason
   portEXIT_CRITICAL(&lock);
   port.printf("APPROVAL_OK %s\n", entry);
 }
+#ifdef WSOFT_ON_BASE
+
+// Hardware.Base: every place switches through switches.cpp, which checks the rules first.
+// Screen task only (it writes flash).
+void approval_set(bool to, const char *who, WsoftSwitchWhere where, const char *reason) {
+  write_change(to, String(who), String(reason), Serial0, where);
+}
+
+int approval_log_lines(char lines[][WSOFT_SWITCH_LOG_MAX], int max) {
+  // A local handle: the web server reads this in its own task.
+  Preferences store;
+  store.begin("approval", true);
+  uint32_t count = store.getUInt("logn", 0);
+  uint32_t first = count > (uint32_t)max ? count - max : 0;
+  if (count - first > (uint32_t)LOG_SLOTS) first = count - LOG_SLOTS;
+  int n = 0;
+  for (uint32_t i = first; i < count; i++) {
+    char key[8];
+    snprintf(key, sizeof key, "log%lu", (unsigned long)(i % LOG_SLOTS));
+    strlcpy(lines[n++], store.getString(key, "").c_str(), WSOFT_SWITCH_LOG_MAX);
+  }
+  store.end();
+  return n;
+}
+#endif
 
 static void print_log(Stream &port) {
   prefs.begin("approval", true);
@@ -159,7 +199,16 @@ void approval_handle_command(const String &command, Stream &port) {
     port.printf("APPROVAL_ERR already %s, nothing changed\n", on ? "ON" : "OFF");
     return;
   }
+#ifndef WSOFT_ON_BASE
   write_change(to_on, technician, reason, port);
+#else
+  // The same rules as the screen, browser and Hub (for example the RS485 setup check).
+  WsoftSwitchError error =
+      switches_apply_here(WSOFT_SWITCH_APPROVAL, to_on, technician.c_str(), WSOFT_WHERE_USB, reason.c_str());
+  if (error != WSOFT_SWITCH_OK) {
+    port.printf("APPROVAL_ERR %s %s\n", wsoft_switch_error_code(error), wsoft_switch_error_text(error));
+  }
+#endif
 }
 
 // ---------- each reading ----------
@@ -203,16 +252,39 @@ static void store_issued(const TradeWeight &w) {
   prefs.end();
 }
 
+#ifndef WSOFT_ON_BASE
 TradeCheck approval_update(bool linked, bool fresh, bool alarm, int32_t value, int decimals, int unit) {
+#else
+TradeCheck approval_update(bool linked, bool fresh, bool alarm, int32_t value, int decimals, int unit) {
+  return approval_update_held(linked, fresh, alarm, value, decimals, unit, WSOFT_HOLD_NONE);
+}
+
+// Hardware.Base: the RS485 scale setup can hold a reading back from trade. Blanked counts as
+// an alarm. Not yet stable for the set samples, or below Min: the engine still counts
+// stability but issues no trade weight (it is told the queue is full), and the check says
+// motion or empty.
+TradeCheck approval_update_held(bool linked, bool fresh, bool alarm, int32_t value, int decimals, int unit,
+                                WsoftScaleHold hold) {
+  if (hold == WSOFT_HOLD_BLANK) alarm = true;
+#endif
   apply_delivered();
 
   portENTER_CRITICAL(&lock);
   bool queue_full = queue.full();
   portEXIT_CRITICAL(&lock);
+#ifdef WSOFT_ON_BASE
+  bool held = hold == WSOFT_HOLD_NOT_STABLE || hold == WSOFT_HOLD_BELOW_MIN;
+  if (held) queue_full = true;
+#endif
 
   TradeReading reading = {on, linked, fresh, alarm, value, decimals, unit, millis(), (int64_t)time(nullptr)};
   TradeWeight issued;
   TradeCheck next = engine.update(reading, queue_full, &issued);
+#ifdef WSOFT_ON_BASE
+  if (held && (next == TRADE_OK || next == TRADE_QUEUE_FULL)) {
+    next = hold == WSOFT_HOLD_NOT_STABLE ? TRADE_MOTION : TRADE_EMPTY;
+  }
+#endif
   if (issued.valid) store_issued(issued);
 
   portENTER_CRITICAL(&lock);

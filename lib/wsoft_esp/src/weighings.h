@@ -1,7 +1,8 @@
 #pragma once
 
 // Hardware.Base only (WSOFT_ON_BASE): weighings saved on the board (Save tap or Auto save)
-// and kept in flash (NVS namespace "weigh") until the Hub accepts them.
+// and kept in flash (NVS namespace "weigh") until the Hub accepts them. The Auto save switch
+// is kept there too (key "auto") and is changed only through switches.h.
 // The rules live in wsoft_core (WsoftWeighingSaver, wsoft_weighing_json), host-tested.
 //
 // Tasks: the screen task calls weighings_update() and is the only writer of flash.
@@ -27,6 +28,7 @@ WsoftSaveResult weighings_save(uint32_t timeout_ms, TradeWeight *saved);
 // Screen task: a tap on the board's own screen (no waiting, the next pass handles it).
 void weighings_request_save();
 
+// Screen task only (it writes flash, NVS "weigh" key "auto"), through switches.cpp.
 void weighings_set_auto_save(bool on);
 
 struct WeighingsInfo {

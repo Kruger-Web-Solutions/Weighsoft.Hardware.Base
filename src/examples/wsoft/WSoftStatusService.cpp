@@ -164,7 +164,6 @@ void sendSave(AsyncWebServerRequest* request, int code, WsoftSaveResult result, 
   weighings_info(&info);
   AsyncJsonResponse* response = new AsyncJsonResponse(false, 512);
   JsonObject root = response->getRoot().to<JsonObject>();
-  root["auto_save"] = info.auto_save;
   root["pending"] = (unsigned)info.pending;
   putWeighing(root, "last", info.last);
   if (saved != nullptr) {
@@ -289,9 +288,6 @@ void WSoftStatusService::begin() {
   Serial.println(rs232 ? F("[WSoft] Starting W-Soft screen (RS232 scale via the Serial reader)...")
                        : F("[WSoft] Starting W-Soft screen (RS485 DJB on Serial1)..."));
   wsoft_screen_setup(rs232);
-  weighings_set_auto_save(_settingsService->autoSave());
-  _settingsService->addUpdateHandler([this](const String&) { weighings_set_auto_save(_settingsService->autoSave()); },
-                                     false);
   xTaskCreatePinnedToCore(screenTask,
                           "wsoftScreen",
                           WSOFT_SCREEN_TASK_STACK,

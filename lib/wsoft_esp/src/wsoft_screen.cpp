@@ -2,7 +2,11 @@
 #include <math.h>
 
 #include "approval.h"
+#include "approval_base.h"
 #include "hub.h"
+#include "pin.h"
+#include "scale.h"
+#include "switches.h"
 #include "weighings.h"
 #include "wsoft_screen.h"
 
@@ -892,6 +896,8 @@ void wsoft_screen_setup(bool rs232) {
 
   display_ready = start_display();
   log_line(display_ready ? "display ready" : "display failed");
+  scale_begin(!rs232_mode);
+  pin_begin();
   approval_begin();
   weighings_begin(rs232_mode);
   hub_begin();
@@ -960,6 +966,7 @@ void wsoft_screen_loop() {
   hub_handle_serial(Serial0);
   hub_ota_poll();
   service_job();
+  switches_poll();
 #if WSOFT_BOARD_CYD
   cyd_touch_poll();
 #endif

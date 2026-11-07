@@ -14,7 +14,6 @@ void wsoft_settings_defaults(WSoftSettingsData *s) {
   copy_text(s->mqtt_name, sizeof s->mqtt_name, WSOFT_DEFAULT_MQTT_NAME);
   copy_text(s->mqtt_unique_id, sizeof s->mqtt_unique_id, WSOFT_DEFAULT_MQTT_UNIQUE_ID);
   s->source = WSOFT_SOURCE_RS485;
-  s->auto_save = false;
 }
 
 const char *wsoft_source_text(WSoftSource source) {
@@ -77,7 +76,6 @@ WSoftSettingsResult wsoft_settings_update(const WSoftSettingsInput &in, WSoftSet
   wsoft_settings_defaults(&next);
   if (in.has_publish_interval_ms) next.publish_interval_ms = clamp_interval(in.publish_interval_ms);
   if (in.has_mqtt_enabled) next.mqtt_enabled = in.mqtt_enabled;
-  if (in.has_auto_save) next.auto_save = in.auto_save;
 
   if (in.mqtt_base_path != nullptr) {
     if (!wsoft_settings_valid_topic(in.mqtt_base_path)) return WSOFT_SETTINGS_ERROR;
@@ -95,8 +93,7 @@ WSoftSettingsResult wsoft_settings_update(const WSoftSettingsInput &in, WSoftSet
 
   bool changed = next.publish_interval_ms != s->publish_interval_ms || next.mqtt_enabled != s->mqtt_enabled ||
                  strcmp(next.mqtt_base_path, s->mqtt_base_path) != 0 || strcmp(next.mqtt_name, s->mqtt_name) != 0 ||
-                 strcmp(next.mqtt_unique_id, s->mqtt_unique_id) != 0 || next.source != s->source ||
-                 next.auto_save != s->auto_save;
+                 strcmp(next.mqtt_unique_id, s->mqtt_unique_id) != 0 || next.source != s->source;
   *s = next;
   return changed ? WSOFT_SETTINGS_CHANGED : WSOFT_SETTINGS_UNCHANGED;
 }

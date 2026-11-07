@@ -44,6 +44,7 @@ void weighings_begin(bool rs232) {
   source_rs232 = rs232;
   prefs.begin("weigh", true);
   uint32_t next_seq = prefs.getUInt("seq", 1);
+  bool automatic = prefs.getBool("auto", false);
   uint32_t head = prefs.getUInt("qhead", 0);
   size_t count = prefs.getUInt("qcount", 0);
   static TradeWeight slots[TradeQueue::CAPACITY];
@@ -63,8 +64,12 @@ void weighings_begin(bool rs232) {
   }
   prefs.end();
   saver = WsoftWeighingSaver(next_seq);
+  portENTER_CRITICAL(&lock);
   queue.restore(head, count, slots);
-  Serial0.printf("WEIGH next_seq=%lu queued=%u\n", (unsigned long)next_seq, (unsigned)queue.size());
+  auto_save = automatic;
+  portEXIT_CRITICAL(&lock);
+  Serial0.printf("WEIGH next_seq=%lu queued=%u auto_save=%s\n", (unsigned long)next_seq, (unsigned)queue.size(),
+                 automatic ? "on" : "off");
 }
 
 // Removes what the Hub accepted from flash, then from memory.
@@ -169,6 +174,9 @@ WsoftSaveResult weighings_save(uint32_t timeout_ms, TradeWeight *saved) {
 }
 
 void weighings_set_auto_save(bool on) {
+  prefs.begin("weigh", false);
+  prefs.putBool("auto", on);
+  prefs.end();
   portENTER_CRITICAL(&lock);
   auto_save = on;
   portEXIT_CRITICAL(&lock);

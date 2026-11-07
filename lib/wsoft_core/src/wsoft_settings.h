@@ -4,8 +4,9 @@
 // Pure C++ so the defaults and validation run in host tests; WSoftSettingsService
 // maps JSON to WSoftSettingsInput and back.
 //
-// Deliberately NOT here: approval ON/OFF (USB technician only), the Hub pairing code
-// (NVS, via USB or the Hub tab: wsoft_hub_code.h / hub_web.h), Wi-Fi and OTA (framework pages).
+// Deliberately NOT here: the Approval and Auto save switches (NVS, through switches.h:
+// screen, browser, Hub and USB), the Hub pairing code (NVS, via USB or the Hub tab:
+// wsoft_hub_code.h / hub_web.h), Wi-Fi and OTA (framework pages).
 
 #include <stddef.h>
 #include <stdint.h>
@@ -35,8 +36,6 @@ struct WSoftSettingsData {
   char mqtt_name[WSOFT_MQTT_ID_MAX + 1];
   char mqtt_unique_id[WSOFT_MQTT_ID_MAX + 1];
   WSoftSource source;
-  // Save a weighing by itself when a new load settles (otherwise only when Save is tapped).
-  bool auto_save;
 };
 
 // One field per option. A missing field (has_* false or a null string) takes its default:
@@ -51,8 +50,6 @@ struct WSoftSettingsInput {
   const char *mqtt_unique_id = nullptr;
   // "rs485" or "rs232"; anything else is an ERROR.
   const char *source = nullptr;
-  bool has_auto_save = false;
-  bool auto_save = false;
 };
 
 enum WSoftSettingsResult { WSOFT_SETTINGS_UNCHANGED, WSOFT_SETTINGS_CHANGED, WSOFT_SETTINGS_ERROR };
