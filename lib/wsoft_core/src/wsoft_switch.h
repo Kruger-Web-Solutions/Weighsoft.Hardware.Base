@@ -59,11 +59,15 @@ const char *wsoft_switch_error_code(WsoftSwitchError error);
 // Plain words for the page and the screen.
 const char *wsoft_switch_error_text(WsoftSwitchError error);
 
-// Cleans and checks one request. Control characters become spaces and the reason is
-// trimmed. who is trimmed, spaces become '_' (one word in the log), and it is cut at
+// Cleans and checks one request. The reason follows wsoft_reason_check (required for
+// Approval). who is trimmed, spaces become '_' (one word in the log), and it is cut at
 // WSOFT_SWITCH_WHO_MAX. On an error *out is left half filled and must not be used.
 WsoftSwitchError wsoft_switch_request(WsoftSwitchWhich which, bool on, const char *who, WsoftSwitchWhere where,
                                       const char *reason, WsoftSwitchRequest *out);
+
+// The reason rule shared with the scale setup save: printable ASCII (0x20..0x7e) only,
+// trimmed, at most 80. required = an empty reason is REASON_REQUIRED. out gets the trimmed text.
+WsoftSwitchError wsoft_reason_check(const char *reason, bool required, char out[WSOFT_SWITCH_REASON_MAX + 1]);
 
 // Checks a clean request against the board's state right now.
 WsoftSwitchError wsoft_switch_check(const WsoftSwitchRequest &request, const WsoftSwitchState &state);

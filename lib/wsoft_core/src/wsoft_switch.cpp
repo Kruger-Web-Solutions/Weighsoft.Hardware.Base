@@ -90,13 +90,18 @@ WsoftSwitchError wsoft_switch_request(WsoftSwitchWhich which, bool on, const cha
     if (c <= 0x20 || c > 0x7E) *p = '_';
   }
 
+  return wsoft_reason_check(reason, which == WSOFT_SWITCH_APPROVAL, out->reason);
+}
+
+WsoftSwitchError wsoft_reason_check(const char *reason, bool required, char out[WSOFT_SWITCH_REASON_MAX + 1]) {
   // Refuse other bytes rather than change them, so the browser and the board agree.
   char longer[WSOFT_SWITCH_REASON_MAX + 2];
   size_t length = copy_trimmed(reason, longer, sizeof longer);
+  out[0] = 0;
   if (!printable(longer)) return WSOFT_SWITCH_REASON_REQUIRED;
   if (length > (size_t)WSOFT_SWITCH_REASON_MAX) return WSOFT_SWITCH_REASON_TOO_LONG;
-  if (length == 0 && which == WSOFT_SWITCH_APPROVAL) return WSOFT_SWITCH_REASON_REQUIRED;
-  memcpy(out->reason, longer, length + 1);
+  if (length == 0 && required) return WSOFT_SWITCH_REASON_REQUIRED;
+  memcpy(out, longer, length + 1);
   return WSOFT_SWITCH_OK;
 }
 
