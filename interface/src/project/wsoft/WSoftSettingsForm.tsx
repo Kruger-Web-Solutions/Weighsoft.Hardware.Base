@@ -10,6 +10,7 @@ import {
 import { validate } from '../../validators';
 import { numberValue, updateValue, useRest } from '../../utils';
 
+import WSoftPinForm from './WSoftPinForm';
 import * as WSoftApi from './api';
 import { WSoftSettings } from './types';
 import { WSOFT_SETTINGS_VALIDATOR } from './validators';
@@ -43,7 +44,7 @@ const WSoftSettingsForm: FC = () => {
           level="info"
           message={
             'Wi-Fi, MQTT broker, NTP and OTA are on the framework pages. ' +
-            'Hub pairing is on the Hub tab. Approval is set with a USB cable only.'
+            'Hub pairing is on the Hub tab. Approval and Auto save are switched on the Live tab.'
           }
           my={2}
         />
@@ -67,16 +68,6 @@ const WSoftSettingsForm: FC = () => {
             <MenuItem value="rs232">RS232 scale</MenuItem>
           </ValidatedTextField>
         )}
-        <BlockFormControlLabel
-          control={
-            <Checkbox
-              name="auto_save"
-              checked={!!data.auto_save}
-              onChange={updateFormValue}
-            />
-          }
-          label="Auto save: save a weighing for the Hub by itself when a new load settles"
-        />
         <ValidatedTextField
           fieldErrors={fieldErrors}
           name="publish_interval_ms"
@@ -152,9 +143,12 @@ const WSoftSettingsForm: FC = () => {
   };
 
   return (
-    <SectionContent title="W-Soft settings" titleGutter>
-      {content()}
-    </SectionContent>
+    <>
+      <SectionContent title="W-Soft settings" titleGutter>
+        {content()}
+      </SectionContent>
+      <WSoftPinForm />
+    </>
   );
 };
 

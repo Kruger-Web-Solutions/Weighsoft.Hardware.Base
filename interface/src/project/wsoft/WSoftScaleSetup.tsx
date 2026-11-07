@@ -1,0 +1,240 @@
+import { FC, useCallback, useContext, useEffect, useState } from 'react';
+import { useSnackbar } from 'notistack';
+
+import { Box, Button, Checkbox, Chip, FormControlLabel, Grid, TextField, Typography } from '@mui/material';
+import SaveIcon from '@mui/icons-material/Save';
+
+import { ButtonRow, FormLoader, MessageBox, SectionContent } from '../../components';
+import { AuthenticationContext } from '../../contexts/authentication';
+
+import WSoftCardSetup from './WSoftCardSetup';
+import * as WSoftApi from './api';
+import { boardErrorText } from './errors';
+import { WSoftScaleBoard, WSoftScaleSetup as WSoftScaleSetupState } from './types';
+import { REASON_MAX, reasonProblem } from './validators';
+
+const REFRESH_MS = 5000;
+
+// The form keeps every value as typed text; it becomes A5 board JSON on Save.
+type BoardForm = Record<Exclude<keyof WSoftScaleBoard, 'tare_enabled'>, string> & { tare_enabled: boolean };
+
+const toForm = (board: WSoftScaleBoard): BoardForm => ({
+  ...board,
+  blank_below_e: board.blank_below_e === null ? '' : String(board.blank_below_e),
+  blank_above_e: String(board.blank_above_e),
+  stable_samples: String(board.stable_samples)
+});
+
+const toBoard = (form: BoardForm): WSoftScaleBoard => ({
+  ...form,
+  sa_number: form.sa_number.trim(),
+  max_kg: form.max_kg.trim(),
+  min_kg: form.min_kg.trim(),
+  tare_max_kg: form.tare_max_kg.trim(),
+  preset_tare_kg: form.preset_tare_kg.trim(),
+  blank_below_e: form.blank_below_e.trim() === '' ? null : Number(form.blank_below_e),
+  blank_above_e: Number(form.blank_above_e),
+  stable_samples: Number(form.stable_samples)
+});
+
+// Quick shape checks only. The board checks the rest (order, steps of e, ranges) and answers with a code.
+const KG = /^[0-9]+(\.[0-9]{1,5})?$/;
+const WHOLE = /^[0-9]+$/;
+
+const kgProblem = (value: string) => (value.trim() === '' || KG.test(value.trim()) ? undefined : 'A number in kg, like 60 or 0.02');
+const wholeProblem = (value: string, required: boolean) => {
+  if (value.trim() === '') return required ? 'Needed' : undefined;
+  return WHOLE.test(value.trim()) ? undefined : 'A whole number';
+};
+
+const MISSING_LABEL: Record<string, string> = {
+  sa_number: 'SA number',
+  max_kg: 'Max',
+  min_kg: 'Min',
+  blank_below_e: 'Blank below zero',
+  blank_above_e: 'Blank above Max',
+  stable_samples: 'Stable samples',
+  division: 'Card step (e)',
+  decimal: 'Card decimal places',
+  card: 'Read the weighing card'
+};
+
+const WSoftScaleSetup: FC = () => {
+  const { enqueueSnackbar } = useSnackbar();
+  const { me } = useContext(AuthenticationContext);
+  const isAdmin = !!me?.admin;
+  const [setup, setSetup] = useState<WSoftScaleSetupState>();
+  const [loadError, setLoadError] = useState<string>();
+  const [form, setForm] = useState<BoardForm>();
+  const [dirty, setDirty] = useState(false);
+  const [reason, setReason] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      setSetup((await WSoftApi.readWSoftScaleSetup()).data);
+      setLoadError(undefined);
+    } catch (error) {
+      setLoadError(boardErrorText(error, 'Could not read the scale setup'));
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+    const timer = setInterval(load, REFRESH_MS);
+    return () => clearInterval(timer);
+  }, [load]);
+
+  // Follow the board while nothing is being typed.
+  useEffect(() => {
+    if (setup && !dirty) setForm(toForm(setup.board));
+  }, [setup, dirty]);
+
+  const content = () => {
+    if (!setup || !form) {
+      return (<FormLoader onRetry={load} errorMessage={loadError} />);
+    }
+
+    if (setup.source === 'rs232') {
+      return (
+        <Typography variant="body1">
+          Set on the indicator (weight, tare, zero, calibration, SA number and setup live there).
+        </Typography>
+      );
+    }
+
+    const canEdit = isAdmin && setup.editable && setup.locked === null;
+    const change = (key: keyof BoardForm, value: string | boolean) => {
+      setForm({ ...form, [key]: value });
+      setDirty(true);
+    };
+
+    const problems: Partial<Record<keyof BoardForm, string>> = {
+      sa_number: form.sa_number.trim().length > 32 ? 'Up to 32 characters' : undefined,
+      max_kg: kgProblem(form.max_kg),
+      min_kg: kgProblem(form.min_kg),
+      blank_below_e: wholeProblem(form.blank_below_e, false),
+      blank_above_e: wholeProblem(form.blank_above_e, true),
+      stable_samples: wholeProblem(form.stable_samples, true),
+      tare_max_kg: kgProblem(form.tare_max_kg),
+      preset_tare_kg: kgProblem(form.preset_tare_kg)
+    };
+    const reasonText = reasonProblem(reason);
+    const formOk = Object.values(problems).every((problem) => !problem);
+
+    const save = async () => {
+      if (!formOk || reasonText) return;
+      setSaving(true);
+      try {
+        const reply = (await WSoftApi.updateWSoftScaleSetup({ board: toBoard(form), reason: reason.trim() })).data;
+        setSetup(reply);
+        setForm(toForm(reply.board));
+        setDirty(false);
+        setReason('');
+        enqueueSnackbar('Scale setup saved', { variant: 'success' });
+      } catch (error) {
+        enqueueSnackbar(boardErrorText(error, 'Could not save the scale setup'), { variant: 'error' });
+      } finally {
+        setSaving(false);
+      }
+    };
+
+    const field = (key: Exclude<keyof BoardForm, 'tare_enabled'>, label: string, helper: string, numeric = true) => (
+      <Grid item xs={12} sm={6}>
+        <TextField
+          label={label}
+          fullWidth
+          margin="dense"
+          value={form[key]}
+          disabled={!canEdit}
+          onChange={(event) => change(key, event.target.value)}
+          inputProps={numeric ? { inputMode: 'decimal' } : { maxLength: 32 }}
+          error={!!problems[key]}
+          helperText={problems[key] ?? helper}
+        />
+      </Grid>
+    );
+
+    return (
+      <>
+        <Box display="flex" gap={1} flexWrap="wrap" alignItems="center" my={2}>
+          {setup.complete
+            ? <Chip label="Setup complete" color="success" size="small" />
+            : <Chip label="Setup not complete" color="warning" size="small" />}
+          {setup.missing.map((key) => (
+            <Chip key={key} label={`Missing: ${MISSING_LABEL[key] ?? key}`} variant="outlined" color="warning" size="small" />
+          ))}
+          <Typography variant="body2" color="text.secondary">Setup changes: {setup.setup_audit}</Typography>
+        </Box>
+        {setup.locked === 'APPROVAL_ON' && (
+          <MessageBox level="warning" message="Switch Approval off to change the setup." my={2} />
+        )}
+        {!isAdmin && setup.locked === null && (
+          <MessageBox level="info" message="Only an admin can change the setup." my={2} />
+        )}
+        <Typography variant="h6">On this board</Typography>
+        <Grid container columnSpacing={2}>
+          {field('sa_number', 'SA approval number', 'Shown on the screen plate. 1 to 32 characters', false)}
+          {field('max_kg', 'Max (kg)', 'More than e')}
+          {field('min_kg', 'Min (kg)', 'At least e and less than Max')}
+          {field('stable_samples', 'Stable samples', 'Readings in a row before the weight counts as stable. 3 to 20')}
+          {field('blank_below_e', 'Blank below zero (e)', 'Show ---- this many steps below zero. 0 to 100')}
+          {field('blank_above_e', 'Blank above Max (e)', 'Show ---- this many steps above Max. 0 to 100')}
+          <Grid item xs={12}>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={form.tare_enabled}
+                  disabled={!canEdit}
+                  onChange={(event) => change('tare_enabled', event.target.checked)}
+                />
+              }
+              label="Tare allowed (the TARE button on the screen)"
+            />
+          </Grid>
+          {field('tare_max_kg', 'Most tare (kg)', 'Up to Max. Empty = not set')}
+          {field('preset_tare_kg', 'Preset tare (kg)', 'Up to the most tare. Empty = none')}
+        </Grid>
+        {canEdit && (
+          <>
+            <TextField
+              label="Reason for this change"
+              fullWidth
+              margin="normal"
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              inputProps={{ maxLength: REASON_MAX }}
+              error={reason.length > 0 && !!reasonText}
+              helperText={(reason.length > 0 && reasonText) || `Logged with your name. ${reason.trim().length} of ${REASON_MAX}`}
+            />
+            <ButtonRow mt={1}>
+              <Button
+                startIcon={<SaveIcon />}
+                disabled={saving || !formOk || !!reasonText}
+                variant="contained"
+                color="primary"
+                onClick={save}
+              >
+                Save
+              </Button>
+              {dirty && (
+                <Button variant="outlined" color="secondary" disabled={saving} onClick={() => setDirty(false)}>
+                  Undo changes
+                </Button>
+              )}
+            </ButtonRow>
+          </>
+        )}
+        <WSoftCardSetup card={setup.card} canRead={isAdmin} canWrite={canEdit} onWritten={load} />
+      </>
+    );
+  };
+
+  return (
+    <SectionContent title="Scale setup" titleGutter>
+      {content()}
+    </SectionContent>
+  );
+};
+
+export default WSoftScaleSetup;

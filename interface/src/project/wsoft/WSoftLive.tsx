@@ -6,6 +6,7 @@ import { FormLoader, MessageBox, SectionContent } from '../../components';
 import { useWs } from '../../utils';
 
 import WSoftSavePanel from './WSoftSavePanel';
+import WSoftSwitches from './WSoftSwitches';
 import { WSOFT_STATUS_WEBSOCKET_URL } from './api';
 import { WSoftLink, WSoftStatus } from './types';
 
@@ -53,13 +54,10 @@ const WSoftLive: FC = () => {
           />
         </Box>
       </Paper>
+      <WSoftSwitches />
       <WSoftSavePanel />
       <Table size="small">
         <TableBody>
-          <TableRow>
-            <TableCell><strong>Approval</strong></TableCell>
-            <TableCell>{status.approval_on ? 'ON' : 'OFF'} (switched with a USB cable only)</TableCell>
-          </TableRow>
           <TableRow>
             <TableCell><strong>Trade check</strong></TableCell>
             <TableCell>{status.trade_check}</TableCell>
@@ -93,7 +91,7 @@ const WSoftLive: FC = () => {
     <SectionContent title="W-Soft live" titleGutter>
       <MessageBox
         level="info"
-        message="Nothing on this page is legal for trade: that needs NRCS approval and on-site verification."
+        message="Nothing on this page is approved for trade: that needs NRCS approval and on-site verification."
         my={2}
       />
       {!connected || !data ? <FormLoader message="Connecting to WebSocket…" /> : content(data)}

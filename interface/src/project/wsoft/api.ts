@@ -2,7 +2,10 @@ import { AxiosPromise } from 'axios';
 
 import { AXIOS, WEB_SOCKET_ROOT } from '../../api/endpoints';
 
-import { WSoftHub, WSoftHubAction, WSoftSave, WSoftSettings, WSoftStatus } from './types';
+import {
+  WSoftDjbReply, WSoftDjbRequest, WSoftHub, WSoftHubAction, WSoftPinReply, WSoftPinRequest, WSoftSave,
+  WSoftScaleSetup, WSoftScaleSetupRequest, WSoftSettings, WSoftStatus, WSoftSwitches, WSoftSwitchRequest
+} from './types';
 
 export const WSOFT_STATUS_WEBSOCKET_URL = WEB_SOCKET_ROOT + 'wsoftStatus';
 
@@ -26,3 +29,23 @@ export const readWSoftSave = (): AxiosPromise<WSoftSave> => AXIOS.get('/wsoftSav
 
 /** Logged-in users. Saves the load on the scale now; 409 with `result` when it cannot. */
 export const saveWSoftWeighing = (): AxiosPromise<WSoftSave> => AXIOS.post('/wsoftSave');
+
+/** Logged-in users. Approval and Auto save as the board holds them, plus the approval log. */
+export const readWSoftSwitches = (): AxiosPromise<WSoftSwitches> => AXIOS.get('/wsoftSwitches');
+
+/** Admin only. Switches Approval or Auto save. 409 with a code when it cannot. */
+export const updateWSoftSwitch = (request: WSoftSwitchRequest): AxiosPromise<WSoftSwitches> =>
+  AXIOS.post('/wsoftSwitches', request);
+
+/** Admin only. Sets the screen Approval PIN (4 to 6 digits). The board never sends it back. */
+export const updateWSoftPin = (request: WSoftPinRequest): AxiosPromise<WSoftPinReply> => AXIOS.post('/wsoftPin', request);
+
+/** Logged-in users. The RS485 scale setup kept on the board and the last card values read. */
+export const readWSoftScaleSetup = (): AxiosPromise<WSoftScaleSetup> => AXIOS.get('/wsoftScaleSetup');
+
+/** Admin only. Saves the board part of the scale setup. 409 with a code when it cannot. */
+export const updateWSoftScaleSetup = (request: WSoftScaleSetupRequest): AxiosPromise<WSoftScaleSetup> =>
+  AXIOS.post('/wsoftScaleSetup', request);
+
+/** Admin only. One weighing card register read or write, run by the screen task. */
+export const djb = (request: WSoftDjbRequest): AxiosPromise<WSoftDjbReply> => AXIOS.post('/djb', { ...request, channel: 1 });

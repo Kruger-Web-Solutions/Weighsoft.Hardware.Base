@@ -1,5 +1,4 @@
 import { FC, useCallback, useEffect, useState } from 'react';
-import { AxiosError } from 'axios';
 import { useSnackbar } from 'notistack';
 
 import { Box, Button, Chip, TextField, Typography } from '@mui/material';
@@ -7,16 +6,11 @@ import LinkIcon from '@mui/icons-material/Link';
 import LinkOffIcon from '@mui/icons-material/LinkOff';
 
 import { ButtonRow, FormLoader, MessageBox, SectionContent } from '../../components';
-import { extractErrorMessage } from '../../utils';
-
 import * as WSoftApi from './api';
+import { boardErrorText } from './errors';
 import { WSoftHub } from './types';
 
 const REFRESH_MS = 5000;
-
-// Board-side errors come back as { error } with HTTP 400.
-const errorText = (error: AxiosError<{ error?: string }>, fallback: string) =>
-  error.response?.data?.error || extractErrorMessage(error as AxiosError<{ message?: string }>, fallback);
 
 const stateColor = (hub: WSoftHub): 'success' | 'warning' | 'error' | 'default' => {
   if (!hub.paired) return 'default';
@@ -38,7 +32,7 @@ const WSoftHubForm: FC = () => {
       setLoadError(undefined);
       setHub((await WSoftApi.readWSoftHub()).data);
     } catch (error: any) {
-      setLoadError(errorText(error, 'Problem loading the Hub link'));
+      setLoadError(boardErrorText(error, 'Problem loading the Hub link'));
     }
   }, []);
 
@@ -61,7 +55,7 @@ const WSoftHubForm: FC = () => {
       // Give the board time to restart before polling again.
       setTimeout(() => setRestarting(false), 15000);
     } catch (error: any) {
-      enqueueSnackbar(errorText(error, 'Could not save'), { variant: 'error' });
+      enqueueSnackbar(boardErrorText(error, 'Could not save'), { variant: 'error' });
     } finally {
       setBusy(false);
     }

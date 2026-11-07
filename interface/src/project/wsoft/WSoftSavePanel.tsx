@@ -62,7 +62,7 @@ const WSoftSavePanel: FC = () => {
         </Button>
         <Box>
           <Typography variant="body2">
-            {save?.auto_save ? 'Auto save is on: each settled load saves by itself.' : 'Saves the settled load for the Hub.'}
+            Saves the settled load for the Hub.
           </Typography>
           <Typography variant="body2" color="text.secondary">
             {save?.last ? `Last saved ${describe(save.last)}` : 'Nothing saved since the board started.'}
