@@ -1,6 +1,6 @@
 # W-Soft: Approval and Auto save switches everywhere, plus RS485 scale setup (design)
 
-Date: 2026-11-07. Status: **draft, waiting for Rhyno's approval**. Nothing is built.
+Date: 2026-11-07. Status: **approved by Rhyno, 7 Nov 2026 21:06 UTC**. Nothing is built.
 Repos: Weighsoft.Hardware.Base (board firmware and browser UI) and Weighsoft.Indicator.Hub (Hub).
 
 ## Rhyno's decisions (7 Nov 2026, in the thread)
