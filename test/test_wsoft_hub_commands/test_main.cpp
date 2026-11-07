@@ -197,6 +197,39 @@ void test_verify_checks_key_nonce_and_signature() {
   TEST_ASSERT_FALSE(wsoft_hub_commands_verify(KEY, "key_abc", NONCE, "key_abc", "1762549200", NONCE, other, BODY, n));
 }
 
+// The Hub's frozen wire vector (Weighsoft.Indicator.Hub
+// server/test/fixtures/hub-commands-v1-fixtures.json), copied byte for byte, so the board and the
+// Hub agree on both signatures and on the request body.
+void test_hub_fixture_both_ways() {
+  const char *secret = "wsoft-command-fixture-secret";
+  uint8_t key[32];
+  wsoft_sha256((const uint8_t *)secret, strlen(secret), key);
+  const char *nonce = "0123456789abcdef0123456789abcdef";
+
+  WsoftCmdResult r;
+  r.id = 12;
+  r.ok = false;
+  strcpy(r.error, "SETUP_INCOMPLETE");
+  char body[WSOFT_CMD_REQUEST_MAX];
+  TEST_ASSERT_TRUE(wsoft_hub_commands_request(12, &r, 1, body, sizeof body));
+  TEST_ASSERT_EQUAL_STRING("{\"applied_through\":12,\"results\":[{\"id\":12,\"ok\":false,\"error\":\"SETUP_INCOMPLETE\"}]}", body);
+  char sig[WSOFT_CMD_SIGNATURE_SIZE];
+  wsoft_hub_signature(key, "scale-models-hub-v1", "k-cmd-fixture", "1794085195", nonce, body, strlen(body), sig);
+  TEST_ASSERT_EQUAL_STRING("sha256=5d1e40b2d6f8832c056ce192a27a79a01c8d437acf300e9660cec1fdafbfbee6", sig);
+
+  const char *answer = "{\"commands\":[{\"id\":13,\"switch\":\"approval\",\"on\":true,\"by\":\"admin\",\"reason\":\"bench test\"}]}";
+  TEST_ASSERT_TRUE(wsoft_hub_commands_verify(key, "k-cmd-fixture", nonce, "k-cmd-fixture", "1794085200", nonce,
+      "sha256=61fbc896527d00fc12cbf5de15cb0f68710aefb68c904b932402f447f48d0b37", answer, strlen(answer)));
+  WsoftHubCommand cmds[WSOFT_CMD_PER_PULL];
+  size_t n = 0;
+  TEST_ASSERT_TRUE(wsoft_hub_commands_parse(answer, strlen(answer), cmds, &n));
+  TEST_ASSERT_EQUAL(1, (int)n);
+  TEST_ASSERT_EQUAL_UINT32(13, (uint32_t)cmds[0].id);
+  TEST_ASSERT_TRUE(cmds[0].on);
+  TEST_ASSERT_EQUAL_STRING("admin", cmds[0].by);
+  TEST_ASSERT_EQUAL_STRING("bench test", cmds[0].reason);
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_hmac_rfc4231);
@@ -207,5 +240,6 @@ int main(int, char **) {
   RUN_TEST(test_long_text_is_cut_so_the_switch_rules_still_see_it);
   RUN_TEST(test_signature_matches_python);
   RUN_TEST(test_verify_checks_key_nonce_and_signature);
+  RUN_TEST(test_hub_fixture_both_ways);
   return UNITY_END();
 }
