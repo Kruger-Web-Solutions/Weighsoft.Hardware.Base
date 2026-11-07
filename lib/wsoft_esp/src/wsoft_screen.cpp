@@ -401,8 +401,8 @@ static void run_job(const WsoftDjbPlan *plan, WsoftDjbResult *out) {
     strlcpy(out->error, "not_linked", sizeof out->error);
     return;
   }
-  // Approval has no web write path: an AD write is a calibration and the scale
-  // parameters are metrological. Writes need approval off (USB APPROVAL OFF).
+  // An AD write is a calibration and the card parameters are the scale's setup:
+  // writes need Approval off (switched off from any place, logged and counted).
   if (plan->write && approval_on()) {
     strlcpy(out->error, "approval_on", sizeof out->error);
     return;
@@ -443,6 +443,7 @@ static void run_job(const WsoftDjbPlan *plan, WsoftDjbResult *out) {
   int status = wsoft_djb_parse(reply, got, slave, plan->command, plan->pdu, &value, &exception);
   if (plan->write) format_stale = true;
   if (status == 0) {
+    if (plan->write) scale_card_written();
     out->ok = true;
     out->value = value;
     if (plan->alarm) {

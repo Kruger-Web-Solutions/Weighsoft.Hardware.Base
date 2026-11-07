@@ -10,13 +10,15 @@
 // copies that snapshot in loop() and pushes it out when it changes, at most once per
 // publish interval (WSoftSettingsService).
 //
-// Approval is switched only with a USB cable (APPROVAL ON/OFF).
+// Approval and Auto save are switched in WSoftSwitchesService (and on the screen, the Hub
+// and the USB line), all through switches.h.
 // GET/POST /rest/wsoftHub (admin) shows the Hub link and connects or disconnects it with a
 // Hub pairing key; the board restarts after a change. The key is never sent back.
 // GET /rest/wsoftSave (logged in) shows the weighings waiting for the Hub; POST saves the
 // load on the scale now, like the SAVE button on the board's screen.
-// POST /rest/djb (admin) reads and writes DJB registers. The screen task owns Serial1
-// and runs that one transaction; this service only queues it.
+// POST /rest/djb (admin) reads and writes the weighing card's registers. The screen task owns
+// Serial1 and runs that one transaction; this service only queues it. Refused with 409 NO_CARD
+// on RS232; every write that goes through adds 1 to the scale setup audit counter.
 
 #include <HttpEndpoint.h>
 #include <WebSocketTxRx.h>

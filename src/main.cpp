@@ -11,6 +11,7 @@
 #include <examples/lcddisplay/LcdDisplayService.h>
 #include <examples/wsoft/WSoftSettingsService.h>
 #include <examples/wsoft/WSoftStatusService.h>
+#include <examples/wsoft/WSoftSwitchesService.h>
 #if FT_ENABLED(FT_WSOFT)
 #include <wsoft_screen.h>
 #endif
@@ -145,6 +146,7 @@ LcdDisplayService* lcdDisplayService;
 #if FT_ENABLED(FT_WSOFT)
 WSoftSettingsService* wsoftSettingsService;
 WSoftStatusService* wsoftStatusService;
+WSoftSwitchesService* wsoftSwitchesService;
 // The source read at boot; the loop restarts the board when the settings page changes it.
 WSoftSource wsoftBootSource = WSOFT_SOURCE_RS485;
 
@@ -352,6 +354,8 @@ void setup() {
       wsoftSettingsService
       );
   wsoftStatusService->begin();
+  // Switches, the screen PIN and the RS485 scale setup on the web (after begin: the stores are loaded).
+  wsoftSwitchesService = new WSoftSwitchesService(server, esp8266React->getSecurityManager());
   Serial.println(F("[9/10] W-Soft services loaded OK"));
 #endif
 

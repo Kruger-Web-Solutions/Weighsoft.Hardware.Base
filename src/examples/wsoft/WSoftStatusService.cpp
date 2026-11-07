@@ -10,6 +10,7 @@
 #include <RestartService.h>
 
 #include <hub_web.h>
+#include <scale.h>
 #include <weighings.h>
 #include <wsoft_djb.h>
 #include <wsoft_screen.h>
@@ -215,6 +216,12 @@ void WSoftStatusService::updateHub(AsyncWebServerRequest* request, JsonVariant& 
 }
 
 void WSoftStatusService::handleDjb(AsyncWebServerRequest* request, JsonVariant& json) {
+  if (!scale_rs485()) {
+    request->send(409,
+                  "application/json",
+                  "{\"error\":\"NO_CARD\",\"message\":\"No weighing card: the scale is on RS232.\"}");
+    return;
+  }
   if (!json.is<JsonObject>()) {
     request->send(400, "application/json", "{\"ok\":false,\"error\":\"json\"}");
     return;
