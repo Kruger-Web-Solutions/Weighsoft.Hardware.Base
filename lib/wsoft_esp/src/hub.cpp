@@ -57,6 +57,14 @@ static volatile bool ota_busy = false;
 #ifdef WSOFT_ON_BASE
 static volatile int last_status = 0;
 static volatile uint32_t last_heartbeat_ms = 0;
+// Set when the pairing changes (the board then restarts). The applied command id belongs to
+// the old pairing: it is removed, and the Hub task stops writing it.
+static volatile bool pairing_changed = false;
+
+static void forget_commands_applied(Preferences &store) {
+  pairing_changed = true;  // first, so a Hub task write after the remove below removes it too
+  store.remove("cmd");
+}
 
 #endif
 static portMUX_TYPE health_lock = portMUX_INITIALIZER_UNLOCKED;
@@ -165,6 +173,9 @@ void hub_handle_serial(Stream &port) {
       if (!pending_ssid.isEmpty()) prefs.putString("ssid", pending_ssid);
       if (!pending_pass.isEmpty()) prefs.putString("pass", pending_pass);
       if (!pending_pair.isEmpty()) prefs.putString("pair", pending_pair);
+#ifdef WSOFT_ON_BASE
+      if (!pending_pair.isEmpty()) forget_commands_applied(prefs);
+#endif
       if (pending_ota.length() >= 8) prefs.putString("ota", pending_ota);
       prefs.end();
       pending_pass = "";
@@ -335,9 +346,12 @@ static uint64_t load_commands_applied() {
 }
 
 static void save_commands_applied(uint64_t value) {
+  if (pairing_changed) return;
   Preferences store;
   store.begin("hub", false);
   store.putULong64("cmd", value);
+  // The pairing changed while this was written: the id is not for the new pairing.
+  if (pairing_changed) store.remove("cmd");
   store.end();
 }
 
@@ -413,7 +427,9 @@ static void pull_commands() {
     const WsoftHubCommand &c = commands[i];
     if (c.id <= commands_applied) continue;
     WsoftSwitchError error = switches_set(c.which, c.on, c.by, WSOFT_WHERE_HUB, c.reason, COMMAND_APPLY_TIMEOUT_MS);
-    if (error == WSOFT_SWITCH_BUSY) return;  // not handled: asked again at the next pull
+    // BUSY: not applied, asked again at the next pull. UNCONFIRMED counts as handled (it may
+    // have been applied); the heartbeat that follows carries the real state.
+    if (error == WSOFT_SWITCH_BUSY) return;
     keep_result(c.id, error);
     commands_applied = c.id;
     save_commands_applied(commands_applied);
@@ -531,7 +547,7 @@ static void hub_task(void *) {
 #ifdef WSOFT_ON_BASE
     // A weighing saved between heartbeats goes out within a few seconds, not at the next one.
     static uint32_t next_weighing_try = 0;
-    if (state == HUB_ONLINE && !ota_busy && (int32_t)(millis() - next_command_pull) >= 0) {
+    if (state == HUB_ONLINE && !ota_busy && !pairing_changed && (int32_t)(millis() - next_command_pull) >= 0) {
       pull_commands();
       next_command_pull = millis() + COMMANDS_MS;
     }
@@ -634,6 +650,7 @@ WsoftHubCodeError hub_web_save(const char *code) {
   Preferences store;
   store.begin("hub", false);
   store.putString("pair", trimmed);
+  forget_commands_applied(store);
   store.end();
   Serial0.printf("HUB pairing saved from the web page for %s key %s\n", parsed.hub_url, parsed.key_id);
   return WSOFT_HUB_CODE_OK;
@@ -643,6 +660,7 @@ void hub_web_forget() {
   Preferences store;
   store.begin("hub", false);
   store.remove("pair");
+  forget_commands_applied(store);
   store.end();
   Serial0.println("HUB pairing forgotten from the web page");
 }
