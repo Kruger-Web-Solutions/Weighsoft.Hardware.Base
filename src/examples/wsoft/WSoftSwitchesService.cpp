@@ -13,7 +13,7 @@
 // The screen task takes a switch within one pass (5 ms) unless it is in a DJB poll or a draw.
 static const uint32_t SWITCH_TIMEOUT_MS = 1500;
 // 8 log lines of up to WSOFT_SWITCH_LOG_MAX bytes, copied into the JSON, plus the rest.
-static const size_t SWITCHES_JSON_SIZE = 2560;
+static const size_t SWITCHES_JSON_SIZE = 3072;
 static const size_t SETUP_JSON_SIZE = 1024;
 
 namespace {

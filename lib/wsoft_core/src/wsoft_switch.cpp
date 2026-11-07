@@ -83,8 +83,9 @@ WsoftSwitchError wsoft_switch_request(WsoftSwitchWhich which, bool on, const cha
   out->on = on;
   out->where = where;
 
-  copy_trimmed(who, out->who, sizeof out->who);
+  size_t length = copy_trimmed(who, out->who, sizeof out->who);
   if (out->who[0] == 0) return WSOFT_SWITCH_WHO_REQUIRED;
+  if (length > (size_t)WSOFT_SWITCH_WHO_MAX) out->who[WSOFT_SWITCH_WHO_MAX - 1] = '~';
   for (char *p = out->who; *p; p++) {
     unsigned char c = (unsigned char)*p;
     if (c <= 0x20 || c > 0x7E) *p = '_';

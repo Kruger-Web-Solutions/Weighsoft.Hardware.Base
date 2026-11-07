@@ -156,6 +156,25 @@ void test_long_text_is_cut_so_the_switch_rules_still_see_it() {
   const char *utf = "{\"commands\":[{\"id\":1,\"switch\":\"approval\",\"on\":true,\"by\":\"a\",\"reason\":\"caf\\u00e9\"}]}";
   TEST_ASSERT_TRUE(wsoft_hub_commands_parse(utf, strlen(utf), cmds, &count));
   TEST_ASSERT_TRUE(strlen(cmds[0].reason) == 4 && (unsigned char)cmds[0].reason[3] > 0x7E);
+  // A long name is cut at 64 with a '~' mark, never silently.
+  char by[71];
+  memset(by, 'b', 70);
+  by[70] = 0;
+  snprintf(body, sizeof body, "{\"commands\":[{\"id\":1,\"switch\":\"approval\",\"on\":true,\"by\":\"%s\",\"reason\":\"x\"}]}",
+           by);
+  TEST_ASSERT_TRUE(wsoft_hub_commands_parse(body, strlen(body), cmds, &count));
+  TEST_ASSERT_EQUAL(64, (int)strlen(cmds[0].by));
+  TEST_ASSERT_EQUAL('~', cmds[0].by[63]);
+}
+
+void test_nul_escape_is_refused() {
+  // \u0000 would end the C string early and hide the rest of the text.
+  TEST_ASSERT_FALSE(parses("{\"commands\":[{\"id\":1,\"switch\":\"approval\",\"on\":true,\"by\":\"a\","
+                           "\"reason\":\"ok\\u0000hidden\"}]}"));
+  TEST_ASSERT_FALSE(parses("{\"commands\":[{\"id\":1,\"switch\":\"approval\",\"on\":true,\"by\":\"a\\u0000b\","
+                           "\"reason\":\"ok\"}]}"));
+  TEST_ASSERT_TRUE(parses("{\"commands\":[{\"id\":1,\"switch\":\"approval\",\"on\":true,\"by\":\"a\","
+                          "\"reason\":\"ok\\u0001\"}]}"));  // parsed; the switch rules refuse it later
 }
 
 static uint8_t KEY[32];
@@ -238,6 +257,7 @@ int main(int, char **) {
   RUN_TEST(test_parse_empty_list_spaces_escapes_and_key_order);
   RUN_TEST(test_parse_is_strict);
   RUN_TEST(test_long_text_is_cut_so_the_switch_rules_still_see_it);
+  RUN_TEST(test_nul_escape_is_refused);
   RUN_TEST(test_signature_matches_python);
   RUN_TEST(test_verify_checks_key_nonce_and_signature);
   RUN_TEST(test_hub_fixture_both_ways);

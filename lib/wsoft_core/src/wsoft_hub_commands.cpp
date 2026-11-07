@@ -68,11 +68,13 @@ struct Reader {
     return -1;
   }
 
-  // A JSON string, cut to cap - 1 bytes. A \u escape above 0x7f becomes 0x7f, so later
-  // checks still see that it was not plain ASCII.
+  // A JSON string, cut to cap - 1 bytes; a cut string ends in '~'. A \u escape above 0x7f
+  // becomes 0x7f, so later checks still see that it was not plain ASCII. \u0000 is refused:
+  // it would end the text early and hide the rest.
   bool string(char *out, size_t cap) {
     if (!take('"')) return false;
     size_t n = 0;
+    bool cut = false;
     while (p < end && *p != '"') {
       char c = *p++;
       if ((unsigned char)c < 0x20) return false;
@@ -96,6 +98,7 @@ struct Reader {
               if (d < 0) return false;
               code = code * 16 + d;
             }
+            if (code == 0) return false;
             c = code <= 0x7E ? (char)code : (char)0x7F;
             break;
           }
@@ -103,9 +106,11 @@ struct Reader {
         }
       }
       if (n + 1 < cap) out[n++] = c;
+      else cut = true;
     }
     if (p >= end) return false;
     p++;  // closing quote
+    if (cut && n > 0) out[n - 1] = '~';
     out[n] = 0;
     return true;
   }

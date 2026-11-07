@@ -29,7 +29,7 @@ enum WsoftSwitchError {
   WSOFT_SWITCH_WHO_REQUIRED,  // no name to log (should not happen: every caller has one)
 };
 
-static const int WSOFT_SWITCH_WHO_MAX = 32;
+static const int WSOFT_SWITCH_WHO_MAX = 64;
 static const int WSOFT_SWITCH_REASON_MAX = 80;
 // "<counter> <time> OFF->ON by=<who> where=<where> why=<reason>" plus the end byte.
 static const size_t WSOFT_SWITCH_LOG_MAX = 10 + 1 + 20 + 9 + 4 + WSOFT_SWITCH_WHO_MAX + 7 + 7 + 5 +
@@ -60,8 +60,9 @@ const char *wsoft_switch_error_code(WsoftSwitchError error);
 const char *wsoft_switch_error_text(WsoftSwitchError error);
 
 // Cleans and checks one request. The reason follows wsoft_reason_check (required for
-// Approval). who is trimmed, spaces become '_' (one word in the log), and it is cut at
-// WSOFT_SWITCH_WHO_MAX. On an error *out is left half filled and must not be used.
+// Approval). who is trimmed, spaces become '_' (one word in the log). A who over
+// WSOFT_SWITCH_WHO_MAX is cut and ends in '~', so the log shows that it was cut.
+// On an error *out is left half filled and must not be used.
 WsoftSwitchError wsoft_switch_request(WsoftSwitchWhich which, bool on, const char *who, WsoftSwitchWhere where,
                                       const char *reason, WsoftSwitchRequest *out);
 

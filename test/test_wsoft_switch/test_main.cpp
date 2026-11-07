@@ -103,11 +103,19 @@ void test_who_is_required_and_capped() {
                     wsoft_switch_request(WSOFT_SWITCH_AUTO_SAVE, true, "", WSOFT_WHERE_HUB, "", &r));
   TEST_ASSERT_EQUAL(WSOFT_SWITCH_WHO_REQUIRED,
                     wsoft_switch_request(WSOFT_SWITCH_AUTO_SAVE, true, nullptr, WSOFT_WHERE_HUB, "", &r));
-  char who[60];
-  memset(who, 'w', 50);
-  who[50] = 0;
+  // Up to 64 is kept whole (a Hub username can be that long).
+  char who[80];
+  memset(who, 'w', 64);
+  who[64] = 0;
   TEST_ASSERT_EQUAL(WSOFT_SWITCH_OK, wsoft_switch_request(WSOFT_SWITCH_AUTO_SAVE, true, who, WSOFT_WHERE_HUB, "", &r));
-  TEST_ASSERT_EQUAL(WSOFT_SWITCH_WHO_MAX, (int)strlen(r.who));
+  TEST_ASSERT_EQUAL_STRING(who, r.who);
+  // Longer: cut, and the cut is marked with '~' so the log never hides it.
+  memset(who, 'w', 70);
+  who[70] = 0;
+  TEST_ASSERT_EQUAL(WSOFT_SWITCH_OK, wsoft_switch_request(WSOFT_SWITCH_AUTO_SAVE, true, who, WSOFT_WHERE_HUB, "", &r));
+  TEST_ASSERT_EQUAL(64, (int)strlen(r.who));
+  TEST_ASSERT_EQUAL('~', r.who[63]);
+  TEST_ASSERT_EQUAL('w', r.who[62]);
 }
 
 void test_already_means_nothing_changed() {
