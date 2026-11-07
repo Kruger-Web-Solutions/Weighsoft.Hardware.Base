@@ -10,7 +10,7 @@ static SemaphoreHandle_t save_mutex = nullptr;
 
 // Shared between tasks: under the spinlock.
 static bool rs485 = true;
-static WsoftScaleSetup setup;
+static WsoftScaleSetup stored_setup;
 static WsoftCardFormat card;
 static uint32_t audit = 0;
 static WsoftTare tare;
@@ -57,7 +57,7 @@ void scale_begin(bool is_rs485) {
   load(&loaded, &counter);
   portENTER_CRITICAL(&lock);
   rs485 = is_rs485;
-  setup = loaded;
+  stored_setup = loaded;
   audit = counter;
   portEXIT_CRITICAL(&lock);
   Serial0.printf("SETUP %s audit=%lu\n", is_rs485 ? "rs485 (kept on the board)" : "rs232 (set on the indicator)",
@@ -83,7 +83,7 @@ void scale_unlock() {
 
 bool scale_setup_complete() {
   portENTER_CRITICAL(&lock);
-  WsoftScaleSetup s = setup;
+  WsoftScaleSetup s = stored_setup;
   WsoftCardFormat c = card;
   portEXIT_CRITICAL(&lock);
   return wsoft_scale_setup_complete(s, c);
@@ -114,7 +114,7 @@ void scale_card_written() {
 void scale_info(ScaleInfo *out) {
   portENTER_CRITICAL(&lock);
   out->rs485 = rs485;
-  out->setup = setup;
+  out->setup = stored_setup;
   out->card = card;
   out->audit = audit;
   portEXIT_CRITICAL(&lock);
@@ -124,7 +124,7 @@ WsoftScaleHold scale_hold(bool linked, bool fresh, int32_t value, int32_t net, i
   samples.update(linked, fresh, value);
   portENTER_CRITICAL(&lock);
   bool on_rs485 = rs485;
-  WsoftScaleSetup s = setup;
+  WsoftScaleSetup s = stored_setup;
   WsoftCardFormat c = card;
   portEXIT_CRITICAL(&lock);
   if (!on_rs485 || !linked) return WSOFT_HOLD_NONE;
@@ -134,7 +134,7 @@ WsoftScaleHold scale_hold(bool linked, bool fresh, int32_t value, int32_t net, i
 WsoftTareError scale_tare_toggle(bool stable, int32_t value, int decimals, int unit) {
   portENTER_CRITICAL(&lock);
   bool was_on = tare.on;
-  WsoftScaleSetup s = setup;
+  WsoftScaleSetup s = stored_setup;
   bool on_rs485 = rs485;
   if (was_on) tare = WsoftTare();
   portEXIT_CRITICAL(&lock);
@@ -156,7 +156,7 @@ WsoftTareError scale_tare_toggle(bool stable, int32_t value, int decimals, int u
 
 WsoftTareError scale_tare_preset(int decimals, int unit) {
   portENTER_CRITICAL(&lock);
-  WsoftScaleSetup s = setup;
+  WsoftScaleSetup s = stored_setup;
   bool on_rs485 = rs485;
   portEXIT_CRITICAL(&lock);
   if (!on_rs485) return WSOFT_TARE_OFF;
@@ -206,7 +206,7 @@ WsoftSetupError scale_save(const WsoftScaleSetupInput &in, const char *who) {
     counter++;
     store_setup(next, counter);
     portENTER_CRITICAL(&lock);
-    setup = next;
+    stored_setup = next;
     audit = counter;
     tare = WsoftTare();  // the tare limits may have changed
     portEXIT_CRITICAL(&lock);
