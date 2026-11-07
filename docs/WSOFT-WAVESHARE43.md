@@ -153,17 +153,23 @@ Errors are 409 (or 400 for a bad shape) with `{"error":"CODE","message":"plain w
   Auto save takes one but does not need it.
 - Approval cannot go ON while the RS485 setup is not complete (`SETUP_INCOMPLETE`). On RS232
   the indicator owns the setup, so this check does not apply.
-- Codes: `ALREADY`, `SETUP_INCOMPLETE`, `REASON_REQUIRED`, `REASON_TOO_LONG`, `BUSY` (the screen
-  task did not take the change within 1.5 s), `WHO_REQUIRED`.
+- Codes: `ALREADY`, `SETUP_INCOMPLETE`, `REASON_REQUIRED`, `REASON_TOO_LONG`, `WHO_REQUIRED`,
+  `BUSY` (the screen task did not take the change within 1 s, or another change is in the
+  box: **not applied**) and `UNCONFIRMED` (taken, but no answer 5 s later: it **may** have
+  been applied; read the state again).
 - Every approval switch is one log line in NVS `approval`:
   `<audit> <time> OFF->ON by=<user> where=<screen|browser|hub|usb> why=<reason>`.
-  Auto save switches go to the USB log as `SWITCH auto_save ...`.
+  A name over 64 characters is cut and ends in `~`. Auto save switches go to the USB log
+  as `SWITCH auto_save ...`.
 - The screen task applies every change (it is the only flash writer). Other tasks hand it
-  the change and wait for the answer.
+  the change through a one-slot mailbox with a ticket each, so no caller gets another's
+  answer, and wait for it. Once taken, a change is waited for until it is done.
 
 **Screen PIN.** 4 to 6 digits, set by an admin in the browser. Stored as SHA-256 of a random
 16-byte salt plus the PIN (NVS `pin`). After 5 wrong tries the pad locks for 300 s; the
-count is kept across a restart. The USB log says `PIN wrong try n of 5`, never the digits.
+count is kept across a restart, so 5 stored wrong tries lock the pad again for 300 s after a
+restart, until the right PIN. The USB log says `PIN wrong try n of 5`, never the digits.
+Setting the PIN answers 409 `BUSY` if a try on the screen holds it for more than 0.5 s.
 
 **Screen MENU.** Tap the bottom left (GROSS) box. The switches page has Approval, Auto save,
 TARE and PRESET TARE (RS485 only), and BACK. Approval opens a number pad (DEL, OK, CANCEL);
@@ -182,23 +188,33 @@ live weight. Taps log `TOUCH screen=x,y` on USB.
 
 - e = the card's division in its decimals and unit (register 41307, read by the poll).
 - Codes: `SETUP_LOCKED` (approval ON or RS232), `SETUP_ORDER`, `SETUP_NUMBER`, `SETUP_TEXT`,
-  `SETUP_RANGE`, `REASON_REQUIRED`, `REASON_TOO_LONG`, `WHO_REQUIRED`.
+  `SETUP_RANGE`, `REASON_REQUIRED`, `REASON_TOO_LONG`, `BUSY` (the setup lock was not free
+  within 0.5 s).
 - `complete` = `sa_number`, `max_kg`, `min_kg` and `blank_below_e` are set and the card has
   been read. `missing` lists what is not.
 - Every saved change adds 1 to `setup_audit`. Saving clears the tare.
 - On RS485 the screen and the saver hold the weight: `OUT OF RANGE` (below
-  `-blank_below_e` x e, or above Max + `blank_above_e` x e), `BELOW MIN` (above 0 but under
-  Min), or moving until `stable_samples` readings match. Such a weight is not for trade and
-  is not saved (below Min still saves while approval is off).
+  `-blank_below_e` x e, or above Max + `blank_above_e` x e, on the gross), `BELOW MIN` (a
+  NET load above 0 but under Min; with a tare on this is stricter than the gross, **to
+  confirm against the SA rule**), or moving until `stable_samples` readings match. With a
+  complete setup, a reading that is not an exact kg value is `OUT OF RANGE` too. Such a
+  weight is not for trade and is not saved (below Min still saves while approval is off).
 - Tare (RS485): TARE takes the stable gross, TARE again clears it, PRESET TARE uses the
   saved preset. A tared weighing goes to the Hub as gross / tare / net with basis `NT`.
 
 **Hub commands.** While the Hub is online the board posts to `POST /api/v1/ingest/commands`
 every 10 s, signed like the heartbeat. The answer is checked against
 `scale-models-hub-command-v1` before anything is applied. Commands run in id order through
-the same rules (`where=hub`); the last applied id is kept in NVS `hub` (key `cmd`). A switch
-from any place sends a heartbeat at once, with `auto_save` and `scale_setup_complete` in
-`health`.
+the same rules (`where=hub`); the last applied id is kept in NVS `hub` (key `cmd`), and is
+removed whenever the pairing changes (web Connect or Forget, USB `HUB PAIR` + `HUB SAVE`,
+`HUB CLEAR`). `BUSY` is asked again at the next pull; `UNCONFIRMED` counts as handled.
+The results waiting to go to the Hub are kept in RAM only: after a restart they are lost,
+and the Hub marks those commands expired. A switch from any place sends a heartbeat at
+once, with `auto_save` and `scale_setup_complete` in `health`.
+
+**Update note.** Auto save moved from W-Soft > Settings to the switches (NVS `weigh`). At
+the first boot after the update the board reads the old `auto_save` once from
+`/config/wsoftSettings.json` and keeps it.
 
 ## 5. How it runs
 
