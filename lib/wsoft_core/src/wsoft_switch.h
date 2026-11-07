@@ -25,8 +25,9 @@ enum WsoftSwitchError {
   WSOFT_SWITCH_SETUP_INCOMPLETE,
   WSOFT_SWITCH_REASON_REQUIRED,
   WSOFT_SWITCH_REASON_TOO_LONG,
-  WSOFT_SWITCH_BUSY,          // the screen task did not take the request in time
+  WSOFT_SWITCH_BUSY,          // the screen task did not take the request in time: not applied
   WSOFT_SWITCH_WHO_REQUIRED,  // no name to log (should not happen: every caller has one)
+  WSOFT_SWITCH_UNCONFIRMED,   // taken, but no answer in time: it may have been applied
 };
 
 static const int WSOFT_SWITCH_WHO_MAX = 64;

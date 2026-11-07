@@ -2,8 +2,12 @@
 
 #include <Preferences.h>
 #include <esp_random.h>
+#include <freertos/semphr.h>
 
 static portMUX_TYPE lock = portMUX_INITIALIZER_UNLOCKED;
+// Held across a whole save or a whole try (hash and NVS write), so a try on the screen can
+// never write its old guard or fail count over a PIN the web page just saved.
+static SemaphoreHandle_t busy = nullptr;
 
 // Shared between the web task (save) and the screen task (try): under the lock.
 static bool pin_set = false;
@@ -19,6 +23,7 @@ static void store_fails(uint32_t fails) {
 }
 
 void pin_begin() {
+  if (busy == nullptr) busy = xSemaphoreCreateMutex();
   Preferences store;
   store.begin("pin", true);
   uint8_t s[WSOFT_PIN_SALT_SIZE], h[32];
@@ -36,8 +41,10 @@ void pin_begin() {
   Serial0.printf("PIN %s\n", have ? "set" : "not set (an admin sets it on the web page)");
 }
 
-bool pin_save(const char *pin) {
-  if (!wsoft_pin_format_ok(pin)) return false;
+PinSaveResult pin_save(const char *pin) {
+  if (!wsoft_pin_format_ok(pin)) return PIN_SAVE_FORMAT;
+  // Not started yet, or a try is running: do not block the web server for long.
+  if (busy == nullptr || xSemaphoreTake(busy, pdMS_TO_TICKS(PIN_SAVE_WAIT_MS)) != pdTRUE) return PIN_SAVE_BUSY;
   uint8_t s[WSOFT_PIN_SALT_SIZE], h[32];
   esp_fill_random(s, sizeof s);
   wsoft_pin_hash(s, pin, h);
@@ -53,9 +60,10 @@ bool pin_save(const char *pin) {
   pin_set = true;
   guard = WsoftPinGuard();
   portEXIT_CRITICAL(&lock);
+  xSemaphoreGive(busy);
   memset(h, 0, sizeof h);
   Serial0.println("PIN changed from the web page");
-  return true;
+  return PIN_SAVE_OK;
 }
 
 bool pin_is_set() {
@@ -81,6 +89,8 @@ int pin_tries_left() {
 }
 
 WsoftPinResult pin_try(const char *entry) {
+  if (busy == nullptr) return WSOFT_PIN_NOT_SET;  // pin_begin has not run
+  xSemaphoreTake(busy, portMAX_DELAY);  // a save holds it for one NVS write
   uint8_t s[WSOFT_PIN_SALT_SIZE], h[32];
   portENTER_CRITICAL(&lock);
   bool set = pin_set;
@@ -98,6 +108,7 @@ WsoftPinResult pin_try(const char *entry) {
   guard = g;
   portEXIT_CRITICAL(&lock);
   if (g.fails() != fails_before) store_fails(g.fails());
+  xSemaphoreGive(busy);
   if (result == WSOFT_PIN_WRONG) {
     Serial0.printf("PIN wrong try %lu of %lu\n", (unsigned long)g.fails(), (unsigned long)WSOFT_PIN_TRIES);
   } else if (result == WSOFT_PIN_LOCKED && fails_before != g.fails()) {

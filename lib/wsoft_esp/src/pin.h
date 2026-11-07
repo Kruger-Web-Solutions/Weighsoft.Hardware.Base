@@ -11,8 +11,11 @@
 
 // Screen task, at boot.
 void pin_begin();
-// Web task (admin): sets or changes the PIN. False for a bad format (nothing saved).
-bool pin_save(const char *pin);
+enum PinSaveResult { PIN_SAVE_OK, PIN_SAVE_FORMAT, PIN_SAVE_BUSY };
+// Web task (admin): sets or changes the PIN. FORMAT: not 4 to 6 digits. BUSY: a try on the
+// screen held the PIN for more than PIN_SAVE_WAIT_MS. Nothing is saved on an error.
+static const uint32_t PIN_SAVE_WAIT_MS = 500;
+PinSaveResult pin_save(const char *pin);
 bool pin_is_set();
 // Seconds left on the lock after 5 wrong tries, 0 when not locked.
 uint32_t pin_locked_s();

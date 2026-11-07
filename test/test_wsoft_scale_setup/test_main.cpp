@@ -166,6 +166,8 @@ void test_reason_is_required() {
   TEST_ASSERT_EQUAL(WSOFT_SETUP_REASON_REQUIRED, apply(in, &s));
   TEST_ASSERT_EQUAL(WSOFT_KG_UNSET, s.max_kg);  // nothing applied
   TEST_ASSERT_EQUAL_STRING("REASON_REQUIRED", wsoft_setup_error_code(WSOFT_SETUP_REASON_REQUIRED));
+  // The board answers BUSY when the setup lock is not free in time (A2's code).
+  TEST_ASSERT_EQUAL_STRING("BUSY", wsoft_setup_error_code(WSOFT_SETUP_BUSY));
 }
 
 void test_number_errors() {

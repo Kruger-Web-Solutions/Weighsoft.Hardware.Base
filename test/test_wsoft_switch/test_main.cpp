@@ -41,7 +41,9 @@ void test_names_and_codes() {
   TEST_ASSERT_EQUAL_STRING("REASON_TOO_LONG", wsoft_switch_error_code(WSOFT_SWITCH_REASON_TOO_LONG));
   TEST_ASSERT_EQUAL_STRING("BUSY", wsoft_switch_error_code(WSOFT_SWITCH_BUSY));
   TEST_ASSERT_EQUAL_STRING("WHO_REQUIRED", wsoft_switch_error_code(WSOFT_SWITCH_WHO_REQUIRED));
-  for (int e = WSOFT_SWITCH_ALREADY; e <= WSOFT_SWITCH_WHO_REQUIRED; e++) {
+  // Not BUSY: the screen task took it, so it may have been applied.
+  TEST_ASSERT_EQUAL_STRING("UNCONFIRMED", wsoft_switch_error_code(WSOFT_SWITCH_UNCONFIRMED));
+  for (int e = WSOFT_SWITCH_ALREADY; e <= WSOFT_SWITCH_UNCONFIRMED; e++) {
     const char *code = wsoft_switch_error_code((WsoftSwitchError)e);
     TEST_ASSERT_TRUE(strlen(code) >= 1 && strlen(code) <= 32);
     TEST_ASSERT_TRUE(strlen(wsoft_switch_error_text((WsoftSwitchError)e)) > 0);

@@ -5,17 +5,16 @@
 #include "scale.h"
 #include "weighings.h"
 
-// One request at a time, like the DJB job in wsoft_screen.cpp.
-static const int JOB_IDLE = 0;
-static const int JOB_QUEUED = 1;
-static const int JOB_RUNNING = 2;
-static const int JOB_DONE = 3;
+#include <wsoft_switch_mailbox.h>
 
+// One request at a time, each with its own ticket (wsoft_switch_mailbox). Every call on
+// the box is under this spinlock.
 static portMUX_TYPE lock = portMUX_INITIALIZER_UNLOCKED;
-static volatile int job_state = JOB_IDLE;
-static WsoftSwitchRequest job;
-static WsoftSwitchError job_result = WSOFT_SWITCH_OK;
+static WsoftSwitchMailbox box;
 static uint32_t changes = 0;
+// Once the screen task has a request, the caller waits for its answer: one flash write.
+// This cap is only for a stuck screen task; then the answer is UNCONFIRMED, never BUSY.
+static const uint32_t RUNNING_MAX_MS = 5000;
 
 static WsoftSwitchState state_now() {
   WeighingsInfo weigh;
@@ -31,7 +30,7 @@ static WsoftSwitchState state_now() {
 // Screen task. The scale setup lock is held from the check to the write, so a setup save
 // cannot slip in between "setup complete" and "Approval ON".
 static WsoftSwitchError apply(const WsoftSwitchRequest &r) {
-  scale_lock();
+  scale_lock(SCALE_LOCK_FOREVER);
   WsoftSwitchState before = state_now();
   WsoftSwitchError error = wsoft_switch_check(r, before);
   if (error == WSOFT_SWITCH_OK) {
@@ -65,19 +64,14 @@ WsoftSwitchError switches_apply_here(WsoftSwitchWhich which, bool on, const char
 void switches_poll() {
   WsoftSwitchRequest r;
   portENTER_CRITICAL(&lock);
-  if (job_state != JOB_QUEUED) {
-    portEXIT_CRITICAL(&lock);
-    return;
-  }
-  r = job;
-  job_state = JOB_RUNNING;
+  bool have = box.take(&r);
   portEXIT_CRITICAL(&lock);
+  if (!have) return;
 
   WsoftSwitchError result = apply(r);
 
   portENTER_CRITICAL(&lock);
-  job_result = result;
-  job_state = JOB_DONE;
+  box.finish(result);
   portEXIT_CRITICAL(&lock);
 }
 
@@ -88,34 +82,29 @@ WsoftSwitchError switches_set(WsoftSwitchWhich which, bool on, const char *who, 
   if (error != WSOFT_SWITCH_OK) return error;
 
   portENTER_CRITICAL(&lock);
-  // DONE with nobody waiting is a result whose caller timed out; it must not block for good.
-  if (job_state != JOB_IDLE && job_state != JOB_DONE) {
-    portEXIT_CRITICAL(&lock);
-    return WSOFT_SWITCH_BUSY;
-  }
-  job = r;
-  job_state = JOB_QUEUED;
+  uint32_t ticket = box.post(r);
   portEXIT_CRITICAL(&lock);
+  if (ticket == 0) return WSOFT_SWITCH_BUSY;  // another request is in the box
 
   uint32_t start = millis();
   for (;;) {
+    WsoftSwitchError result = WSOFT_SWITCH_BUSY;
+    uint32_t waited = millis() - start;
     portENTER_CRITICAL(&lock);
-    int state = job_state;
-    if (state == JOB_DONE) {
-      WsoftSwitchError result = job_result;
-      job_state = JOB_IDLE;
-      portEXIT_CRITICAL(&lock);
-      return result;
-    }
-    // Not taken in time: withdraw it, so it is never applied after the caller gave up.
-    if (state == JOB_QUEUED && millis() - start > timeout_ms) {
-      job_state = JOB_IDLE;
+    WsoftSwitchMailbox::Status status = box.check(ticket, &result);
+    if (status == WsoftSwitchMailbox::QUEUED && waited > timeout_ms) {
+      box.leave(ticket);  // still queued: withdrawn, so it is never applied
       portEXIT_CRITICAL(&lock);
       return WSOFT_SWITCH_BUSY;
     }
+    if (status == WsoftSwitchMailbox::RUNNING && waited > timeout_ms + RUNNING_MAX_MS) {
+      box.leave(ticket);  // its answer is dropped when it comes
+      portEXIT_CRITICAL(&lock);
+      return WSOFT_SWITCH_UNCONFIRMED;
+    }
     portEXIT_CRITICAL(&lock);
-    // Taken but not finished (a flash write): wait a little longer for the real answer.
-    if (millis() - start > timeout_ms + 2000) return WSOFT_SWITCH_BUSY;
+    if (status == WsoftSwitchMailbox::DONE) return result;
+    if (status == WsoftSwitchMailbox::GONE) return WSOFT_SWITCH_UNCONFIRMED;  // cannot happen: only we leave
     delay(10);
   }
 }

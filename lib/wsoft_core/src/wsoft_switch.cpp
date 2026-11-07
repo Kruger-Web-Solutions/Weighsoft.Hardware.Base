@@ -34,6 +34,7 @@ const char *wsoft_switch_error_code(WsoftSwitchError error) {
     case WSOFT_SWITCH_REASON_TOO_LONG: return "REASON_TOO_LONG";
     case WSOFT_SWITCH_BUSY: return "BUSY";
     case WSOFT_SWITCH_WHO_REQUIRED: return "WHO_REQUIRED";
+    case WSOFT_SWITCH_UNCONFIRMED: return "UNCONFIRMED";
   }
   return "BUSY";
 }
@@ -47,6 +48,7 @@ const char *wsoft_switch_error_text(WsoftSwitchError error) {
     case WSOFT_SWITCH_REASON_TOO_LONG: return "The reason can be at most 80 characters.";
     case WSOFT_SWITCH_BUSY: return "The board is busy. Try again.";
     case WSOFT_SWITCH_WHO_REQUIRED: return "No name to log the change under.";
+    case WSOFT_SWITCH_UNCONFIRMED: return "The board did not confirm the change in time. Check the state before you try again.";
   }
   return "The board is busy. Try again.";
 }

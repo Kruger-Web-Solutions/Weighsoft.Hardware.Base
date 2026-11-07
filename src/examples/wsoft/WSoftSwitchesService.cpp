@@ -11,7 +11,8 @@
 #include <wsoft_switch.h>
 
 // The screen task takes a switch within one pass (5 ms) unless it is in a DJB poll or a draw.
-static const uint32_t SWITCH_TIMEOUT_MS = 1500;
+// At most about 1 s on the web server task; then BUSY, and the switch is not applied.
+static const uint32_t SWITCH_TIMEOUT_MS = 1000;
 // 8 log lines of up to WSOFT_SWITCH_LOG_MAX bytes, copied into the JSON, plus the rest.
 static const size_t SWITCHES_JSON_SIZE = 3072;
 static const size_t SETUP_JSON_SIZE = 1024;
@@ -218,8 +219,13 @@ void WSoftSwitchesService::updateSwitch(AsyncWebServerRequest* request, JsonVari
 // A3: {"pin":"1234"}. The PIN is checked and hashed here and never echoed or logged.
 void WSoftSwitchesService::updatePin(AsyncWebServerRequest* request, JsonVariant& json) {
   const char* pin = json.is<JsonObject>() && json["pin"].is<const char*>() ? json["pin"].as<const char*>() : nullptr;
-  if (pin == nullptr || !pin_save(pin)) {
+  PinSaveResult saved = pin == nullptr ? PIN_SAVE_FORMAT : pin_save(pin);
+  if (saved == PIN_SAVE_FORMAT) {
     sendError(request, 400, "PIN_FORMAT", "The PIN is 4 to 6 digits.");
+    return;
+  }
+  if (saved == PIN_SAVE_BUSY) {
+    sendError(request, 409, "BUSY", "The board is busy. Try again.");
     return;
   }
   AsyncJsonResponse* response = new AsyncJsonResponse(false, 64);

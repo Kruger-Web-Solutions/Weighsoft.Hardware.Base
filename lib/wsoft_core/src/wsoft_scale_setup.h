@@ -73,10 +73,11 @@ enum WsoftSetupError {
   WSOFT_SETUP_LOCKED,           // Approval is ON, or the scale is on RS232 (checked by the board)
   WSOFT_SETUP_ORDER,            // needs max > e, min >= e, min < max
   WSOFT_SETUP_NUMBER,           // not a number, more than 5 decimals, or not a multiple of e
-  WSOFT_SETUP_TEXT,             // SA number: up to 32 printable characters
+  WSOFT_SETUP_TEXT,             // SA number: 1 to 32 printable characters
   WSOFT_SETUP_RANGE,            // stable samples 3..20, blank counts 0..100, tare_max <= max, preset <= tare_max
   WSOFT_SETUP_REASON_REQUIRED,
   WSOFT_SETUP_REASON_TOO_LONG,
+  WSOFT_SETUP_BUSY,             // the board could not take the setup lock in time (checked by the board)
 };
 
 const char *wsoft_setup_error_code(WsoftSetupError error);

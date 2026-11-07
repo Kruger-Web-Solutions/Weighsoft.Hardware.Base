@@ -71,8 +71,10 @@ bool scale_rs485() {
   return value;
 }
 
-void scale_lock() {
-  if (save_mutex != nullptr) xSemaphoreTake(save_mutex, portMAX_DELAY);
+bool scale_lock(uint32_t timeout_ms) {
+  if (save_mutex == nullptr) return true;
+  TickType_t wait = timeout_ms == SCALE_LOCK_FOREVER ? portMAX_DELAY : pdMS_TO_TICKS(timeout_ms);
+  return xSemaphoreTake(save_mutex, wait) == pdTRUE;
 }
 
 void scale_unlock() {
@@ -97,7 +99,7 @@ void scale_set_card(int32_t division, int decimal, int unit) {
 }
 
 void scale_card_written() {
-  scale_lock();
+  scale_lock(SCALE_LOCK_FOREVER);  // screen task
   portENTER_CRITICAL(&lock);
   uint32_t counter = ++audit;
   portEXIT_CRITICAL(&lock);
@@ -189,7 +191,7 @@ bool scale_net(int32_t gross, int decimals, int unit, int32_t *net) {
 }
 
 WsoftSetupError scale_save(const WsoftScaleSetupInput &in, const char *who) {
-  scale_lock();
+  if (!scale_lock(SCALE_LOCK_WEB_MS)) return WSOFT_SETUP_BUSY;  // web task: do not block it
   ScaleInfo now;
   scale_info(&now);
   if (!now.rs485 || approval_on()) {

@@ -19,7 +19,9 @@
 void switches_poll();
 
 // Any task but the screen task. Waits up to timeout_ms for the screen task to take the
-// request; BUSY when it did not, or when another request is still waiting.
+// request; BUSY (not applied) when it did not, or when another request is in the box.
+// Once taken, it waits for the answer (one flash write). UNCONFIRMED only if the screen
+// task is stuck for 5 s more: the change may then have been applied.
 WsoftSwitchError switches_set(WsoftSwitchWhich which, bool on, const char *who, WsoftSwitchWhere where,
                               const char *reason, uint32_t timeout_ms);
 

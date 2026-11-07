@@ -7,7 +7,8 @@
 //
 // Tasks: the web task saves the setup; the screen task reads the card and counts card writes.
 // scale_lock() is a mutex held across "check, then write" so a setup save and an Approval
-// switch can never cross.
+// switch can never cross. The web task waits at most SCALE_LOCK_WEB_MS for it (then BUSY),
+// so it never blocks the web server for long; the screen task waits until it is free.
 
 #include <Arduino.h>
 
@@ -17,7 +18,10 @@
 void scale_begin(bool rs485);
 bool scale_rs485();
 
-void scale_lock();
+static const uint32_t SCALE_LOCK_WEB_MS = 500;
+static const uint32_t SCALE_LOCK_FOREVER = 0xFFFFFFFFu;
+// False when the lock was not free within timeout_ms (then do not call scale_unlock).
+bool scale_lock(uint32_t timeout_ms);
 void scale_unlock();
 
 bool scale_setup_complete();
@@ -51,6 +55,7 @@ WsoftTare scale_tare();
 // Returns true when a tare is on.
 bool scale_net(int32_t gross, int decimals, int unit, int32_t *net);
 
-// Web task (admin): checks and saves an A5 body. LOCKED while Approval is ON or on RS232.
+// Web task (admin): checks and saves an A5 body. LOCKED while Approval is ON or on RS232;
+// BUSY when the setup lock is not free within SCALE_LOCK_WEB_MS.
 // who is the signed-in name, for the USB log line.
 WsoftSetupError scale_save(const WsoftScaleSetupInput &in, const char *who);

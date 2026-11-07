@@ -22,6 +22,7 @@ const char *wsoft_setup_error_code(WsoftSetupError error) {
     case WSOFT_SETUP_RANGE: return "SETUP_RANGE";
     case WSOFT_SETUP_REASON_REQUIRED: return "REASON_REQUIRED";
     case WSOFT_SETUP_REASON_TOO_LONG: return "REASON_TOO_LONG";
+    case WSOFT_SETUP_BUSY: return "BUSY";
   }
   return "SETUP_NUMBER";
 }
@@ -32,10 +33,11 @@ const char *wsoft_setup_error_text(WsoftSetupError error) {
     case WSOFT_SETUP_LOCKED: return "The setup is locked: switch Approval off first (RS232 scales are set on the indicator).";
     case WSOFT_SETUP_ORDER: return "Max must be more than e, Min at least e, and Min below Max.";
     case WSOFT_SETUP_NUMBER: return "Use a kg number with at most 5 decimals that is a whole number of e.";
-    case WSOFT_SETUP_TEXT: return "The SA number is up to 32 letters, digits and signs.";
+    case WSOFT_SETUP_TEXT: return "The SA number is 1 to 32 letters, digits and signs.";
     case WSOFT_SETUP_RANGE: return "Stable samples 3 to 20, blank counts 0 to 100, tare at most Max, preset at most the tare limit.";
     case WSOFT_SETUP_REASON_REQUIRED: return "Give a short reason (letters, digits and signs only).";
     case WSOFT_SETUP_REASON_TOO_LONG: return "The reason can be at most 80 characters.";
+    case WSOFT_SETUP_BUSY: return "The board is busy. Try again.";
   }
   return "";
 }
