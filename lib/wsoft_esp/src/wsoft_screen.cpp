@@ -1374,10 +1374,10 @@ void wsoft_screen_loop() {
   }
 
   // RS485 setup: blanking, below Min and the stable samples hold a reading back (NONE on RS232).
-  WsoftScaleHold hold = scale_hold(next.linked, fresh, next.value, next.decimals, next.unit);
-  TradeCheck check = approval_update_held(next.linked, fresh, next.alarm, next.value, next.decimals, next.unit, hold);
   int32_t net = next.value;
   bool tared = scale_net(next.value, next.decimals, next.unit, &net);
+  WsoftScaleHold hold = scale_hold(next.linked, fresh, next.value, net, next.decimals, next.unit);
+  TradeCheck check = approval_update_held(next.linked, fresh, next.alarm, next.value, next.decimals, next.unit, hold);
   WsoftSaveResult save_hold = WSOFT_SAVE_NONE;
   if (hold == WSOFT_HOLD_BLANK) save_hold = WSOFT_SAVE_BLANK;
   else if (hold == WSOFT_HOLD_NOT_STABLE) save_hold = WSOFT_SAVE_NOT_STABLE;

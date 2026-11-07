@@ -37,7 +37,8 @@ void scale_info(ScaleInfo *out);
 
 // Screen task, once per reading: updates the stable-samples count and says why this
 // reading is held back (blank, below Min, not stable yet). Always NONE on RS232.
-WsoftScaleHold scale_hold(bool linked, bool fresh, int32_t value, int decimals, int unit);
+// net = the weight less the tare (scale_net), so below Min looks at the load.
+WsoftScaleHold scale_hold(bool linked, bool fresh, int32_t value, int32_t net, int decimals, int unit);
 
 // Runtime tare (RS485 only; never stored, cleared at a restart or a setup save).
 // Screen task: TARE takes the stable gross, or clears a tare that is on.

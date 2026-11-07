@@ -144,7 +144,7 @@ static WsoftSetupError take_sa_number(const WsoftSetupText &in, char out[WSOFT_S
   while (*start == ' ') start++;
   size_t length = strlen(start);
   while (length > 0 && start[length - 1] == ' ') length--;
-  if (length > WSOFT_SA_NUMBER_MAX) return WSOFT_SETUP_TEXT;
+  if (length == 0 || length > WSOFT_SA_NUMBER_MAX) return WSOFT_SETUP_TEXT;
   for (size_t i = 0; i < length; i++) {
     unsigned char c = (unsigned char)start[i];
     if (c < 0x20 || c > 0x7E) return WSOFT_SETUP_TEXT;
@@ -271,13 +271,17 @@ void WsoftStableSamples::update(bool linked, bool fresh, int32_t value) {
   count_ = 1;
 }
 
-WsoftScaleHold wsoft_scale_hold(const WsoftScaleSetup &s, const WsoftCardFormat &card, int32_t value, int decimals,
-                                int unit, bool samples_stable) {
-  int64_t e = 0, kg = 0;
-  if (wsoft_card_e(card, &e) && wsoft_reading_to_kg(value, decimals, unit, &kg)) {
+WsoftScaleHold wsoft_scale_hold(const WsoftScaleSetup &s, const WsoftCardFormat &card, int32_t value, int32_t net,
+                                int decimals, int unit, bool samples_stable) {
+  int64_t e = 0, kg = 0, net_kg = 0;
+  if (wsoft_card_e(card, &e) && wsoft_reading_to_kg(value, decimals, unit, &kg) &&
+      wsoft_reading_to_kg(net, decimals, unit, &net_kg)) {
     if (s.blank_below_e != WSOFT_BLANK_UNSET && kg < -(int64_t)s.blank_below_e * e) return WSOFT_HOLD_BLANK;
     if (set(s.max_kg) && kg > s.max_kg + (int64_t)s.blank_above_e * e) return WSOFT_HOLD_BLANK;
-    if (set(s.min_kg) && kg > 0 && kg < s.min_kg) return WSOFT_HOLD_BELOW_MIN;
+    // The load on the plate: NET when a tare is on (to confirm against the SA rule).
+    if (set(s.min_kg) && net_kg > 0 && net_kg < s.min_kg) return WSOFT_HOLD_BELOW_MIN;
+  } else if (wsoft_scale_setup_complete(s, card)) {
+    return WSOFT_HOLD_BLANK;  // a weight we cannot check is not shown as one
   }
   return samples_stable ? WSOFT_HOLD_NONE : WSOFT_HOLD_NOT_STABLE;
 }

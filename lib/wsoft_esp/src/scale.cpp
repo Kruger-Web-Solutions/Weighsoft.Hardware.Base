@@ -118,7 +118,7 @@ void scale_info(ScaleInfo *out) {
   portEXIT_CRITICAL(&lock);
 }
 
-WsoftScaleHold scale_hold(bool linked, bool fresh, int32_t value, int decimals, int unit) {
+WsoftScaleHold scale_hold(bool linked, bool fresh, int32_t value, int32_t net, int decimals, int unit) {
   samples.update(linked, fresh, value);
   portENTER_CRITICAL(&lock);
   bool on_rs485 = rs485;
@@ -126,7 +126,7 @@ WsoftScaleHold scale_hold(bool linked, bool fresh, int32_t value, int decimals, 
   WsoftCardFormat c = card;
   portEXIT_CRITICAL(&lock);
   if (!on_rs485 || !linked) return WSOFT_HOLD_NONE;
-  return wsoft_scale_hold(s, c, value, decimals, unit, samples.stable(s.stable_samples));
+  return wsoft_scale_hold(s, c, value, net, decimals, unit, samples.stable(s.stable_samples));
 }
 
 WsoftTareError scale_tare_toggle(bool stable, int32_t value, int decimals, int unit) {

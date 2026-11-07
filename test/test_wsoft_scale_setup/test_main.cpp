@@ -215,9 +215,11 @@ void test_text_errors() {
   in.sa_number = text("  SA 7  ");
   TEST_ASSERT_EQUAL(WSOFT_SETUP_OK, apply(in, &s));
   TEST_ASSERT_EQUAL_STRING("SA 7", s.sa_number);  // trimmed
-  in.sa_number = text("");  // clearing it is allowed; the setup is then not complete
-  TEST_ASSERT_EQUAL(WSOFT_SETUP_OK, apply(in, &s));
-  TEST_ASSERT_FALSE(wsoft_scale_setup_complete(s, HALF_KG));
+  in.sa_number = text("");  // A5: 1 to 32 characters, so an empty one is refused
+  TEST_ASSERT_EQUAL(WSOFT_SETUP_TEXT, apply(in, &s));
+  in.sa_number = text("   ");
+  TEST_ASSERT_EQUAL(WSOFT_SETUP_TEXT, apply(in, &s));
+  TEST_ASSERT_EQUAL_STRING("SA 7", s.sa_number);  // kept
 }
 
 void test_range_errors() {
@@ -295,27 +297,49 @@ void test_blanking() {
   WsoftScaleSetup s;
   apply(good(), &s);  // e 0.5 kg, max 3000, blank below 2e, above 9e
   // Readings with 1 decimal in kg (the card's format).
-  TEST_ASSERT_EQUAL(WSOFT_HOLD_NONE, wsoft_scale_hold(s, HALF_KG, -10, 1, 1, true));      // -1.0 = -2e
-  TEST_ASSERT_EQUAL(WSOFT_HOLD_BLANK, wsoft_scale_hold(s, HALF_KG, -15, 1, 1, true));     // -1.5
-  TEST_ASSERT_EQUAL(WSOFT_HOLD_NONE, wsoft_scale_hold(s, HALF_KG, 30045, 1, 1, true));    // 3004.5 = max + 9e
-  TEST_ASSERT_EQUAL(WSOFT_HOLD_BLANK, wsoft_scale_hold(s, HALF_KG, 30050, 1, 1, true));   // 3005.0
-  TEST_ASSERT_EQUAL(WSOFT_HOLD_BLANK, wsoft_scale_hold(s, HALF_KG, 30050, 1, 1, false));  // blank wins
+  TEST_ASSERT_EQUAL(WSOFT_HOLD_NONE, wsoft_scale_hold(s, HALF_KG, -10, -10, 1, 1, true));      // -1.0 = -2e
+  TEST_ASSERT_EQUAL(WSOFT_HOLD_BLANK, wsoft_scale_hold(s, HALF_KG, -15, -15, 1, 1, true));     // -1.5
+  TEST_ASSERT_EQUAL(WSOFT_HOLD_NONE, wsoft_scale_hold(s, HALF_KG, 30045, 30045, 1, 1, true));    // 3004.5 = max + 9e
+  TEST_ASSERT_EQUAL(WSOFT_HOLD_BLANK, wsoft_scale_hold(s, HALF_KG, 30050, 30050, 1, 1, true));   // 3005.0
+  TEST_ASSERT_EQUAL(WSOFT_HOLD_BLANK, wsoft_scale_hold(s, HALF_KG, 30050, 30050, 1, 1, false));  // blank wins
   // No blank_below_e yet: no blanking under zero.
   s.blank_below_e = WSOFT_BLANK_UNSET;
-  TEST_ASSERT_EQUAL(WSOFT_HOLD_NONE, wsoft_scale_hold(s, HALF_KG, -1000, 1, 1, true));
+  TEST_ASSERT_EQUAL(WSOFT_HOLD_NONE, wsoft_scale_hold(s, HALF_KG, -1000, -1000, 1, 1, true));
   // Card not read: nothing can be checked.
-  TEST_ASSERT_EQUAL(WSOFT_HOLD_NONE, wsoft_scale_hold(s, WsoftCardFormat(), 99999, 1, 1, true));
+  TEST_ASSERT_EQUAL(WSOFT_HOLD_NONE, wsoft_scale_hold(s, WsoftCardFormat(), 99999, 99999, 1, 1, true));
 }
 
 void test_below_min_and_samples() {
   WsoftScaleSetup s;
   apply(good(), &s);  // min 10 kg
-  TEST_ASSERT_EQUAL(WSOFT_HOLD_BELOW_MIN, wsoft_scale_hold(s, HALF_KG, 95, 1, 1, true));  // 9.5
-  TEST_ASSERT_EQUAL(WSOFT_HOLD_NONE, wsoft_scale_hold(s, HALF_KG, 100, 1, 1, true));      // 10.0
-  TEST_ASSERT_EQUAL(WSOFT_HOLD_NONE, wsoft_scale_hold(s, HALF_KG, 0, 1, 1, true));        // empty is not "below Min"
-  TEST_ASSERT_EQUAL(WSOFT_HOLD_BELOW_MIN, wsoft_scale_hold(s, HALF_KG, 95, 1, 1, false));
-  TEST_ASSERT_EQUAL(WSOFT_HOLD_NOT_STABLE, wsoft_scale_hold(s, HALF_KG, 100, 1, 1, false));
-  TEST_ASSERT_EQUAL(WSOFT_HOLD_NOT_STABLE, wsoft_scale_hold(s, WsoftCardFormat(), 100, 1, 1, false));
+  TEST_ASSERT_EQUAL(WSOFT_HOLD_BELOW_MIN, wsoft_scale_hold(s, HALF_KG, 95, 95, 1, 1, true));  // 9.5
+  TEST_ASSERT_EQUAL(WSOFT_HOLD_NONE, wsoft_scale_hold(s, HALF_KG, 100, 100, 1, 1, true));      // 10.0
+  TEST_ASSERT_EQUAL(WSOFT_HOLD_NONE, wsoft_scale_hold(s, HALF_KG, 0, 0, 1, 1, true));        // empty is not "below Min"
+  TEST_ASSERT_EQUAL(WSOFT_HOLD_BELOW_MIN, wsoft_scale_hold(s, HALF_KG, 95, 95, 1, 1, false));
+  TEST_ASSERT_EQUAL(WSOFT_HOLD_NOT_STABLE, wsoft_scale_hold(s, HALF_KG, 100, 100, 1, 1, false));
+  TEST_ASSERT_EQUAL(WSOFT_HOLD_NOT_STABLE, wsoft_scale_hold(s, WsoftCardFormat(), 100, 100, 1, 1, false));
+}
+
+// Below Min is checked on the NET load when a tare is on (stricter; to confirm against
+// the SA rule). Blanking stays on the gross.
+void test_below_min_uses_the_net_load() {
+  WsoftScaleSetup s;
+  apply(good(), &s);  // min 10 kg, max 3000
+  TEST_ASSERT_EQUAL(WSOFT_HOLD_BELOW_MIN, wsoft_scale_hold(s, HALF_KG, 150, 90, 1, 1, true));  // 15 gross, 9 net
+  TEST_ASSERT_EQUAL(WSOFT_HOLD_NONE, wsoft_scale_hold(s, HALF_KG, 200, 100, 1, 1, true));      // 10 net
+  TEST_ASSERT_EQUAL(WSOFT_HOLD_NONE, wsoft_scale_hold(s, HALF_KG, 60, 0, 1, 1, true));         // tared, empty
+  TEST_ASSERT_EQUAL(WSOFT_HOLD_BLANK, wsoft_scale_hold(s, HALF_KG, 30050, 20000, 1, 1, true)); // gross over
+}
+
+// With a complete setup, a reading that cannot be turned into kg is not trusted: blank.
+void test_reading_that_is_not_kg_is_blank() {
+  WsoftScaleSetup s;
+  apply(good(), &s);
+  TEST_ASSERT_TRUE(wsoft_scale_setup_complete(s, HALF_KG));
+  TEST_ASSERT_EQUAL(WSOFT_HOLD_BLANK, wsoft_scale_hold(s, HALF_KG, 1, 1, 7, 1, true));    // 1e-7 kg
+  TEST_ASSERT_EQUAL(WSOFT_HOLD_BLANK, wsoft_scale_hold(s, HALF_KG, 100, 100, 1, 99, true));  // unknown unit
+  WsoftScaleSetup empty;  // not complete: nothing to check yet
+  TEST_ASSERT_EQUAL(WSOFT_HOLD_NONE, wsoft_scale_hold(empty, HALF_KG, 1, 1, 7, 1, true));
 }
 
 void test_stable_samples_counter() {
@@ -399,6 +423,8 @@ int main(int, char **) {
   RUN_TEST(test_card_not_read_skips_the_e_checks);
   RUN_TEST(test_blanking);
   RUN_TEST(test_below_min_and_samples);
+  RUN_TEST(test_below_min_uses_the_net_load);
+  RUN_TEST(test_reading_that_is_not_kg_is_blank);
   RUN_TEST(test_stable_samples_counter);
   RUN_TEST(test_tare_button);
   RUN_TEST(test_tare_limit_falls_back_to_max);

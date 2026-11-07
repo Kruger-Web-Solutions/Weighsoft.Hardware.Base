@@ -128,9 +128,10 @@ enum WsoftScaleHold {
 };
 
 // blank(value) = value < -blank_below_e*e || value > max + blank_above_e*e. Each side only
-// when its setting is there and the card's e is known. Below Min only for 0 < value < min.
-WsoftScaleHold wsoft_scale_hold(const WsoftScaleSetup &setup, const WsoftCardFormat &card, int32_t value, int decimals,
-                                int unit, bool samples_stable);
+// when its setting is there and the card's e is known. Below Min only for 0 < net < min (net =
+// gross when no tare is on). With a complete setup, a reading that is not exact kg is BLANK.
+WsoftScaleHold wsoft_scale_hold(const WsoftScaleSetup &setup, const WsoftCardFormat &card, int32_t gross, int32_t net,
+                                int decimals, int unit, bool samples_stable);
 
 // Runtime tare, in the reading's own decimals and unit (cleared when they change).
 struct WsoftTare {
