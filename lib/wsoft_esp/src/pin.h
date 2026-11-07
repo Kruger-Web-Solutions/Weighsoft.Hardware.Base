@@ -16,5 +16,7 @@ bool pin_save(const char *pin);
 bool pin_is_set();
 // Seconds left on the lock after 5 wrong tries, 0 when not locked.
 uint32_t pin_locked_s();
+// Wrong tries left before the lock.
+int pin_tries_left();
 // Screen task: one try on the number pad. Wrong tries are logged without the digits.
 WsoftPinResult pin_try(const char *entry);

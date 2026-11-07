@@ -73,6 +73,13 @@ uint32_t pin_locked_s() {
   return value;
 }
 
+int pin_tries_left() {
+  portENTER_CRITICAL(&lock);
+  int value = guard.tries_left();
+  portEXIT_CRITICAL(&lock);
+  return value;
+}
+
 WsoftPinResult pin_try(const char *entry) {
   uint8_t s[WSOFT_PIN_SALT_SIZE], h[32];
   portENTER_CRITICAL(&lock);
