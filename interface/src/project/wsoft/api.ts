@@ -2,7 +2,7 @@ import { AxiosPromise } from 'axios';
 
 import { AXIOS, WEB_SOCKET_ROOT } from '../../api/endpoints';
 
-import { WSoftHub, WSoftHubAction, WSoftSettings, WSoftStatus } from './types';
+import { WSoftHub, WSoftHubAction, WSoftSave, WSoftSettings, WSoftStatus } from './types';
 
 export const WSOFT_STATUS_WEBSOCKET_URL = WEB_SOCKET_ROOT + 'wsoftStatus';
 
@@ -20,3 +20,9 @@ export const readWSoftHub = (): AxiosPromise<WSoftHub> => AXIOS.get('/wsoftHub')
 
 /** Admin only. Connect with a pairing key, or disconnect. The board restarts on success. */
 export const updateWSoftHub = (action: WSoftHubAction): AxiosPromise<WSoftHub> => AXIOS.post('/wsoftHub', action);
+
+/** Logged-in users. Weighings waiting for the Hub and the last one saved. */
+export const readWSoftSave = (): AxiosPromise<WSoftSave> => AXIOS.get('/wsoftSave');
+
+/** Logged-in users. Saves the load on the scale now; 409 with `result` when it cannot. */
+export const saveWSoftWeighing = (): AxiosPromise<WSoftSave> => AXIOS.post('/wsoftSave');

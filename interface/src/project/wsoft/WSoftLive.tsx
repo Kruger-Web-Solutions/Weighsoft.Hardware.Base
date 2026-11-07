@@ -5,6 +5,7 @@ import { Box, Chip, Paper, Table, TableBody, TableCell, TableRow, Typography } f
 import { FormLoader, MessageBox, SectionContent } from '../../components';
 import { useWs } from '../../utils';
 
+import WSoftSavePanel from './WSoftSavePanel';
 import { WSOFT_STATUS_WEBSOCKET_URL } from './api';
 import { WSoftLink, WSoftStatus } from './types';
 
@@ -52,6 +53,7 @@ const WSoftLive: FC = () => {
           />
         </Box>
       </Paper>
+      <WSoftSavePanel />
       <Table size="small">
         <TableBody>
           <TableRow>
@@ -91,7 +93,7 @@ const WSoftLive: FC = () => {
     <SectionContent title="W-Soft live" titleGutter>
       <MessageBox
         level="info"
-        message="Read-only. Nothing on this page is legal for trade: that needs NRCS approval and on-site verification."
+        message="Nothing on this page is legal for trade: that needs NRCS approval and on-site verification."
         my={2}
       />
       {!connected || !data ? <FormLoader message="Connecting to WebSocket…" /> : content(data)}

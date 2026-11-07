@@ -160,6 +160,20 @@ void test_bad_source_is_rejected_without_change() {
   TEST_ASSERT_EQUAL(WSOFT_SOURCE_RS232, s.source);
 }
 
+void test_auto_save_defaults_off_and_switches() {
+  WSoftSettingsData s = defaults();
+  TEST_ASSERT_FALSE(s.auto_save);
+  WSoftSettingsInput in;
+  in.has_auto_save = true;
+  in.auto_save = true;
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_CHANGED, wsoft_settings_update(in, &s));
+  TEST_ASSERT_TRUE(s.auto_save);
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_UNCHANGED, wsoft_settings_update(in, &s));
+  WSoftSettingsInput missing;
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_CHANGED, wsoft_settings_update(missing, &s));
+  TEST_ASSERT_FALSE(s.auto_save);  // full replace: a missing field takes its default
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_defaults);
@@ -173,5 +187,6 @@ int main(int, char **) {
   RUN_TEST(test_bad_names_are_rejected);
   RUN_TEST(test_source_defaults_to_rs485_and_takes_rs232);
   RUN_TEST(test_bad_source_is_rejected_without_change);
+  RUN_TEST(test_auto_save_defaults_off_and_switches);
   return UNITY_END();
 }

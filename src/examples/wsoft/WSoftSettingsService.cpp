@@ -37,6 +37,12 @@ WSoftSource WSoftSettingsService::source() {
   return WSOFT_HAS_RS232 ? source : WSOFT_SOURCE_RS485;
 }
 
+bool WSoftSettingsService::autoSave() {
+  bool on = false;
+  read([&](const WSoftSettings& s) { on = s.data.auto_save; });
+  return on;
+}
+
 uint32_t WSoftSettingsService::publishIntervalMs() {
   uint32_t ms = WSOFT_PUBLISH_DEFAULT_MS;
   read([&](const WSoftSettings& s) { ms = s.data.publish_interval_ms; });

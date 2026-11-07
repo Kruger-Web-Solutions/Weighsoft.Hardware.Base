@@ -40,6 +40,7 @@ class WSoftSettings {
     root["mqtt_name"] = settings.data.mqtt_name;
     root["mqtt_unique_id"] = settings.data.mqtt_unique_id;
     root["source"] = wsoft_source_text(settings.data.source);
+    root["auto_save"] = settings.data.auto_save;
   }
 
   // Stored fields plus the resolved status topic, for the settings page.
@@ -70,6 +71,10 @@ class WSoftSettings {
     in.mqtt_name = root["mqtt_name"].as<const char*>();
     in.mqtt_unique_id = root["mqtt_unique_id"].as<const char*>();
     in.source = root["source"].as<const char*>();
+    if (root["auto_save"].is<bool>()) {
+      in.has_auto_save = true;
+      in.auto_save = root["auto_save"].as<bool>();
+    }
 #if !WSOFT_HAS_RS232
     // This board has no RS232 wiring: the source stays RS485 whatever is sent.
     if (in.source != nullptr && strcmp(in.source, "rs485") != 0) return StateUpdateResult::ERROR;
@@ -99,6 +104,8 @@ class WSoftSettingsService : public StatefulService<WSoftSettings> {
   uint32_t publishIntervalMs();
   // RS485 (DJB) or RS232 (scale line). Read at boot; a change takes effect after a restart.
   WSoftSource source();
+  // Save a weighing by itself when a new load settles.
+  bool autoSave();
   // Empty when MQTT is switched off for W-Soft.
   String mqttStatusTopic();
   // Home Assistant discovery name and unique id, placeholders expanded.

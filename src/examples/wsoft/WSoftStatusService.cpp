@@ -10,6 +10,7 @@
 #include <RestartService.h>
 
 #include <hub_web.h>
+#include <weighings.h>
 #include <wsoft_djb.h>
 #include <wsoft_screen.h>
 
@@ -99,6 +100,14 @@ WSoftStatusService::WSoftStatusService(AsyncWebServer* server,
       1024);
   hubHandler->setMethod(HTTP_POST);
   server->addHandler(hubHandler);
+  server->on(WSOFT_SAVE_ENDPOINT_PATH,
+             HTTP_GET,
+             securityManager->wrapRequest(std::bind(&WSoftStatusService::readSave, this, std::placeholders::_1),
+                                          AuthenticationPredicates::IS_AUTHENTICATED));
+  server->on(WSOFT_SAVE_ENDPOINT_PATH,
+             HTTP_POST,
+             securityManager->wrapRequest(std::bind(&WSoftStatusService::save, this, std::placeholders::_1),
+                                          AuthenticationPredicates::IS_AUTHENTICATED));
 #if FT_ENABLED(FT_MQTT)
   _mqttClient->onConnect(std::bind(&WSoftStatusService::configureMqtt, this));
   // Topic or MQTT on/off changed on the settings page.
@@ -133,6 +142,54 @@ void sendHub(AsyncWebServerRequest* request, int code, bool restarting, const ch
 }
 
 }  // namespace
+
+namespace {
+
+void putWeighing(JsonObject& root, const char* key, const TradeWeight& w) {
+  if (!w.valid) {
+    root[key] = (const char*)nullptr;
+    return;
+  }
+  JsonObject out = root.createNestedObject(key);
+  char weight[16];
+  format_weight(w.value, w.decimals, weight, sizeof weight);
+  out["seq"] = w.seq;
+  out["weight"] = weight;  // ArduinoJson copies a char*
+  out["unit"] = weight_unit_text(w.unit);
+  out["at"] = (long)w.at;  // unix seconds
+}
+
+void sendSave(AsyncWebServerRequest* request, int code, WsoftSaveResult result, const TradeWeight* saved) {
+  WeighingsInfo info;
+  weighings_info(&info);
+  AsyncJsonResponse* response = new AsyncJsonResponse(false, 512);
+  JsonObject root = response->getRoot().to<JsonObject>();
+  root["auto_save"] = info.auto_save;
+  root["pending"] = (unsigned)info.pending;
+  putWeighing(root, "last", info.last);
+  if (saved != nullptr) {
+    root["ok"] = result == WSOFT_SAVE_SAVED;
+    root["result"] = wsoft_save_result_text(result);
+    if (result == WSOFT_SAVE_SAVED) putWeighing(root, "saved", *saved);
+  }
+  response->setCode(code);
+  response->setLength();
+  request->send(response);
+}
+
+}  // namespace
+
+void WSoftStatusService::readSave(AsyncWebServerRequest* request) {
+  sendSave(request, 200, WSOFT_SAVE_NONE, nullptr);
+}
+
+// Asks the screen task to save the load on the scale and waits for its answer (one pass,
+// at most 250 ms; 1.5 s cap). 200 when saved; 409 with the reason when not.
+void WSoftStatusService::save(AsyncWebServerRequest* request) {
+  TradeWeight saved;
+  WsoftSaveResult result = weighings_save(1500, &saved);
+  sendSave(request, result == WSOFT_SAVE_SAVED ? 200 : 409, result, &saved);
+}
 
 void WSoftStatusService::readHub(AsyncWebServerRequest* request) {
   sendHub(request, 200, false, nullptr);
@@ -232,6 +289,9 @@ void WSoftStatusService::begin() {
   Serial.println(rs232 ? F("[WSoft] Starting W-Soft screen (RS232 scale via the Serial reader)...")
                        : F("[WSoft] Starting W-Soft screen (RS485 DJB on Serial1)..."));
   wsoft_screen_setup(rs232);
+  weighings_set_auto_save(_settingsService->autoSave());
+  _settingsService->addUpdateHandler([this](const String&) { weighings_set_auto_save(_settingsService->autoSave()); },
+                                     false);
   xTaskCreatePinnedToCore(screenTask,
                           "wsoftScreen",
                           WSOFT_SCREEN_TASK_STACK,

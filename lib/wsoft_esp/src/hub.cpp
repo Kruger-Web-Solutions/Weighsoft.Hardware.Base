@@ -2,6 +2,7 @@
 #include "approval.h"
 #ifdef WSOFT_ON_BASE
 #include "hub_web.h"
+#include "weighings.h"
 #endif
 #ifndef WSOFT_ON_BASE
 #include "ota_secret.h"
@@ -21,8 +22,21 @@
 
 // Must match server/src/signing/codec.ts in Weighsoft.Indicator.Hub.
 static const char *SIGNING_PREFIX = "scale-models-hub-v1";
+#ifndef WSOFT_ON_BASE
 static const char *STATION_MODEL = "waveshare-djb-demo";
 static const char *RELEASE_VERSION = "bench-2026-10-24";
+#else
+// Hardware.Base: name the board this firmware was built for (the Hub shows both, max 32 / 64 chars).
+#ifndef WSOFT_RELEASE_VERSION
+#define WSOFT_RELEASE_VERSION "hwbase-2026-11-07"
+#endif
+#if defined(WSOFT_BOARD_CYD)
+static const char *STATION_MODEL = "wsoft-cyd28";
+#else
+static const char *STATION_MODEL = "wsoft-waveshare43";
+#endif
+static const char *RELEASE_VERSION = WSOFT_RELEASE_VERSION;
+#endif
 static const uint32_t HEARTBEAT_MS = 30000;
 static const uint32_t RETRY_MS = 5000;
 // While trade weights wait for the Hub, heartbeat sooner (the Hub allows 120 a minute per device).
@@ -235,6 +249,63 @@ static String heartbeat_body(time_t now, uint32_t *trades_through) {
   return body;
 }
 
+#ifdef WSOFT_ON_BASE
+// ---------- weighings (Hardware.Base) ----------
+// After each accepted heartbeat, the oldest saved weighings go to POST /api/v1/ingest/weighings,
+// signed like the heartbeat. 201 = stored, 200 = the Hub already had it: both remove it here.
+// A 400 means the Hub will never take it (checked before saving, so it should not happen):
+// it is logged and dropped so the ones behind it are not stuck. Anything else: try again later.
+static const int WEIGHINGS_PER_HEARTBEAT = 8;
+
+static int post_signed(const char *path, const String &body, String *reply) {
+  time_t now = time(nullptr);
+  uint8_t nonce_bytes[16];
+  esp_fill_random(nonce_bytes, sizeof nonce_bytes);
+  String nonce = hex(nonce_bytes, sizeof nonce_bytes);
+  String timestamp = String((unsigned long)now);
+  HTTPClient http;
+  http.setTimeout(8000);
+  if (!http.begin(hub_url + path)) return -1;
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("X-ScaleModels-Key-Id", key_id);
+  http.addHeader("X-ScaleModels-Timestamp", timestamp);
+  http.addHeader("X-ScaleModels-Nonce", nonce);
+  http.addHeader("X-ScaleModels-Signature", sign(timestamp, nonce, body));
+  int status = http.POST(body);
+  if (reply) *reply = status > 0 ? http.getString() : http.errorToString(status);
+  http.end();
+  return status;
+}
+
+static void send_weighings() {
+  String tag = WiFi.macAddress();
+  tag.replace(":", "");
+  WsoftWeighingMeta meta = {tag.c_str(), weighings_source(), STATION_MODEL, false};
+  for (int i = 0; i < WEIGHINGS_PER_HEARTBEAT; i++) {
+    TradeWeight w;
+    bool for_trade = false;
+    if (!weighings_oldest(&w, &for_trade)) return;
+    meta.for_trade = for_trade;
+    char body[512];
+    if (!wsoft_weighing_json(w, meta, body, sizeof body)) {
+      Serial0.printf("WEIGH seq=%lu cannot be sent (weight or time out of range): dropped\n", (unsigned long)w.seq);
+      weighings_delivered(w.seq);
+      continue;
+    }
+    String reply;
+    int status = post_signed("/api/v1/ingest/weighings", String(body), &reply);
+    Serial0.printf("WEIGH sent seq=%lu status=%d %s\n", (unsigned long)w.seq, status, reply.substring(0, 80).c_str());
+    if (status == 201 || status == 200) {
+      weighings_delivered(w.seq);
+    } else if (status == 400) {
+      weighings_delivered(w.seq);  // refused for good; logged above
+    } else {
+      return;  // offline, rate-limited or rejected key: keep it and try after the next heartbeat
+    }
+  }
+}
+
+#endif
 static void send_heartbeat() {
   time_t now = time(nullptr);
   uint8_t nonce_bytes[16];
@@ -327,6 +398,17 @@ static void hub_task(void *) {
       uint32_t wait = state != HUB_ONLINE ? RETRY_MS : approval_pending() > 0 ? TRADE_QUEUE_MS : HEARTBEAT_MS;
       next = millis() + wait;
     }
+#ifdef WSOFT_ON_BASE
+    // A weighing saved between heartbeats goes out within a few seconds, not at the next one.
+    static uint32_t next_weighing_try = 0;
+    TradeWeight waiting;
+    bool waiting_for_trade;
+    if (state == HUB_ONLINE && !ota_busy && (int32_t)(millis() - next_weighing_try) >= 0 &&
+        weighings_oldest(&waiting, &waiting_for_trade)) {
+      send_weighings();
+      next_weighing_try = millis() + RETRY_MS;
+    }
+#endif
     vTaskDelay(pdMS_TO_TICKS(250));
   }
 }

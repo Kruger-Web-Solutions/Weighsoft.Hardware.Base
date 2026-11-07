@@ -38,6 +38,8 @@ export interface WSoftSettings {
   mqtt_unique_id: string;
   /** Where the weight comes from. Saving a new source restarts the board. */
   source: WSoftSource;
+  /** Save a weighing for the Hub by itself when a new load settles. Off: only the Save button. */
+  auto_save: boolean;
   /** Read-only: false on boards without RS232 wiring (the Waveshare). */
   rs232_available?: boolean;
   /** Read-only: base path with placeholders expanded, plus "/status". */
@@ -67,3 +69,23 @@ export interface WSoftHub {
 }
 
 export type WSoftHubAction = { action: 'connect'; code: string } | { action: 'disconnect' };
+
+// Mirrors src/examples/wsoft/WSoftStatusService.cpp (sendSave).
+export interface WSoftWeighing {
+  seq: number;
+  weight: string;
+  unit: string;
+  /** Unix seconds. */
+  at: number;
+}
+
+export interface WSoftSave {
+  auto_save: boolean;
+  /** Saved on the board, not yet accepted by the Hub. */
+  pending: number;
+  last: WSoftWeighing | null;
+  /** Only on POST: whether this tap saved, and why not. */
+  ok?: boolean;
+  result?: string;
+  saved?: WSoftWeighing;
+}

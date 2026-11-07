@@ -57,7 +57,7 @@ Same design as the Waveshare 4.3" screen (`screen_rle.h`), scaled down, so both 
 | Header | `LIVE WEIGHT`; Hub state; link state with a colour dot (`RS485 LIVE` / `RS232 LIVE` / `NO SIGNAL` / `DJB ALARM`) |
 | Card, left | `Live Weight`, the target line, the gauge (yellow / green / red) with its needle and zone word |
 | Card, right | Trade band (`TRADE CHECKS ON` green / `NOT FOR TRADE` red), why not for trade or `SEQ n`, `NET` + `AUDIT n`, the NET weight and unit |
-| Bottom boxes | `GROSS` weight; `ZONE` (`OK` / `UNDER` / `OVER` / `ALARM`, or `NO DJB REPLY` / `NO SCALE LINE`) |
+| Bottom boxes | `GROSS` weight; the green **SAVE** button (touch). The zone word stays under the gauge |
 
 The static parts draw once; each live part redraws only when it changes, so the screen does not flicker.
 
@@ -74,6 +74,29 @@ board: `-DST7789_DRIVER=1`, `-DTFT_RGB_ORDER=TFT_BGR`, `WSOFT_CYD_ROTATION=3`,
 
 First flash (3 Nov 2026) with ILI9341 + invert on drew sideways, clipped, with an 80 px
 noise strip and a dark background.
+
+## 2b. Weighings for the Hub
+
+A weighing is saved when someone taps **SAVE** (on the screen, or **Save weighing** on the
+web Live page), or by itself when **Auto save** is on (W-Soft > Settings, off by default).
+Either way only once the weight has settled above zero for 1 s, and once per load: a new
+load needs the scale emptied or a different weight. Saved whether trade checks are on or
+not; the payload carries `for_trade`.
+
+- The SAVE button shows `SAVED #n`, or why not (`Wait: moving`, `Already saved`,
+  `Scale is empty`, `No scale signal`, `Clock not set`, `Memory full`) for 3 s, then how
+  many wait for the Hub.
+- Up to 32 unsent weighings are kept in flash (NVS `weigh`). When full, Save answers
+  `Memory full` until the Hub takes some: nothing is overwritten.
+- Each goes to `POST /api/v1/ingest/weighings` within ~5 s when the Hub is online:
+  `weighing_id` = `<MAC>-<unix time>-<seq>`, gross = net = the weight in kg, tare 0,
+  basis `GS`. 201/200 remove it from the board.
+- Touch: XPT2046 on HSPI (CLK 25, MISO 39, MOSI 32, CS 33, IRQ 36), no extra library.
+  Each tap logs `TOUCH raw=x,y,z screen=x,y SAVE|-` on USB. If taps land in the wrong
+  place on another batch, set `WSOFT_TOUCH_ROTATION` or `WSOFT_TOUCH_X_MIN/MAX`,
+  `WSOFT_TOUCH_Y_MIN/MAX` in the env.
+- `GET /rest/wsoftSave` (logged in): pending count and last saved. `POST` saves now
+  (200, or 409 with `result`).
 
 ## 3. Build and flash (laptop)
 

@@ -3,6 +3,7 @@
 
 #include "approval.h"
 #include "hub.h"
+#include "weighings.h"
 #include "wsoft_screen.h"
 
 // Two boards share this file. The poll, the Modbus jobs and the snapshot are the same on
@@ -17,6 +18,28 @@
 #endif
 #ifndef WSOFT_CYD_INVERT
 #define WSOFT_CYD_INVERT 0
+#endif
+// XPT2046 resistive touch on its own SPI pins (CYD pinout). TFT_eSPI drives the panel on VSPI,
+// so touch uses HSPI. Raw readings are mapped to the 320 x 240 screen with these limits; every
+// tap logs "TOUCH raw=... screen=..." on USB so a different batch can be calibrated.
+// A small XPT2046 reader below (no extra library): the same commands and rotation mapping
+// as PaulStoffregen/XPT2046_Touchscreen.
+#include <SPI.h>
+#ifndef WSOFT_TOUCH_CS
+#define WSOFT_TOUCH_CS 33
+#define WSOFT_TOUCH_IRQ 36
+#define WSOFT_TOUCH_CLK 25
+#define WSOFT_TOUCH_MISO 39
+#define WSOFT_TOUCH_MOSI 32
+#endif
+#ifndef WSOFT_TOUCH_ROTATION
+#define WSOFT_TOUCH_ROTATION WSOFT_CYD_ROTATION
+#endif
+#ifndef WSOFT_TOUCH_X_MIN
+#define WSOFT_TOUCH_X_MIN 200
+#define WSOFT_TOUCH_X_MAX 3700
+#define WSOFT_TOUCH_Y_MIN 240
+#define WSOFT_TOUCH_Y_MAX 3800
 #endif
 static const int RS485_RX = WSOFT_RS485_RX;
 static const int RS485_TX = WSOFT_RS485_TX;
@@ -577,12 +600,105 @@ static void cyd_static() {
   cyd_text(target, 16, 64, 2, MUTED, WHITE, TL_DATUM);
   cyd_gauge_arcs();
 
-  for (int i = 0; i < 2; i++) {
-    int x = i == 0 ? 14 : 164;
-    tft.fillRoundRect(x, 160, 142, 66, 6, BOX);
-    tft.drawRoundRect(x, 160, 142, 66, 6, BORDER);
-    cyd_text(i == 0 ? "GROSS" : "ZONE", x + 8, 166, 2, MUTED, BOX, TL_DATUM);
+  tft.fillRoundRect(14, 160, 142, 66, 6, BOX);
+  tft.drawRoundRect(14, 160, 142, 66, 6, BORDER);
+  cyd_text("GROSS", 22, 166, 2, MUTED, BOX, TL_DATUM);
+  // The right box is the SAVE button (the zone word stays under the gauge); drawn by cyd_save_box.
+}
+
+// SAVE button, bottom right. Tapping it saves one weighing for the Hub.
+static const int SAVE_X = 164, SAVE_Y = 160, SAVE_W = 142, SAVE_H = 66;
+
+// Redraws the SAVE button when its text changes: the last result for 3 s, then how many
+// weighings still wait for the Hub.
+static void cyd_save_box() {
+  static char last[48] = "";
+  WeighingsInfo info;
+  weighings_info(&info);
+  bool recent = info.last_result != WSOFT_SAVE_NONE && millis() - info.last_result_ms < 3000;
+  char line[32];
+  uint16_t fill = GREEN;
+  if (recent && info.last_result == WSOFT_SAVE_SAVED && info.last.valid) {
+    snprintf(line, sizeof line, "SAVED #%lu", (unsigned long)info.last.seq);
+  } else if (recent) {
+    strlcpy(line, wsoft_save_result_text(info.last_result), sizeof line);
+    fill = info.last_result == WSOFT_SAVE_ALREADY ? MUTED : RED;
+  } else if (info.pending > 0) {
+    snprintf(line, sizeof line, "%u to send", (unsigned)info.pending);
+  } else {
+    strlcpy(line, info.auto_save ? "AUTO SAVE ON" : "TAP TO SAVE", sizeof line);
   }
+  char key[48];
+  snprintf(key, sizeof key, "%s|%u", line, fill);
+  if (!cyd_changed(last, sizeof last, key)) return;
+  tft.fillRoundRect(SAVE_X, SAVE_Y, SAVE_W, SAVE_H, 6, fill);
+  cyd_free("SAVE", SAVE_X + SAVE_W / 2, SAVE_Y + 24, &FreeSansBold12pt7b, WHITE, MC_DATUM);
+  cyd_text(line, SAVE_X + SAVE_W / 2, SAVE_Y + 46, 2, WHITE, fill, TC_DATUM);
+}
+
+static SPIClass touch_spi(HSPI);
+static bool touch_ready = false;
+static const uint16_t TOUCH_Z_MIN = 400;  // pressure below this is no touch
+
+struct TouchPoint {
+  int x, y, z;
+};
+
+static void cyd_touch_begin() {
+  pinMode(WSOFT_TOUCH_CS, OUTPUT);
+  digitalWrite(WSOFT_TOUCH_CS, HIGH);
+  pinMode(WSOFT_TOUCH_IRQ, INPUT);
+  touch_spi.begin(WSOFT_TOUCH_CLK, WSOFT_TOUCH_MISO, WSOFT_TOUCH_MOSI, -1);
+  touch_ready = true;
+  Serial0.println("TOUCH ready");
+}
+
+// One XPT2046 read: pressure, then X and Y (average of two readings after a dropped first one).
+static bool cyd_touch_read(TouchPoint *p) {
+  if (digitalRead(WSOFT_TOUCH_IRQ) == HIGH) return false;  // pen IRQ is low while pressed
+  touch_spi.beginTransaction(SPISettings(2000000, MSBFIRST, SPI_MODE0));
+  digitalWrite(WSOFT_TOUCH_CS, LOW);
+  touch_spi.transfer(0xB1);                          // Z1
+  int z1 = touch_spi.transfer16(0xC1) >> 3;          // Z2 next
+  int z = z1 + 4095;
+  int z2 = touch_spi.transfer16(0x91) >> 3;          // X next
+  z -= z2;
+  touch_spi.transfer16(0x91);                        // first X is noisy: drop it
+  int x1 = touch_spi.transfer16(0xD1) >> 3;          // Y next
+  int y1 = touch_spi.transfer16(0x91) >> 3;
+  int x2 = touch_spi.transfer16(0xD1) >> 3;
+  int y2 = touch_spi.transfer16(0xD0) >> 3;          // power down after
+  touch_spi.transfer16(0);
+  digitalWrite(WSOFT_TOUCH_CS, HIGH);
+  touch_spi.endTransaction();
+  if (z < TOUCH_Z_MIN) return false;
+  int x = (x1 + x2) / 2, y = (y1 + y2) / 2;
+  switch (WSOFT_TOUCH_ROTATION) {
+    case 0: p->x = 4095 - y; p->y = x; break;
+    case 1: p->x = x; p->y = y; break;
+    case 2: p->x = y; p->y = 4095 - x; break;
+    default: p->x = 4095 - x; p->y = 4095 - y; break;
+  }
+  p->z = z;
+  return true;
+}
+
+// Runs every loop pass (every 5 ms), so a short tap is not missed. One save per press.
+static void cyd_touch_poll() {
+  static bool was_down = false;
+  static uint32_t last_tap = 0;
+  if (!touch_ready) return;
+  TouchPoint p;
+  bool down = cyd_touch_read(&p);
+  if (down && !was_down && millis() - last_tap > 600) {
+    int x = constrain(map(p.x, WSOFT_TOUCH_X_MIN, WSOFT_TOUCH_X_MAX, 0, CYD_W - 1), 0, CYD_W - 1);
+    int y = constrain(map(p.y, WSOFT_TOUCH_Y_MIN, WSOFT_TOUCH_Y_MAX, 0, 239), 0, 239);
+    bool on_save = x >= SAVE_X - 10 && x <= SAVE_X + SAVE_W + 10 && y >= SAVE_Y - 10;
+    Serial0.printf("TOUCH raw=%d,%d,%d screen=%d,%d %s\n", p.x, p.y, p.z, x, y, on_save ? "SAVE" : "-");
+    if (on_save) weighings_request_save();
+    last_tap = millis();
+  }
+  was_down = down;
 }
 
 static void cyd_box_value(int x, const char *text, uint16_t color) {
@@ -669,12 +785,9 @@ static void render(const Reading &r) {
     cyd_text(r.linked ? zone : "WAITING", GX, GY + 6, 2, r.linked ? zone_color : MUTED, WHITE, TC_DATUM);
   }
 
-  // GROSS and ZONE boxes.
-  snprintf(key, sizeof key, "%s|%s|%u|%d", gross, zone, zone_color, r.linked ? 1 : 0);
-  if (cyd_changed(last_boxes, sizeof last_boxes, key)) {
-    cyd_box_value(14, gross, r.linked ? INK : MUTED);
-    cyd_box_value(164, zone, zone_color);
-  }
+  // GROSS box (the SAVE button beside it redraws itself every pass).
+  snprintf(key, sizeof key, "%s|%d", gross, r.linked ? 1 : 0);
+  if (cyd_changed(last_boxes, sizeof last_boxes, key)) cyd_box_value(14, gross, r.linked ? INK : MUTED);
 }
 #else
 static bool start_display() {
@@ -780,7 +893,11 @@ void wsoft_screen_setup(bool rs232) {
   display_ready = start_display();
   log_line(display_ready ? "display ready" : "display failed");
   approval_begin();
+  weighings_begin(rs232_mode);
   hub_begin();
+#if WSOFT_BOARD_CYD
+  cyd_touch_begin();
+#endif
   if (display_ready) render(reading);
   portENTER_CRITICAL(&snapshot_lock);
   snapshot.display_ready = display_ready;
@@ -843,6 +960,9 @@ void wsoft_screen_loop() {
   hub_handle_serial(Serial0);
   hub_ota_poll();
   service_job();
+#if WSOFT_BOARD_CYD
+  cyd_touch_poll();
+#endif
   if (hub_ota_busy() || !display_ready || millis() - last_poll < POLL_MS) return;
   last_poll = millis();
 
@@ -856,6 +976,11 @@ void wsoft_screen_loop() {
   }
 
   TradeCheck check = approval_update(next.linked, fresh, next.alarm, next.value, next.decimals, next.unit);
+  // A weighing for the Hub (Save tap or Auto save), saved whether trade checks are on or not.
+  weighings_update(next.linked, fresh, next.alarm, next.value, next.decimals, next.unit, check == TRADE_OK);
+#if WSOFT_BOARD_CYD
+  cyd_save_box();
+#endif
 
   if (next.linked && polls % 4 == 1) {
     if (!rs232_mode) Serial0.printf("DJB slave=%u baud=%lu ", slave, (unsigned long)SCAN_BAUDS[baud_index]);

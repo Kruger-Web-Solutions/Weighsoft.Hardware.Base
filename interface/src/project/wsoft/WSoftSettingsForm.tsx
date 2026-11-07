@@ -67,6 +67,16 @@ const WSoftSettingsForm: FC = () => {
             <MenuItem value="rs232">RS232 scale</MenuItem>
           </ValidatedTextField>
         )}
+        <BlockFormControlLabel
+          control={
+            <Checkbox
+              name="auto_save"
+              checked={!!data.auto_save}
+              onChange={updateFormValue}
+            />
+          }
+          label="Auto save: save a weighing for the Hub by itself when a new load settles"
+        />
         <ValidatedTextField
           fieldErrors={fieldErrors}
           name="publish_interval_ms"
