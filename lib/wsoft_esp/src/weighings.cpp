@@ -1,5 +1,6 @@
 #include "weighings.h"
 
+#include <LittleFS.h>
 #include <Preferences.h>
 #include <time.h>
 
@@ -55,11 +56,25 @@ const char *weighings_source() {
   return source_rs232 ? "rs232" : "rs485";
 }
 
+// Auto save used to live in the W-Soft settings file. Read it raw, once, at the first boot
+// after the update (the settings no longer have the field). The framework mounts the file
+// system before the screen task starts; if it is not there, Auto save starts off.
+static bool old_settings_auto_save() {
+  File file = LittleFS.open("/config/wsoftSettings.json", "r");
+  if (!file) return false;
+  String text = file.readString();
+  file.close();
+  text.replace(" ", "");
+  return text.indexOf("\"auto_save\":true") >= 0;
+}
+
 void weighings_begin(bool rs232) {
   source_rs232 = rs232;
   prefs.begin("weigh", true);
   uint32_t next_seq = prefs.getUInt("seq", 1);
-  bool automatic = prefs.getBool("auto", false);
+  // putBool stores one byte: 2 here means the key is not there yet.
+  uint8_t stored_auto = prefs.getUChar("auto", 2);
+  bool automatic = stored_auto == 1;
   uint32_t head = prefs.getUInt("qhead", 0);
   size_t count = prefs.getUInt("qcount", 0);
   static TradeWeight slots[TradeQueue::CAPACITY];
@@ -91,6 +106,13 @@ void weighings_begin(bool rs232) {
     tare_by_seq[s.seq % TradeQueue::CAPACITY] = s.tare;
   }
   prefs.end();
+  if (stored_auto == 2) {
+    automatic = old_settings_auto_save();
+    prefs.begin("weigh", false);
+    prefs.putBool("auto", automatic);  // from now on NVS holds it
+    prefs.end();
+    Serial0.printf("WEIGH auto_save carried over from the old settings: %s\n", automatic ? "on" : "off");
+  }
   saver = WsoftWeighingSaver(next_seq);
   portENTER_CRITICAL(&lock);
   queue.restore(head, count, slots);
