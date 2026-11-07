@@ -35,6 +35,21 @@ struct ScaleInfo {
 };
 void scale_info(ScaleInfo *out);
 
+// Screen task, once per reading: updates the stable-samples count and says why this
+// reading is held back (blank, below Min, not stable yet). Always NONE on RS232.
+WsoftScaleHold scale_hold(bool linked, bool fresh, int32_t value, int decimals, int unit);
+
+// Runtime tare (RS485 only; never stored, cleared at a restart or a setup save).
+// Screen task: TARE takes the stable gross, or clears a tare that is on.
+WsoftTareError scale_tare_toggle(bool stable, int32_t value, int decimals, int unit);
+// Screen task: the preset tare from the setup.
+WsoftTareError scale_tare_preset(int decimals, int unit);
+// Any task: the tare now. Cleared by the screen task when the reading's format changes.
+WsoftTare scale_tare();
+// Screen task: net for this reading; clears a tare whose format no longer matches.
+// Returns true when a tare is on.
+bool scale_net(int32_t gross, int decimals, int unit, int32_t *net);
+
 // Web task (admin): checks and saves an A5 body. LOCKED while Approval is ON or on RS232.
 // who is the signed-in name, for the USB log line.
 WsoftSetupError scale_save(const WsoftScaleSetupInput &in, const char *who);

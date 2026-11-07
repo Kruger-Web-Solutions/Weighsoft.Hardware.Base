@@ -71,6 +71,7 @@ static const uint8_t DJB_SLAVE = 1;
 static const uint16_t REG_LC1_WEIGHT = 1004;  // 41005, followed by alarm state 41007
 static const uint16_t REG_WEIGHT_UNIT = 1302;  // 41303: 0 none, 1 kg, 2 t, 3 g
 static const uint16_t REG_DECIMAL = 1304;      // 41305: digits after the point
+static const uint16_t REG_DIVISION = 1306;     // 41307: e in display steps (1, 2, 5, 10 ... 500)
 static const uint32_t ALARM_BLOCKING_MASK = 0xE0000000;  // bits 13-15 of the high word
 
 static const uint32_t POLL_MS = 250;
@@ -109,6 +110,18 @@ struct Reading {
   int decimals = 3;
   int unit = 1;
 };
+
+// What the RS485 setup adds to the reading on screen (set before each render).
+static WsoftScaleHold view_hold = WSOFT_HOLD_NONE;
+static int32_t view_net = 0;   // gross - tare, in the reading's decimals and unit
+static bool view_tared = false;
+
+// The reading as the NET weight (the gross when no tare is on).
+static Reading net_of(const Reading &r) {
+  Reading n = r;
+  n.value = view_net;
+  return n;
+}
 
 static void log_line(const char *message) {
   Serial0.println(message);
@@ -216,6 +229,14 @@ static float to_kg(const Reading &r) {
 
 // Why the band says NOT FOR TRADE (approval on), or the sequence of the last trade weight.
 static const char *trade_line(TradeCheck check, char *line, size_t size, uint16_t *color) {
+  if (check != TRADE_OFF && view_hold == WSOFT_HOLD_BLANK) {
+    *color = YELLOW;
+    return "OUT OF RANGE";
+  }
+  if (check != TRADE_OFF && view_hold == WSOFT_HOLD_BELOW_MIN) {
+    *color = YELLOW;
+    return "BELOW MIN";
+  }
   if (check == TRADE_OK) {
     snprintf(line, size, "SEQ %lu", (unsigned long)approval_last_trade_weight().seq);
     *color = GREEN;
@@ -286,13 +307,17 @@ static void render(const Reading &r) {
     draw_text(MID, 68, 394, "----", MUTED);
     draw_text(MID, 430, 394, "NO DJB REPLY", RED);
   } else {
-    char value[16], gross[24];
-    format_weight(r.value, r.decimals, value, sizeof value);
-    snprintf(gross, sizeof gross, "%s %s", value, weight_unit_text(r.unit));
+    // Big number: NET (gross when no tare), or ---- when blanked. Bottom left: the gross.
+    char value[16], gross_value[16], gross[24];
+    Reading n = net_of(r);
+    format_weight(n.value, n.decimals, value, sizeof value);
+    if (view_hold == WSOFT_HOLD_BLANK) strlcpy(value, "----", sizeof value);
+    format_weight(r.value, r.decimals, gross_value, sizeof gross_value);
+    snprintf(gross, sizeof gross, "%s %s", gross_value, weight_unit_text(r.unit));
 
-    float kg = to_kg(r);
+    float kg = to_kg(n);
     uint16_t zone_color;
-    const char *zone = zone_of(r, &zone_color);
+    const char *zone = zone_of(n, &zone_color);
 
     draw_text(MID, 772, 22, r.alarm ? "DJB ALARM" : "RS485 LIVE", r.alarm ? HEADER_BAD : HEADER_OK, RIGHT);
     draw_needle(kg / GAUGE_FULL_KG);
@@ -712,7 +737,7 @@ static void cyd_box_value(int x, const char *text, uint16_t color) {
 }
 
 static void render(const Reading &r) {
-  static char last_head[40], last_band[40], last_audit[20], last_weight[40], last_gauge[40], last_boxes[64];
+  static char last_head[40], last_band[40], last_audit[40], last_weight[40], last_gauge[40], last_boxes[64];
   char key[64];
 
   // Header, right side: Hub state, then the link state with a colour dot.
@@ -744,23 +769,28 @@ static void render(const Reading &r) {
   }
 
   // NET label row carries the audit counter on the right.
-  char audit[20];
-  snprintf(audit, sizeof audit, "AUDIT %lu", (unsigned long)approval_audit_counter());
+  char audit[40];
+  snprintf(audit, sizeof audit, "%s|AUDIT %lu", view_tared ? "NET (TARE)" : "NET", (unsigned long)approval_audit_counter());
   if (cyd_changed(last_audit, sizeof last_audit, audit)) {
     tft.fillRect(172, 84, 134, 16, WHITE);
-    cyd_text("NET", 172, 84, 2, MUTED, WHITE, TL_DATUM);
-    cyd_text(audit, 306, 84, 2, MUTED, WHITE, TR_DATUM);
+    cyd_text(view_tared ? "NET (TARE)" : "NET", 172, 84, 2, MUTED, WHITE, TL_DATUM);
+    cyd_text(strchr(audit, '|') + 1, 306, 84, 2, MUTED, WHITE, TR_DATUM);
   }
 
+  // NET is gross - tare (the gross when no tare is on); ---- when the setup blanks it.
   char value[16] = "----", gross[24] = "----";
   const char *unit = "kg";
   uint16_t zone_color = RED;
   const char *zone = rs232_mode ? "NO SCALE LINE" : "NO DJB REPLY";
+  Reading n = net_of(r);
   if (r.linked) {
-    format_weight(r.value, r.decimals, value, sizeof value);
+    char gross_value[16];
+    format_weight(n.value, n.decimals, value, sizeof value);
+    if (view_hold == WSOFT_HOLD_BLANK) strlcpy(value, "----", sizeof value);
+    format_weight(r.value, r.decimals, gross_value, sizeof gross_value);
     unit = weight_unit_text(r.unit);
-    snprintf(gross, sizeof gross, "%s %s", value, unit);
-    zone = zone_of(r, &zone_color);
+    snprintf(gross, sizeof gross, "%s %s", gross_value, unit);
+    zone = zone_of(n, &zone_color);
   }
 
   // NET weight: as big as it fits right-aligned before the unit.
@@ -776,7 +806,7 @@ static void render(const Reading &r) {
 
   // Gauge needle and the word under it.
   int angle = 0;
-  if (r.linked) angle = (int)lroundf(constrain(to_kg(r) / GAUGE_FULL_KG, 0.0f, 1.0f) * 180.0f);
+  if (r.linked) angle = (int)lroundf(constrain(to_kg(n) / GAUGE_FULL_KG, 0.0f, 1.0f) * 180.0f);
   snprintf(key, sizeof key, "%d|%d|%s", r.linked ? 1 : 0, angle, r.linked ? zone : "WAITING");
   if (cyd_changed(last_gauge, sizeof last_gauge, key)) {
     tft.fillRect(GX - GR, GY - GR + GT, 2 * GR, GR - GT + 24, WHITE);
@@ -914,11 +944,18 @@ void wsoft_screen_setup(bool rs232) {
 // One RS485 poll of the DJB: unit and decimals every 20 polls, then weight and alarm.
 static bool poll_djb(Reading *out) {
   Reading &next = *out;
+  // e (division) is read once the card answers, and again after a card write.
+  static int32_t division = 0;
   if (polls++ % 20 == 0 || format_stale) {
+    bool read_division = format_stale || division <= 0;
     format_stale = false;
-    int32_t decimals, unit;
-    if (read_long(REG_DECIMAL, &decimals) && decimals >= 0 && decimals <= 4) next.decimals = decimals;
-    if (read_long(REG_WEIGHT_UNIT, &unit) && unit >= 0 && unit <= 3) next.unit = unit;
+    int32_t decimals, unit, value;
+    bool format_ok = read_long(REG_DECIMAL, &decimals) && decimals >= 0 && decimals <= 4;
+    if (format_ok) next.decimals = decimals;
+    bool unit_ok = read_long(REG_WEIGHT_UNIT, &unit) && unit >= 0 && unit <= 3;
+    if (unit_ok) next.unit = unit;
+    if (read_division && format_ok && unit_ok && read_long(REG_DIVISION, &value) && value > 0) division = value;
+    if (division > 0 && format_ok && unit_ok) scale_set_card(division, next.decimals, next.unit);
   }
 
   uint16_t words[4];
@@ -983,9 +1020,18 @@ void wsoft_screen_loop() {
     fresh = poll_djb(&next);
   }
 
-  TradeCheck check = approval_update(next.linked, fresh, next.alarm, next.value, next.decimals, next.unit);
+  // RS485 setup: blanking, below Min and the stable samples hold a reading back (NONE on RS232).
+  WsoftScaleHold hold = scale_hold(next.linked, fresh, next.value, next.decimals, next.unit);
+  TradeCheck check = approval_update_held(next.linked, fresh, next.alarm, next.value, next.decimals, next.unit, hold);
+  int32_t net = next.value;
+  bool tared = scale_net(next.value, next.decimals, next.unit, &net);
+  WsoftSaveResult save_hold = WSOFT_SAVE_NONE;
+  if (hold == WSOFT_HOLD_BLANK) save_hold = WSOFT_SAVE_BLANK;
+  else if (hold == WSOFT_HOLD_NOT_STABLE) save_hold = WSOFT_SAVE_NOT_STABLE;
+  else if (hold == WSOFT_HOLD_BELOW_MIN && approval_on()) save_hold = WSOFT_SAVE_BELOW_MIN;
   // A weighing for the Hub (Save tap or Auto save), saved whether trade checks are on or not.
-  weighings_update(next.linked, fresh, next.alarm, next.value, next.decimals, next.unit, check == TRADE_OK);
+  weighings_update(next.linked, fresh, next.alarm, next.value, next.decimals, next.unit, check == TRADE_OK,
+                   tared ? scale_tare().value : 0, save_hold);
 #if WSOFT_BOARD_CYD
   cyd_save_box();
 #endif
@@ -1014,8 +1060,13 @@ void wsoft_screen_loop() {
   shown_check = check;
   shown_audit = audit;
   shown_seq = seq;
-  if (approval_changed || next.linked != reading.linked || next.value != reading.value || next.alarm != reading.alarm ||
-      next.decimals != reading.decimals || next.unit != reading.unit || hub != shown_hub || polls == 1) {
+  bool setup_changed = hold != view_hold || net != view_net || tared != view_tared;
+  view_hold = hold;
+  view_net = net;
+  view_tared = tared;
+  if (approval_changed || setup_changed || next.linked != reading.linked || next.value != reading.value ||
+      next.alarm != reading.alarm || next.decimals != reading.decimals || next.unit != reading.unit ||
+      hub != shown_hub || polls == 1) {
     reading = next;
     shown_hub = hub;
     render(reading);

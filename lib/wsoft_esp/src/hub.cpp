@@ -280,12 +280,15 @@ static int post_signed(const char *path, const String &body, String *reply) {
 static void send_weighings() {
   String tag = WiFi.macAddress();
   tag.replace(":", "");
-  WsoftWeighingMeta meta = {tag.c_str(), weighings_source(), STATION_MODEL, false};
+  WsoftWeighingMeta meta = {tag.c_str(), weighings_source(), STATION_MODEL, false, false, 0};
   for (int i = 0; i < WEIGHINGS_PER_HEARTBEAT; i++) {
     TradeWeight w;
     bool for_trade = false;
-    if (!weighings_oldest(&w, &for_trade)) return;
+    int32_t tare_value = 0;
+    if (!weighings_oldest(&w, &for_trade, &tare_value)) return;
     meta.for_trade = for_trade;
+    meta.tared = tare_value > 0;
+    meta.tare_value = tare_value;
     char body[512];
     if (!wsoft_weighing_json(w, meta, body, sizeof body)) {
       Serial0.printf("WEIGH seq=%lu cannot be sent (weight or time out of range): dropped\n", (unsigned long)w.seq);
@@ -403,8 +406,9 @@ static void hub_task(void *) {
     static uint32_t next_weighing_try = 0;
     TradeWeight waiting;
     bool waiting_for_trade;
+    int32_t waiting_tare;
     if (state == HUB_ONLINE && !ota_busy && (int32_t)(millis() - next_weighing_try) >= 0 &&
-        weighings_oldest(&waiting, &waiting_for_trade)) {
+        weighings_oldest(&waiting, &waiting_for_trade, &waiting_tare)) {
       send_weighings();
       next_weighing_try = millis() + RETRY_MS;
     }

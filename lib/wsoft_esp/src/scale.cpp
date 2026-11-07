@@ -13,6 +13,10 @@ static bool rs485 = true;
 static WsoftScaleSetup setup;
 static WsoftCardFormat card;
 static uint32_t audit = 0;
+static WsoftTare tare;
+
+// Screen task only.
+static WsoftStableSamples samples;
 
 static void load(WsoftScaleSetup *s, uint32_t *counter) {
   Preferences store;
@@ -114,6 +118,76 @@ void scale_info(ScaleInfo *out) {
   portEXIT_CRITICAL(&lock);
 }
 
+WsoftScaleHold scale_hold(bool linked, bool fresh, int32_t value, int decimals, int unit) {
+  samples.update(linked, fresh, value);
+  portENTER_CRITICAL(&lock);
+  bool on_rs485 = rs485;
+  WsoftScaleSetup s = setup;
+  WsoftCardFormat c = card;
+  portEXIT_CRITICAL(&lock);
+  if (!on_rs485 || !linked) return WSOFT_HOLD_NONE;
+  return wsoft_scale_hold(s, c, value, decimals, unit, samples.stable(s.stable_samples));
+}
+
+WsoftTareError scale_tare_toggle(bool stable, int32_t value, int decimals, int unit) {
+  portENTER_CRITICAL(&lock);
+  bool was_on = tare.on;
+  WsoftScaleSetup s = setup;
+  bool on_rs485 = rs485;
+  if (was_on) tare = WsoftTare();
+  portEXIT_CRITICAL(&lock);
+  if (!on_rs485) return WSOFT_TARE_OFF;
+  if (was_on) {
+    Serial0.println("TARE cleared");
+    return WSOFT_TARE_OK;
+  }
+  WsoftTare next;
+  WsoftTareError error = wsoft_tare_take(s, stable, value, decimals, unit, &next);
+  if (error == WSOFT_TARE_OK) {
+    portENTER_CRITICAL(&lock);
+    tare = next;
+    portEXIT_CRITICAL(&lock);
+  }
+  Serial0.printf("TARE %s\n", error == WSOFT_TARE_OK ? "on" : wsoft_tare_error_code(error));
+  return error;
+}
+
+WsoftTareError scale_tare_preset(int decimals, int unit) {
+  portENTER_CRITICAL(&lock);
+  WsoftScaleSetup s = setup;
+  bool on_rs485 = rs485;
+  portEXIT_CRITICAL(&lock);
+  if (!on_rs485) return WSOFT_TARE_OFF;
+  WsoftTare next;
+  WsoftTareError error = wsoft_tare_preset(s, decimals, unit, &next);
+  if (error == WSOFT_TARE_OK) {
+    portENTER_CRITICAL(&lock);
+    tare = next;
+    portEXIT_CRITICAL(&lock);
+  }
+  Serial0.printf("TARE preset %s\n", error == WSOFT_TARE_OK ? "on" : wsoft_tare_error_code(error));
+  return error;
+}
+
+WsoftTare scale_tare() {
+  portENTER_CRITICAL(&lock);
+  WsoftTare value = tare;
+  portEXIT_CRITICAL(&lock);
+  return value;
+}
+
+bool scale_net(int32_t gross, int decimals, int unit, int32_t *net) {
+  WsoftTare now = scale_tare();
+  if (wsoft_tare_net(now, gross, decimals, unit, net)) return true;
+  if (now.on) {
+    portENTER_CRITICAL(&lock);
+    tare = WsoftTare();
+    portEXIT_CRITICAL(&lock);
+    Serial0.println("TARE cleared: the scale's unit or decimals changed");
+  }
+  return false;
+}
+
 WsoftSetupError scale_save(const WsoftScaleSetupInput &in, const char *who) {
   scale_lock();
   ScaleInfo now;
@@ -132,6 +206,7 @@ WsoftSetupError scale_save(const WsoftScaleSetupInput &in, const char *who) {
     portENTER_CRITICAL(&lock);
     setup = next;
     audit = counter;
+    tare = WsoftTare();  // the tare limits may have changed
     portEXIT_CRITICAL(&lock);
   }
   scale_unlock();

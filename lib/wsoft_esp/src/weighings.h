@@ -17,10 +17,12 @@ void weighings_begin(bool rs232);
 // "rs232" or "rs485", for the weighing payload.
 const char *weighings_source();
 
-// Screen task, once per reading. for_trade = trade checks are on right now.
-// Returns the result of this pass (WSOFT_SAVE_NONE most of the time).
+// Screen task, once per reading. for_trade = trade checks are on right now. tare_value is
+// the tare in the reading's decimals and unit (0 = none). hold = why the RS485 setup holds
+// this reading back (WsoftWeighingSaver::update). Returns the result of this pass
+// (WSOFT_SAVE_NONE most of the time).
 WsoftSaveResult weighings_update(bool linked, bool fresh, bool alarm, int32_t value, int decimals, int unit,
-                                 bool for_trade);
+                                 bool for_trade, int32_t tare_value, WsoftSaveResult hold);
 
 // Any task: a person tapped Save. Waits up to timeout_ms for the screen task's answer.
 // On WSOFT_SAVE_SAVED, *saved holds the weighing.
@@ -40,7 +42,7 @@ struct WeighingsInfo {
 };
 void weighings_info(WeighingsInfo *out);
 
-// Hub task: the oldest unsent weighing. False when none wait.
-bool weighings_oldest(TradeWeight *w, bool *for_trade);
+// Hub task: the oldest unsent weighing and its tare (0 = none). False when none wait.
+bool weighings_oldest(TradeWeight *w, bool *for_trade, int32_t *tare_value);
 // Hub task: the Hub accepted (or permanently refused) everything up to seq.
 void weighings_delivered(uint32_t seq);

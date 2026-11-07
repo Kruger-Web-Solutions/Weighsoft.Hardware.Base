@@ -9,6 +9,7 @@ static portMUX_TYPE lock = portMUX_INITIALIZER_UNLOCKED;
 // Shared between tasks: read and written under the lock.
 static TradeQueue queue;
 static bool for_trade_by_seq[TradeQueue::CAPACITY];  // seq % CAPACITY; seqs in the queue are consecutive
+static int32_t tare_by_seq[TradeQueue::CAPACITY];   // same index; 0 = no tare
 static uint32_t delivered_seq = 0;
 static bool auto_save = false;
 static uint32_t save_requests = 0;   // bumped by a tap
@@ -21,7 +22,8 @@ static TradeWeight last_saved;
 static WsoftWeighingSaver saver;
 static uint32_t applied_delivered_seq = 0;
 
-struct StoredWeighing {
+// Saved before the tare was added. Still read, so queued weighings survive the update.
+struct StoredWeighingV1 {
   uint32_t seq;
   int32_t value;
   int32_t decimals;
@@ -29,6 +31,19 @@ struct StoredWeighing {
   int64_t at;
   int32_t for_trade;
 };
+
+struct StoredWeighing {
+  uint32_t seq;
+  int32_t value;
+  int32_t decimals;
+  int32_t unit;
+  int64_t at;
+  int32_t for_trade;
+  int32_t tare;    // in the weighing's decimals and unit, 0 = none
+  int32_t spare;   // keeps this size apart from StoredWeighingV1's
+  int32_t spare2;
+};
+static_assert(sizeof(StoredWeighing) != sizeof(StoredWeighingV1), "the two layouts must differ in size");
 
 static void slot_key(uint32_t index, char *key, size_t size) {
   snprintf(key, size, "w%lu", (unsigned long)(index % TradeQueue::CAPACITY));
@@ -51,8 +66,20 @@ void weighings_begin(bool rs232) {
   for (size_t i = 0; i < count && i < TradeQueue::CAPACITY; i++) {
     char key[8];
     slot_key(head + i, key, sizeof key);
-    StoredWeighing s;
-    if (prefs.getBytes(key, &s, sizeof s) != sizeof s) continue;
+    StoredWeighing s = {};
+    size_t length = prefs.getBytesLength(key);
+    if (length == sizeof(StoredWeighingV1)) {
+      StoredWeighingV1 old;
+      if (prefs.getBytes(key, &old, sizeof old) != sizeof old) continue;
+      s.seq = old.seq;
+      s.value = old.value;
+      s.decimals = old.decimals;
+      s.unit = old.unit;
+      s.at = old.at;
+      s.for_trade = old.for_trade;
+    } else if (length != sizeof s || prefs.getBytes(key, &s, sizeof s) != sizeof s) {
+      continue;
+    }
     TradeWeight &w = slots[(head + i) % TradeQueue::CAPACITY];
     w.valid = true;
     w.seq = s.seq;
@@ -61,6 +88,7 @@ void weighings_begin(bool rs232) {
     w.unit = s.unit;
     w.at = s.at;
     for_trade_by_seq[s.seq % TradeQueue::CAPACITY] = s.for_trade != 0;
+    tare_by_seq[s.seq % TradeQueue::CAPACITY] = s.tare;
   }
   prefs.end();
   saver = WsoftWeighingSaver(next_seq);
@@ -92,15 +120,16 @@ static void apply_delivered() {
 }
 
 // The entry goes to flash before the counters that make it visible.
-static void store_saved(const TradeWeight &w, bool for_trade) {
+static void store_saved(const TradeWeight &w, bool for_trade, int32_t tare_value) {
   portENTER_CRITICAL(&lock);
   queue.push(w);
   for_trade_by_seq[w.seq % TradeQueue::CAPACITY] = for_trade;
+  tare_by_seq[w.seq % TradeQueue::CAPACITY] = tare_value;
   uint32_t head = queue.head();
   size_t count = queue.size();
   portEXIT_CRITICAL(&lock);
 
-  StoredWeighing s = {w.seq, w.value, w.decimals, w.unit, w.at, for_trade ? 1 : 0};
+  StoredWeighing s = {w.seq, w.value, w.decimals, w.unit, w.at, for_trade ? 1 : 0, tare_value, 0, 0};
   char key[8];
   slot_key(head + count - 1, key, sizeof key);
   prefs.begin("weigh", false);
@@ -112,7 +141,7 @@ static void store_saved(const TradeWeight &w, bool for_trade) {
 }
 
 WsoftSaveResult weighings_update(bool linked, bool fresh, bool alarm, int32_t value, int decimals, int unit,
-                                 bool for_trade) {
+                                 bool for_trade, int32_t tare_value, WsoftSaveResult hold) {
   apply_delivered();
 
   portENTER_CRITICAL(&lock);
@@ -124,8 +153,8 @@ WsoftSaveResult weighings_update(bool linked, bool fresh, bool alarm, int32_t va
 
   TradeReading r = {true, linked, fresh, alarm, value, decimals, unit, millis(), (int64_t)time(nullptr)};
   TradeWeight saved;
-  WsoftSaveResult result = saver.update(r, automatic, tapped, full, &saved);
-  if (result == WSOFT_SAVE_SAVED) store_saved(saved, for_trade);
+  WsoftSaveResult result = saver.update(r, automatic, tapped, full, &saved, hold);
+  if (result == WSOFT_SAVE_SAVED) store_saved(saved, for_trade, tare_value);
 
   portENTER_CRITICAL(&lock);
   if (tapped) save_answered = requests;
@@ -139,8 +168,10 @@ WsoftSaveResult weighings_update(bool linked, bool fresh, bool alarm, int32_t va
   if (result == WSOFT_SAVE_SAVED) {
     char weight[16];
     format_weight(saved.value, saved.decimals, weight, sizeof weight);
-    Serial0.printf("WEIGH saved seq=%lu weight=%s %s %s for_trade=%d\n", (unsigned long)saved.seq, weight,
-                   weight_unit_text(saved.unit), tapped ? "tap" : "auto", for_trade ? 1 : 0);
+    char tare_text[16];
+    format_weight(tare_value, saved.decimals, tare_text, sizeof tare_text);
+    Serial0.printf("WEIGH saved seq=%lu weight=%s %s tare=%s %s for_trade=%d\n", (unsigned long)saved.seq, weight,
+                   weight_unit_text(saved.unit), tare_text, tapped ? "tap" : "auto", for_trade ? 1 : 0);
   } else if (tapped) {
     Serial0.printf("WEIGH save refused: %s\n", wsoft_save_result_text(result));
   }
@@ -192,7 +223,7 @@ void weighings_info(WeighingsInfo *out) {
   portEXIT_CRITICAL(&lock);
 }
 
-bool weighings_oldest(TradeWeight *w, bool *for_trade) {
+bool weighings_oldest(TradeWeight *w, bool *for_trade, int32_t *tare_value) {
   portENTER_CRITICAL(&lock);
   // Skip what was acked but not yet removed by the screen task.
   bool found = false;
@@ -201,6 +232,7 @@ bool weighings_oldest(TradeWeight *w, bool *for_trade) {
     if (item.seq > delivered_seq) {
       *w = item;
       *for_trade = for_trade_by_seq[item.seq % TradeQueue::CAPACITY];
+      *tare_value = tare_by_seq[item.seq % TradeQueue::CAPACITY];
       found = true;
       break;
     }
