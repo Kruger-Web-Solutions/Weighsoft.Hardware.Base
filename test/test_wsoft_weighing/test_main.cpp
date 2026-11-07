@@ -70,6 +70,21 @@ void test_json_keeps_decimals_and_for_trade() {
   TEST_ASSERT_TRUE(strstr(out, "\"for_trade\":true") != nullptr);
 }
 
+void test_json_with_a_tare_sends_gross_tare_net_and_nt() {
+  char out[512];
+  WsoftWeighingMeta meta = META;
+  meta.tared = true;
+  meta.tare_value = 1205;  // 120.5 kg, same decimals as the reading
+  TEST_ASSERT_TRUE(wsoft_weighing_json(weight(9, 31205, 1, 1, 1762520400), meta, out, sizeof out));
+  TEST_ASSERT_TRUE(strstr(out, "\"gross_kg\":3120.5,\"tare_kg\":120.5,\"net_kg\":3000,\"basis\":\"NT\",") != nullptr);
+  // A tare bigger than the gross gives a negative net, which the Hub takes.
+  TEST_ASSERT_TRUE(wsoft_weighing_json(weight(9, 1000, 1, 1, 1762520400), meta, out, sizeof out));
+  TEST_ASSERT_TRUE(strstr(out, "\"net_kg\":-20.5,") != nullptr);
+  // A tare of zero or less is not a tare.
+  meta.tare_value = 0;
+  TEST_ASSERT_FALSE(wsoft_weighing_json(weight(9, 31205, 1, 1, 1762520400), meta, out, sizeof out));
+}
+
 void test_json_refuses_unsendable_weighings() {
   char out[512];
   TEST_ASSERT_FALSE(wsoft_weighing_json(TradeWeight(), META, out, sizeof out));                 // not valid
@@ -155,8 +170,32 @@ void test_no_signal() {
   TEST_ASSERT_EQUAL(WSOFT_SAVE_NO_SIGNAL, b.saver.update({true, false, true, false, 3120, 0, 1, b.t, b.now}, false, true, false, &b.issued));
 }
 
+void test_a_held_reading_is_not_saved() {
+  Bench b;
+  b.feed(0, 4, false);
+  b.feed(31205, 8, false);  // settled
+  b.t += 250;
+  // Blanked: refused with its own words, and auto save does nothing.
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_BLANK, b.saver.update({true, true, true, false, 31205, 0, 1, b.t, b.now}, true, true,
+                                                     false, &b.issued, WSOFT_SAVE_BLANK));
+  TEST_ASSERT_FALSE(b.issued.valid);
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_NONE, b.saver.update({true, true, true, false, 31205, 0, 1, b.t, b.now}, true, false,
+                                                    false, &b.issued, WSOFT_SAVE_BLANK));
+  // Below Min (only passed in while Approval is ON) and too few stable samples.
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_BELOW_MIN, b.saver.update({true, true, true, false, 31205, 0, 1, b.t, b.now}, false,
+                                                         true, false, &b.issued, WSOFT_SAVE_BELOW_MIN));
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_NOT_STABLE, b.saver.update({true, true, true, false, 31205, 0, 1, b.t, b.now}, false,
+                                                          true, false, &b.issued, WSOFT_SAVE_NOT_STABLE));
+  // No signal still says no signal, whatever the hold.
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_NO_SIGNAL, b.saver.update({true, false, true, false, 31205, 0, 1, b.t, b.now}, false,
+                                                         true, false, &b.issued, WSOFT_SAVE_BLANK));
+  // Nothing held: it saves.
+  b.feed(31205, 8, false);
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_SAVED, b.tap(31205));
+}
+
 void test_every_result_has_words() {
-  for (int r = WSOFT_SAVE_SAVED; r <= WSOFT_SAVE_FULL; r++) {
+  for (int r = WSOFT_SAVE_SAVED; r <= WSOFT_SAVE_BELOW_MIN; r++) {
     size_t length = strlen(wsoft_save_result_text((WsoftSaveResult)r));
     TEST_ASSERT_TRUE(length > 0 && length <= 16);
   }
@@ -168,12 +207,14 @@ int main(int, char **) {
   RUN_TEST(test_kg_text_refuses_what_the_hub_would_reject);
   RUN_TEST(test_json_matches_the_hub_contract);
   RUN_TEST(test_json_keeps_decimals_and_for_trade);
+  RUN_TEST(test_json_with_a_tare_sends_gross_tare_net_and_nt);
   RUN_TEST(test_json_refuses_unsendable_weighings);
   RUN_TEST(test_auto_save_once_per_settled_load);
   RUN_TEST(test_auto_save_off_saves_nothing_by_itself);
   RUN_TEST(test_tap_saves_a_settled_load_once);
   RUN_TEST(test_tap_explains_why_it_cannot_save);
   RUN_TEST(test_no_signal);
+  RUN_TEST(test_a_held_reading_is_not_saved);
   RUN_TEST(test_every_result_has_words);
   return UNITY_END();
 }

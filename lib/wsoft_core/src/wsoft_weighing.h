@@ -7,6 +7,7 @@
 // once the weight has settled above zero for TRADE_STABLE_MS (same "stable" as the trade
 // checks). One weighing per load: a load is new after the scale emptied or the weight changed.
 // Weighings are saved whether trade checks are on or not; the payload says which.
+// With a tare on (RS485 setup), gross, tare and net go out with basis NT; else GS.
 
 #include <stddef.h>
 #include <stdint.h>
@@ -23,6 +24,10 @@ struct WsoftWeighingMeta {
   const char *source;         // "rs232" or "rs485"
   const char *station_model;  // e.g. "wsoft-cyd28"
   bool for_trade;             // trade checks were on when this load settled
+  // A tare (button or preset) was on: tare_value is in the weighing's decimals and unit and
+  // must be above 0. Then gross, tare and net (gross - tare) go out with basis "NT".
+  bool tared;
+  int32_t tare_value;
 };
 
 // weighing_id = "<device_tag>-<unix time>-<seq>", unique even if the counter is reset.
@@ -39,6 +44,8 @@ enum WsoftSaveResult {
   WSOFT_SAVE_NO_SIGNAL,   // Save tapped with no live reading
   WSOFT_SAVE_NO_CLOCK,    // Save tapped before the clock was set (the Hub needs a time)
   WSOFT_SAVE_FULL,        // the board already holds the maximum unsent weighings
+  WSOFT_SAVE_BLANK,       // the scale shows ---- (outside the RS485 setup's blanking points)
+  WSOFT_SAVE_BELOW_MIN,   // below the RS485 setup's Min while Approval is ON
 };
 
 class WsoftWeighingSaver {
@@ -47,8 +54,10 @@ class WsoftWeighingSaver {
 
   // Call once per reading. r.on is ignored. save_requested = a person tapped Save since the
   // last call. When the result is SAVED, *issued holds the weighing and next_seq() moved on.
+  // hold = why the RS485 scale setup holds this reading back (BLANK, BELOW_MIN or NOT_STABLE),
+  // or NONE. BLANK wins over everything but NO_SIGNAL; the others only when nothing else blocks.
   WsoftSaveResult update(const TradeReading &r, bool auto_save, bool save_requested, bool queue_full,
-                         TradeWeight *issued);
+                         TradeWeight *issued, WsoftSaveResult hold = WSOFT_SAVE_NONE);
 
   bool stable() const { return stable_; }
   uint32_t next_seq() const { return next_seq_; }

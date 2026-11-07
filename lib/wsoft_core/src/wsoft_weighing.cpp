@@ -50,8 +50,16 @@ bool wsoft_weighing_json(const TradeWeight &w, const WsoftWeighingMeta &meta, ch
   if (!safe_text(meta.device_tag) || !safe_text(meta.source) || !safe_text(meta.station_model)) return false;
   if (meta.device_tag[0] == 0) return false;
 
-  char kg[24];
+  char kg[24], tare[24], net[24];
   if (!wsoft_weight_kg_text(w.value, w.decimals, w.unit, kg, sizeof kg)) return false;
+  if (meta.tared) {
+    if (meta.tare_value <= 0) return false;
+    if (!wsoft_weight_kg_text(meta.tare_value, w.decimals, w.unit, tare, sizeof tare)) return false;
+    if (!wsoft_weight_kg_text(w.value - meta.tare_value, w.decimals, w.unit, net, sizeof net)) return false;
+  } else {
+    strcpy(tare, "0");
+    strcpy(net, kg);
+  }
   char reading[24];
   format_weight(w.value, w.decimals, reading, sizeof reading);
 
@@ -63,16 +71,17 @@ bool wsoft_weighing_json(const TradeWeight &w, const WsoftWeighingMeta &meta, ch
 
   int n = snprintf(out, size,
                    "{\"weighing_id\":\"%s-%lld-%lu\",\"committed_at\":\"%s\","
-                   "\"gross_kg\":%s,\"tare_kg\":0,\"net_kg\":%s,\"basis\":\"GS\","
+                   "\"gross_kg\":%s,\"tare_kg\":%s,\"net_kg\":%s,\"basis\":\"%s\","
                    "\"payload\":{\"seq\":%lu,\"reading\":\"%s\",\"unit\":\"%s\",\"source\":\"%s\","
                    "\"station_model\":\"%s\",\"for_trade\":%s}}",
-                   meta.device_tag, (long long)w.at, (unsigned long)w.seq, when, kg, kg, (unsigned long)w.seq, reading,
+                   meta.device_tag, (long long)w.at, (unsigned long)w.seq, when, kg, tare, net, meta.tared ? "NT" : "GS",
+                   (unsigned long)w.seq, reading,
                    weight_unit_text(w.unit), meta.source, meta.station_model, meta.for_trade ? "true" : "false");
   return n > 0 && (size_t)n < size;
 }
 
 WsoftSaveResult WsoftWeighingSaver::update(const TradeReading &r, bool auto_save, bool save_requested,
-                                           bool queue_full, TradeWeight *issued) {
+                                           bool queue_full, TradeWeight *issued, WsoftSaveResult hold) {
   if (issued) *issued = TradeWeight();
   // Stability exactly as TradeEngine: fresh, unchanged readings for TRADE_STABLE_MS.
   if (!started_ || !r.linked || !r.fresh || after_stale_ || r.value != motion_value_) {
@@ -89,6 +98,8 @@ WsoftSaveResult WsoftWeighingSaver::update(const TradeReading &r, bool auto_save
   else if (r.alarm || !stable_) blocked = WSOFT_SAVE_NOT_STABLE;
   else if (r.value <= 0) blocked = WSOFT_SAVE_EMPTY;
   else if (r.now_unix < TRADE_CLOCK_VALID_AFTER) blocked = WSOFT_SAVE_NO_CLOCK;
+  if (hold == WSOFT_SAVE_BLANK && blocked != WSOFT_SAVE_NO_SIGNAL) blocked = hold;
+  else if (hold != WSOFT_SAVE_NONE && blocked == WSOFT_SAVE_NONE) blocked = hold;
 
   bool new_load = !last_.valid || seen_empty_ || r.value != last_.value || r.decimals != last_.decimals ||
                   r.unit != last_.unit;
@@ -120,6 +131,8 @@ const char *wsoft_save_result_text(WsoftSaveResult result) {
     case WSOFT_SAVE_NO_SIGNAL: return "No scale signal";
     case WSOFT_SAVE_NO_CLOCK: return "Clock not set";
     case WSOFT_SAVE_FULL: return "Memory full";
+    case WSOFT_SAVE_BLANK: return "Out of range";
+    case WSOFT_SAVE_BELOW_MIN: return "Below Min";
   }
   return "";
 }
