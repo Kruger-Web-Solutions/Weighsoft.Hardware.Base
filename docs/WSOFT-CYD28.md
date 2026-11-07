@@ -41,7 +41,8 @@ group is the number) on the **Serial** page. W-Soft takes that extracted text, p
 (`wsoft_parse_weight_text`: sign, digits, `.` or `,`, up to 4 decimals; anything else is
 not a weight), and runs the same screen, stability and approval checks on it. Unit is kg;
 there is no box alarm. A line older than 3 s is `NO SIGNAL`. DJB register jobs
-(`/rest/djb`) answer `rs232_mode`.
+(`/rest/djb`) answer 409 `NO_CARD` ("No weighing card: the scale is on RS232."). The scale
+setup is then set on the indicator, so Approval can go ON without a board setup.
 
 **The CYD has no RS232 chip.** Its `P1` plug (VIN/TX/RX/GND) is 3.3 V serial and shares
 the USB line. A real RS232 scale (up to ±12 V) needs a **3.3 V RS232-to-TTL converter
@@ -55,9 +56,10 @@ Same design as the Waveshare 4.3" screen (`screen_rle.h`), scaled down, so both 
 | Part | Shows |
 |---|---|
 | Header | `LIVE WEIGHT`; Hub state; link state with a colour dot (`RS485 LIVE` / `RS232 LIVE` / `NO SIGNAL` / `DJB ALARM`) |
-| Card, left | `Live Weight`, the target line, the gauge (yellow / green / red) with its needle and zone word |
+| Card, left | `Live Weight`, the plate (`SA ...` and `MAX ... MIN ... E ... KG`) once the RS485 setup has one, else the target line; the gauge (yellow / green / red) with its needle and zone word |
 | Card, right | Trade band (`TRADE CHECKS ON` green / `NOT FOR TRADE` red), why not for trade or `SEQ n`, `NET` + `AUDIT n`, the NET weight and unit |
-| Bottom boxes | `GROSS` weight; the green **SAVE** button (touch). The zone word stays under the gauge |
+| Bottom boxes | `GROSS` weight and **MENU** (tap the box); the green **SAVE** button (touch). The zone word stays under the gauge |
+| MENU page | Approval (asks for the screen PIN), Auto save, TARE and PRESET TARE (RS485), BACK. Back to the live page after 30 s without a tap |
 
 The static parts draw once; each live part redraws only when it changes, so the screen does not flicker.
 
@@ -78,7 +80,8 @@ noise strip and a dark background.
 ## 2b. Weighings for the Hub
 
 A weighing is saved when someone taps **SAVE** (on the screen, or **Save weighing** on the
-web Live page), or by itself when **Auto save** is on (W-Soft > Settings, off by default).
+web Live page), or by itself when **Auto save** is on (the switches: screen MENU, the web page, the Hub or
+`/rest/wsoftSwitches`; off by default, kept in NVS `weigh`).
 Either way only once the weight has settled above zero for 1 s, and once per load: a new
 load needs the scale emptied or a different weight. Saved whether trade checks are on or
 not; the payload carries `for_trade`.
@@ -90,13 +93,18 @@ not; the payload carries `for_trade`.
   `Memory full` until the Hub takes some: nothing is overwritten.
 - Each goes to `POST /api/v1/ingest/weighings` within ~5 s when the Hub is online:
   `weighing_id` = `<MAC>-<unix time>-<seq>`, gross = net = the weight in kg, tare 0,
-  basis `GS`. 201/200 remove it from the board.
+  basis `GS`; with a tare on (RS485), gross / tare / net and basis `NT`. 201/200 remove it from the board.
 - Touch: XPT2046 on HSPI (CLK 25, MISO 39, MOSI 32, CS 33, IRQ 36), no extra library.
-  Each tap logs `TOUCH raw=x,y,z screen=x,y SAVE|-` on USB. If taps land in the wrong
+  Each tap logs `TOUCH raw=x,y,z screen=x,y SAVE|-` on USB. The same touch drives MENU. If taps land in the wrong
   place on another batch, set `WSOFT_TOUCH_ROTATION` or `WSOFT_TOUCH_X_MIN/MAX`,
   `WSOFT_TOUCH_Y_MIN/MAX` in the env.
 - `GET /rest/wsoftSave` (logged in): pending count and last saved. `POST` saves now
   (200, or 409 with `result`).
+
+## 2c. Switches, PIN and scale setup
+
+Same as the Waveshare guide, section 4b (`docs/WSOFT-WAVESHARE43.md`): the endpoints, the
+PIN rules, the RS485 setup keys and the Hub commands are shared code.
 
 ## 3. Build and flash (laptop)
 
@@ -114,7 +122,7 @@ not; the payload carries `for_trade`.
 
 - Built in the cloud only; not yet run on a CYD. Bench steps above are still to do.
 - The demo target band (1.000–2.000 kg) is the same as on the Waveshare.
-- No touch input. The web pages are the way to change settings.
+- Touch is SAVE and MENU only. Settings and the scale setup are on the web pages.
 - GPIO2 is the screen's DC line, so the LED example drives the blue RGB LED (GPIO17) here.
 - Host tests ran in the cloud with a stand-in Unity (the PlatformIO registry was not
   reachable there); run `pio test -e native` on the laptop for the real runner.
