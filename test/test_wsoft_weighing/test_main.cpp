@@ -129,18 +129,26 @@ struct Bench {
   int64_t now = 1762520400;
   TradeWeight issued;
   WsoftSaveResult last = WSOFT_SAVE_NONE;
+  bool limits = false;  // a Hi-Lo product of 3000 to 3200 kg is picked
+
+  WsoftHiloState state(int32_t value) const {
+    if (!limits) return WSOFT_HILO_NONE;
+    return value < 3000 ? WSOFT_HILO_LOW : value > 3200 ? WSOFT_HILO_HIGH : WSOFT_HILO_PASS;
+  }
 
   int feed(int32_t value, int count, bool auto_save, bool linked = true) {
     int saved = 0;
     for (int i = 0; i < count; i++, t += 250) {
-      last = saver.update({true, linked, true, false, value, 0, 1, t, now}, auto_save, false, false, &issued);
+      last = saver.update({true, linked, true, false, value, 0, 1, t, now}, auto_save, false, false, &issued,
+                           WSOFT_SAVE_NONE, state(value));
       if (last == WSOFT_SAVE_SAVED) saved++;
     }
     return saved;
   }
   WsoftSaveResult tap(int32_t value, bool queue_full = false) {
     t += 250;
-    last = saver.update({true, true, true, false, value, 0, 1, t, now}, false, true, queue_full, &issued);
+    last = saver.update({true, true, true, false, value, 0, 1, t, now}, false, true, queue_full, &issued, WSOFT_SAVE_NONE,
+                         state(value));
     return last;
   }
 };
@@ -249,8 +257,56 @@ void test_a_held_reading_is_not_saved() {
   TEST_ASSERT_EQUAL(WSOFT_SAVE_SAVED, b.tap(31205));
 }
 
+void test_auto_save_only_saves_inside_the_hi_lo_limits() {
+  Bench b;
+  b.limits = true;
+  b.feed(0, 4, true);
+  TEST_ASSERT_EQUAL(0, b.feed(2900, 20, true));  // too low: auto save waits
+  TEST_ASSERT_EQUAL(0, b.feed(3300, 20, true));  // too high: still waits
+  TEST_ASSERT_EQUAL(1, b.feed(3100, 20, true));  // topped up to inside the limits: saved
+  TEST_ASSERT_FALSE(b.saver.last_overridden());
+  b.feed(0, 4, true);
+  TEST_ASSERT_EQUAL(1, b.feed(3000, 20, true));  // exactly at the low limit is inside
+  // No product picked: auto save as before, whatever the weight.
+  b.limits = false;
+  b.feed(0, 4, true);
+  TEST_ASSERT_EQUAL(1, b.feed(9999, 20, true));
+}
+
+void test_tap_outside_the_limits_needs_a_second_tap() {
+  Bench b;
+  b.limits = true;
+  b.feed(0, 4, false);
+  b.feed(3300, 20, false);
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_OUT_OF_LIMITS, b.tap(3300));
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_SAVED, b.tap(3300));  // second tap within 5 s: the operator overrides
+  TEST_ASSERT_TRUE(b.saver.last_overridden());
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_ALREADY, b.tap(3300));
+
+  // Too late: the second tap after 5 s only arms again.
+  b.feed(0, 4, false);
+  b.feed(2900, 20, false);
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_OUT_OF_LIMITS, b.tap(2900));
+  b.t += WSOFT_OVERRIDE_MS;
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_OUT_OF_LIMITS, b.tap(2900));
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_SAVED, b.tap(2900));
+
+  // The weight changed between the taps: the override does not carry over.
+  b.feed(0, 4, false);
+  b.feed(2900, 20, false);
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_OUT_OF_LIMITS, b.tap(2900));
+  b.feed(3350, 20, false);
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_OUT_OF_LIMITS, b.tap(3350));
+
+  // Inside the limits one tap saves, not marked as an override.
+  b.feed(0, 4, false);
+  b.feed(3100, 20, false);
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_SAVED, b.tap(3100));
+  TEST_ASSERT_FALSE(b.saver.last_overridden());
+}
+
 void test_every_result_has_words() {
-  for (int r = WSOFT_SAVE_SAVED; r <= WSOFT_SAVE_BELOW_MIN; r++) {
+  for (int r = WSOFT_SAVE_SAVED; r <= WSOFT_SAVE_OUT_OF_LIMITS; r++) {
     size_t length = strlen(wsoft_save_result_text((WsoftSaveResult)r));
     TEST_ASSERT_TRUE(length > 0 && length <= 16);
   }
@@ -273,6 +329,8 @@ int main(int, char **) {
   RUN_TEST(test_tap_explains_why_it_cannot_save);
   RUN_TEST(test_no_signal);
   RUN_TEST(test_a_held_reading_is_not_saved);
+  RUN_TEST(test_auto_save_only_saves_inside_the_hi_lo_limits);
+  RUN_TEST(test_tap_outside_the_limits_needs_a_second_tap);
   RUN_TEST(test_every_result_has_words);
   return UNITY_END();
 }
