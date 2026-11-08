@@ -260,9 +260,10 @@ bool wsoft_hilo_json(const WsoftHiloStamp &stamp, const char *reading_kg, char *
   }
   int n = snprintf(out, size,
                    ",\"hi_lo\":{\"state\":\"%s\",\"reading_kg\":%s,\"target_kg\":%s,\"low_limit_kg\":%s,"
-                   "\"high_limit_kg\":%s,\"deadband_kg\":0,\"tolerance\":{\"source\":\"hub-hilo-v1\"},"
+                   "\"high_limit_kg\":%s,\"deadband_kg\":0,\"tolerance\":{\"source\":\"hub-hilo-v1\"%s},"
                    "\"auto_saved\":%s,\"product_code\":\"%s\"}",
                    wsoft_hilo_state_wire(stamp.state), reading_kg, target, low, high,
+                   stamp.overridden ? ",\"operator_override\":true" : "",
                    stamp.auto_saved ? "true" : "false", stamp.code);
   return n > 0 && (size_t)n < size;
 }

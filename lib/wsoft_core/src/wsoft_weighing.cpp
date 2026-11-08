@@ -84,7 +84,8 @@ bool wsoft_weighing_json(const TradeWeight &w, const WsoftWeighingMeta &meta, ch
 }
 
 WsoftSaveResult WsoftWeighingSaver::update(const TradeReading &r, bool auto_save, bool save_requested,
-                                           bool queue_full, TradeWeight *issued, WsoftSaveResult hold) {
+                                           bool queue_full, TradeWeight *issued, WsoftSaveResult hold,
+                                           WsoftHiloState hilo) {
   if (issued) *issued = TradeWeight();
   // Stability exactly as TradeEngine: fresh, unchanged readings for TRADE_STABLE_MS.
   if (!started_ || !r.linked || !r.fresh || after_stale_ || r.value != motion_value_) {
@@ -114,6 +115,21 @@ WsoftSaveResult WsoftWeighingSaver::update(const TradeReading &r, bool auto_save
   }
   if (queue_full) return WSOFT_SAVE_FULL;
 
+  bool outside = hilo == WSOFT_HILO_LOW || hilo == WSOFT_HILO_HIGH;
+  bool overridden = false;
+  if (outside) {
+    if (!save_requested) return WSOFT_SAVE_NONE;  // auto save waits for a weight inside the limits
+    bool second = armed_ && r.value == armed_value_ && r.now_ms - armed_ms_ <= WSOFT_OVERRIDE_MS;
+    if (!second) {
+      armed_ = true;
+      armed_ms_ = r.now_ms;
+      armed_value_ = r.value;
+      return WSOFT_SAVE_OUT_OF_LIMITS;
+    }
+    overridden = true;
+  }
+  armed_ = false;
+
   TradeWeight w;
   w.valid = true;
   w.seq = next_seq_++;
@@ -122,6 +138,7 @@ WsoftSaveResult WsoftWeighingSaver::update(const TradeReading &r, bool auto_save
   w.unit = r.unit;
   w.at = r.now_unix;
   last_ = w;
+  last_overridden_ = overridden;
   seen_empty_ = false;
   if (issued) *issued = w;
   return WSOFT_SAVE_SAVED;
@@ -140,6 +157,7 @@ const char *wsoft_save_result_text(WsoftSaveResult result) {
     case WSOFT_SAVE_FULL: return "Memory full";
     case WSOFT_SAVE_BLANK: return "Out of range";
     case WSOFT_SAVE_BELOW_MIN: return "Below Min";
+    case WSOFT_SAVE_OUT_OF_LIMITS: return "Tap again: save";
   }
   return "";
 }

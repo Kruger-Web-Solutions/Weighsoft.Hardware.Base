@@ -63,7 +63,8 @@ struct StoredWeighing {
   int32_t low_g;
   int32_t high_g;
   char code[WSOFT_HILO_CODE_MAX + 1];
-  char spare[7];
+  char overridden;  // 1 = outside the limits, saved by the operator's second tap (was spare: 0)
+  char spare[6];
 };
 static_assert(sizeof(StoredWeighing) != sizeof(StoredWeighingV1) && sizeof(StoredWeighing) != sizeof(StoredWeighingV2) &&
                   sizeof(StoredWeighingV1) != sizeof(StoredWeighingV2),
@@ -80,6 +81,7 @@ static WsoftHiloStamp stamp_of(const StoredWeighing &s) {
   h.high_g = s.high_g;
   h.state = (WsoftHiloState)s.hilo_state;
   h.auto_saved = s.hilo_auto == 1;
+  h.overridden = s.overridden == 1;
   return h;
 }
 
@@ -217,6 +219,7 @@ static void store_saved(const TradeWeight &w, bool for_trade, int32_t tare_value
     s.low_g = hilo.low_g;
     s.high_g = hilo.high_g;
     strlcpy(s.code, hilo.code, sizeof s.code);
+    s.overridden = hilo.overridden ? 1 : 0;
   }
   char key[8];
   slot_key(head + count - 1, key, sizeof key);
@@ -241,13 +244,17 @@ WsoftSaveResult weighings_update(bool linked, bool fresh, bool alarm, int32_t va
   portEXIT_CRITICAL(&lock);
 
   TradeReading r = {true, linked, fresh, alarm, value, decimals, unit, millis(), (int64_t)time(nullptr)};
+  // Hi-Lo is judged on the net weight (gross - tare), in the reading's own decimals and unit.
+  // Outside the limits auto save waits and a tap needs a second tap (WSOFT_SAVE_OUT_OF_LIMITS).
+  WsoftHiloState state = WSOFT_HILO_NONE;
+  if (product != nullptr && linked) state = wsoft_hilo_check(*product, value - tare_value, decimals, unit);
   TradeWeight saved;
-  WsoftSaveResult result = saver.update(r, automatic, tapped, full, &saved, hold);
+  WsoftSaveResult result = saver.update(r, automatic, tapped, full, &saved, hold, state);
   WsoftHiloStamp hilo;
   if (result == WSOFT_SAVE_SAVED && product != nullptr) {
-    // Judged on the net weight (gross - tare), in the reading's own decimals and unit.
-    hilo.state = wsoft_hilo_check(*product, saved.value - tare_value, saved.decimals, saved.unit);
+    hilo.state = state;
     hilo.on = hilo.state != WSOFT_HILO_NONE;
+    hilo.overridden = saver.last_overridden();
     strlcpy(hilo.code, product->code, sizeof hilo.code);
     hilo.target_g = product->target_g;
     hilo.low_g = product->low_g;
@@ -270,9 +277,10 @@ WsoftSaveResult weighings_update(bool linked, bool fresh, bool alarm, int32_t va
     format_weight(saved.value, saved.decimals, weight, sizeof weight);
     char tare_text[16];
     format_weight(tare_value, saved.decimals, tare_text, sizeof tare_text);
-    Serial0.printf("WEIGH saved seq=%lu weight=%s %s tare=%s %s for_trade=%d hilo=%s %s\n", (unsigned long)saved.seq,
+    Serial0.printf("WEIGH saved seq=%lu weight=%s %s tare=%s %s for_trade=%d hilo=%s %s%s\n", (unsigned long)saved.seq,
                    weight, weight_unit_text(saved.unit), tare_text, tapped ? "tap" : "auto", for_trade ? 1 : 0,
-                   hilo.on ? hilo.code : "-", hilo.on ? wsoft_hilo_state_wire(hilo.state) : "");
+                   hilo.on ? hilo.code : "-", hilo.on ? wsoft_hilo_state_wire(hilo.state) : "",
+                   hilo.overridden ? " OVERRIDE" : "");
   } else if (tapped) {
     Serial0.printf("WEIGH save refused: %s\n", wsoft_save_result_text(result));
   }

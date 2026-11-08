@@ -243,6 +243,10 @@ void test_weighing_hi_lo_block() {
       "\"high_limit_kg\":51,\"deadband_kg\":0,\"tolerance\":{\"source\":\"hub-hilo-v1\"},"
       "\"auto_saved\":true,\"product_code\":\"MAIZE\"}",
       out);
+  s.overridden = true;  // outside the limits, saved by the operator's second tap
+  TEST_ASSERT_TRUE(wsoft_hilo_json(s, "51.2", out, sizeof out));
+  TEST_ASSERT_TRUE(strstr(out, "\"tolerance\":{\"source\":\"hub-hilo-v1\",\"operator_override\":true}") != nullptr);
+  s.overridden = false;
   TEST_ASSERT_FALSE(wsoft_hilo_json(s, "51.2", out, 40));  // too small
   TEST_ASSERT_FALSE(wsoft_hilo_json(s, "", out, sizeof out));
   s.state = WSOFT_HILO_NONE;

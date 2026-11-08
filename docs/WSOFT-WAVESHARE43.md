@@ -223,7 +223,10 @@ Last change wins: a Hub default is applied once (by its `set_at`); after that th
 can pick another product with PRODUCT on the menu (none, first, ..., last, none). A product
 the Hub no longer lists is dropped. The live page shows the product and its limits under the
 title, the gauge's green third is the product's limits, and the word under it is OK, TOO LOW,
-TOO HIGH or NO PRODUCT (exact, on the net weight). Each saved weighing keeps its Hi-Lo result
+TOO HIGH or NO PRODUCT (exact, on the net weight). With a product picked, Auto save saves only a weight
+inside the limits (outside, it waits). A Save tap outside the limits shows "Tap again: save";
+a second tap within 5 s on the same weight saves it as an operator override (Rhyno, 8 Nov 2026),
+sent as `"operator_override":true` in the `hi_lo` block's `tolerance`. Each saved weighing keeps its Hi-Lo result
 (product, limits, LOW / PASS / HIGH, auto save or tap) in NVS `weigh` and sends it as the
 weighing's `hi_lo` block, which the Hub's Hi-Lo dashboard reads.
 

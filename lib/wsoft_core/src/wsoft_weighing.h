@@ -40,6 +40,9 @@ struct WsoftWeighingMeta {
 // out is too small.
 bool wsoft_weighing_json(const TradeWeight &w, const WsoftWeighingMeta &meta, char *out, size_t size);
 
+// How long a first Save tap outside the Hi-Lo limits waits for the second (override) tap.
+static const uint32_t WSOFT_OVERRIDE_MS = 5000;
+
 enum WsoftSaveResult {
   WSOFT_SAVE_NONE,        // nothing asked for, or auto save waiting for a settled new load
   WSOFT_SAVE_SAVED,       // *issued holds the new weighing
@@ -52,6 +55,10 @@ enum WsoftSaveResult {
   WSOFT_SAVE_FULL,        // the board already holds the maximum unsent weighings
   WSOFT_SAVE_BLANK,       // the scale shows ---- (outside the RS485 setup's blanking points)
   WSOFT_SAVE_BELOW_MIN,   // below the RS485 setup's Min while Approval is ON
+  // Save tapped while a Hi-Lo product is picked and the net weight is outside its limits. The
+  // tap arms an override: a second tap within WSOFT_OVERRIDE_MS on the same weight saves it,
+  // marked as an operator override (Rhyno, 8 Nov 2026). Auto save never saves such a weight.
+  WSOFT_SAVE_OUT_OF_LIMITS,
 };
 
 class WsoftWeighingSaver {
@@ -62,12 +69,18 @@ class WsoftWeighingSaver {
   // last call. When the result is SAVED, *issued holds the weighing and next_seq() moved on.
   // hold = why the RS485 scale setup holds this reading back (BLANK, BELOW_MIN or NOT_STABLE),
   // or NONE. BLANK wins over everything but NO_SIGNAL; the others only when nothing else blocks.
+  // hilo = the Hi-Lo check of this reading's net weight (NONE when no product is picked).
+  // LOW or HIGH: auto save waits (the load may still be topped up or taken off), and a tap gives
+  // OUT_OF_LIMITS the first time and saves on a second tap (see WSOFT_SAVE_OUT_OF_LIMITS).
   WsoftSaveResult update(const TradeReading &r, bool auto_save, bool save_requested, bool queue_full,
-                         TradeWeight *issued, WsoftSaveResult hold = WSOFT_SAVE_NONE);
+                         TradeWeight *issued, WsoftSaveResult hold = WSOFT_SAVE_NONE,
+                         WsoftHiloState hilo = WSOFT_HILO_NONE);
 
   bool stable() const { return stable_; }
   uint32_t next_seq() const { return next_seq_; }
   const TradeWeight &last() const { return last_; }
+  // The last SAVED weighing was outside the Hi-Lo limits and saved by the operator's second tap.
+  bool last_overridden() const { return last_overridden_; }
 
  private:
   uint32_t next_seq_;
@@ -77,6 +90,10 @@ class WsoftWeighingSaver {
   uint32_t unchanged_since_ = 0;
   bool stable_ = false;
   bool seen_empty_ = false;  // a live 0 seen since the last save; false at boot
+  bool armed_ = false;        // a first tap outside the limits is waiting for the second
+  uint32_t armed_ms_ = 0;
+  int32_t armed_value_ = 0;
+  bool last_overridden_ = false;
   TradeWeight last_;
 };
 

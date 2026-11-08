@@ -55,6 +55,7 @@ struct WsoftHiloStamp {
   int32_t high_g = 0;
   WsoftHiloState state = WSOFT_HILO_NONE;
   bool auto_saved = false;
+  bool overridden = false;  // outside the limits, saved by the operator's second tap
 };
 
 // A product code the Hub accepts: [A-Za-z0-9_-]{1,32}.
