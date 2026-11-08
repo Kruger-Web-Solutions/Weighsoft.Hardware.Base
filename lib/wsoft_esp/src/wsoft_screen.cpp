@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <WiFi.h>
 #include <math.h>
 
 #include "approval.h"
@@ -117,9 +118,10 @@ static WsoftScaleHold view_hold = WSOFT_HOLD_NONE;
 static int32_t view_net = 0;   // gross - tare, in the reading's decimals and unit
 static bool view_tared = false;
 
-// Screen pages: the live weight, the switches menu and the PIN pad (laid out further down).
+// Screen pages: the live weight, the switches menu, the PIN pad and the "set a PIN" note
+// (laid out further down).
 // Boxes are on the CYD's 320 x 240; the Waveshare scales them to its 800 x 480.
-enum Page { PAGE_LIVE, PAGE_MENU, PAGE_PIN };
+enum Page { PAGE_LIVE, PAGE_MENU, PAGE_PIN, PAGE_NO_PIN };
 static Page page = PAGE_LIVE;
 struct UiBox {
   int16_t x, y, w, h;
@@ -1100,6 +1102,49 @@ static void ui_page_end() {
 }
 #endif
 
+// One centred line on the open page. y is on the CYD's 240 rows; big = the larger font.
+#if WSOFT_BOARD_CYD
+static void ui_line(const char *text, int y, bool big, uint16_t color) {
+  cyd_text(text, CYD_W / 2, y, big ? 4 : 2, color, PAGE, TC_DATUM);
+}
+#else
+static void ui_line(const char *text, int y, bool big, uint16_t color) {
+  (void)big;  // one font size on the Waveshare
+  draw_text(MID, SCREEN_W / 2, y * SCREEN_H / 240, text, color, CENTER);
+}
+#endif
+
+// The address to type on a phone or PC: the Wi-Fi address, else the board's own hotspot.
+static void board_address(char *out, size_t size) {
+  if (WiFi.status() == WL_CONNECTED) {
+    strlcpy(out, WiFi.localIP().toString().c_str(), size);
+  } else if (WiFi.getMode() & WIFI_AP) {
+    strlcpy(out, WiFi.softAPIP().toString().c_str(), size);
+  } else {
+    out[0] = 0;
+  }
+}
+
+// Approval was tapped but no PIN is set: say plainly where to set it (Rhyno, 8 Nov 2026).
+// Only capitals, digits, '.', '-' and spaces: all the Waveshare font has.
+static void ui_draw_no_pin() {
+  char address[20];
+  board_address(address, sizeof address);
+  ui_page_begin("APPROVAL");
+  ui_line("SET A SCREEN PIN FIRST", 42, false, RED);
+  if (address[0]) {
+    ui_line("ON A PHONE OR PC OPEN", 74, false, INK);
+    ui_line(address, 100, true, INK);
+  } else {
+    ui_line("CONNECT THE BOARD TO WI-FI", 74, false, INK);
+    ui_line("THEN OPEN ITS WEB PAGE", 100, false, INK);
+  }
+  ui_line("LOG IN AS ADMIN", 136, false, INK);
+  ui_line("W-SOFT - SETTINGS - APPROVAL PIN", 162, false, INK);
+  ui_line("TAP ANYWHERE TO CLOSE", 210, false, MUTED);
+  ui_page_end();
+}
+
 static void ui_draw_menu() {
   SwitchesInfo info;
   switches_info(&info);
@@ -1151,7 +1196,8 @@ static void ui_start_approval() {
   pin_target = !info.approval_on;
   char line[40];
   if (!info.pin_set) {
-    ui_say("NO PIN SET IN THE BROWSER YET");
+    ui_message[0] = 0;
+    ui_open(PAGE_NO_PIN);
   } else if (info.pin_locked_s > 0) {
     snprintf(line, sizeof line, "PIN LOCKED %lu S", (unsigned long)info.pin_locked_s);
     ui_say(line);
@@ -1182,7 +1228,7 @@ static void ui_pin_ok() {
       snprintf(line, sizeof line, "PIN LOCKED %lu S", (unsigned long)pin_locked_s());
       ui_say(line);
     } else {
-      ui_say("NO PIN SET IN THE BROWSER YET");
+      ui_open(PAGE_NO_PIN);
     }
   }
 }
@@ -1245,6 +1291,10 @@ static void ui_tap(int x, int y) {
     }
     return;
   }
+  if (page == PAGE_NO_PIN) {
+    ui_open(PAGE_MENU);
+    return;
+  }
   // PAGE_PIN
   if (inside(BTN_CANCEL, x, y)) {
     ui_open(PAGE_MENU);
@@ -1275,9 +1325,16 @@ static void ui_poll() {
   snprintf(key, sizeof key, "%d|%d|%d|%d|%u|%s|%s|%s", (int)page, info.approval_on ? 1 : 0, info.auto_save ? 1 : 0,
            scale_tare().on ? 1 : 0, (unsigned)hilo.count, hilo.picked ? hilo.current.code : "", ui_message,
            pad.masked());
+  if (page == PAGE_NO_PIN) {  // the address shown can change while the note is open
+    char address[20];
+    board_address(address, sizeof address);
+    strlcat(key, "|", sizeof key);
+    strlcat(key, address, sizeof key);
+  }
   if (strcmp(key, ui_shown) == 0) return;
   strlcpy(ui_shown, key, sizeof ui_shown);
   if (page == PAGE_MENU) ui_draw_menu();
+  else if (page == PAGE_NO_PIN) ui_draw_no_pin();
   else ui_draw_pin();
 }
 
