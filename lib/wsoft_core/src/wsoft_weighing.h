@@ -14,6 +14,7 @@
 #include <stdint.h>
 
 #include "trade_logic.h"
+#include "wsoft_hilo.h"
 
 // "1520", "1.52", "0.0152": the weight in kg as a JSON number the Hub accepts
 // (at most 5 digits each side of the point). Units: 1 kg, 2 t, 3 g.
@@ -29,6 +30,9 @@ struct WsoftWeighingMeta {
   // must be above 0. Then gross, tare and net (gross - tare) go out with basis "NT".
   bool tared;
   int32_t tare_value;
+  // The Hi-Lo result for this load (Hub ADR 0008), or nullptr. When on, the weighing gets a
+  // top-level "hi_lo" block judged on the net weight.
+  const WsoftHiloStamp *hilo;
 };
 
 // weighing_id = "<device_tag>-<unix time>-<seq>", unique even if the counter is reset.
