@@ -1,0 +1,10 @@
+# Name,   Type, SubType, Offset,  Size, Flags
+# W-Soft yellow board (wsoft_cyd28, 4MB, no OTA). Same app and filesystem as
+# partitions_ble.csv, but 0xE000-0xFFFF is otadata: every Arduino USB upload
+# writes boot_app0.bin (8 KB) at 0xE000. In partitions_ble.csv that spot is the
+# last NVS page + phy_init, so each flash wiped the Hub pairing and auto save
+# (8 Nov 2026). NVS ends at 0xE000 here; /littlefs stays at 0x350000.
+nvs,      data, nvs,     0x9000,  0x5000,
+otadata,  data, ota,     0xe000,  0x2000,
+factory,  app,  factory, 0x10000, 0x340000,
+spiffs,   data, spiffs,  0x350000,0xA0000,
