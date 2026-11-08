@@ -63,6 +63,9 @@ bool wsoft_weighing_json(const TradeWeight &w, const WsoftWeighingMeta &meta, ch
   char reading[24];
   format_weight(w.value, w.decimals, reading, sizeof reading);
 
+  char hilo[400] = "";
+  if (meta.hilo != nullptr && meta.hilo->on && !wsoft_hilo_json(*meta.hilo, net, hilo, sizeof hilo)) return false;
+
   char when[32];
   time_t seconds = (time_t)w.at;
   struct tm utc;
@@ -73,10 +76,10 @@ bool wsoft_weighing_json(const TradeWeight &w, const WsoftWeighingMeta &meta, ch
                    "{\"weighing_id\":\"%s-%lld-%lu\",\"committed_at\":\"%s\","
                    "\"gross_kg\":%s,\"tare_kg\":%s,\"net_kg\":%s,\"basis\":\"%s\","
                    "\"payload\":{\"seq\":%lu,\"reading\":\"%s\",\"unit\":\"%s\",\"source\":\"%s\","
-                   "\"station_model\":\"%s\",\"for_trade\":%s}}",
+                   "\"station_model\":\"%s\",\"for_trade\":%s}%s}",
                    meta.device_tag, (long long)w.at, (unsigned long)w.seq, when, kg, tare, net, meta.tared ? "NT" : "GS",
                    (unsigned long)w.seq, reading,
-                   weight_unit_text(w.unit), meta.source, meta.station_model, meta.for_trade ? "true" : "false");
+                   weight_unit_text(w.unit), meta.source, meta.station_model, meta.for_trade ? "true" : "false", hilo);
   return n > 0 && (size_t)n < size;
 }
 

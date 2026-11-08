@@ -85,6 +85,31 @@ void test_json_with_a_tare_sends_gross_tare_net_and_nt() {
   TEST_ASSERT_FALSE(wsoft_weighing_json(weight(9, 31205, 1, 1, 1762520400), meta, out, sizeof out));
 }
 
+void test_json_carries_the_hi_lo_result_on_the_net_weight() {
+  char out[900];
+  WsoftHiloStamp stamp;
+  stamp.on = true;
+  strcpy(stamp.code, "MAIZE");
+  stamp.target_g = 50000;
+  stamp.low_g = 49000;
+  stamp.high_g = 51000;
+  stamp.state = WSOFT_HILO_PASS;
+  WsoftWeighingMeta meta = META;
+  meta.tared = true;
+  meta.tare_value = 5;  // 0.5 kg bag
+  meta.hilo = &stamp;
+  TEST_ASSERT_TRUE(wsoft_weighing_json(weight(3, 505, 1, 1, 1762520400), meta, out, sizeof out));
+  TEST_ASSERT_TRUE(strstr(out,
+                          "\"for_trade\":false},\"hi_lo\":{\"state\":\"PASS\",\"reading_kg\":50,\"target_kg\":50,"
+                          "\"low_limit_kg\":49,\"high_limit_kg\":51,\"deadband_kg\":0,\"tolerance\":{\"source\":\"hub-hilo-v1\"},"
+                          "\"auto_saved\":false,\"product_code\":\"MAIZE\"}}") != nullptr);
+  // No product picked: no block, same body as before.
+  stamp.on = false;
+  TEST_ASSERT_TRUE(wsoft_weighing_json(weight(3, 505, 1, 1, 1762520400), meta, out, sizeof out));
+  TEST_ASSERT_TRUE(strstr(out, "hi_lo") == nullptr);
+  TEST_ASSERT_TRUE(strstr(out, "\"for_trade\":false}}") != nullptr);
+}
+
 void test_json_refuses_unsendable_weighings() {
   char out[512];
   TEST_ASSERT_FALSE(wsoft_weighing_json(TradeWeight(), META, out, sizeof out));                 // not valid
@@ -238,6 +263,7 @@ int main(int, char **) {
   RUN_TEST(test_json_matches_the_hub_contract);
   RUN_TEST(test_json_keeps_decimals_and_for_trade);
   RUN_TEST(test_json_with_a_tare_sends_gross_tare_net_and_nt);
+  RUN_TEST(test_json_carries_the_hi_lo_result_on_the_net_weight);
   RUN_TEST(test_json_refuses_unsendable_weighings);
   RUN_TEST(test_auto_save_once_per_settled_load);
   RUN_TEST(test_a_second_weighing_needs_the_scale_back_at_zero);

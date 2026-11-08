@@ -54,7 +54,12 @@ void wsoft_hub_signature(const uint8_t key[32], const char *prefix, const char *
                          const char *nonce, const char *body, size_t length, char out[WSOFT_CMD_SIGNATURE_SIZE]);
 
 // True only when the answer's key id and nonce are the ones the board sent, the timestamp
-// is digits, and the signature (command prefix) matches. Constant-time compare.
+// is digits, and the signature under the given response prefix matches. Constant-time compare.
+bool wsoft_hub_verify_answer(const uint8_t key[32], const char *prefix, const char *sent_key_id,
+                             const char *sent_nonce, const char *key_id, const char *timestamp, const char *nonce,
+                             const char *signature, const char *body, size_t length);
+
+// wsoft_hub_verify_answer with the command prefix.
 bool wsoft_hub_commands_verify(const uint8_t key[32], const char *sent_key_id, const char *sent_nonce,
                                const char *key_id, const char *timestamp, const char *nonce, const char *signature,
                                const char *body, size_t length);

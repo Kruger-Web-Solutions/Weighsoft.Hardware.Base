@@ -212,6 +212,21 @@ The results waiting to go to the Hub are kept in RAM only: after a restart they 
 and the Hub marks those commands expired. A switch from any place sends a heartbeat at
 once, with `auto_save` and `scale_setup_complete` in `health`.
 
+**Hi-Lo products (Hub ADR 0008).** The Hub sets Hi-Lo limits per product (Setup, Hi-Lo
+ranges, "No container") and a default product per scale (device page, "Hi-Lo product").
+While the Hub is online the board posts `{"current":"<code>"|null}` to
+`POST /api/v1/ingest/hilo` once a minute (2 s after the operator picks a product, 15 s after
+a failed pull). The answer (at most 50 products and the default) is checked against
+`scale-models-hub-hilo-v1` and parsed strictly; anything else changes nothing. List and pick
+are kept in NVS `hilo`, so the board still checks weights while the Hub is away.
+Last change wins: a Hub default is applied once (by its `set_at`); after that the operator
+can pick another product with PRODUCT on the menu (none, first, ..., last, none). A product
+the Hub no longer lists is dropped. The live page shows the product and its limits under the
+title, the gauge's green third is the product's limits, and the word under it is OK, TOO LOW,
+TOO HIGH or NO PRODUCT (exact, on the net weight). Each saved weighing keeps its Hi-Lo result
+(product, limits, LOW / PASS / HIGH, auto save or tap) in NVS `weigh` and sends it as the
+weighing's `hi_lo` block, which the Hub's Hi-Lo dashboard reads.
+
 **Update note.** Auto save moved from W-Soft > Settings to the switches (NVS `weigh`). At
 the first boot after the update the board reads the old `auto_save` once from
 `/config/wsoftSettings.json` and keeps it.
