@@ -5,7 +5,8 @@
 //
 // A weighing is saved when a person taps Save, or by itself when Auto save is on, and only
 // once the weight has settled above zero for TRADE_STABLE_MS (same "stable" as the trade
-// checks). One weighing per load: a load is new after the scale emptied or the weight changed.
+// checks). One weighing per load: after a save (and after boot) the scale must show 0 (a live
+// reading of 0 or less) before the next weighing, by tap or by auto save (Rhyno, 8 Nov 2026).
 // Weighings are saved whether trade checks are on or not; the payload says which.
 // With a tare on (RS485 setup), gross, tare and net go out with basis NT; else GS.
 
@@ -39,6 +40,7 @@ enum WsoftSaveResult {
   WSOFT_SAVE_NONE,        // nothing asked for, or auto save waiting for a settled new load
   WSOFT_SAVE_SAVED,       // *issued holds the new weighing
   WSOFT_SAVE_ALREADY,     // Save tapped, but this load is already saved
+  WSOFT_SAVE_NEED_ZERO,   // Save tapped, but the scale has not shown 0 since the last save or boot
   WSOFT_SAVE_NOT_STABLE,  // Save tapped while the weight is moving (or the scale alarms)
   WSOFT_SAVE_EMPTY,       // Save tapped with nothing on the scale
   WSOFT_SAVE_NO_SIGNAL,   // Save tapped with no live reading
@@ -70,7 +72,7 @@ class WsoftWeighingSaver {
   int32_t motion_value_ = 0;
   uint32_t unchanged_since_ = 0;
   bool stable_ = false;
-  bool seen_empty_ = true;
+  bool seen_empty_ = false;  // a live 0 seen since the last save; false at boot
   TradeWeight last_;
 };
 

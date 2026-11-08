@@ -101,11 +101,14 @@ WsoftSaveResult WsoftWeighingSaver::update(const TradeReading &r, bool auto_save
   if (hold == WSOFT_SAVE_BLANK && blocked != WSOFT_SAVE_NO_SIGNAL) blocked = hold;
   else if (hold != WSOFT_SAVE_NONE && blocked == WSOFT_SAVE_NONE) blocked = hold;
 
-  bool new_load = !last_.valid || seen_empty_ || r.value != last_.value || r.decimals != last_.decimals ||
-                  r.unit != last_.unit;
+  // A new load only after the scale showed 0: a changed weight alone is not a new load.
+  bool new_load = seen_empty_;
   if (!save_requested && !(auto_save && new_load)) return WSOFT_SAVE_NONE;
   if (blocked != WSOFT_SAVE_NONE) return save_requested ? blocked : WSOFT_SAVE_NONE;
-  if (!new_load) return WSOFT_SAVE_ALREADY;  // only reachable by a tap
+  if (!new_load) {  // only reachable by a tap
+    bool same = last_.valid && r.value == last_.value && r.decimals == last_.decimals && r.unit == last_.unit;
+    return same ? WSOFT_SAVE_ALREADY : WSOFT_SAVE_NEED_ZERO;
+  }
   if (queue_full) return WSOFT_SAVE_FULL;
 
   TradeWeight w;
@@ -126,6 +129,7 @@ const char *wsoft_save_result_text(WsoftSaveResult result) {
     case WSOFT_SAVE_NONE: return "";
     case WSOFT_SAVE_SAVED: return "Saved";
     case WSOFT_SAVE_ALREADY: return "Already saved";
+    case WSOFT_SAVE_NEED_ZERO: return "Go to 0 first";
     case WSOFT_SAVE_NOT_STABLE: return "Wait: moving";
     case WSOFT_SAVE_EMPTY: return "Scale is empty";
     case WSOFT_SAVE_NO_SIGNAL: return "No scale signal";

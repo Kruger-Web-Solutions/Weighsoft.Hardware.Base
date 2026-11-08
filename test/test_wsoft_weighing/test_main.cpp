@@ -128,8 +128,38 @@ void test_auto_save_once_per_settled_load() {
   TEST_ASSERT_EQUAL(0, b.feed(3120, 20, true));  // still on the scale: no second save
   b.feed(0, 4, true);                            // emptied
   TEST_ASSERT_EQUAL(1, b.feed(3120, 20, true));  // same weight, new load
-  TEST_ASSERT_EQUAL(1, b.feed(3200, 20, true));  // weight changed: new load
+  TEST_ASSERT_EQUAL(0, b.feed(3200, 20, true));  // weight changed, but no 0 in between: no save
+  b.feed(0, 4, true);
+  TEST_ASSERT_EQUAL(1, b.feed(3200, 20, true));
   TEST_ASSERT_EQUAL_UINT32(4, b.saver.next_seq());
+}
+
+// Rhyno, 8 Nov 2026: no second weighing (auto save or tap) until the scale went back to 0.
+void test_a_second_weighing_needs_the_scale_back_at_zero() {
+  Bench b;
+  b.feed(0, 4, false);
+  b.feed(3120, 8, false);
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_SAVED, b.tap(3120));
+  b.feed(3500, 8, false);  // more added, never back at 0
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_NEED_ZERO, b.tap(3500));
+  TEST_ASSERT_EQUAL_STRING("Go to 0 first", wsoft_save_result_text(b.last));
+  b.feed(40, 8, false);  // nearly empty is not empty
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_NEED_ZERO, b.tap(40));
+  b.feed(0, 2, false, false);  // a 0 with no live signal does not count
+  b.feed(3500, 8, false);
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_NEED_ZERO, b.tap(3500));
+  b.feed(0, 1, false);  // one live 0 reading is enough
+  b.feed(3500, 8, false);
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_SAVED, b.tap(3500));
+}
+
+void test_after_boot_the_scale_must_show_zero_first() {
+  Bench b;  // board just started with a load already on
+  TEST_ASSERT_EQUAL(0, b.feed(3120, 20, true));
+  b.feed(3120, 8, false);
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_NEED_ZERO, b.tap(3120));
+  b.feed(0, 4, true);
+  TEST_ASSERT_EQUAL(1, b.feed(3120, 20, true));
 }
 
 void test_auto_save_off_saves_nothing_by_itself() {
@@ -210,6 +240,8 @@ int main(int, char **) {
   RUN_TEST(test_json_with_a_tare_sends_gross_tare_net_and_nt);
   RUN_TEST(test_json_refuses_unsendable_weighings);
   RUN_TEST(test_auto_save_once_per_settled_load);
+  RUN_TEST(test_a_second_weighing_needs_the_scale_back_at_zero);
+  RUN_TEST(test_after_boot_the_scale_must_show_zero_first);
   RUN_TEST(test_auto_save_off_saves_nothing_by_itself);
   RUN_TEST(test_tap_saves_a_settled_load_once);
   RUN_TEST(test_tap_explains_why_it_cannot_save);

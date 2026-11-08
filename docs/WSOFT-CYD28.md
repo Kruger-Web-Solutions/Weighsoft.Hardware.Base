@@ -83,10 +83,11 @@ A weighing is saved when someone taps **SAVE** (on the screen, or **Save weighin
 web Live page), or by itself when **Auto save** is on (the switches: screen MENU, the web page, the Hub or
 `/rest/wsoftSwitches`; off by default, kept in NVS `weigh`).
 Either way only once the weight has settled above zero for 1 s, and once per load: a new
-load needs the scale emptied or a different weight. Saved whether trade checks are on or
+load needs the scale back at **0** first (also after a restart). A changed weight alone is
+not a new load (Rhyno, 8 Nov 2026). Saved whether trade checks are on or
 not; the payload carries `for_trade`.
 
-- The SAVE button shows `SAVED #n`, or why not (`Wait: moving`, `Already saved`,
+- The SAVE button shows `SAVED #n`, or why not (`Wait: moving`, `Already saved`, `Go to 0 first`,
   `Scale is empty`, `No scale signal`, `Clock not set`, `Memory full`) for 3 s, then how
   many wait for the Hub.
 - Up to 32 unsent weighings are kept in flash (NVS `weigh`). When full, Save answers

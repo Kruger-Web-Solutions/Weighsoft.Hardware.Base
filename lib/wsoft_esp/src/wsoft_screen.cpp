@@ -683,7 +683,7 @@ static void cyd_save_box() {
     snprintf(line, sizeof line, "SAVED #%lu", (unsigned long)info.last.seq);
   } else if (recent) {
     strlcpy(line, wsoft_save_result_text(info.last_result), sizeof line);
-    fill = info.last_result == WSOFT_SAVE_ALREADY ? MUTED : RED;
+    fill = info.last_result == WSOFT_SAVE_ALREADY || info.last_result == WSOFT_SAVE_NEED_ZERO ? MUTED : RED;
   } else if (info.pending > 0) {
     snprintf(line, sizeof line, "%u to send", (unsigned)info.pending);
   } else {
