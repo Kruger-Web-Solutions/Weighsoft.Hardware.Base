@@ -1,7 +1,7 @@
 import { FC, useCallback, useContext, useEffect, useState } from 'react';
 import { useSnackbar } from 'notistack';
 
-import { Box, Button, Checkbox, Chip, FormControlLabel, Grid, TextField, Typography } from '@mui/material';
+import { Box, Button, Checkbox, Chip, FormControlLabel, Grid, MenuItem, TextField, Typography } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
 
 import { ButtonRow, FormLoader, MessageBox, SectionContent } from '../../components';
@@ -10,7 +10,7 @@ import { AuthenticationContext } from '../../contexts/authentication';
 import WSoftCardSetup from './WSoftCardSetup';
 import * as WSoftApi from './api';
 import { boardErrorText } from './errors';
-import { WSoftScaleBoard, WSoftScaleSetup as WSoftScaleSetupState } from './types';
+import { WSoftScaleBoard, WSoftScaleCard, WSoftScaleSetup as WSoftScaleSetupState } from './types';
 import { REASON_MAX, reasonProblem } from './validators';
 
 const REFRESH_MS = 5000;
@@ -25,13 +25,16 @@ const toForm = (board: WSoftScaleBoard): BoardForm => ({
   stable_samples: String(board.stable_samples)
 });
 
+// "0.2 kg" and "0,2" are read as 0.2.
+const kgText = (value: string) => value.trim().replace(/\s*kg$/i, '').replace(',', '.');
+
 const toBoard = (form: BoardForm): WSoftScaleBoard => ({
   ...form,
   sa_number: form.sa_number.trim(),
-  max_kg: form.max_kg.trim(),
-  min_kg: form.min_kg.trim(),
-  tare_max_kg: form.tare_max_kg.trim(),
-  preset_tare_kg: form.preset_tare_kg.trim(),
+  max_kg: kgText(form.max_kg),
+  min_kg: kgText(form.min_kg),
+  tare_max_kg: kgText(form.tare_max_kg),
+  preset_tare_kg: kgText(form.preset_tare_kg),
   blank_below_e: form.blank_below_e.trim() === '' ? null : Number(form.blank_below_e),
   blank_above_e: Number(form.blank_above_e),
   stable_samples: Number(form.stable_samples)
@@ -41,7 +44,28 @@ const toBoard = (form: BoardForm): WSoftScaleBoard => ({
 const KG = /^[0-9]+(\.[0-9]{1,5})?$/;
 const WHOLE = /^[0-9]+$/;
 
-const kgProblem = (value: string) => (value.trim() === '' || KG.test(value.trim()) ? undefined : 'A number in kg, like 60 or 0.02');
+const kgProblem = (value: string) => (kgText(value) === '' || KG.test(kgText(value)) ? undefined : 'A number in kg, like 60 or 0.02');
+
+// Decimal places and e live on the weighing card (written through /rest/djb); the form shows them in kg.
+// The card keeps e as a whole step in its smallest digit: e 0.02 kg with 2 decimals = step 2.
+interface CardForm {
+  decimal: string;
+  e_kg: string;
+}
+
+const toCardForm = (card: WSoftScaleCard | null): CardForm => {
+  if (!card) return { decimal: '', e_kg: '' };
+  return { decimal: String(card.decimal), e_kg: (card.division / 10 ** card.decimal).toFixed(card.decimal) };
+};
+
+/** The card step for e at these decimal places, or undefined when e is not a whole number of that digit. */
+const cardStep = (form: CardForm) => {
+  const decimal = Number(form.decimal);
+  const e = Number(kgText(form.e_kg));
+  if (form.decimal === '' || !KG.test(kgText(form.e_kg)) || e <= 0) return undefined;
+  const step = Math.round(e * 10 ** decimal);
+  return Math.abs(step / 10 ** decimal - e) < 1e-9 ? step : undefined;
+};
 const wholeProblem = (value: string, required: boolean) => {
   if (value.trim() === '') return required ? 'Needed' : undefined;
   return WHOLE.test(value.trim()) ? undefined : 'A whole number';
@@ -66,6 +90,7 @@ const WSoftScaleSetup: FC = () => {
   const [setup, setSetup] = useState<WSoftScaleSetupState>();
   const [loadError, setLoadError] = useState<string>();
   const [form, setForm] = useState<BoardForm>();
+  const [cardForm, setCardForm] = useState<CardForm>({ decimal: '', e_kg: '' });
   const [dirty, setDirty] = useState(false);
   const [reason, setReason] = useState('');
   const [saving, setSaving] = useState(false);
@@ -87,7 +112,10 @@ const WSoftScaleSetup: FC = () => {
 
   // Follow the board while nothing is being typed.
   useEffect(() => {
-    if (setup && !dirty) setForm(toForm(setup.board));
+    if (setup && !dirty) {
+      setForm(toForm(setup.board));
+      setCardForm(toCardForm(setup.card));
+    }
   }, [setup, dirty]);
 
   const content = () => {
@@ -119,16 +147,39 @@ const WSoftScaleSetup: FC = () => {
       tare_max_kg: kgProblem(form.tare_max_kg),
       preset_tare_kg: kgProblem(form.preset_tare_kg)
     };
+    const cardChanged = (key: keyof CardForm, value: string) => {
+      setCardForm({ ...cardForm, [key]: value });
+      setDirty(true);
+    };
+    const step = cardStep(cardForm);
+    const cardTouched = cardForm.decimal !== '' || cardForm.e_kg.trim() !== '';
+    const eProblem = cardTouched && step === undefined
+      ? 'Pick the decimal places, then e in kg with no more decimals than that (like 0.02 with 2)'
+      : undefined;
+    const cardDiffers = step !== undefined
+      && (!setup.card || setup.card.decimal !== Number(cardForm.decimal) || setup.card.division !== step);
+
     const reasonText = reasonProblem(reason);
-    const formOk = Object.values(problems).every((problem) => !problem);
+    const formOk = Object.values(problems).every((problem) => !problem) && !eProblem;
+
+    // Card first (decimal places, then e), so the board checks Max and Min against the new e.
+    const writeCard = async () => {
+      if (!cardDiffers || step === undefined) return;
+      for (const [field, value] of [['decimal', Number(cardForm.decimal)], ['division', step]] as const) {
+        const reply = (await WSoftApi.djb({ op: 'write', field, value })).data;
+        if (!reply.ok) throw new Error(reply.error ?? 'The weighing card did not answer.');
+      }
+    };
 
     const save = async () => {
       if (!formOk || reasonText) return;
       setSaving(true);
       try {
+        await writeCard();
         const reply = (await WSoftApi.updateWSoftScaleSetup({ board: toBoard(form), reason: reason.trim() })).data;
         setSetup(reply);
         setForm(toForm(reply.board));
+        setCardForm(toCardForm(reply.card));
         setDirty(false);
         setReason('');
         enqueueSnackbar('Scale setup saved', { variant: 'success' });
@@ -175,6 +226,35 @@ const WSoftScaleSetup: FC = () => {
         <Typography variant="h6">On this board</Typography>
         <Grid container columnSpacing={2}>
           {field('sa_number', 'SA approval number', 'Shown on the screen plate. 1 to 32 characters', false)}
+          <Grid item xs={12} sm={6}>
+            <TextField
+              select
+              label="Decimal places"
+              fullWidth
+              margin="dense"
+              value={cardForm.decimal}
+              disabled={!canEdit}
+              onChange={(event) => cardChanged('decimal', event.target.value)}
+              helperText="How many digits after the point. Saved on the weighing card"
+            >
+              {[0, 1, 2, 3, 4].map((value) => (
+                <MenuItem key={value} value={String(value)}>{value}</MenuItem>
+              ))}
+            </TextField>
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <TextField
+              label="e (kg)"
+              fullWidth
+              margin="dense"
+              value={cardForm.e_kg}
+              disabled={!canEdit}
+              onChange={(event) => cardChanged('e_kg', event.target.value)}
+              inputProps={{ inputMode: 'decimal' }}
+              error={!!eProblem}
+              helperText={eProblem ?? 'The scale step, like 1, 0.5 or 0.02. Saved on the weighing card'}
+            />
+          </Grid>
           {field('max_kg', 'Max (kg)', 'More than e')}
           {field('min_kg', 'Min (kg)', 'At least e and less than Max')}
           {field('stable_samples', 'Stable samples', 'Readings in a row before the weight counts as stable. 3 to 20')}

@@ -16,6 +16,7 @@ interface CardFieldInfo {
 }
 
 // The card settings the Scale setup needs, in the names /rest/djb uses (lib/wsoft_core/src/wsoft_djb.cpp).
+// Decimal places and e are set in the form above; this table shows them read-only (READ_ONLY).
 const FIELDS: CardFieldInfo[] = [
   { field: 'division', label: 'Step (e)' },
   {
@@ -40,6 +41,8 @@ const FIELDS: CardFieldInfo[] = [
 ];
 
 type Values = Partial<Record<WSoftCardField, number>>;
+
+const READ_ONLY: WSoftCardField[] = ['division', 'decimal'];
 
 const UNIT_TEXT = ['', 'kg', 't', 'g'];
 
@@ -150,7 +153,8 @@ const WSoftCardSetup: FC<WSoftCardSetupProps> = ({ card, canRead, canWrite, onWr
             <TableRow key={info.field}>
               <TableCell>{info.label}</TableCell>
               <TableCell>{shown(info, values[info.field])}</TableCell>
-              {canWrite && (
+              {canWrite && READ_ONLY.includes(info.field) && <TableCell>Set above</TableCell>}
+              {canWrite && !READ_ONLY.includes(info.field) && (
                 <TableCell>
                   <TextField
                     size="small"
@@ -170,7 +174,7 @@ const WSoftCardSetup: FC<WSoftCardSetupProps> = ({ card, canRead, canWrite, onWr
               {canRead && (
                 <TableCell sx={{ whiteSpace: 'nowrap' }}>
                   <Button size="small" disabled={busy} onClick={() => read(info.field)}>Read</Button>
-                  {canWrite && (
+                  {canWrite && !READ_ONLY.includes(info.field) && (
                     <Button size="small" disabled={busy || !draftOk(info)} onClick={() => write(info)}>Write</Button>
                   )}
                 </TableCell>
