@@ -2,6 +2,10 @@
 #include "approval.h"
 #ifdef WSOFT_ON_BASE
 #include "hub_web.h"
+#include "switches.h"
+#include "weighings.h"
+
+#include <wsoft_hub_commands.h>
 #endif
 #ifndef WSOFT_ON_BASE
 #include "ota_secret.h"
@@ -21,8 +25,21 @@
 
 // Must match server/src/signing/codec.ts in Weighsoft.Indicator.Hub.
 static const char *SIGNING_PREFIX = "scale-models-hub-v1";
+#ifndef WSOFT_ON_BASE
 static const char *STATION_MODEL = "waveshare-djb-demo";
 static const char *RELEASE_VERSION = "bench-2026-10-24";
+#else
+// Hardware.Base: name the board this firmware was built for (the Hub shows both, max 32 / 64 chars).
+#ifndef WSOFT_RELEASE_VERSION
+#define WSOFT_RELEASE_VERSION "hwbase-2026-11-07"
+#endif
+#if defined(WSOFT_BOARD_CYD)
+static const char *STATION_MODEL = "wsoft-cyd28";
+#else
+static const char *STATION_MODEL = "wsoft-waveshare43";
+#endif
+static const char *RELEASE_VERSION = WSOFT_RELEASE_VERSION;
+#endif
 static const uint32_t HEARTBEAT_MS = 30000;
 static const uint32_t RETRY_MS = 5000;
 // While trade weights wait for the Hub, heartbeat sooner (the Hub allows 120 a minute per device).
@@ -40,6 +57,14 @@ static volatile bool ota_busy = false;
 #ifdef WSOFT_ON_BASE
 static volatile int last_status = 0;
 static volatile uint32_t last_heartbeat_ms = 0;
+// Set when the pairing changes (the board then restarts). The applied command id belongs to
+// the old pairing: it is removed, and the Hub task stops writing it.
+static volatile bool pairing_changed = false;
+
+static void forget_commands_applied(Preferences &store) {
+  pairing_changed = true;  // first, so a Hub task write after the remove below removes it too
+  store.remove("cmd");
+}
 
 #endif
 static portMUX_TYPE health_lock = portMUX_INITIALIZER_UNLOCKED;
@@ -148,6 +173,9 @@ void hub_handle_serial(Stream &port) {
       if (!pending_ssid.isEmpty()) prefs.putString("ssid", pending_ssid);
       if (!pending_pass.isEmpty()) prefs.putString("pass", pending_pass);
       if (!pending_pair.isEmpty()) prefs.putString("pair", pending_pair);
+#ifdef WSOFT_ON_BASE
+      if (!pending_pair.isEmpty()) forget_commands_applied(prefs);
+#endif
       if (pending_ota.length() >= 8) prefs.putString("ota", pending_ota);
       prefs.end();
       pending_pass = "";
@@ -231,10 +259,186 @@ static String heartbeat_body(time_t now, uint32_t *trades_through) {
   body += WiFi.localIP().toString();
   body += "\"";
   body += approval_health_fields(trades_through);
+#ifdef WSOFT_ON_BASE
+  body += switches_health_fields();
+#endif
   body += "}}";
   return body;
 }
 
+#ifdef WSOFT_ON_BASE
+// ---------- weighings (Hardware.Base) ----------
+// After each accepted heartbeat, the oldest saved weighings go to POST /api/v1/ingest/weighings,
+// signed like the heartbeat. 201 = stored, 200 = the Hub already had it: both remove it here.
+// A 400 means the Hub will never take it (checked before saving, so it should not happen):
+// it is logged and dropped so the ones behind it are not stuck. Anything else: try again later.
+static const int WEIGHINGS_PER_HEARTBEAT = 8;
+
+static int post_signed(const char *path, const String &body, String *reply) {
+  time_t now = time(nullptr);
+  uint8_t nonce_bytes[16];
+  esp_fill_random(nonce_bytes, sizeof nonce_bytes);
+  String nonce = hex(nonce_bytes, sizeof nonce_bytes);
+  String timestamp = String((unsigned long)now);
+  HTTPClient http;
+  http.setTimeout(8000);
+  if (!http.begin(hub_url + path)) return -1;
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("X-ScaleModels-Key-Id", key_id);
+  http.addHeader("X-ScaleModels-Timestamp", timestamp);
+  http.addHeader("X-ScaleModels-Nonce", nonce);
+  http.addHeader("X-ScaleModels-Signature", sign(timestamp, nonce, body));
+  int status = http.POST(body);
+  if (reply) *reply = status > 0 ? http.getString() : http.errorToString(status);
+  http.end();
+  return status;
+}
+
+static void send_weighings() {
+  String tag = WiFi.macAddress();
+  tag.replace(":", "");
+  WsoftWeighingMeta meta = {tag.c_str(), weighings_source(), STATION_MODEL, false, false, 0};
+  for (int i = 0; i < WEIGHINGS_PER_HEARTBEAT; i++) {
+    TradeWeight w;
+    bool for_trade = false;
+    int32_t tare_value = 0;
+    if (!weighings_oldest(&w, &for_trade, &tare_value)) return;
+    meta.for_trade = for_trade;
+    meta.tared = tare_value > 0;
+    meta.tare_value = tare_value;
+    char body[512];
+    if (!wsoft_weighing_json(w, meta, body, sizeof body)) {
+      Serial0.printf("WEIGH seq=%lu cannot be sent (weight or time out of range): dropped\n", (unsigned long)w.seq);
+      weighings_delivered(w.seq);
+      continue;
+    }
+    String reply;
+    int status = post_signed("/api/v1/ingest/weighings", String(body), &reply);
+    Serial0.printf("WEIGH sent seq=%lu status=%d %s\n", (unsigned long)w.seq, status, reply.substring(0, 80).c_str());
+    if (status == 201 || status == 200) {
+      weighings_delivered(w.seq);
+    } else if (status == 400) {
+      weighings_delivered(w.seq);  // refused for good; logged above
+    } else {
+      return;  // offline, rate-limited or rejected key: keep it and try after the next heartbeat
+    }
+  }
+}
+
+// ---------- switch commands from the Hub (Hardware.Base, contract B1/B2) ----------
+// Every 10 s the board posts what it has handled to POST /api/v1/ingest/commands. The Hub
+// answers with the commands still waiting, signed under its own prefix with this request's
+// key id and nonce. Any answer that does not check out is dropped. Each command goes through
+// switches_set(where=hub), the same path as the screen and the browser, and its result is
+// sent with the next pull. The highest handled id is kept in NVS ("hub", key "cmd").
+static const uint32_t COMMANDS_MS = 10000;
+static const uint32_t COMMAND_APPLY_TIMEOUT_MS = 3000;
+static WsoftCmdResult command_results[WSOFT_CMD_RESULTS_MAX];
+static size_t command_result_count = 0;
+static uint64_t commands_applied = 0;
+
+static uint64_t load_commands_applied() {
+  Preferences store;  // a local handle: the USB lines use prefs on the screen task
+  store.begin("hub", true);
+  uint64_t value = store.getULong64("cmd", 0);
+  store.end();
+  return value;
+}
+
+static void save_commands_applied(uint64_t value) {
+  if (pairing_changed) return;
+  Preferences store;
+  store.begin("hub", false);
+  store.putULong64("cmd", value);
+  // The pairing changed while this was written: the id is not for the new pairing.
+  if (pairing_changed) store.remove("cmd");
+  store.end();
+}
+
+static void keep_result(uint64_t id, WsoftSwitchError error) {
+  if (command_result_count == WSOFT_CMD_RESULTS_MAX) {
+    memmove(command_results, command_results + 1, sizeof command_results - sizeof command_results[0]);
+    command_result_count--;
+  }
+  WsoftCmdResult &r = command_results[command_result_count++];
+  r.id = id;
+  r.ok = error == WSOFT_SWITCH_OK;
+  strlcpy(r.error, r.ok ? "" : wsoft_switch_error_code(error), sizeof r.error);
+}
+
+static void pull_commands() {
+  static char request[WSOFT_CMD_REQUEST_MAX];
+  if (!wsoft_hub_commands_request(commands_applied, command_results, command_result_count, request, sizeof request)) {
+    return;
+  }
+  String body = request;
+  time_t now = time(nullptr);
+  uint8_t nonce_bytes[16];
+  esp_fill_random(nonce_bytes, sizeof nonce_bytes);
+  String nonce = hex(nonce_bytes, sizeof nonce_bytes);
+  String timestamp = String((unsigned long)now);
+
+  HTTPClient http;
+  http.setTimeout(8000);
+  if (!http.begin(hub_url + "/api/v1/ingest/commands")) return;
+  const char *answer_headers[] = {"X-ScaleModels-Key-Id", "X-ScaleModels-Timestamp", "X-ScaleModels-Nonce",
+                                  "X-ScaleModels-Signature"};
+  http.collectHeaders(answer_headers, 4);
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("X-ScaleModels-Key-Id", key_id);
+  http.addHeader("X-ScaleModels-Timestamp", timestamp);
+  http.addHeader("X-ScaleModels-Nonce", nonce);
+  http.addHeader("X-ScaleModels-Signature", sign(timestamp, nonce, body));
+  int status = http.POST(body);
+  String reply = status > 0 ? http.getString() : "";
+  String answer_key = http.header("X-ScaleModels-Key-Id");
+  String answer_time = http.header("X-ScaleModels-Timestamp");
+  String answer_nonce = http.header("X-ScaleModels-Nonce");
+  String answer_signature = http.header("X-ScaleModels-Signature");
+  http.end();
+
+  if (status != 200) {
+    Serial0.printf("HUB commands status=%d\n", status);
+    return;
+  }
+  if (!wsoft_hub_commands_verify(signing_key, key_id.c_str(), nonce.c_str(), answer_key.c_str(), answer_time.c_str(),
+                                 answer_nonce.c_str(), answer_signature.c_str(), reply.c_str(), reply.length())) {
+    Serial0.println("HUB commands bad signature");
+    return;
+  }
+  // The Hub has the results it was sent.
+  command_result_count = 0;
+
+  static WsoftHubCommand commands[WSOFT_CMD_PER_PULL];
+  size_t count = 0;
+  if (!wsoft_hub_commands_parse(reply.c_str(), reply.length(), commands, &count)) {
+    Serial0.println("HUB commands bad body");
+    return;
+  }
+  // Oldest first (the Hub sends them that way; sorted here in case it ever does not).
+  for (size_t i = 1; i < count; i++) {
+    for (size_t j = i; j > 0 && commands[j].id < commands[j - 1].id; j--) {
+      WsoftHubCommand t = commands[j];
+      commands[j] = commands[j - 1];
+      commands[j - 1] = t;
+    }
+  }
+  for (size_t i = 0; i < count; i++) {
+    const WsoftHubCommand &c = commands[i];
+    if (c.id <= commands_applied) continue;
+    WsoftSwitchError error = switches_set(c.which, c.on, c.by, WSOFT_WHERE_HUB, c.reason, COMMAND_APPLY_TIMEOUT_MS);
+    // BUSY: not applied, asked again at the next pull. UNCONFIRMED counts as handled (it may
+    // have been applied); the heartbeat that follows carries the real state.
+    if (error == WSOFT_SWITCH_BUSY) return;
+    keep_result(c.id, error);
+    commands_applied = c.id;
+    save_commands_applied(commands_applied);
+    Serial0.printf("HUB command id=%llu %s %s: %s\n", (unsigned long long)c.id, wsoft_switch_name(c.which),
+                   c.on ? "ON" : "OFF", error == WSOFT_SWITCH_OK ? "done" : wsoft_switch_error_code(error));
+  }
+}
+
+#endif
 static void send_heartbeat() {
   time_t now = time(nullptr);
   uint8_t nonce_bytes[16];
@@ -289,6 +493,11 @@ static void hub_task(void *) {
 
   uint32_t next = 0;
   uint32_t next_report = 0;
+#ifdef WSOFT_ON_BASE
+  commands_applied = load_commands_applied();
+  uint32_t seen_switch_changes = switches_change_count();
+  uint32_t next_command_pull = 0;
+#endif
   for (;;) {
     if ((int32_t)(millis() - next_report) >= 0) {
       next_report = millis() + 10000;
@@ -321,12 +530,36 @@ static void hub_task(void *) {
       vTaskDelay(pdMS_TO_TICKS(1000));
       continue;
     }
+#ifdef WSOFT_ON_BASE
+    // A switch changed (from any place): tell the Hub now, not at the next heartbeat.
+    uint32_t switch_changes = switches_change_count();
+    if (switch_changes != seen_switch_changes) {
+      seen_switch_changes = switch_changes;
+      next = millis();
+    }
+#endif
     // A heartbeat uses the same network stack as a firmware upload. Leave it until the upload finishes.
     if ((int32_t)(millis() - next) >= 0 && !ota_busy) {
       send_heartbeat();
       uint32_t wait = state != HUB_ONLINE ? RETRY_MS : approval_pending() > 0 ? TRADE_QUEUE_MS : HEARTBEAT_MS;
       next = millis() + wait;
     }
+#ifdef WSOFT_ON_BASE
+    // A weighing saved between heartbeats goes out within a few seconds, not at the next one.
+    static uint32_t next_weighing_try = 0;
+    if (state == HUB_ONLINE && !ota_busy && !pairing_changed && (int32_t)(millis() - next_command_pull) >= 0) {
+      pull_commands();
+      next_command_pull = millis() + COMMANDS_MS;
+    }
+    TradeWeight waiting;
+    bool waiting_for_trade;
+    int32_t waiting_tare;
+    if (state == HUB_ONLINE && !ota_busy && (int32_t)(millis() - next_weighing_try) >= 0 &&
+        weighings_oldest(&waiting, &waiting_for_trade, &waiting_tare)) {
+      send_weighings();
+      next_weighing_try = millis() + RETRY_MS;
+    }
+#endif
     vTaskDelay(pdMS_TO_TICKS(250));
   }
 }
@@ -417,6 +650,7 @@ WsoftHubCodeError hub_web_save(const char *code) {
   Preferences store;
   store.begin("hub", false);
   store.putString("pair", trimmed);
+  forget_commands_applied(store);
   store.end();
   Serial0.printf("HUB pairing saved from the web page for %s key %s\n", parsed.hub_url, parsed.key_id);
   return WSOFT_HUB_CODE_OK;
@@ -426,6 +660,7 @@ void hub_web_forget() {
   Preferences store;
   store.begin("hub", false);
   store.remove("pair");
+  forget_commands_applied(store);
   store.end();
   Serial0.println("HUB pairing forgotten from the web page");
 }

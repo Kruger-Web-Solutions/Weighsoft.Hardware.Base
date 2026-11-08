@@ -42,3 +42,14 @@ export const WSOFT_SETTINGS_VALIDATOR = new Schema({
     { pattern: new RegExp(`^[\\x21-\\x7e]{1,${ID_MAX}}$`), message: `Up to ${ID_MAX} characters, no spaces` }
   ]
 });
+
+// Contract A2/A5: a reason is 1 to 80 printable characters once trimmed.
+export const REASON_MAX = 80;
+
+export const reasonProblem = (reason: string) => {
+  const trimmed = reason.trim();
+  if (trimmed.length === 0) return 'Type a short reason.';
+  if (trimmed.length > REASON_MAX) return `Keep it to ${REASON_MAX} characters or less.`;
+  if (!/^[\x20-\x7e]+$/.test(trimmed)) return 'Use plain letters, numbers and signs only.';
+  return undefined;
+};

@@ -1,0 +1,252 @@
+// Host tests for weighings sent to the Hub (lib/wsoft_core/src/wsoft_weighing.cpp).
+// Run: pio test -e native   (needs a host g++ on PATH)
+
+#include <unity.h>
+
+#include <stdio.h>
+#include <string.h>
+
+#include "wsoft_weighing.h"
+
+void setUp() {}
+void tearDown() {}
+
+static const char *kg(int32_t value, int decimals, int unit) {
+  static char out[24];
+  if (!wsoft_weight_kg_text(value, decimals, unit, out, sizeof out)) return "REFUSED";
+  return out;
+}
+
+void test_kg_text_for_each_unit() {
+  TEST_ASSERT_EQUAL_STRING("1520", kg(1520, 0, 1));
+  TEST_ASSERT_EQUAL_STRING("1.234", kg(1234, 3, 1));
+  TEST_ASSERT_EQUAL_STRING("1.5", kg(1500, 3, 1));   // trailing zeros dropped
+  TEST_ASSERT_EQUAL_STRING("1520", kg(1520, 3, 2));  // 1.520 t
+  TEST_ASSERT_EQUAL_STRING("15200", kg(152, 1, 2));  // 15.2 t
+  TEST_ASSERT_EQUAL_STRING("1.52", kg(1520, 0, 3));  // 1520 g
+  TEST_ASSERT_EQUAL_STRING("0.0152", kg(152, 1, 3));  // 15.2 g
+  TEST_ASSERT_EQUAL_STRING("-2820", kg(-2820, 0, 1));
+}
+
+void test_kg_text_refuses_what_the_hub_would_reject() {
+  TEST_ASSERT_EQUAL_STRING("REFUSED", kg(100000, 0, 1));  // over 99999.99999
+  TEST_ASSERT_EQUAL_STRING("REFUSED", kg(101000, 3, 2));  // 101 t
+  TEST_ASSERT_EQUAL_STRING("REFUSED", kg(1, 3, 3));       // 0.000001 kg, 6 decimals
+  TEST_ASSERT_EQUAL_STRING("REFUSED", kg(10, 0, 0));      // unknown unit
+  TEST_ASSERT_EQUAL_STRING("99999", kg(99999, 0, 1));
+}
+
+static TradeWeight weight(uint32_t seq, int32_t value, int decimals, int unit, int64_t at) {
+  TradeWeight w;
+  w.valid = true;
+  w.seq = seq;
+  w.value = value;
+  w.decimals = decimals;
+  w.unit = unit;
+  w.at = at;
+  return w;
+}
+
+static const WsoftWeighingMeta META = {"6CC8404560F4", "rs232", "wsoft-cyd28", false};
+
+void test_json_matches_the_hub_contract() {
+  char out[512];
+  TEST_ASSERT_TRUE(wsoft_weighing_json(weight(7, 3120, 0, 1, 1762520400), META, out, sizeof out));
+  TEST_ASSERT_EQUAL_STRING(
+      "{\"weighing_id\":\"6CC8404560F4-1762520400-7\",\"committed_at\":\"2025-11-07T13:00:00Z\","
+      "\"gross_kg\":3120,\"tare_kg\":0,\"net_kg\":3120,\"basis\":\"GS\","
+      "\"payload\":{\"seq\":7,\"reading\":\"3120\",\"unit\":\"kg\",\"source\":\"rs232\","
+      "\"station_model\":\"wsoft-cyd28\",\"for_trade\":false}}",
+      out);
+}
+
+void test_json_keeps_decimals_and_for_trade() {
+  char out[512];
+  WsoftWeighingMeta meta = META;
+  meta.for_trade = true;
+  TEST_ASSERT_TRUE(wsoft_weighing_json(weight(1, 1234, 3, 1, 1762520400), meta, out, sizeof out));
+  TEST_ASSERT_TRUE(strstr(out, "\"gross_kg\":1.234,") != nullptr);
+  TEST_ASSERT_TRUE(strstr(out, "\"reading\":\"1.234\"") != nullptr);
+  TEST_ASSERT_TRUE(strstr(out, "\"for_trade\":true") != nullptr);
+}
+
+void test_json_with_a_tare_sends_gross_tare_net_and_nt() {
+  char out[512];
+  WsoftWeighingMeta meta = META;
+  meta.tared = true;
+  meta.tare_value = 1205;  // 120.5 kg, same decimals as the reading
+  TEST_ASSERT_TRUE(wsoft_weighing_json(weight(9, 31205, 1, 1, 1762520400), meta, out, sizeof out));
+  TEST_ASSERT_TRUE(strstr(out, "\"gross_kg\":3120.5,\"tare_kg\":120.5,\"net_kg\":3000,\"basis\":\"NT\",") != nullptr);
+  // A tare bigger than the gross gives a negative net, which the Hub takes.
+  TEST_ASSERT_TRUE(wsoft_weighing_json(weight(9, 1000, 1, 1, 1762520400), meta, out, sizeof out));
+  TEST_ASSERT_TRUE(strstr(out, "\"net_kg\":-20.5,") != nullptr);
+  // A tare of zero or less is not a tare.
+  meta.tare_value = 0;
+  TEST_ASSERT_FALSE(wsoft_weighing_json(weight(9, 31205, 1, 1, 1762520400), meta, out, sizeof out));
+}
+
+void test_json_refuses_unsendable_weighings() {
+  char out[512];
+  TEST_ASSERT_FALSE(wsoft_weighing_json(TradeWeight(), META, out, sizeof out));                 // not valid
+  TEST_ASSERT_FALSE(wsoft_weighing_json(weight(1, 0, 0, 1, 1762520400), META, out, sizeof out));  // empty
+  TEST_ASSERT_FALSE(wsoft_weighing_json(weight(1, 50, 0, 1, 1000), META, out, sizeof out));       // no clock
+  TEST_ASSERT_FALSE(wsoft_weighing_json(weight(1, 100000, 0, 1, 1762520400), META, out, sizeof out));
+  WsoftWeighingMeta bad = META;
+  bad.device_tag = "a\"b";
+  TEST_ASSERT_FALSE(wsoft_weighing_json(weight(1, 50, 0, 1, 1762520400), bad, out, sizeof out));
+  TEST_ASSERT_FALSE(wsoft_weighing_json(weight(1, 50, 0, 1, 1762520400), META, out, 40));  // too small
+}
+
+// Feeds `count` readings 250 ms apart; returns how many weighings were saved.
+struct Bench {
+  WsoftWeighingSaver saver{1};
+  uint32_t t = 0;
+  int64_t now = 1762520400;
+  TradeWeight issued;
+  WsoftSaveResult last = WSOFT_SAVE_NONE;
+
+  int feed(int32_t value, int count, bool auto_save, bool linked = true) {
+    int saved = 0;
+    for (int i = 0; i < count; i++, t += 250) {
+      last = saver.update({true, linked, true, false, value, 0, 1, t, now}, auto_save, false, false, &issued);
+      if (last == WSOFT_SAVE_SAVED) saved++;
+    }
+    return saved;
+  }
+  WsoftSaveResult tap(int32_t value, bool queue_full = false) {
+    t += 250;
+    last = saver.update({true, true, true, false, value, 0, 1, t, now}, false, true, queue_full, &issued);
+    return last;
+  }
+};
+
+void test_auto_save_once_per_settled_load() {
+  Bench b;
+  b.feed(0, 4, true);
+  TEST_ASSERT_EQUAL(1, b.feed(3120, 20, true));
+  TEST_ASSERT_EQUAL_UINT32(1, b.saver.last().seq);
+  TEST_ASSERT_EQUAL(0, b.feed(3120, 20, true));  // still on the scale: no second save
+  b.feed(0, 4, true);                            // emptied
+  TEST_ASSERT_EQUAL(1, b.feed(3120, 20, true));  // same weight, new load
+  TEST_ASSERT_EQUAL(0, b.feed(3200, 20, true));  // weight changed, but no 0 in between: no save
+  b.feed(0, 4, true);
+  TEST_ASSERT_EQUAL(1, b.feed(3200, 20, true));
+  TEST_ASSERT_EQUAL_UINT32(4, b.saver.next_seq());
+}
+
+// Rhyno, 8 Nov 2026: no second weighing (auto save or tap) until the scale went back to 0.
+void test_a_second_weighing_needs_the_scale_back_at_zero() {
+  Bench b;
+  b.feed(0, 4, false);
+  b.feed(3120, 8, false);
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_SAVED, b.tap(3120));
+  b.feed(3500, 8, false);  // more added, never back at 0
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_NEED_ZERO, b.tap(3500));
+  TEST_ASSERT_EQUAL_STRING("Go to 0 first", wsoft_save_result_text(b.last));
+  b.feed(40, 8, false);  // nearly empty is not empty
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_NEED_ZERO, b.tap(40));
+  b.feed(0, 2, false, false);  // a 0 with no live signal does not count
+  b.feed(3500, 8, false);
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_NEED_ZERO, b.tap(3500));
+  b.feed(0, 1, false);  // one live 0 reading is enough
+  b.feed(3500, 8, false);
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_SAVED, b.tap(3500));
+}
+
+void test_after_boot_the_scale_must_show_zero_first() {
+  Bench b;  // board just started with a load already on
+  TEST_ASSERT_EQUAL(0, b.feed(3120, 20, true));
+  b.feed(3120, 8, false);
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_NEED_ZERO, b.tap(3120));
+  b.feed(0, 4, true);
+  TEST_ASSERT_EQUAL(1, b.feed(3120, 20, true));
+}
+
+void test_auto_save_off_saves_nothing_by_itself() {
+  Bench b;
+  b.feed(0, 4, false);
+  TEST_ASSERT_EQUAL(0, b.feed(3120, 40, false));
+}
+
+void test_tap_saves_a_settled_load_once() {
+  Bench b;
+  b.feed(0, 4, false);
+  b.feed(3120, 8, false);  // 2 s: settled
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_SAVED, b.tap(3120));
+  TEST_ASSERT_EQUAL(3120, b.issued.value);
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_ALREADY, b.tap(3120));
+  TEST_ASSERT_EQUAL_STRING("Already saved", wsoft_save_result_text(b.last));
+}
+
+void test_tap_explains_why_it_cannot_save() {
+  Bench b;
+  b.feed(0, 8, false);
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_EMPTY, b.tap(0));
+  b.feed(3120, 1, false);
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_NOT_STABLE, b.tap(3120));  // only 0.5 s unchanged
+  b.feed(3120, 1, false, false);
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_NOT_STABLE, b.tap(3120));  // stability restarts after a lost signal
+  b.feed(3120, 8, false);
+  b.now = 1000;  // clock not set
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_NO_CLOCK, b.tap(3120));
+  b.now = 1762520400;
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_FULL, b.tap(3120, true));
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_SAVED, b.tap(3120));
+}
+
+void test_no_signal() {
+  Bench b;
+  b.feed(3120, 8, false, false);
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_NO_SIGNAL, b.saver.update({true, false, true, false, 3120, 0, 1, b.t, b.now}, false, true, false, &b.issued));
+}
+
+void test_a_held_reading_is_not_saved() {
+  Bench b;
+  b.feed(0, 4, false);
+  b.feed(31205, 8, false);  // settled
+  b.t += 250;
+  // Blanked: refused with its own words, and auto save does nothing.
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_BLANK, b.saver.update({true, true, true, false, 31205, 0, 1, b.t, b.now}, true, true,
+                                                     false, &b.issued, WSOFT_SAVE_BLANK));
+  TEST_ASSERT_FALSE(b.issued.valid);
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_NONE, b.saver.update({true, true, true, false, 31205, 0, 1, b.t, b.now}, true, false,
+                                                    false, &b.issued, WSOFT_SAVE_BLANK));
+  // Below Min (only passed in while Approval is ON) and too few stable samples.
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_BELOW_MIN, b.saver.update({true, true, true, false, 31205, 0, 1, b.t, b.now}, false,
+                                                         true, false, &b.issued, WSOFT_SAVE_BELOW_MIN));
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_NOT_STABLE, b.saver.update({true, true, true, false, 31205, 0, 1, b.t, b.now}, false,
+                                                          true, false, &b.issued, WSOFT_SAVE_NOT_STABLE));
+  // No signal still says no signal, whatever the hold.
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_NO_SIGNAL, b.saver.update({true, false, true, false, 31205, 0, 1, b.t, b.now}, false,
+                                                         true, false, &b.issued, WSOFT_SAVE_BLANK));
+  // Nothing held: it saves.
+  b.feed(31205, 8, false);
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_SAVED, b.tap(31205));
+}
+
+void test_every_result_has_words() {
+  for (int r = WSOFT_SAVE_SAVED; r <= WSOFT_SAVE_BELOW_MIN; r++) {
+    size_t length = strlen(wsoft_save_result_text((WsoftSaveResult)r));
+    TEST_ASSERT_TRUE(length > 0 && length <= 16);
+  }
+}
+
+int main(int, char **) {
+  UNITY_BEGIN();
+  RUN_TEST(test_kg_text_for_each_unit);
+  RUN_TEST(test_kg_text_refuses_what_the_hub_would_reject);
+  RUN_TEST(test_json_matches_the_hub_contract);
+  RUN_TEST(test_json_keeps_decimals_and_for_trade);
+  RUN_TEST(test_json_with_a_tare_sends_gross_tare_net_and_nt);
+  RUN_TEST(test_json_refuses_unsendable_weighings);
+  RUN_TEST(test_auto_save_once_per_settled_load);
+  RUN_TEST(test_a_second_weighing_needs_the_scale_back_at_zero);
+  RUN_TEST(test_after_boot_the_scale_must_show_zero_first);
+  RUN_TEST(test_auto_save_off_saves_nothing_by_itself);
+  RUN_TEST(test_tap_saves_a_settled_load_once);
+  RUN_TEST(test_tap_explains_why_it_cannot_save);
+  RUN_TEST(test_no_signal);
+  RUN_TEST(test_a_held_reading_is_not_saved);
+  RUN_TEST(test_every_result_has_words);
+  return UNITY_END();
+}

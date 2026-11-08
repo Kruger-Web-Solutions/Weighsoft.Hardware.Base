@@ -2,7 +2,12 @@
 #include <math.h>
 
 #include "approval.h"
+#include "approval_base.h"
 #include "hub.h"
+#include "pin.h"
+#include "scale.h"
+#include "switches.h"
+#include "weighings.h"
 #include "wsoft_screen.h"
 
 // Two boards share this file. The poll, the Modbus jobs and the snapshot are the same on
@@ -18,9 +23,32 @@
 #ifndef WSOFT_CYD_INVERT
 #define WSOFT_CYD_INVERT 0
 #endif
+// XPT2046 resistive touch on its own SPI pins (CYD pinout). TFT_eSPI drives the panel on VSPI,
+// so touch uses HSPI. Raw readings are mapped to the 320 x 240 screen with these limits; every
+// tap logs "TOUCH raw=... screen=..." on USB so a different batch can be calibrated.
+// A small XPT2046 reader below (no extra library): the same commands and rotation mapping
+// as PaulStoffregen/XPT2046_Touchscreen.
+#include <SPI.h>
+#ifndef WSOFT_TOUCH_CS
+#define WSOFT_TOUCH_CS 33
+#define WSOFT_TOUCH_IRQ 36
+#define WSOFT_TOUCH_CLK 25
+#define WSOFT_TOUCH_MISO 39
+#define WSOFT_TOUCH_MOSI 32
+#endif
+#ifndef WSOFT_TOUCH_ROTATION
+#define WSOFT_TOUCH_ROTATION WSOFT_CYD_ROTATION
+#endif
+#ifndef WSOFT_TOUCH_X_MIN
+#define WSOFT_TOUCH_X_MIN 200
+#define WSOFT_TOUCH_X_MAX 3700
+#define WSOFT_TOUCH_Y_MIN 240
+#define WSOFT_TOUCH_Y_MAX 3800
+#endif
 static const int RS485_RX = WSOFT_RS485_RX;
 static const int RS485_TX = WSOFT_RS485_TX;
 #else
+#include <driver/gpio.h>
 #include <esp_display_panel.hpp>
 #include <esp_expander_ch422g.hpp>
 #include <esp_heap_caps.h>
@@ -44,6 +72,7 @@ static const uint8_t DJB_SLAVE = 1;
 static const uint16_t REG_LC1_WEIGHT = 1004;  // 41005, followed by alarm state 41007
 static const uint16_t REG_WEIGHT_UNIT = 1302;  // 41303: 0 none, 1 kg, 2 t, 3 g
 static const uint16_t REG_DECIMAL = 1304;      // 41305: digits after the point
+static const uint16_t REG_DIVISION = 1306;     // 41307: e in display steps (1, 2, 5, 10 ... 500)
 static const uint32_t ALARM_BLOCKING_MASK = 0xE0000000;  // bits 13-15 of the high word
 
 static const uint32_t POLL_MS = 250;
@@ -74,6 +103,7 @@ static const uint16_t RED = 0xC1C6;
 static const uint16_t HEADER_OK = 0x7EF2;
 static const uint16_t HEADER_BAD = 0xFB2C;
 static const uint16_t WHITE = 0xFFFF;
+static const uint16_t PAGE = 0xEF9E;     // light grey page behind the card
 
 struct Reading {
   bool linked = false;
@@ -83,6 +113,34 @@ struct Reading {
   int unit = 1;
 };
 
+// What the RS485 setup adds to the reading on screen (set before each render).
+static WsoftScaleHold view_hold = WSOFT_HOLD_NONE;
+static int32_t view_net = 0;   // gross - tare, in the reading's decimals and unit
+static bool view_tared = false;
+
+// Screen pages: the live weight, the switches menu and the PIN pad (laid out further down).
+// Boxes are on the CYD's 320 x 240; the Waveshare scales them to its 800 x 480.
+enum Page { PAGE_LIVE, PAGE_MENU, PAGE_PIN };
+static Page page = PAGE_LIVE;
+struct UiBox {
+  int16_t x, y, w, h;
+};
+// Live page: the bottom left (GROSS) box opens the menu.
+static const UiBox MENU_TARGET = {14, 160, 142, 66};
+// Goes up when the live page must be drawn again in full (after the menu was shown).
+static uint32_t live_epoch = 0;
+static bool touch_ok = false;
+static void ui_tap(int x, int y);
+// Plate line (RS485 setup): "SA ..." and "MAX ... MIN ... E ...". False when nothing is set.
+static bool plate_lines(char *sa, size_t sa_size, char *limits, size_t limits_size);
+
+// The reading as the NET weight (the gross when no tare is on).
+static Reading net_of(const Reading &r) {
+  Reading n = r;
+  n.value = view_net;
+  return n;
+}
+
 static void log_line(const char *message) {
   Serial0.println(message);
 }
@@ -90,6 +148,7 @@ static void log_line(const char *message) {
 #if !WSOFT_BOARD_CYD
 static Board *board = nullptr;
 static LCD *lcd = nullptr;
+static Touch *touch = nullptr;
 static uint16_t *background = nullptr;
 static uint16_t *frame = nullptr;
 
@@ -189,6 +248,14 @@ static float to_kg(const Reading &r) {
 
 // Why the band says NOT FOR TRADE (approval on), or the sequence of the last trade weight.
 static const char *trade_line(TradeCheck check, char *line, size_t size, uint16_t *color) {
+  if (check != TRADE_OFF && view_hold == WSOFT_HOLD_BLANK) {
+    *color = YELLOW;
+    return "OUT OF RANGE";
+  }
+  if (check != TRADE_OFF && view_hold == WSOFT_HOLD_BELOW_MIN) {
+    *color = YELLOW;
+    return "BELOW MIN";
+  }
   if (check == TRADE_OK) {
     snprintf(line, size, "SEQ %lu", (unsigned long)approval_last_trade_weight().seq);
     *color = GREEN;
@@ -259,13 +326,17 @@ static void render(const Reading &r) {
     draw_text(MID, 68, 394, "----", MUTED);
     draw_text(MID, 430, 394, "NO DJB REPLY", RED);
   } else {
-    char value[16], gross[24];
-    format_weight(r.value, r.decimals, value, sizeof value);
-    snprintf(gross, sizeof gross, "%s %s", value, weight_unit_text(r.unit));
+    // Big number: NET (gross when no tare), or ---- when blanked. Bottom left: the gross.
+    char value[16], gross_value[16], gross[24];
+    Reading n = net_of(r);
+    format_weight(n.value, n.decimals, value, sizeof value);
+    if (view_hold == WSOFT_HOLD_BLANK) strlcpy(value, "----", sizeof value);
+    format_weight(r.value, r.decimals, gross_value, sizeof gross_value);
+    snprintf(gross, sizeof gross, "%s %s", gross_value, weight_unit_text(r.unit));
 
-    float kg = to_kg(r);
+    float kg = to_kg(n);
     uint16_t zone_color;
-    const char *zone = zone_of(r, &zone_color);
+    const char *zone = zone_of(n, &zone_color);
 
     draw_text(MID, 772, 22, r.alarm ? "DJB ALARM" : "RS485 LIVE", r.alarm ? HEADER_BAD : HEADER_OK, RIGHT);
     draw_needle(kg / GAUGE_FULL_KG);
@@ -276,6 +347,13 @@ static void render(const Reading &r) {
     draw_text(MID, 430, 394, zone, zone_color);
   }
   draw_approval();
+  if (touch_ok) draw_text(MID, 400, 394, "MENU", MUTED, RIGHT);
+  // The plate (SA no., Max, Min, e) under the card once the RS485 setup has one.
+  char sa[48], limits[64], plate[112];
+  if (plate_lines(sa, sizeof sa, limits, sizeof limits)) {
+    snprintf(plate, sizeof plate, "%s  %s", sa, limits);
+    draw_text(MID, 40, 444, plate, MUTED);
+  }
 
   lcd->drawBitmap(0, 0, SCREEN_W, SCREEN_H, reinterpret_cast<const uint8_t *>(frame), 1000);
 }
@@ -374,8 +452,8 @@ static void run_job(const WsoftDjbPlan *plan, WsoftDjbResult *out) {
     strlcpy(out->error, "not_linked", sizeof out->error);
     return;
   }
-  // Approval has no web write path: an AD write is a calibration and the scale
-  // parameters are metrological. Writes need approval off (USB APPROVAL OFF).
+  // An AD write is a calibration and the card parameters are the scale's setup:
+  // writes need Approval off (switched off from any place, logged and counted).
   if (plan->write && approval_on()) {
     strlcpy(out->error, "approval_on", sizeof out->error);
     return;
@@ -416,6 +494,7 @@ static void run_job(const WsoftDjbPlan *plan, WsoftDjbResult *out) {
   int status = wsoft_djb_parse(reply, got, slave, plan->command, plan->pdu, &value, &exception);
   if (plan->write) format_stale = true;
   if (status == 0) {
+    if (plan->write) scale_card_written();
     out->ok = true;
     out->value = value;
     if (plan->alarm) {
@@ -532,7 +611,6 @@ static bool start_display() {
 // The static parts draw once; each live part redraws only when its content changes,
 // so the panel does not flicker. Free fonts ignore the text background, so each live
 // part clears its own box first.
-static const uint16_t PAGE = 0xEF9E;     // light grey page behind the card
 static const uint16_t BORDER = 0xD6BC;   // card and box outline
 static const uint16_t BOX = 0xEF9F;      // pale blue GROSS / ZONE boxes
 static const int GX = 90, GY = 132, GR = 40, GT = 9;  // gauge centre, radius, thickness
@@ -577,12 +655,113 @@ static void cyd_static() {
   cyd_text(target, 16, 64, 2, MUTED, WHITE, TL_DATUM);
   cyd_gauge_arcs();
 
-  for (int i = 0; i < 2; i++) {
-    int x = i == 0 ? 14 : 164;
-    tft.fillRoundRect(x, 160, 142, 66, 6, BOX);
-    tft.drawRoundRect(x, 160, 142, 66, 6, BORDER);
-    cyd_text(i == 0 ? "GROSS" : "ZONE", x + 8, 166, 2, MUTED, BOX, TL_DATUM);
+  tft.fillRoundRect(14, 160, 142, 66, 6, BOX);
+  tft.drawRoundRect(14, 160, 142, 66, 6, BORDER);
+  cyd_text("GROSS", 22, 166, 2, MUTED, BOX, TL_DATUM);
+  cyd_text("MENU", 148, 166, 2, INK, BOX, TR_DATUM);
+  // The right box is the SAVE button (the zone word stays under the gauge); drawn by cyd_save_box.
+}
+
+// SAVE button, bottom right. Tapping it saves one weighing for the Hub.
+static const int SAVE_X = 164, SAVE_Y = 160, SAVE_W = 142, SAVE_H = 66;
+
+// Redraws the SAVE button when its text changes: the last result for 3 s, then how many
+// weighings still wait for the Hub.
+static void cyd_save_box() {
+  static char last[48] = "";
+  static uint32_t seen_epoch = 0;
+  if (seen_epoch != live_epoch) {
+    seen_epoch = live_epoch;
+    last[0] = 0;
   }
+  WeighingsInfo info;
+  weighings_info(&info);
+  bool recent = info.last_result != WSOFT_SAVE_NONE && millis() - info.last_result_ms < 3000;
+  char line[32];
+  uint16_t fill = GREEN;
+  if (recent && info.last_result == WSOFT_SAVE_SAVED && info.last.valid) {
+    snprintf(line, sizeof line, "SAVED #%lu", (unsigned long)info.last.seq);
+  } else if (recent) {
+    strlcpy(line, wsoft_save_result_text(info.last_result), sizeof line);
+    fill = info.last_result == WSOFT_SAVE_ALREADY || info.last_result == WSOFT_SAVE_NEED_ZERO ? MUTED : RED;
+  } else if (info.pending > 0) {
+    snprintf(line, sizeof line, "%u to send", (unsigned)info.pending);
+  } else {
+    strlcpy(line, info.auto_save ? "AUTO SAVE ON" : "TAP TO SAVE", sizeof line);
+  }
+  char key[48];
+  snprintf(key, sizeof key, "%s|%u", line, fill);
+  if (!cyd_changed(last, sizeof last, key)) return;
+  tft.fillRoundRect(SAVE_X, SAVE_Y, SAVE_W, SAVE_H, 6, fill);
+  cyd_free("SAVE", SAVE_X + SAVE_W / 2, SAVE_Y + 24, &FreeSansBold12pt7b, WHITE, MC_DATUM);
+  cyd_text(line, SAVE_X + SAVE_W / 2, SAVE_Y + 46, 2, WHITE, fill, TC_DATUM);
+}
+
+static SPIClass touch_spi(HSPI);
+static bool touch_ready = false;
+static const uint16_t TOUCH_Z_MIN = 400;  // pressure below this is no touch
+
+struct TouchPoint {
+  int x, y, z;
+};
+
+static void cyd_touch_begin() {
+  pinMode(WSOFT_TOUCH_CS, OUTPUT);
+  digitalWrite(WSOFT_TOUCH_CS, HIGH);
+  pinMode(WSOFT_TOUCH_IRQ, INPUT);
+  touch_spi.begin(WSOFT_TOUCH_CLK, WSOFT_TOUCH_MISO, WSOFT_TOUCH_MOSI, -1);
+  touch_ready = true;
+  touch_ok = true;
+  Serial0.println("TOUCH ready");
+}
+
+// One XPT2046 read: pressure, then X and Y (average of two readings after a dropped first one).
+static bool cyd_touch_read(TouchPoint *p) {
+  if (digitalRead(WSOFT_TOUCH_IRQ) == HIGH) return false;  // pen IRQ is low while pressed
+  touch_spi.beginTransaction(SPISettings(2000000, MSBFIRST, SPI_MODE0));
+  digitalWrite(WSOFT_TOUCH_CS, LOW);
+  touch_spi.transfer(0xB1);                          // Z1
+  int z1 = touch_spi.transfer16(0xC1) >> 3;          // Z2 next
+  int z = z1 + 4095;
+  int z2 = touch_spi.transfer16(0x91) >> 3;          // X next
+  z -= z2;
+  touch_spi.transfer16(0x91);                        // first X is noisy: drop it
+  int x1 = touch_spi.transfer16(0xD1) >> 3;          // Y next
+  int y1 = touch_spi.transfer16(0x91) >> 3;
+  int x2 = touch_spi.transfer16(0xD1) >> 3;
+  int y2 = touch_spi.transfer16(0xD0) >> 3;          // power down after
+  touch_spi.transfer16(0);
+  digitalWrite(WSOFT_TOUCH_CS, HIGH);
+  touch_spi.endTransaction();
+  if (z < TOUCH_Z_MIN) return false;
+  int x = (x1 + x2) / 2, y = (y1 + y2) / 2;
+  switch (WSOFT_TOUCH_ROTATION) {
+    case 0: p->x = 4095 - y; p->y = x; break;
+    case 1: p->x = x; p->y = y; break;
+    case 2: p->x = y; p->y = 4095 - x; break;
+    default: p->x = 4095 - x; p->y = 4095 - y; break;
+  }
+  p->z = z;
+  return true;
+}
+
+// Runs every loop pass (every 5 ms), so a short tap is not missed. One save per press.
+static void cyd_touch_poll() {
+  static bool was_down = false;
+  static uint32_t last_tap = 0;
+  if (!touch_ready) return;
+  TouchPoint p;
+  bool down = cyd_touch_read(&p);
+  if (down && !was_down && millis() - last_tap > 600) {
+    int x = constrain(map(p.x, WSOFT_TOUCH_X_MIN, WSOFT_TOUCH_X_MAX, 0, CYD_W - 1), 0, CYD_W - 1);
+    int y = constrain(map(p.y, WSOFT_TOUCH_Y_MIN, WSOFT_TOUCH_Y_MAX, 0, 239), 0, 239);
+    bool on_save = page == PAGE_LIVE && x >= SAVE_X - 10 && x <= SAVE_X + SAVE_W + 10 && y >= SAVE_Y - 10;
+    Serial0.printf("TOUCH raw=%d,%d,%d screen=%d,%d %s\n", p.x, p.y, p.z, x, y, on_save ? "SAVE" : "-");
+    if (on_save) weighings_request_save();
+    else ui_tap(x, y);
+    last_tap = millis();
+  }
+  was_down = down;
 }
 
 static void cyd_box_value(int x, const char *text, uint16_t color) {
@@ -591,8 +770,31 @@ static void cyd_box_value(int x, const char *text, uint16_t color) {
 }
 
 static void render(const Reading &r) {
-  static char last_head[40], last_band[40], last_audit[20], last_weight[40], last_gauge[40], last_boxes[64];
+  static char last_head[40], last_band[40], last_audit[40], last_weight[40], last_gauge[40], last_boxes[64];
+  static char last_plate[96];
+  static uint32_t seen_epoch = 0;
+  if (seen_epoch != live_epoch) {
+    seen_epoch = live_epoch;
+    last_head[0] = last_band[0] = last_audit[0] = last_weight[0] = last_gauge[0] = last_boxes[0] = 0;
+    last_plate[0] = 0;
+  }
   char key[64];
+
+  // Under the title: the plate (SA no., Max, Min, e) once the RS485 setup has one, else the target.
+  char sa[48], limits[64], plate_key[96];
+  bool plate = plate_lines(sa, sizeof sa, limits, sizeof limits);
+  snprintf(plate_key, sizeof plate_key, "%d|%s|%s", plate ? 1 : 0, sa, limits);
+  if (cyd_changed(last_plate, sizeof last_plate, plate_key)) {
+    tft.fillRect(14, 60, 152, 26, WHITE);
+    if (plate) {
+      cyd_text(sa, 16, 62, 1, INK, WHITE, TL_DATUM);
+      cyd_text(limits, 16, 73, 1, MUTED, WHITE, TL_DATUM);
+    } else {
+      char target[32];
+      snprintf(target, sizeof target, "Target %.3f-%.3f kg", TARGET_LOW_KG, TARGET_HIGH_KG);
+      cyd_text(target, 16, 64, 2, MUTED, WHITE, TL_DATUM);
+    }
+  }
 
   // Header, right side: Hub state, then the link state with a colour dot.
   HubState hub = hub_state();
@@ -623,23 +825,28 @@ static void render(const Reading &r) {
   }
 
   // NET label row carries the audit counter on the right.
-  char audit[20];
-  snprintf(audit, sizeof audit, "AUDIT %lu", (unsigned long)approval_audit_counter());
+  char audit[40];
+  snprintf(audit, sizeof audit, "%s|AUDIT %lu", view_tared ? "NET (TARE)" : "NET", (unsigned long)approval_audit_counter());
   if (cyd_changed(last_audit, sizeof last_audit, audit)) {
     tft.fillRect(172, 84, 134, 16, WHITE);
-    cyd_text("NET", 172, 84, 2, MUTED, WHITE, TL_DATUM);
-    cyd_text(audit, 306, 84, 2, MUTED, WHITE, TR_DATUM);
+    cyd_text(view_tared ? "NET (TARE)" : "NET", 172, 84, 2, MUTED, WHITE, TL_DATUM);
+    cyd_text(strchr(audit, '|') + 1, 306, 84, 2, MUTED, WHITE, TR_DATUM);
   }
 
+  // NET is gross - tare (the gross when no tare is on); ---- when the setup blanks it.
   char value[16] = "----", gross[24] = "----";
   const char *unit = "kg";
   uint16_t zone_color = RED;
   const char *zone = rs232_mode ? "NO SCALE LINE" : "NO DJB REPLY";
+  Reading n = net_of(r);
   if (r.linked) {
-    format_weight(r.value, r.decimals, value, sizeof value);
+    char gross_value[16];
+    format_weight(n.value, n.decimals, value, sizeof value);
+    if (view_hold == WSOFT_HOLD_BLANK) strlcpy(value, "----", sizeof value);
+    format_weight(r.value, r.decimals, gross_value, sizeof gross_value);
     unit = weight_unit_text(r.unit);
-    snprintf(gross, sizeof gross, "%s %s", value, unit);
-    zone = zone_of(r, &zone_color);
+    snprintf(gross, sizeof gross, "%s %s", gross_value, unit);
+    zone = zone_of(n, &zone_color);
   }
 
   // NET weight: as big as it fits right-aligned before the unit.
@@ -655,7 +862,7 @@ static void render(const Reading &r) {
 
   // Gauge needle and the word under it.
   int angle = 0;
-  if (r.linked) angle = (int)lroundf(constrain(to_kg(r) / GAUGE_FULL_KG, 0.0f, 1.0f) * 180.0f);
+  if (r.linked) angle = (int)lroundf(constrain(to_kg(n) / GAUGE_FULL_KG, 0.0f, 1.0f) * 180.0f);
   snprintf(key, sizeof key, "%d|%d|%s", r.linked ? 1 : 0, angle, r.linked ? zone : "WAITING");
   if (cyd_changed(last_gauge, sizeof last_gauge, key)) {
     tft.fillRect(GX - GR, GY - GR + GT, 2 * GR, GR - GT + 24, WHITE);
@@ -669,12 +876,9 @@ static void render(const Reading &r) {
     cyd_text(r.linked ? zone : "WAITING", GX, GY + 6, 2, r.linked ? zone_color : MUTED, WHITE, TC_DATUM);
   }
 
-  // GROSS and ZONE boxes.
-  snprintf(key, sizeof key, "%s|%s|%u|%d", gross, zone, zone_color, r.linked ? 1 : 0);
-  if (cyd_changed(last_boxes, sizeof last_boxes, key)) {
-    cyd_box_value(14, gross, r.linked ? INK : MUTED);
-    cyd_box_value(164, zone, zone_color);
-  }
+  // GROSS box (the SAVE button beside it redraws itself every pass).
+  snprintf(key, sizeof key, "%s|%d", gross, r.linked ? 1 : 0);
+  if (cyd_changed(last_boxes, sizeof last_boxes, key)) cyd_box_value(14, gross, r.linked ? INK : MUTED);
 }
 #else
 static bool start_display() {
@@ -720,13 +924,307 @@ static bool start_display() {
     return false;
   }
   expand_background(background);
+
+  // GT911 touch on the shared I2C bus. The same reset steps as the library's board file
+  // (TP_INT GPIO4 low, TP_RST on EXIO1). The screen still works without it (no MENU then).
+  touch = board->getTouch();
+  if (touch != nullptr) {
+    gpio_set_direction(GPIO_NUM_4, GPIO_MODE_OUTPUT);
+    gpio_set_level(GPIO_NUM_4, 0);
+    delay(10);
+    chip->digitalWrite(1, 0);
+    delay(100);
+    chip->digitalWrite(1, 1);
+    delay(200);
+    gpio_reset_pin(GPIO_NUM_4);
+    touch_ok = touch->begin();
+  }
+  log_line(touch_ok ? "touch ready" : "touch failed (no MENU)");
   return true;
+}
+
+// Every 30 ms: one tap per press, in the 320 x 240 layout.
+static void ws_touch_poll() {
+  static uint32_t last_read = 0, last_tap = 0;
+  static bool was_down = false;
+  if (!touch_ok || millis() - last_read < 30) return;
+  last_read = millis();
+  TouchPoint points[1];
+  bool down = touch->readPoints(points, 1, 0) > 0;
+  if (down && !was_down && millis() - last_tap > 400) {
+    int x = constrain(points[0].x, 0, SCREEN_W - 1) * 320 / SCREEN_W;
+    int y = constrain(points[0].y, 0, SCREEN_H - 1) * 240 / SCREEN_H;
+    Serial0.printf("TOUCH screen=%d,%d\n", points[0].x, points[0].y);
+    ui_tap(x, y);
+    last_tap = millis();
+  }
+  was_down = down;
 }
 #endif  // WSOFT_BOARD_CYD
 
 static bool display_ready = false;
 static int fails = FAILS_BEFORE_NO_SIGNAL;
 static uint32_t polls = 0;
+
+// ---------- MENU: switches page and PIN pad (both boards) ----------
+// The live page's bottom left box opens a page with Approval, Auto save, TARE and Back.
+// Approval asks for the screen PIN on a number pad first; Auto save switches with one tap.
+// Every switch goes through switches.h like the browser, the Hub and the USB line, and is
+// logged with where=screen. All of this runs on the screen task.
+
+static const UiBox BTN_APPROVAL = {10, 38, 300, 44};
+static const UiBox BTN_AUTO = {10, 88, 300, 44};
+static const UiBox BTN_TARE = {10, 138, 145, 44};
+static const UiBox BTN_PRESET = {165, 138, 145, 44};
+static const UiBox BTN_BACK = {10, 188, 300, 44};
+// Number pad: 4 x 3 keys under the entry line, then CANCEL. '<' deletes, '#' is OK.
+static const char PAD_KEYS[12] = {'1', '2', '3', '<', '4', '5', '6', '0', '7', '8', '9', '#'};
+static const UiBox BTN_CANCEL = {2, 192, 316, 46};
+static const uint32_t UI_IDLE_MS = 30000;  // back to the live page after 30 s without a tap
+static const char *SCREEN_REASON = "switched on the screen";
+
+static UiBox pad_key(int i) {
+  UiBox b = {(int16_t)(2 + (i % 4) * 80), (int16_t)(42 + (i / 4) * 50), 76, 46};
+  return b;
+}
+
+static bool inside(const UiBox &b, int x, int y) {
+  return x >= b.x - 2 && x < b.x + b.w + 2 && y >= b.y - 2 && y < b.y + b.h + 2;
+}
+
+static WsoftPinPad pad;
+static bool pin_target = false;  // Approval ON (true) or OFF once the PIN is right
+static char ui_message[40] = "";
+static uint32_t ui_last_tap = 0;
+static char ui_shown[96] = "";  // what the open page shows now; it is drawn again when this changes
+
+static void ui_say(const char *text) {
+  strlcpy(ui_message, text, sizeof ui_message);
+}
+
+// "SETUP_INCOMPLETE" -> "SETUP INCOMPLETE" (the Waveshare font has no '_').
+static void ui_say_code(const char *code) {
+  ui_say(code);
+  for (char *p = ui_message; *p; p++) {
+    if (*p == '_') *p = ' ';
+  }
+}
+
+static void ui_open(Page next) {
+  page = next;
+  ui_last_tap = millis();
+  ui_shown[0] = 0;
+  if (next != PAGE_PIN) pad.clear();
+  if (next == PAGE_LIVE) {
+    ui_message[0] = 0;
+    live_epoch++;
+  }
+}
+
+static bool plate_lines(char *sa, size_t sa_size, char *limits, size_t limits_size) {
+  ScaleInfo info;
+  scale_info(&info);
+  sa[0] = limits[0] = 0;
+  if (!info.rs485 || (info.setup.sa_number[0] == 0 && info.setup.max_kg == WSOFT_KG_UNSET)) return false;
+  char max_text[24], min_text[24], e_text[24] = "?";
+  wsoft_kg_text(info.setup.max_kg, max_text, sizeof max_text);
+  wsoft_kg_text(info.setup.min_kg, min_text, sizeof min_text);
+  int64_t e;
+  if (wsoft_card_e(info.card, &e)) wsoft_kg_text(e, e_text, sizeof e_text);
+  snprintf(sa, sa_size, "SA %s", info.setup.sa_number[0] ? info.setup.sa_number : "-");
+  snprintf(limits, limits_size, "MAX %s MIN %s E %s KG", max_text[0] ? max_text : "-", min_text[0] ? min_text : "-",
+           e_text);
+  return true;
+}
+
+// ----- drawing, per board -----
+#if WSOFT_BOARD_CYD
+static void ui_page_begin(const char *title) {
+  tft.fillScreen(PAGE);
+  tft.fillRect(0, 0, CYD_W, 30, INK);
+  cyd_text(title, 10, 8, 2, WHITE, INK, TL_DATUM);
+  cyd_text(ui_message, CYD_W - 8, 8, 2, YELLOW, INK, TR_DATUM);
+}
+
+static void ui_button(const UiBox &b, const char *label, uint16_t fill) {
+  tft.fillRoundRect(b.x, b.y, b.w, b.h, 6, fill);
+  cyd_text(label, b.x + b.w / 2, b.y + b.h / 2 - 8, 2, WHITE, fill, TC_DATUM);
+}
+
+static void ui_page_end() {}
+#else
+// The font has no '*': a typed PIN digit shows as '-'.
+static void ui_page_begin(const char *title) {
+  char shown[32];
+  strlcpy(shown, title, sizeof shown);
+  for (char *p = shown; *p; p++) {
+    if (*p == '*') *p = '-';
+  }
+  fill_rect(0, 0, SCREEN_W, SCREEN_H, PAGE);
+  fill_rect(0, 0, SCREEN_W, 64, INK);
+  draw_text(MID, 20, 16, shown, WHITE);
+  draw_text(MID, SCREEN_W - 20, 16, ui_message, YELLOW, RIGHT);
+}
+
+static void ui_button(const UiBox &b, const char *label, uint16_t fill) {
+  int x = b.x * SCREEN_W / 320, y = b.y * SCREEN_H / 240;
+  int w = b.w * SCREEN_W / 320, h = b.h * SCREEN_H / 240;
+  fill_rect(x, y, x + w, y + h, fill);
+  draw_text(MID, x + w / 2, y + h / 2 - 16, label, WHITE, CENTER);
+}
+
+static void ui_page_end() {
+  lcd->drawBitmap(0, 0, SCREEN_W, SCREEN_H, reinterpret_cast<const uint8_t *>(frame), 1000);
+}
+#endif
+
+static void ui_draw_menu() {
+  SwitchesInfo info;
+  switches_info(&info);
+  ui_page_begin("SWITCHES");
+  ui_button(BTN_APPROVAL, info.approval_on ? "APPROVAL ON - TAP FOR OFF" : "APPROVAL OFF - TAP FOR ON",
+            info.approval_on ? GREEN : MUTED);
+  ui_button(BTN_AUTO, info.auto_save ? "AUTO SAVE ON" : "AUTO SAVE OFF", info.auto_save ? GREEN : MUTED);
+  if (info.rs485) {
+    ScaleInfo scale;
+    scale_info(&scale);
+    ui_button(BTN_TARE, scale_tare().on ? "CLEAR TARE" : "TARE", INK);
+    if (scale.setup.preset_tare_kg != WSOFT_KG_UNSET && scale.setup.preset_tare_kg > 0) {
+      ui_button(BTN_PRESET, "PRESET TARE", INK);
+    }
+  }
+  ui_button(BTN_BACK, "BACK", INK);
+  ui_page_end();
+}
+
+static void ui_draw_pin() {
+  // The title shows one mark per digit typed, never the digits.
+  char title[24];
+  snprintf(title, sizeof title, "PIN %s", pad.masked());
+  ui_page_begin(title);
+  for (int i = 0; i < 12; i++) {
+    char k = PAD_KEYS[i];
+    char digit[2] = {k, 0};
+    ui_button(pad_key(i), k == '<' ? "DEL" : k == '#' ? "OK" : digit, k == '#' ? GREEN : INK);
+  }
+  ui_button(BTN_CANCEL, "CANCEL", MUTED);
+  ui_page_end();
+}
+
+// Approval was tapped: check what can be checked before asking for the PIN.
+static void ui_start_approval() {
+  SwitchesInfo info;
+  switches_info(&info);
+  pin_target = !info.approval_on;
+  char line[40];
+  if (!info.pin_set) {
+    ui_say("NO PIN SET IN THE BROWSER YET");
+  } else if (info.pin_locked_s > 0) {
+    snprintf(line, sizeof line, "PIN LOCKED %lu S", (unsigned long)info.pin_locked_s);
+    ui_say(line);
+  } else if (pin_target && info.blocked != WSOFT_SWITCH_OK) {
+    ui_say_code(wsoft_switch_error_code(info.blocked));
+  } else {
+    ui_message[0] = 0;
+    ui_open(PAGE_PIN);
+  }
+}
+
+static void ui_pin_ok() {
+  WsoftPinResult result = pin_try(pad.entry());
+  pad.clear();
+  char line[40];
+  if (result == WSOFT_PIN_OK) {
+    WsoftSwitchError error =
+        switches_apply_here(WSOFT_SWITCH_APPROVAL, pin_target, "PIN", WSOFT_WHERE_SCREEN, SCREEN_REASON);
+    ui_open(PAGE_MENU);
+    if (error == WSOFT_SWITCH_OK) ui_say(pin_target ? "APPROVAL ON" : "APPROVAL OFF");
+    else ui_say_code(wsoft_switch_error_code(error));
+  } else if (result == WSOFT_PIN_WRONG) {
+    snprintf(line, sizeof line, "WRONG PIN %d LEFT", pin_tries_left());
+    ui_say(line);
+  } else {
+    ui_open(PAGE_MENU);
+    if (result == WSOFT_PIN_LOCKED) {
+      snprintf(line, sizeof line, "PIN LOCKED %lu S", (unsigned long)pin_locked_s());
+      ui_say(line);
+    } else {
+      ui_say("NO PIN SET IN THE BROWSER YET");
+    }
+  }
+}
+
+static void ui_tare(bool preset) {
+  WsoftTareError error;
+  bool was_on = scale_tare().on;
+  if (preset) {
+    error = scale_tare_preset(reading.decimals, reading.unit);
+  } else {
+    bool stable = reading.linked && approval_stable() && view_hold != WSOFT_HOLD_NOT_STABLE;
+    error = scale_tare_toggle(stable, reading.value, reading.decimals, reading.unit);
+  }
+  if (error == WSOFT_TARE_OK) ui_say(!preset && was_on ? "TARE CLEARED" : "TARE ON");
+  else ui_say_code(wsoft_tare_error_code(error));
+}
+
+static void ui_tap(int x, int y) {
+  ui_last_tap = millis();
+  if (page == PAGE_LIVE) {
+    if (inside(MENU_TARGET, x, y)) ui_open(PAGE_MENU);
+    return;
+  }
+  if (page == PAGE_MENU) {
+    bool rs485 = scale_rs485();
+    if (inside(BTN_APPROVAL, x, y)) {
+      ui_start_approval();
+    } else if (inside(BTN_AUTO, x, y)) {
+      WeighingsInfo weigh;
+      weighings_info(&weigh);
+      WsoftSwitchError error =
+          switches_apply_here(WSOFT_SWITCH_AUTO_SAVE, !weigh.auto_save, "screen", WSOFT_WHERE_SCREEN, "");
+      if (error == WSOFT_SWITCH_OK) ui_say(weigh.auto_save ? "AUTO SAVE OFF" : "AUTO SAVE ON");
+      else ui_say_code(wsoft_switch_error_code(error));
+    } else if (rs485 && inside(BTN_TARE, x, y)) {
+      ui_tare(false);
+    } else if (rs485 && inside(BTN_PRESET, x, y)) {
+      ui_tare(true);
+    } else if (inside(BTN_BACK, x, y)) {
+      ui_open(PAGE_LIVE);
+    }
+    return;
+  }
+  // PAGE_PIN
+  if (inside(BTN_CANCEL, x, y)) {
+    ui_open(PAGE_MENU);
+    return;
+  }
+  for (int i = 0; i < 12; i++) {
+    if (!inside(pad_key(i), x, y)) continue;
+    char k = PAD_KEYS[i];
+    if (k == '<') pad.del();
+    else if (k == '#') ui_pin_ok();
+    else pad.press(k);
+    return;
+  }
+}
+
+// Every loop pass: draws the open page when what it shows changed, and closes it when idle.
+static void ui_poll() {
+  if (page == PAGE_LIVE || !display_ready) return;
+  if (millis() - ui_last_tap > UI_IDLE_MS) {
+    ui_open(PAGE_LIVE);
+    return;
+  }
+  SwitchesInfo info;
+  switches_info(&info);
+  char key[sizeof ui_shown];
+  snprintf(key, sizeof key, "%d|%d|%d|%d|%s|%s", (int)page, info.approval_on ? 1 : 0, info.auto_save ? 1 : 0,
+           scale_tare().on ? 1 : 0, ui_message, pad.masked());
+  if (strcmp(key, ui_shown) == 0) return;
+  strlcpy(ui_shown, key, sizeof ui_shown);
+  if (page == PAGE_MENU) ui_draw_menu();
+  else ui_draw_pin();
+}
 
 // ---------- snapshot for the web services (Hardware.Base, M3) ----------
 
@@ -779,8 +1277,14 @@ void wsoft_screen_setup(bool rs232) {
 
   display_ready = start_display();
   log_line(display_ready ? "display ready" : "display failed");
+  scale_begin(!rs232_mode);
+  pin_begin();
   approval_begin();
+  weighings_begin(rs232_mode);
   hub_begin();
+#if WSOFT_BOARD_CYD
+  cyd_touch_begin();
+#endif
   if (display_ready) render(reading);
   portENTER_CRITICAL(&snapshot_lock);
   snapshot.display_ready = display_ready;
@@ -790,11 +1294,18 @@ void wsoft_screen_setup(bool rs232) {
 // One RS485 poll of the DJB: unit and decimals every 20 polls, then weight and alarm.
 static bool poll_djb(Reading *out) {
   Reading &next = *out;
+  // e (division) is read once the card answers, and again after a card write.
+  static int32_t division = 0;
   if (polls++ % 20 == 0 || format_stale) {
+    bool read_division = format_stale || division <= 0;
     format_stale = false;
-    int32_t decimals, unit;
-    if (read_long(REG_DECIMAL, &decimals) && decimals >= 0 && decimals <= 4) next.decimals = decimals;
-    if (read_long(REG_WEIGHT_UNIT, &unit) && unit >= 0 && unit <= 3) next.unit = unit;
+    int32_t decimals, unit, value;
+    bool format_ok = read_long(REG_DECIMAL, &decimals) && decimals >= 0 && decimals <= 4;
+    if (format_ok) next.decimals = decimals;
+    bool unit_ok = read_long(REG_WEIGHT_UNIT, &unit) && unit >= 0 && unit <= 3;
+    if (unit_ok) next.unit = unit;
+    if (read_division && format_ok && unit_ok && read_long(REG_DIVISION, &value) && value > 0) division = value;
+    if (division > 0 && format_ok && unit_ok) scale_set_card(division, next.decimals, next.unit);
   }
 
   uint16_t words[4];
@@ -843,6 +1354,13 @@ void wsoft_screen_loop() {
   hub_handle_serial(Serial0);
   hub_ota_poll();
   service_job();
+  switches_poll();
+#if WSOFT_BOARD_CYD
+  cyd_touch_poll();
+#else
+  ws_touch_poll();
+#endif
+  ui_poll();
   if (hub_ota_busy() || !display_ready || millis() - last_poll < POLL_MS) return;
   last_poll = millis();
 
@@ -855,7 +1373,21 @@ void wsoft_screen_loop() {
     fresh = poll_djb(&next);
   }
 
-  TradeCheck check = approval_update(next.linked, fresh, next.alarm, next.value, next.decimals, next.unit);
+  // RS485 setup: blanking, below Min and the stable samples hold a reading back (NONE on RS232).
+  int32_t net = next.value;
+  bool tared = scale_net(next.value, next.decimals, next.unit, &net);
+  WsoftScaleHold hold = scale_hold(next.linked, fresh, next.value, net, next.decimals, next.unit);
+  TradeCheck check = approval_update_held(next.linked, fresh, next.alarm, next.value, next.decimals, next.unit, hold);
+  WsoftSaveResult save_hold = WSOFT_SAVE_NONE;
+  if (hold == WSOFT_HOLD_BLANK) save_hold = WSOFT_SAVE_BLANK;
+  else if (hold == WSOFT_HOLD_NOT_STABLE) save_hold = WSOFT_SAVE_NOT_STABLE;
+  else if (hold == WSOFT_HOLD_BELOW_MIN && approval_on()) save_hold = WSOFT_SAVE_BELOW_MIN;
+  // A weighing for the Hub (Save tap or Auto save), saved whether trade checks are on or not.
+  weighings_update(next.linked, fresh, next.alarm, next.value, next.decimals, next.unit, check == TRADE_OK,
+                   tared ? scale_tare().value : 0, save_hold);
+#if WSOFT_BOARD_CYD
+  if (page == PAGE_LIVE) cyd_save_box();
+#endif
 
   if (next.linked && polls % 4 == 1) {
     if (!rs232_mode) Serial0.printf("DJB slave=%u baud=%lu ", slave, (unsigned long)SCAN_BAUDS[baud_index]);
@@ -881,10 +1413,24 @@ void wsoft_screen_loop() {
   shown_check = check;
   shown_audit = audit;
   shown_seq = seq;
-  if (approval_changed || next.linked != reading.linked || next.value != reading.value || next.alarm != reading.alarm ||
-      next.decimals != reading.decimals || next.unit != reading.unit || hub != shown_hub || polls == 1) {
+  bool setup_changed = hold != view_hold || net != view_net || tared != view_tared;
+  view_hold = hold;
+  view_net = net;
+  view_tared = tared;
+  // Back from the menu: the live page is drawn again in full.
+  static uint32_t drawn_epoch = 0;
+  bool back_to_live = page == PAGE_LIVE && drawn_epoch != live_epoch;
+  if (approval_changed || setup_changed || back_to_live || next.linked != reading.linked ||
+      next.value != reading.value || next.alarm != reading.alarm || next.decimals != reading.decimals ||
+      next.unit != reading.unit || hub != shown_hub || polls == 1) {
     reading = next;
     shown_hub = hub;
-    render(reading);
+    if (page == PAGE_LIVE) {
+#if WSOFT_BOARD_CYD
+      if (back_to_live) cyd_static();
+#endif
+      drawn_epoch = live_epoch;
+      render(reading);
+    }
   }
 }

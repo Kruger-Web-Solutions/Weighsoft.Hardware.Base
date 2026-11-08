@@ -4,8 +4,9 @@
 // Pure C++ so the defaults and validation run in host tests; WSoftSettingsService
 // maps JSON to WSoftSettingsInput and back.
 //
-// Deliberately NOT here: approval ON/OFF (USB technician only), the Hub pairing code
-// (NVS, via USB or the Hub tab: wsoft_hub_code.h / hub_web.h), Wi-Fi and OTA (framework pages).
+// Deliberately NOT here: the Approval and Auto save switches (NVS, through switches.h:
+// screen, browser, Hub and USB), the Hub pairing code (NVS, via USB or the Hub tab:
+// wsoft_hub_code.h / hub_web.h), Wi-Fi and OTA (framework pages).
 
 #include <stddef.h>
 #include <stdint.h>

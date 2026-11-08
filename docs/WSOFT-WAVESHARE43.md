@@ -12,9 +12,9 @@ other devices here.
 
 | Part | Path | Notes |
 |---|---|---|
-| Pure logic (host-tested) | `lib/wsoft_core/` | `trade_logic.*` (identical), `wsoft_view.*`, `wsoft_settings.*` |
-| ESP firmware | `lib/wsoft_esp/` | `approval.*`, `hub.h`, `fonts.h`, `screen_rle.h` identical; `hub.cpp` guarded; `wsoft_screen.cpp` = old `main.cpp` |
-| Services | `src/examples/wsoft/` | `WSoftStatusService` (live), `WSoftSettingsService` (options) |
+| Pure logic (host-tested) | `lib/wsoft_core/` | `trade_logic.*` (identical), `wsoft_view.*`, `wsoft_settings.*`, `wsoft_switch.*`, `wsoft_pin.*`, `wsoft_sha256.*`, `wsoft_scale_setup.*`, `wsoft_hub_commands.*` |
+| ESP firmware | `lib/wsoft_esp/` | `approval.h`, `hub.h`, `fonts.h`, `screen_rle.h` identical; `approval.cpp` and `hub.cpp` guarded; `wsoft_screen.cpp` = old `main.cpp`; new: `switches.*`, `pin.*`, `scale.*`, `approval_base.h` |
+| Services | `src/examples/wsoft/` | `WSoftStatusService` (live), `WSoftSettingsService` (options), `WSoftSwitchesService` (switches, PIN, scale setup) |
 | Wiring | `src/main.cpp` | under `FT_WSOFT` only |
 | Web pages | `interface/src/project/wsoft/` | menu **W-Soft**: Live, Settings (admin), Information |
 | Build | `platformio.ini` | `[env:wsoft_waveshare43]`, `[env:native]` |
@@ -22,11 +22,12 @@ other devices here.
 Check that the copied files still match the source:
 
 ```bash
-for f in approval.cpp approval.h hub.h fonts.h screen_rle.h; do
+for f in approval.h hub.h fonts.h screen_rle.h; do
   git -C ../weighsoft.wsoft show cfcd012:esp/src/$f | diff -q - lib/wsoft_esp/src/$f; done
 for f in trade_logic.cpp trade_logic.h; do
   git -C ../weighsoft.wsoft show cfcd012:esp/src/$f | diff -q - lib/wsoft_core/src/$f; done
-unifdef -UWSOFT_ON_BASE lib/wsoft_esp/src/hub.cpp | diff -q - <(git -C ../weighsoft.wsoft show cfcd012:esp/src/hub.cpp)
+for f in approval.cpp hub.cpp; do
+  unifdef -UWSOFT_ON_BASE lib/wsoft_esp/src/$f | diff -q - <(git -C ../weighsoft.wsoft show cfcd012:esp/src/$f); done
 ```
 
 ## 2. Bench steps (laptop, not the cloud container)
@@ -72,14 +73,16 @@ unifdef -UWSOFT_ON_BASE lib/wsoft_esp/src/hub.cpp | diff -q - <(git -C ../weighs
 |---|---|
 | `APPROVAL STATUS` | Prints ON/OFF, audit counter, trade check, next sequence, queue size |
 | `APPROVAL LOG` | Prints the last approval switches |
-| `APPROVAL ON <technician> <reason>` | Switches approval on (logged, audit counter +1) |
-| `APPROVAL OFF <technician> <reason>` | Switches approval off (logged, audit counter +1) |
+| `APPROVAL ON <technician> <reason>` | Switches approval on (logged with `where=usb`, audit counter +1). Same rules as section 4b: refused with `APPROVAL_ERR SETUP_INCOMPLETE ...` while the RS485 setup is not complete |
+| `APPROVAL OFF <technician> <reason>` | Switches approval off (logged with `where=usb`, audit counter +1) |
 | `HUB PAIR <code>` | Checks a Hub pairing code and holds it |
 | `HUB SAVE` | Saves the held pairing code to flash and restarts |
 | `HUB CLEAR` | Forgets the Hub settings and restarts |
 | `HUB WIFI` / `HUB PASS` / `HUB OTA` | **No-op here.** Replies `HUB_ERR not used on this build`. Use the web pages |
 
-Approval has no web, MQTT or BLE write path. That is on purpose.
+Approval can be switched from the screen, the browser, the Hub and this USB line; Auto save
+from the first three. All go through `switches.h` and the same rules (section 4b). There is still no MQTT or
+BLE write path.
 
 ## 4. Web, WebSocket and MQTT
 
@@ -89,6 +92,11 @@ Approval has no web, MQTT or BLE write path. That is on purpose.
 | `POST /rest/djb` | admin | One DJB register read or write (below). The screen task runs it on Serial1 |
 | WebSocket `/ws/wsoftStatus` | logged-in user | Same JSON, pushed when it changes |
 | `GET/POST /rest/wsoftSettings` | admin | Options; a bad topic or name returns 400 and keeps the old values |
+| `GET /rest/wsoftSwitches` | logged-in user | Approval and Auto save state, whether Approval can go ON, PIN state, the last 8 approval log lines |
+| `POST /rest/wsoftSwitches` | admin | `{"switch":"approval"\|"auto_save","on":true\|false,"reason":"text"}` (section 4b) |
+| `POST /rest/wsoftPin` | admin | `{"pin":"1234"}`: sets the screen PIN. Never sent back or logged |
+| `GET /rest/wsoftScaleSetup` | logged-in user | The board's part of the RS485 setup, what is missing, and the card's e as last read |
+| `POST /rest/wsoftScaleSetup` | admin | `{"board":{...},"reason":"text"}`; a key that is not sent keeps its value |
 | WebSocket `/ws/wsoftSettings` | admin | Same options |
 | File `/config/wsoftSettings.json` | – | Saved options (LittleFS) |
 
@@ -105,13 +113,14 @@ failed), `weight_text`, `unit`, `decimals`, `stable`, `alarm`, `approval_on`, `f
 `com1_mode`. Addresses are the 41xxx map. Signed long, byte order 4321. Weight and alarm
 are read-only. Alarm reads add `alarm_raw_hex` and `alarm_bits` (high-word bits 0, 1, 13,
 14, 15). Sampling and both filters are the raw long. Any call is refused (409
-`not_linked`) while the scale is not linked, and every write is refused (409 `approval_on`)
+`NO_CARD`, "No weighing card: the scale is on RS232.") in RS232 mode, and (409 `not_linked`)
+while the scale is not linked, and every write is refused (409 `approval_on`)
 while approval is on: an `ad` write is a calibration (0 zero, CW > 0 load) and the scale
 parameters are metrological. Out-of-range writes return 400 `ad_range` / `range`: `ad`
 0..1000000, `unit` 0..3, `decimal` 0..4, `address` 1..10 (the link scan range), `baud`
 0..2, `byte_order` 0 and `com1_mode` 1 (the poll needs both). Writing `address` or `baud`
-drops the link until the scan finds the scale again. After a write the poll re-reads unit
-and decimals at once.
+drops the link until the scan finds the scale again. After a write the poll re-reads unit,
+decimals and division at once, and every successful write adds 1 to `setup_audit`.
 
 Options:
 
@@ -134,6 +143,79 @@ retained message), so no stale weight stays on the broker.
 `weight_g` is still sent while the DJB alarm is set (with `alarm: true`). This matches the panel.
 Whether a weight during an alarm should go out on MQTT is open for Rhyno.
 
+## 4b. Switches, screen PIN and the RS485 scale setup
+
+Errors are 409 (or 400 for a bad shape) with `{"error":"CODE","message":"plain words"}`.
+
+**Switches.** The board holds the true state; the screen, the web page and the Hub show it.
+
+- Approval needs a reason: 1 to 80 printable characters (ASCII 0x20 to 0x7e) after trimming.
+  Auto save takes one but does not need it.
+- Approval cannot go ON while the RS485 setup is not complete (`SETUP_INCOMPLETE`). On RS232
+  the indicator owns the setup, so this check does not apply.
+- Codes: `ALREADY`, `SETUP_INCOMPLETE`, `REASON_REQUIRED`, `REASON_TOO_LONG`, `WHO_REQUIRED`,
+  `BUSY` (the screen task did not take the change within 1 s, or another change is in the
+  box: **not applied**) and `UNCONFIRMED` (taken, but no answer 5 s later: it **may** have
+  been applied; read the state again).
+- Every approval switch is one log line in NVS `approval`:
+  `<audit> <time> OFF->ON by=<user> where=<screen|browser|hub|usb> why=<reason>`.
+  A name over 64 characters is cut and ends in `~`. Auto save switches go to the USB log
+  as `SWITCH auto_save ...`.
+- The screen task applies every change (it is the only flash writer). Other tasks hand it
+  the change through a one-slot mailbox with a ticket each, so no caller gets another's
+  answer, and wait for it. Once taken, a change is waited for until it is done.
+
+**Screen PIN.** 4 to 6 digits, set by an admin in the browser. Stored as SHA-256 of a random
+16-byte salt plus the PIN (NVS `pin`). After 5 wrong tries the pad locks for 300 s; the
+count is kept across a restart, so 5 stored wrong tries lock the pad again for 300 s after a
+restart, until the right PIN. The USB log says `PIN wrong try n of 5`, never the digits.
+Setting the PIN answers 409 `BUSY` if a try on the screen holds it for more than 0.5 s.
+
+**Screen MENU.** Tap the bottom left (GROSS) box. The switches page has Approval, Auto save,
+TARE and PRESET TARE (RS485 only), and BACK. Approval opens a number pad (DEL, OK, CANCEL);
+the page title shows one mark per digit. After 30 s with no tap the screen goes back to the
+live weight. Taps log `TOUCH screen=x,y` on USB.
+
+**RS485 scale setup** (NVS `scale`). Board keys:
+
+| Key | Rule |
+|---|---|
+| `sa_number` | 1 to 32 printable characters |
+| `max_kg`, `min_kg` | kg text, a multiple of e, `max > e`, `min >= e`, `min < max` |
+| `blank_below_e`, `blank_above_e` | counts of e, 0 to 100 (`blank_above_e` defaults to 9) |
+| `stable_samples` | 3 to 20 (default 3) |
+| `tare_enabled`, `tare_max_kg`, `preset_tare_kg` | `tare_max <= max`, `preset <= tare_max` |
+
+- e = the card's division in its decimals and unit (register 41307, read by the poll).
+- Codes: `SETUP_LOCKED` (approval ON or RS232), `SETUP_ORDER`, `SETUP_NUMBER`, `SETUP_TEXT`,
+  `SETUP_RANGE`, `REASON_REQUIRED`, `REASON_TOO_LONG`, `BUSY` (the setup lock was not free
+  within 0.5 s).
+- `complete` = `sa_number`, `max_kg`, `min_kg` and `blank_below_e` are set and the card has
+  been read. `missing` lists what is not.
+- Every saved change adds 1 to `setup_audit`. Saving clears the tare.
+- On RS485 the screen and the saver hold the weight: `OUT OF RANGE` (below
+  `-blank_below_e` x e, or above Max + `blank_above_e` x e, on the gross), `BELOW MIN` (a
+  NET load above 0 but under Min; with a tare on this is stricter than the gross, **to
+  confirm against the SA rule**), or moving until `stable_samples` readings match. With a
+  complete setup, a reading that is not an exact kg value is `OUT OF RANGE` too. Such a
+  weight is not for trade and is not saved (below Min still saves while approval is off).
+- Tare (RS485): TARE takes the stable gross, TARE again clears it, PRESET TARE uses the
+  saved preset. A tared weighing goes to the Hub as gross / tare / net with basis `NT`.
+
+**Hub commands.** While the Hub is online the board posts to `POST /api/v1/ingest/commands`
+every 10 s, signed like the heartbeat. The answer is checked against
+`scale-models-hub-command-v1` before anything is applied. Commands run in id order through
+the same rules (`where=hub`); the last applied id is kept in NVS `hub` (key `cmd`), and is
+removed whenever the pairing changes (web Connect or Forget, USB `HUB PAIR` + `HUB SAVE`,
+`HUB CLEAR`). `BUSY` is asked again at the next pull; `UNCONFIRMED` counts as handled.
+The results waiting to go to the Hub are kept in RAM only: after a restart they are lost,
+and the Hub marks those commands expired. A switch from any place sends a heartbeat at
+once, with `auto_save` and `scale_setup_complete` in `health`.
+
+**Update note.** Auto save moved from W-Soft > Settings to the switches (NVS `weigh`). At
+the first boot after the update the board reads the old `auto_save` once from
+`/config/wsoftSettings.json` and keeps it.
+
 ## 5. How it runs
 
 - The W-Soft screen loop (Modbus poll, up to ~600 ms, plus panel draw, up to ~1 s) runs in its
@@ -141,8 +223,9 @@ Whether a weight during an alarm should go out on MQTT is open for Rhyno.
   server, MQTT and the framework moving.
 - After every poll the screen task writes a snapshot under a spinlock. `WSoftStatusService::loop()`
   copies it and publishes only when something changed, at most once per publish interval.
-- The framework owns Wi-Fi, NTP and OTA (`-D WSOFT_ON_BASE`). Approval and the Hub queue still
-  use NVS (`Preferences`, namespaces `approval` and `hub`) beside the framework's LittleFS.
+- The framework owns Wi-Fi, NTP and OTA (`-D WSOFT_ON_BASE`). Approval, the Hub queue, the
+  weighings, the PIN and the scale setup use NVS (`Preferences`, namespaces `approval`, `hub`,
+  `weigh`, `pin` and `scale`) beside the framework's LittleFS.
 - RS485 is `Serial1` RX15/TX16 and belongs to W-Soft. The Serial1 services of this branch are
   not created on this board.
 

@@ -12,10 +12,28 @@ const WSoftInfo: FC = () => (
     </Typography>
     <List dense>
       <ListItem>
-        <ListItemText primary="Live" secondary="Weight in whole grams, stable flag, approval state and audit counter." />
+        <ListItemText
+          primary="Live"
+          secondary={
+            'Weight, stable flag and audit counter, plus the Approval and Auto save switches. ' +
+            'An admin switches them here; Approval asks for a reason and logs the admin name.'
+          }
+        />
       </ListItem>
       <ListItem>
-        <ListItemText primary="Settings (admin)" secondary="Publish interval and the MQTT topic for W-Soft status." />
+        <ListItemText
+          primary="Scale setup"
+          secondary={
+            'RS485: SA number, Max, Min, blanking, stable samples and tare on the board, plus the weighing card ' +
+            'settings. Locked while Approval is on. RS232: set on the indicator.'
+          }
+        />
+      </ListItem>
+      <ListItem>
+        <ListItemText
+          primary="Settings (admin)"
+          secondary="Publish interval, the MQTT topic for W-Soft status, and the Approval PIN for the screen."
+        />
       </ListItem>
       <ListItem>
         <ListItemText primary="Hub (admin)" secondary="Connect to the Hub with a pairing key, see the link state, or disconnect." />
@@ -23,13 +41,15 @@ const WSoftInfo: FC = () => (
       <ListItem>
         <ListItemText
           primary="USB cable (technician)"
-          secondary="APPROVAL STATUS / LOG / ON / OFF and HUB PAIR / SAVE / CLEAR. Approval is never switched from here."
+          secondary="APPROVAL STATUS / LOG / ON / OFF and HUB PAIR / SAVE / CLEAR."
         />
       </ListItem>
     </List>
     <Alert severity="info" sx={{ mt: 2 }}>
       Endpoints: GET /rest/wsoftStatus · WebSocket /ws/wsoftStatus · MQTT &lt;base path&gt;/status ·
-      GET/POST /rest/wsoftSettings (admin) · GET/POST /rest/wsoftHub (admin)
+      GET/POST /rest/wsoftSettings (admin) · GET/POST /rest/wsoftHub (admin) · GET /rest/wsoftSwitches ·
+      POST /rest/wsoftSwitches (admin) · POST /rest/wsoftPin (admin) · GET /rest/wsoftScaleSetup ·
+      POST /rest/wsoftScaleSetup (admin) · POST /rest/djb (admin)
     </Alert>
   </SectionContent>
 );

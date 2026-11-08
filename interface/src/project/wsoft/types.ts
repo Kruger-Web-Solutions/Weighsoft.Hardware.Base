@@ -13,7 +13,7 @@ export interface WSoftStatus {
   decimals: number;
   stable: boolean;
   alarm: boolean;
-  /** Read-only. Approval is switched with a USB cable only. */
+  /** Read-only here. Switch it with POST /rest/wsoftSwitches (WSoftSwitches). */
   approval_on: boolean;
   for_trade: boolean;
   trade_check: string;
@@ -67,3 +67,124 @@ export interface WSoftHub {
 }
 
 export type WSoftHubAction = { action: 'connect'; code: string } | { action: 'disconnect' };
+
+// Mirrors src/examples/wsoft/WSoftStatusService.cpp (sendSave).
+export interface WSoftWeighing {
+  seq: number;
+  weight: string;
+  unit: string;
+  /** Unix seconds. */
+  at: number;
+}
+
+export interface WSoftSave {
+  /** Saved on the board, not yet accepted by the Hub. */
+  pending: number;
+  last: WSoftWeighing | null;
+  /** Only on POST: whether this tap saved, and why not. */
+  ok?: boolean;
+  result?: string;
+  saved?: WSoftWeighing;
+}
+
+// Contract A (docs/superpowers/plans/2026-11-07-wsoft-switches-scale-setup.md).
+// Board errors: 409 (or 400 for a bad shape) with { error: CODE, message }.
+export interface WSoftBoardError {
+  error?: string;
+  message?: string;
+}
+
+// A1. GET /rest/wsoftSwitches (logged-in users).
+export interface WSoftApproval {
+  on: boolean;
+  audit_counter: number;
+  trade_check: string;
+  can_switch_on: boolean;
+  /** null, or a code such as SETUP_INCOMPLETE. */
+  blocked: string | null;
+}
+
+export interface WSoftSwitches {
+  source: WSoftSource;
+  approval: WSoftApproval;
+  auto_save: boolean;
+  /** An Approval PIN for the screen is set. The PIN itself is never sent. */
+  pin_set: boolean;
+  /** Seconds the screen PIN pad stays locked after wrong tries. 0 = not locked. */
+  pin_locked_s: number;
+  /** Last 8 approval log lines, oldest first. */
+  log: string[];
+}
+
+export type WSoftSwitchName = 'approval' | 'auto_save';
+
+// A2. POST /rest/wsoftSwitches (admin). Reason: 1 to 80 characters for approval, optional for auto_save.
+export interface WSoftSwitchRequest {
+  switch: WSoftSwitchName;
+  on: boolean;
+  reason: string;
+}
+
+// A3. POST /rest/wsoftPin (admin).
+export interface WSoftPinRequest {
+  pin: string;
+}
+
+export interface WSoftPinReply {
+  pin_set: boolean;
+}
+
+// A4. GET /rest/wsoftScaleSetup (logged-in users). kg values are decimal text, "" = not set.
+export interface WSoftScaleBoard {
+  sa_number: string;
+  max_kg: string;
+  min_kg: string;
+  /** Counts of e. null = not set. */
+  blank_below_e: number | null;
+  blank_above_e: number;
+  stable_samples: number;
+  tare_enabled: boolean;
+  tare_max_kg: string;
+  preset_tare_kg: string;
+}
+
+export interface WSoftScaleCard {
+  division: number;
+  decimal: number;
+  unit: number;
+}
+
+export type WSoftSetupLock = 'APPROVAL_ON' | 'RS232';
+
+export interface WSoftScaleSetup {
+  source: WSoftSource;
+  editable: boolean;
+  locked: WSoftSetupLock | null;
+  complete: boolean;
+  missing: string[];
+  setup_audit: number;
+  board: WSoftScaleBoard;
+  /** Last values read from the weighing card; null when not read yet. */
+  card: WSoftScaleCard | null;
+}
+
+// A5. POST /rest/wsoftScaleSetup (admin).
+export interface WSoftScaleSetupRequest {
+  board: WSoftScaleBoard;
+  reason: string;
+}
+
+// POST /rest/djb (admin), src/examples/wsoft/WSoftStatusService.cpp handleDjb.
+export type WSoftCardField =
+  'division' | 'decimal' | 'unit' | 'zero_track_limit' | 'zero_track_time' | 'stability_range' | 'stability_time';
+
+export type WSoftDjbRequest =
+  { op: 'read'; field: WSoftCardField } | { op: 'write'; field: WSoftCardField; value: number };
+
+export interface WSoftDjbReply {
+  ok: boolean;
+  sent: boolean;
+  /** Lower-case code, e.g. not_linked, approval_on, range, busy. */
+  error?: string;
+  value?: number;
+}
