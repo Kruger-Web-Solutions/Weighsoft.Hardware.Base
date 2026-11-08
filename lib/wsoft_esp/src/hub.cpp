@@ -1,6 +1,7 @@
 #include "hub.h"
 #include "approval.h"
 #ifdef WSOFT_ON_BASE
+#include "hilo.h"
 #include "hub_web.h"
 #include "switches.h"
 #include "weighings.h"
@@ -297,16 +298,18 @@ static int post_signed(const char *path, const String &body, String *reply) {
 static void send_weighings() {
   String tag = WiFi.macAddress();
   tag.replace(":", "");
-  WsoftWeighingMeta meta = {tag.c_str(), weighings_source(), STATION_MODEL, false, false, 0};
+  WsoftWeighingMeta meta = {tag.c_str(), weighings_source(), STATION_MODEL, false, false, 0, nullptr};
   for (int i = 0; i < WEIGHINGS_PER_HEARTBEAT; i++) {
     TradeWeight w;
     bool for_trade = false;
     int32_t tare_value = 0;
-    if (!weighings_oldest(&w, &for_trade, &tare_value)) return;
+    WsoftHiloStamp hilo;
+    if (!weighings_oldest(&w, &for_trade, &tare_value, &hilo)) return;
     meta.for_trade = for_trade;
     meta.tared = tare_value > 0;
     meta.tare_value = tare_value;
-    char body[512];
+    meta.hilo = &hilo;
+    char body[900];
     if (!wsoft_weighing_json(w, meta, body, sizeof body)) {
       Serial0.printf("WEIGH seq=%lu cannot be sent (weight or time out of range): dropped\n", (unsigned long)w.seq);
       weighings_delivered(w.seq);
@@ -366,11 +369,10 @@ static void keep_result(uint64_t id, WsoftSwitchError error) {
   strlcpy(r.error, r.ok ? "" : wsoft_switch_error_code(error), sizeof r.error);
 }
 
-static void pull_commands() {
-  static char request[WSOFT_CMD_REQUEST_MAX];
-  if (!wsoft_hub_commands_request(commands_applied, command_results, command_result_count, request, sizeof request)) {
-    return;
-  }
+// Posts a signed body and keeps the answer only when the Hub signed it under its own prefix
+// with this request's key id and nonce (contract B2 / C1). False for anything else; what is
+// logged names the pull (what).
+static bool pull_signed(const char *path, const char *request, const char *prefix, const char *what, String *reply) {
   String body = request;
   time_t now = time(nullptr);
   uint8_t nonce_bytes[16];
@@ -380,7 +382,7 @@ static void pull_commands() {
 
   HTTPClient http;
   http.setTimeout(8000);
-  if (!http.begin(hub_url + "/api/v1/ingest/commands")) return;
+  if (!http.begin(hub_url + path)) return false;
   const char *answer_headers[] = {"X-ScaleModels-Key-Id", "X-ScaleModels-Timestamp", "X-ScaleModels-Nonce",
                                   "X-ScaleModels-Signature"};
   http.collectHeaders(answer_headers, 4);
@@ -390,7 +392,7 @@ static void pull_commands() {
   http.addHeader("X-ScaleModels-Nonce", nonce);
   http.addHeader("X-ScaleModels-Signature", sign(timestamp, nonce, body));
   int status = http.POST(body);
-  String reply = status > 0 ? http.getString() : "";
+  *reply = status > 0 ? http.getString() : "";
   String answer_key = http.header("X-ScaleModels-Key-Id");
   String answer_time = http.header("X-ScaleModels-Timestamp");
   String answer_nonce = http.header("X-ScaleModels-Nonce");
@@ -398,14 +400,25 @@ static void pull_commands() {
   http.end();
 
   if (status != 200) {
-    Serial0.printf("HUB commands status=%d\n", status);
+    Serial0.printf("HUB %s status=%d\n", what, status);
+    return false;
+  }
+  if (!wsoft_hub_verify_answer(signing_key, prefix, key_id.c_str(), nonce.c_str(), answer_key.c_str(),
+                               answer_time.c_str(), answer_nonce.c_str(), answer_signature.c_str(), reply->c_str(),
+                               reply->length())) {
+    Serial0.printf("HUB %s bad signature\n", what);
+    return false;
+  }
+  return true;
+}
+
+static void pull_commands() {
+  static char request[WSOFT_CMD_REQUEST_MAX];
+  if (!wsoft_hub_commands_request(commands_applied, command_results, command_result_count, request, sizeof request)) {
     return;
   }
-  if (!wsoft_hub_commands_verify(signing_key, key_id.c_str(), nonce.c_str(), answer_key.c_str(), answer_time.c_str(),
-                                 answer_nonce.c_str(), answer_signature.c_str(), reply.c_str(), reply.length())) {
-    Serial0.println("HUB commands bad signature");
-    return;
-  }
+  String reply;
+  if (!pull_signed("/api/v1/ingest/commands", request, WSOFT_HUB_COMMAND_PREFIX, "commands", &reply)) return;
   // The Hub has the results it was sent.
   command_result_count = 0;
 
@@ -436,6 +449,31 @@ static void pull_commands() {
     Serial0.printf("HUB command id=%llu %s %s: %s\n", (unsigned long long)c.id, wsoft_switch_name(c.which),
                    c.on ? "ON" : "OFF", error == WSOFT_SWITCH_OK ? "done" : wsoft_switch_error_code(error));
   }
+}
+
+// ---------- Hi-Lo products from the Hub (Hardware.Base, Hub ADR 0008, contract C1) ----------
+// At most once a minute (sooner after the operator picks a product) the board posts the
+// product it uses to POST /api/v1/ingest/hilo. The Hub answers with the products that have
+// Hi-Lo limits and this scale's default, signed under scale-models-hub-hilo-v1. An answer that
+// does not check out changes nothing. hilo.cpp keeps the list and the pick in flash.
+static void pull_hilo() {
+  char request[WSOFT_HILO_REQUEST_MAX];
+  if (!hilo_request(request, sizeof request)) {
+    hilo_failed();
+    return;
+  }
+  String reply;
+  if (!pull_signed("/api/v1/ingest/hilo", request, WSOFT_HUB_HILO_PREFIX, "hilo", &reply)) {
+    hilo_failed();
+    return;
+  }
+  static WsoftHiloList list;  // static: too big for the Hub task's stack
+  if (!wsoft_hilo_parse(reply.c_str(), reply.length(), &list)) {
+    Serial0.println("HUB hilo bad body");
+    hilo_failed();
+    return;
+  }
+  hilo_take(list);
 }
 
 #endif
@@ -551,11 +589,12 @@ static void hub_task(void *) {
       pull_commands();
       next_command_pull = millis() + COMMANDS_MS;
     }
+    if (state == HUB_ONLINE && !ota_busy && !pairing_changed && hilo_pull_due()) pull_hilo();
     TradeWeight waiting;
     bool waiting_for_trade;
     int32_t waiting_tare;
     if (state == HUB_ONLINE && !ota_busy && (int32_t)(millis() - next_weighing_try) >= 0 &&
-        weighings_oldest(&waiting, &waiting_for_trade, &waiting_tare)) {
+        weighings_oldest(&waiting, &waiting_for_trade, &waiting_tare, nullptr)) {
       send_weighings();
       next_weighing_try = millis() + RETRY_MS;
     }

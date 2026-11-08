@@ -5,6 +5,7 @@
 
 #include <unity.h>
 
+#include <stdio.h>
 #include <string.h>
 
 #include "wsoft_hilo.h"
@@ -182,6 +183,22 @@ void test_next_cycles_none_first_last_none() {
   TEST_ASSERT_TRUE(wsoft_hilo_find(list, "") == nullptr);
 }
 
+void test_same_compares_fields_not_bytes() {
+  WsoftHiloList a = two_products();
+  WsoftHiloList b = two_products();
+  TEST_ASSERT_TRUE(wsoft_hilo_same(a, b));
+  b.products[0].name[10] = 'x';  // after the end of "Beans": not part of the name
+  TEST_ASSERT_TRUE(wsoft_hilo_same(a, b));
+  b.products[1].high_g++;
+  TEST_ASSERT_FALSE(wsoft_hilo_same(a, b));
+  b = two_products();
+  strcpy(b.default_set_at, "later");
+  TEST_ASSERT_FALSE(wsoft_hilo_same(a, b));
+  b = two_products();
+  b.count = 1;
+  TEST_ASSERT_FALSE(wsoft_hilo_same(a, b));
+}
+
 void test_check_is_exact_at_the_limits() {
   WsoftHiloList list = two_products();
   const WsoftHiloProduct &maize = list.products[1];  // 49 to 51 kg
@@ -272,6 +289,7 @@ int main(int, char **) {
   RUN_TEST(test_default_is_applied_once_then_operator_wins);
   RUN_TEST(test_product_gone_from_the_list_is_cleared);
   RUN_TEST(test_next_cycles_none_first_last_none);
+  RUN_TEST(test_same_compares_fields_not_bytes);
   RUN_TEST(test_check_is_exact_at_the_limits);
   RUN_TEST(test_words);
   RUN_TEST(test_weighing_hi_lo_block);

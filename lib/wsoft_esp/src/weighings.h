@@ -10,6 +10,7 @@
 
 #include <Arduino.h>
 
+#include <wsoft_hilo.h>
 #include <wsoft_weighing.h>
 
 // rs232 = the weight comes from an RS232 scale line (else the DJB over RS485).
@@ -19,10 +20,12 @@ const char *weighings_source();
 
 // Screen task, once per reading. for_trade = trade checks are on right now. tare_value is
 // the tare in the reading's decimals and unit (0 = none). hold = why the RS485 setup holds
-// this reading back (WsoftWeighingSaver::update). Returns the result of this pass
-// (WSOFT_SAVE_NONE most of the time).
+// this reading back (WsoftWeighingSaver::update). product = the Hi-Lo product in use, or
+// nullptr: a saved weighing keeps its Hi-Lo result (judged on the net weight) for the Hub.
+// Returns the result of this pass (WSOFT_SAVE_NONE most of the time).
 WsoftSaveResult weighings_update(bool linked, bool fresh, bool alarm, int32_t value, int decimals, int unit,
-                                 bool for_trade, int32_t tare_value, WsoftSaveResult hold);
+                                 bool for_trade, int32_t tare_value, WsoftSaveResult hold,
+                                 const WsoftHiloProduct *product);
 
 // Any task: a person tapped Save. Waits up to timeout_ms for the screen task's answer.
 // On WSOFT_SAVE_SAVED, *saved holds the weighing.
@@ -42,7 +45,8 @@ struct WeighingsInfo {
 };
 void weighings_info(WeighingsInfo *out);
 
-// Hub task: the oldest unsent weighing and its tare (0 = none). False when none wait.
-bool weighings_oldest(TradeWeight *w, bool *for_trade, int32_t *tare_value);
+// Hub task: the oldest unsent weighing, its tare (0 = none) and its Hi-Lo result (hilo may be
+// nullptr). False when none wait.
+bool weighings_oldest(TradeWeight *w, bool *for_trade, int32_t *tare_value, WsoftHiloStamp *hilo);
 // Hub task: the Hub accepted (or permanently refused) everything up to seq.
 void weighings_delivered(uint32_t seq);

@@ -11,6 +11,7 @@ static portMUX_TYPE lock = portMUX_INITIALIZER_UNLOCKED;
 static TradeQueue queue;
 static bool for_trade_by_seq[TradeQueue::CAPACITY];  // seq % CAPACITY; seqs in the queue are consecutive
 static int32_t tare_by_seq[TradeQueue::CAPACITY];   // same index; 0 = no tare
+static WsoftHiloStamp hilo_by_seq[TradeQueue::CAPACITY];  // same index; on = false when no product
 static uint32_t delivered_seq = 0;
 static bool auto_save = false;
 static uint32_t save_requests = 0;   // bumped by a tap
@@ -33,7 +34,8 @@ struct StoredWeighingV1 {
   int32_t for_trade;
 };
 
-struct StoredWeighing {
+// Saved before Hi-Lo was added. Still read, like V1.
+struct StoredWeighingV2 {
   uint32_t seq;
   int32_t value;
   int32_t decimals;
@@ -44,7 +46,42 @@ struct StoredWeighing {
   int32_t spare;   // keeps this size apart from StoredWeighingV1's
   int32_t spare2;
 };
-static_assert(sizeof(StoredWeighing) != sizeof(StoredWeighingV1), "the two layouts must differ in size");
+
+// Now: V2 and the Hi-Lo result (Hub ADR 0008).
+struct StoredWeighing {
+  uint32_t seq;
+  int32_t value;
+  int32_t decimals;
+  int32_t unit;
+  int64_t at;
+  int32_t for_trade;
+  int32_t tare;
+  int32_t hilo_on;     // 1 = a product was picked
+  int32_t hilo_state;  // WsoftHiloState
+  int32_t hilo_auto;   // 1 = auto save
+  int32_t target_g;
+  int32_t low_g;
+  int32_t high_g;
+  char code[WSOFT_HILO_CODE_MAX + 1];
+  char spare[7];
+};
+static_assert(sizeof(StoredWeighing) != sizeof(StoredWeighingV1) && sizeof(StoredWeighing) != sizeof(StoredWeighingV2) &&
+                  sizeof(StoredWeighingV1) != sizeof(StoredWeighingV2),
+              "the layouts must differ in size");
+
+static WsoftHiloStamp stamp_of(const StoredWeighing &s) {
+  WsoftHiloStamp h;
+  h.on = s.hilo_on == 1 && s.hilo_state >= WSOFT_HILO_LOW && s.hilo_state <= WSOFT_HILO_HIGH;
+  if (!h.on) return h;
+  memcpy(h.code, s.code, sizeof h.code);
+  h.code[WSOFT_HILO_CODE_MAX] = 0;
+  h.target_g = s.target_g;
+  h.low_g = s.low_g;
+  h.high_g = s.high_g;
+  h.state = (WsoftHiloState)s.hilo_state;
+  h.auto_saved = s.hilo_auto == 1;
+  return h;
+}
 
 static void slot_key(uint32_t index, char *key, size_t size) {
   snprintf(key, size, "w%lu", (unsigned long)(index % TradeQueue::CAPACITY));
@@ -92,6 +129,16 @@ void weighings_begin(bool rs232) {
       s.unit = old.unit;
       s.at = old.at;
       s.for_trade = old.for_trade;
+    } else if (length == sizeof(StoredWeighingV2)) {
+      StoredWeighingV2 old;
+      if (prefs.getBytes(key, &old, sizeof old) != sizeof old) continue;
+      s.seq = old.seq;
+      s.value = old.value;
+      s.decimals = old.decimals;
+      s.unit = old.unit;
+      s.at = old.at;
+      s.for_trade = old.for_trade;
+      s.tare = old.tare;
     } else if (length != sizeof s || prefs.getBytes(key, &s, sizeof s) != sizeof s) {
       continue;
     }
@@ -104,6 +151,7 @@ void weighings_begin(bool rs232) {
     w.at = s.at;
     for_trade_by_seq[s.seq % TradeQueue::CAPACITY] = s.for_trade != 0;
     tare_by_seq[s.seq % TradeQueue::CAPACITY] = s.tare;
+    hilo_by_seq[s.seq % TradeQueue::CAPACITY] = stamp_of(s);
   }
   prefs.end();
   if (stored_auto == 2) {
@@ -142,16 +190,34 @@ static void apply_delivered() {
 }
 
 // The entry goes to flash before the counters that make it visible.
-static void store_saved(const TradeWeight &w, bool for_trade, int32_t tare_value) {
+static void store_saved(const TradeWeight &w, bool for_trade, int32_t tare_value, const WsoftHiloStamp &hilo) {
   portENTER_CRITICAL(&lock);
   queue.push(w);
   for_trade_by_seq[w.seq % TradeQueue::CAPACITY] = for_trade;
   tare_by_seq[w.seq % TradeQueue::CAPACITY] = tare_value;
+  hilo_by_seq[w.seq % TradeQueue::CAPACITY] = hilo;
   uint32_t head = queue.head();
   size_t count = queue.size();
   portEXIT_CRITICAL(&lock);
 
-  StoredWeighing s = {w.seq, w.value, w.decimals, w.unit, w.at, for_trade ? 1 : 0, tare_value, 0, 0};
+  StoredWeighing s;
+  memset(&s, 0, sizeof s);
+  s.seq = w.seq;
+  s.value = w.value;
+  s.decimals = w.decimals;
+  s.unit = w.unit;
+  s.at = w.at;
+  s.for_trade = for_trade ? 1 : 0;
+  s.tare = tare_value;
+  if (hilo.on) {
+    s.hilo_on = 1;
+    s.hilo_state = hilo.state;
+    s.hilo_auto = hilo.auto_saved ? 1 : 0;
+    s.target_g = hilo.target_g;
+    s.low_g = hilo.low_g;
+    s.high_g = hilo.high_g;
+    strlcpy(s.code, hilo.code, sizeof s.code);
+  }
   char key[8];
   slot_key(head + count - 1, key, sizeof key);
   prefs.begin("weigh", false);
@@ -163,7 +229,8 @@ static void store_saved(const TradeWeight &w, bool for_trade, int32_t tare_value
 }
 
 WsoftSaveResult weighings_update(bool linked, bool fresh, bool alarm, int32_t value, int decimals, int unit,
-                                 bool for_trade, int32_t tare_value, WsoftSaveResult hold) {
+                                 bool for_trade, int32_t tare_value, WsoftSaveResult hold,
+                                 const WsoftHiloProduct *product) {
   apply_delivered();
 
   portENTER_CRITICAL(&lock);
@@ -176,7 +243,18 @@ WsoftSaveResult weighings_update(bool linked, bool fresh, bool alarm, int32_t va
   TradeReading r = {true, linked, fresh, alarm, value, decimals, unit, millis(), (int64_t)time(nullptr)};
   TradeWeight saved;
   WsoftSaveResult result = saver.update(r, automatic, tapped, full, &saved, hold);
-  if (result == WSOFT_SAVE_SAVED) store_saved(saved, for_trade, tare_value);
+  WsoftHiloStamp hilo;
+  if (result == WSOFT_SAVE_SAVED && product != nullptr) {
+    // Judged on the net weight (gross - tare), in the reading's own decimals and unit.
+    hilo.state = wsoft_hilo_check(*product, saved.value - tare_value, saved.decimals, saved.unit);
+    hilo.on = hilo.state != WSOFT_HILO_NONE;
+    strlcpy(hilo.code, product->code, sizeof hilo.code);
+    hilo.target_g = product->target_g;
+    hilo.low_g = product->low_g;
+    hilo.high_g = product->high_g;
+    hilo.auto_saved = !tapped;
+  }
+  if (result == WSOFT_SAVE_SAVED) store_saved(saved, for_trade, tare_value, hilo);
 
   portENTER_CRITICAL(&lock);
   if (tapped) save_answered = requests;
@@ -192,8 +270,9 @@ WsoftSaveResult weighings_update(bool linked, bool fresh, bool alarm, int32_t va
     format_weight(saved.value, saved.decimals, weight, sizeof weight);
     char tare_text[16];
     format_weight(tare_value, saved.decimals, tare_text, sizeof tare_text);
-    Serial0.printf("WEIGH saved seq=%lu weight=%s %s tare=%s %s for_trade=%d\n", (unsigned long)saved.seq, weight,
-                   weight_unit_text(saved.unit), tare_text, tapped ? "tap" : "auto", for_trade ? 1 : 0);
+    Serial0.printf("WEIGH saved seq=%lu weight=%s %s tare=%s %s for_trade=%d hilo=%s %s\n", (unsigned long)saved.seq,
+                   weight, weight_unit_text(saved.unit), tare_text, tapped ? "tap" : "auto", for_trade ? 1 : 0,
+                   hilo.on ? hilo.code : "-", hilo.on ? wsoft_hilo_state_wire(hilo.state) : "");
   } else if (tapped) {
     Serial0.printf("WEIGH save refused: %s\n", wsoft_save_result_text(result));
   }
@@ -245,7 +324,7 @@ void weighings_info(WeighingsInfo *out) {
   portEXIT_CRITICAL(&lock);
 }
 
-bool weighings_oldest(TradeWeight *w, bool *for_trade, int32_t *tare_value) {
+bool weighings_oldest(TradeWeight *w, bool *for_trade, int32_t *tare_value, WsoftHiloStamp *hilo) {
   portENTER_CRITICAL(&lock);
   // Skip what was acked but not yet removed by the screen task.
   bool found = false;
@@ -255,6 +334,7 @@ bool weighings_oldest(TradeWeight *w, bool *for_trade, int32_t *tare_value) {
       *w = item;
       *for_trade = for_trade_by_seq[item.seq % TradeQueue::CAPACITY];
       *tare_value = tare_by_seq[item.seq % TradeQueue::CAPACITY];
+      if (hilo) *hilo = hilo_by_seq[item.seq % TradeQueue::CAPACITY];
       found = true;
       break;
     }

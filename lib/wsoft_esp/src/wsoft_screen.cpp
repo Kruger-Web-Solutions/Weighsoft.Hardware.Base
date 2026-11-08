@@ -3,6 +3,7 @@
 
 #include "approval.h"
 #include "approval_base.h"
+#include "hilo.h"
 #include "hub.h"
 #include "pin.h"
 #include "scale.h"
@@ -87,9 +88,7 @@ void wsoft_screen_set_line_reader(WsoftLineReader reader) {
   line_reader = reader;
 }
 
-// Demo target band, matching the static "Target 1.000 - 2.000 kg" line.
-static const float TARGET_LOW_KG = 1.0f;
-static const float TARGET_HIGH_KG = 2.0f;
+// Gauge end when no Hi-Lo product is picked (with one, the gauge follows its limits).
 static const float GAUGE_FULL_KG = 3.0f;
 #if !WSOFT_BOARD_CYD
 static const int GAUGE_CX = 250, GAUGE_CY = 292, GAUGE_R = 92;
@@ -278,23 +277,46 @@ static const char *trade_line(TradeCheck check, char *line, size_t size, uint16_
   }
 }
 
-// The demo target band: OK, UNDER, OVER, or ALARM when the box reports a blocking alarm.
+// The Hi-Lo band of the product in use (Hub ADR 0008), judged exactly like the saved weighing:
+// OK, TOO LOW, TOO HIGH; ALARM when the box reports a blocking alarm; NO PRODUCT when none.
 static const char *zone_of(const Reading &r, uint16_t *color) {
-  float kg = to_kg(r);
   if (r.alarm) {
     *color = RED;
     return "ALARM";
   }
-  if (kg < TARGET_LOW_KG) {
-    *color = YELLOW;
-    return "UNDER";
+  WsoftHiloProduct product;
+  if (!hilo_current(&product)) {
+    *color = MUTED;
+    return "NO PRODUCT";
   }
-  if (kg > TARGET_HIGH_KG) {
-    *color = RED;
-    return "OVER";
+  WsoftHiloState state = wsoft_hilo_check(product, r.value, r.decimals, r.unit);
+  *color = state == WSOFT_HILO_PASS ? GREEN : state == WSOFT_HILO_LOW ? YELLOW : state == WSOFT_HILO_HIGH ? RED : MUTED;
+  return state == WSOFT_HILO_NONE ? "--" : wsoft_hilo_state_words(state);
+}
+
+// Needle position 0..1. With a product the green third of the gauge is its limits (low at
+// 1/3, high at 2/3), so the needle and the word agree; without one, 0 to GAUGE_FULL_KG.
+static float gauge_fraction(const Reading &r) {
+  float kg = to_kg(r);
+  WsoftHiloProduct product;
+  if (!hilo_current(&product)) return kg / GAUGE_FULL_KG;
+  float low = product.low_g / 1000.0f, high = product.high_g / 1000.0f;
+  float width = high - low;
+  if (width <= 0) width = fmaxf(low * 0.02f, 0.01f);  // one-point limits: a small band so the needle moves
+  return 0.5f + (kg - (low + high) / 2) / width / 3;
+}
+
+// "Maize 49-51 kg", or "No product: tap MENU" when none is picked.
+static void target_text(char *out, size_t size) {
+  WsoftHiloProduct product;
+  if (!hilo_current(&product)) {
+    strlcpy(out, "No product: tap MENU", size);
+    return;
   }
-  *color = GREEN;
-  return "OK";
+  char low[16], high[16];
+  wsoft_weight_kg_text(product.low_g, 3, 1, low, sizeof low);
+  wsoft_weight_kg_text(product.high_g, 3, 1, high, sizeof high);
+  snprintf(out, size, "%s %s-%s kg", product.name[0] ? product.name : product.code, low, high);
 }
 
 #if !WSOFT_BOARD_CYD
@@ -334,12 +356,11 @@ static void render(const Reading &r) {
     format_weight(r.value, r.decimals, gross_value, sizeof gross_value);
     snprintf(gross, sizeof gross, "%s %s", gross_value, weight_unit_text(r.unit));
 
-    float kg = to_kg(n);
     uint16_t zone_color;
     const char *zone = zone_of(n, &zone_color);
 
     draw_text(MID, 772, 22, r.alarm ? "DJB ALARM" : "RS485 LIVE", r.alarm ? HEADER_BAD : HEADER_OK, RIGHT);
-    draw_needle(kg / GAUGE_FULL_KG);
+    draw_needle(gauge_fraction(n));
     draw_text(MID, GAUGE_CX, 314, zone, zone_color, CENTER);
     draw_text(BIG, 690, 238, value, INK, RIGHT);
     draw_text(MID, 700, 292, weight_unit_text(r.unit), MUTED);
@@ -650,10 +671,7 @@ static void cyd_static() {
   tft.fillRoundRect(6, 36, CYD_W - 12, 198, 8, WHITE);
   tft.drawRoundRect(6, 36, CYD_W - 12, 198, 8, BORDER);
   cyd_free("Live Weight", 16, 51, &FreeSansBold9pt7b, INK, ML_DATUM);
-  char target[32];
-  snprintf(target, sizeof target, "Target %.3f-%.3f kg", TARGET_LOW_KG, TARGET_HIGH_KG);
-  cyd_text(target, 16, 64, 2, MUTED, WHITE, TL_DATUM);
-  cyd_gauge_arcs();
+  cyd_gauge_arcs();  // the product line under the title is drawn by the live pass
 
   tft.fillRoundRect(14, 160, 142, 66, 6, BOX);
   tft.drawRoundRect(14, 160, 142, 66, 6, BORDER);
@@ -781,18 +799,19 @@ static void render(const Reading &r) {
   char key[64];
 
   // Under the title: the plate (SA no., Max, Min, e) once the RS485 setup has one, else the target.
-  char sa[48], limits[64], plate_key[96];
+  char sa[48], limits[64], target[48], plate_key[96];
   bool plate = plate_lines(sa, sizeof sa, limits, sizeof limits);
-  snprintf(plate_key, sizeof plate_key, "%d|%s|%s", plate ? 1 : 0, sa, limits);
+  target_text(target, sizeof target);
+  snprintf(plate_key, sizeof plate_key, "%d|%s|%s", plate ? 1 : 0, plate ? sa : target, plate ? limits : "");
   if (cyd_changed(last_plate, sizeof last_plate, plate_key)) {
     tft.fillRect(14, 60, 152, 26, WHITE);
     if (plate) {
       cyd_text(sa, 16, 62, 1, INK, WHITE, TL_DATUM);
       cyd_text(limits, 16, 73, 1, MUTED, WHITE, TL_DATUM);
     } else {
-      char target[32];
-      snprintf(target, sizeof target, "Target %.3f-%.3f kg", TARGET_LOW_KG, TARGET_HIGH_KG);
-      cyd_text(target, 16, 64, 2, MUTED, WHITE, TL_DATUM);
+      // The product in use and its limits; a long name in the small font so it fits the card.
+      bool fits = tft.textWidth(target, 2) <= 150;
+      cyd_text(target, 16, fits ? 64 : 68, fits ? 2 : 1, MUTED, WHITE, TL_DATUM);
     }
   }
 
@@ -862,7 +881,7 @@ static void render(const Reading &r) {
 
   // Gauge needle and the word under it.
   int angle = 0;
-  if (r.linked) angle = (int)lroundf(constrain(to_kg(n) / GAUGE_FULL_KG, 0.0f, 1.0f) * 180.0f);
+  if (r.linked) angle = (int)lroundf(constrain(gauge_fraction(n), 0.0f, 1.0f) * 180.0f);
   snprintf(key, sizeof key, "%d|%d|%s", r.linked ? 1 : 0, angle, r.linked ? zone : "WAITING");
   if (cyd_changed(last_gauge, sizeof last_gauge, key)) {
     tft.fillRect(GX - GR, GY - GR + GT, 2 * GR, GR - GT + 24, WHITE);
@@ -967,7 +986,9 @@ static int fails = FAILS_BEFORE_NO_SIGNAL;
 static uint32_t polls = 0;
 
 // ---------- MENU: switches page and PIN pad (both boards) ----------
-// The live page's bottom left box opens a page with Approval, Auto save, TARE and Back.
+// The live page's bottom left box opens a page with Approval, Auto save, TARE, PRODUCT and Back.
+// PRODUCT steps through the Hub's Hi-Lo products (none, first, ..., last, none): the operator's
+// pick wins until the Hub sets a new default (Hub ADR 0008, last change wins).
 // Approval asks for the screen PIN on a number pad first; Auto save switches with one tap.
 // Every switch goes through switches.h like the browser, the Hub and the USB line, and is
 // logged with where=screen. All of this runs on the screen task.
@@ -976,7 +997,8 @@ static const UiBox BTN_APPROVAL = {10, 38, 300, 44};
 static const UiBox BTN_AUTO = {10, 88, 300, 44};
 static const UiBox BTN_TARE = {10, 138, 145, 44};
 static const UiBox BTN_PRESET = {165, 138, 145, 44};
-static const UiBox BTN_BACK = {10, 188, 300, 44};
+static const UiBox BTN_PRODUCT = {10, 188, 145, 44};
+static const UiBox BTN_BACK = {165, 188, 145, 44};
 // Number pad: 4 x 3 keys under the entry line, then CANCEL. '<' deletes, '#' is OK.
 static const char PAD_KEYS[12] = {'1', '2', '3', '<', '4', '5', '6', '0', '7', '8', '9', '#'};
 static const UiBox BTN_CANCEL = {2, 192, 316, 46};
@@ -996,7 +1018,7 @@ static WsoftPinPad pad;
 static bool pin_target = false;  // Approval ON (true) or OFF once the PIN is right
 static char ui_message[40] = "";
 static uint32_t ui_last_tap = 0;
-static char ui_shown[96] = "";  // what the open page shows now; it is drawn again when this changes
+static char ui_shown[160] = "";  // what the open page shows now; it is drawn again when this changes
 
 static void ui_say(const char *text) {
   strlcpy(ui_message, text, sizeof ui_message);
@@ -1093,6 +1115,17 @@ static void ui_draw_menu() {
       ui_button(BTN_PRESET, "PRESET TARE", INK);
     }
   }
+  HiloInfo hilo;
+  hilo_info(&hilo);
+  if (hilo.count == 0) {
+    ui_button(BTN_PRODUCT, "NO PRODUCTS", MUTED);
+  } else {
+    // The product in use (cut to fit the button), or NO PRODUCT; a tap moves to the next one.
+    char label[16];
+    const char *name = hilo.current.name[0] ? hilo.current.name : hilo.current.code;
+    strlcpy(label, hilo.picked ? name : "NO PRODUCT", sizeof label);
+    ui_button(BTN_PRODUCT, label, hilo.picked ? GREEN : INK);
+  }
   ui_button(BTN_BACK, "BACK", INK);
   ui_page_end();
 }
@@ -1167,6 +1200,23 @@ static void ui_tare(bool preset) {
   else ui_say_code(wsoft_tare_error_code(error));
 }
 
+// PRODUCT on the menu: the next Hi-Lo product, told on the page's top line.
+static void ui_next_product() {
+  HiloInfo before;
+  hilo_info(&before);
+  if (before.count == 0) {
+    ui_say("SET LIMITS ON THE HUB");
+    return;
+  }
+  hilo_select_next();
+  HiloInfo after;
+  hilo_info(&after);
+  char line[40];
+  if (after.picked) snprintf(line, sizeof line, "PRODUCT %s", after.current.code);
+  else strlcpy(line, "NO PRODUCT", sizeof line);
+  ui_say(line);
+}
+
 static void ui_tap(int x, int y) {
   ui_last_tap = millis();
   if (page == PAGE_LIVE) {
@@ -1188,6 +1238,8 @@ static void ui_tap(int x, int y) {
       ui_tare(false);
     } else if (rs485 && inside(BTN_PRESET, x, y)) {
       ui_tare(true);
+    } else if (inside(BTN_PRODUCT, x, y)) {
+      ui_next_product();
     } else if (inside(BTN_BACK, x, y)) {
       ui_open(PAGE_LIVE);
     }
@@ -1218,8 +1270,11 @@ static void ui_poll() {
   SwitchesInfo info;
   switches_info(&info);
   char key[sizeof ui_shown];
-  snprintf(key, sizeof key, "%d|%d|%d|%d|%s|%s", (int)page, info.approval_on ? 1 : 0, info.auto_save ? 1 : 0,
-           scale_tare().on ? 1 : 0, ui_message, pad.masked());
+  HiloInfo hilo;
+  hilo_info(&hilo);
+  snprintf(key, sizeof key, "%d|%d|%d|%d|%u|%s|%s|%s", (int)page, info.approval_on ? 1 : 0, info.auto_save ? 1 : 0,
+           scale_tare().on ? 1 : 0, (unsigned)hilo.count, hilo.picked ? hilo.current.code : "", ui_message,
+           pad.masked());
   if (strcmp(key, ui_shown) == 0) return;
   strlcpy(ui_shown, key, sizeof ui_shown);
   if (page == PAGE_MENU) ui_draw_menu();
@@ -1281,6 +1336,7 @@ void wsoft_screen_setup(bool rs232) {
   pin_begin();
   approval_begin();
   weighings_begin(rs232_mode);
+  hilo_begin();
   hub_begin();
 #if WSOFT_BOARD_CYD
   cyd_touch_begin();
@@ -1383,8 +1439,10 @@ void wsoft_screen_loop() {
   else if (hold == WSOFT_HOLD_NOT_STABLE) save_hold = WSOFT_SAVE_NOT_STABLE;
   else if (hold == WSOFT_HOLD_BELOW_MIN && approval_on()) save_hold = WSOFT_SAVE_BELOW_MIN;
   // A weighing for the Hub (Save tap or Auto save), saved whether trade checks are on or not.
+  WsoftHiloProduct product;
+  bool picked = hilo_current(&product);
   weighings_update(next.linked, fresh, next.alarm, next.value, next.decimals, next.unit, check == TRADE_OK,
-                   tared ? scale_tare().value : 0, save_hold);
+                   tared ? scale_tare().value : 0, save_hold, picked ? &product : nullptr);
 #if WSOFT_BOARD_CYD
   if (page == PAGE_LIVE) cyd_save_box();
 #endif

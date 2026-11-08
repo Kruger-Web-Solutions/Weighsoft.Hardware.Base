@@ -188,6 +188,21 @@ bool wsoft_hilo_apply(const WsoftHiloList &list, WsoftHiloPick *pick) {
   return changed;
 }
 
+bool wsoft_hilo_same(const WsoftHiloList &a, const WsoftHiloList &b) {
+  if (a.count != b.count || a.has_default != b.has_default) return false;
+  if (a.has_default && (strcmp(a.default_code, b.default_code) != 0 || strcmp(a.default_set_at, b.default_set_at) != 0)) {
+    return false;
+  }
+  for (size_t i = 0; i < a.count; i++) {
+    const WsoftHiloProduct &x = a.products[i], &y = b.products[i];
+    if (strcmp(x.code, y.code) != 0 || strcmp(x.name, y.name) != 0 || x.target_g != y.target_g || x.low_g != y.low_g ||
+        x.high_g != y.high_g) {
+      return false;
+    }
+  }
+  return true;
+}
+
 const char *wsoft_hilo_next(const WsoftHiloList &list, const char *current) {
   if (list.count == 0) return "";
   if (current == nullptr || current[0] == 0) return list.products[0].code;

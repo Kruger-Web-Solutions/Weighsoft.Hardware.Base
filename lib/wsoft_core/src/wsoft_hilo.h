@@ -75,6 +75,10 @@ const WsoftHiloProduct *wsoft_hilo_find(const WsoftHiloList &list, const char *c
 // current product the list no longer has. True when the pick changed.
 bool wsoft_hilo_apply(const WsoftHiloList &list, WsoftHiloPick *pick);
 
+// Same products (in the same order) and the same default. Field by field, so padding and
+// the bytes after a string's end do not count.
+bool wsoft_hilo_same(const WsoftHiloList &a, const WsoftHiloList &b);
+
 // The operator's next product on the screen: none -> first -> ... -> last -> none.
 const char *wsoft_hilo_next(const WsoftHiloList &list, const char *current);
 
