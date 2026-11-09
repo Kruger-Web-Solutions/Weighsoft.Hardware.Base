@@ -62,6 +62,17 @@ static void print_status(Stream &port) {
 }
 
 void approval_begin() {
+#ifdef WSOFT_ON_BASE
+  // A read-only open of a namespace that was never written fails and logs
+  // "nvs_open failed: NOT_FOUND". The web page reads the log every refresh
+  // (approval_log_lines), so make sure the namespace exists once. A read-write
+  // open of an existing namespace writes nothing.
+  {
+    Preferences make;
+    make.begin("approval", false);
+    make.end();
+  }
+#endif
   prefs.begin("approval", true);
   on = prefs.getBool("on", false);
   audit_counter = prefs.getUInt("audit", 0);
