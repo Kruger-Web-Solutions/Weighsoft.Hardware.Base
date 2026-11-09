@@ -429,10 +429,10 @@ static bool ws_extras_changed() {
   uint16_t fill;
   save_line(line, sizeof line, &fill);
   target_text(target, sizeof target);
-  WsoftSaveNotice notice;
+  WsoftSaveNotice notice_words;
   uint16_t notice_fill, notice_ink;
-  bool notice = notice_now(&notice, &notice_fill, &notice_ink);
-  snprintf(key, sizeof key, "%s|%u|%s|%s", line, fill, target, notice ? notice.code : "");
+  bool notice = notice_now(&notice_words, &notice_fill, &notice_ink);
+  snprintf(key, sizeof key, "%s|%u|%s|%s", line, fill, target, notice ? notice_words.code : "");
   if (strcmp(key, last) == 0) return false;
   strlcpy(last, key, sizeof last);
   return true;
