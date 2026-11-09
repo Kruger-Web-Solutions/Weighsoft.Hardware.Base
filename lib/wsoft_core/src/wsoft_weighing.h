@@ -42,6 +42,9 @@ bool wsoft_weighing_json(const TradeWeight &w, const WsoftWeighingMeta &meta, ch
 
 // How long a first Save tap outside the Hi-Lo limits waits for the second (override) tap.
 static const uint32_t WSOFT_OVERRIDE_MS = 5000;
+// A moving weight is normal while a load goes on. Only after this long does the big notice
+// say "weight is moving" (Rhyno, 9 Nov 2026: the real reason must be big and obvious).
+static const uint32_t WSOFT_MOVING_NOTICE_MS = 3000;
 
 enum WsoftSaveResult {
   WSOFT_SAVE_NONE,        // nothing asked for, or auto save waiting for a settled new load
@@ -77,6 +80,13 @@ class WsoftWeighingSaver {
                          WsoftHiloState hilo = WSOFT_HILO_NONE);
 
   bool stable() const { return stable_; }
+  // What stops a save right now, worked out on every update even when nobody tapped Save,
+  // so the screen and the web page can show it big over the weight. NONE when a save (tap or
+  // Auto save) would go through, or the scale is simply empty. Priority, first wins:
+  // NO_SIGNAL, BLANK, NO_CLOCK, then a load still on since the last save or boot (ALREADY when
+  // it is the saved load, else NEED_ZERO), FULL, BELOW_MIN, OUT_OF_LIMITS, and NOT_STABLE only
+  // after WSOFT_MOVING_NOTICE_MS of movement with a load on.
+  WsoftSaveResult waiting() const { return waiting_; }
   uint32_t next_seq() const { return next_seq_; }
   const TradeWeight &last() const { return last_; }
   // The last SAVED weighing was outside the Hi-Lo limits and saved by the operator's second tap.
@@ -90,6 +100,9 @@ class WsoftWeighingSaver {
   uint32_t unchanged_since_ = 0;
   bool stable_ = false;
   bool seen_empty_ = false;  // a live 0 seen since the last save; false at boot
+  WsoftSaveResult waiting_ = WSOFT_SAVE_NONE;
+  bool moving_ = false;          // NOT_STABLE blocks with a load on ...
+  uint32_t moving_since_ = 0;    // ... since this millis()
   bool armed_ = false;        // a first tap outside the limits is waiting for the second
   uint32_t armed_ms_ = 0;
   int32_t armed_value_ = 0;
@@ -99,3 +112,20 @@ class WsoftWeighingSaver {
 
 // Short words for the screen and the web page (at most 16 chars: they fit the SAVE button).
 const char *wsoft_save_result_text(WsoftSaveResult result);
+
+// The big notice over the weight (screen and web page) for WsoftWeighingSaver::waiting().
+// title: what to do, in capitals (at most 20 chars, fits the yellow board's banner).
+// detail: why, one short sentence (at most 32 chars). Same wording as the Edge.
+enum WsoftNoticeLevel {
+  WSOFT_NOTICE_STOP,  // red: nothing saves until the person acts
+  WSOFT_NOTICE_WAIT,  // yellow: it may sort itself out, or a second tap saves
+  WSOFT_NOTICE_INFO,  // blue: all is well, this is what happens next
+};
+struct WsoftSaveNotice {
+  const char *code = "";    // stable code for the web page, e.g. "NEED_ZERO"
+  const char *title = "";
+  const char *detail = "";
+  WsoftNoticeLevel level = WSOFT_NOTICE_INFO;
+};
+// False (and *out untouched) for NONE, SAVED and EMPTY: nothing to show.
+bool wsoft_save_notice(WsoftSaveResult result, WsoftSaveNotice *out);

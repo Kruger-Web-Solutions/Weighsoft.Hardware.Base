@@ -42,6 +42,7 @@ struct WeighingsInfo {
   TradeWeight last;            // last weighing saved since boot (valid = false when none)
   WsoftSaveResult last_result; // last Save tap or auto save result
   uint32_t last_result_ms;     // millis() of last_result, 0 when none
+  WsoftSaveResult waiting;     // what stops a save right now (WsoftWeighingSaver::waiting)
 };
 void weighings_info(WeighingsInfo *out);
 

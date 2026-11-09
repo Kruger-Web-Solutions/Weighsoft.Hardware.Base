@@ -175,7 +175,7 @@ void test_a_second_weighing_needs_the_scale_back_at_zero() {
   TEST_ASSERT_EQUAL(WSOFT_SAVE_SAVED, b.tap(3120));
   b.feed(3500, 8, false);  // more added, never back at 0
   TEST_ASSERT_EQUAL(WSOFT_SAVE_NEED_ZERO, b.tap(3500));
-  TEST_ASSERT_EQUAL_STRING("Go to 0 first", wsoft_save_result_text(b.last));
+  TEST_ASSERT_EQUAL_STRING("Take load off", wsoft_save_result_text(b.last));
   b.feed(40, 8, false);  // nearly empty is not empty
   TEST_ASSERT_EQUAL(WSOFT_SAVE_NEED_ZERO, b.tap(40));
   b.feed(0, 2, false, false);  // a 0 with no live signal does not count
@@ -312,6 +312,77 @@ void test_every_result_has_words() {
   }
 }
 
+// Rhyno, 9 Nov 2026: the reason a save cannot happen is shown big over the weight, all the
+// time, not only after a tap. These pin which reason wins.
+void test_notice_after_boot_says_take_the_load_off_even_while_moving() {
+  Bench b;  // board started with a load already on, and it still wobbles
+  b.feed(3120, 1, true);
+  b.feed(3125, 1, true);
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_NEED_ZERO, b.saver.waiting());
+  // A tap while it moves gives the same real reason, not "Wait: moving".
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_NEED_ZERO, b.tap(3130));
+  b.feed(3130, 40, true);  // settled for 10 s: still the same reason, nothing saved
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_NEED_ZERO, b.saver.waiting());
+  b.feed(0, 2, true);  // emptied: no notice
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_NONE, b.saver.waiting());
+  TEST_ASSERT_EQUAL(1, b.feed(3120, 20, true));
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_ALREADY, b.saver.waiting());  // saved: take it off for the next
+  b.feed(3500, 4, true);  // more added on top
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_NEED_ZERO, b.saver.waiting());
+}
+
+void test_notice_moving_only_after_three_seconds() {
+  Bench b;
+  b.feed(0, 4, false);
+  for (int i = 0; i < 11; i++) b.feed(3000 + i, 1, false);  // 2.75 s of movement
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_NONE, b.saver.waiting());
+  b.feed(3020, 1, false);
+  b.feed(3021, 1, false);  // past 3 s
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_NOT_STABLE, b.saver.waiting());
+  b.feed(3021, 8, false);  // settled: a tap would save, so no notice
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_NONE, b.saver.waiting());
+}
+
+void test_notice_for_signal_clock_full_and_limits() {
+  Bench b;
+  b.feed(0, 4, false, false);
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_NO_SIGNAL, b.saver.waiting());
+  b.now = 1000;  // clock not set: shown even with an empty scale
+  b.feed(0, 4, false);
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_NO_CLOCK, b.saver.waiting());
+  b.now = 1762520400;
+  b.feed(0, 4, false);
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_NONE, b.saver.waiting());  // empty scale: nothing to say
+  b.t += 250;
+  b.saver.update({true, true, true, false, 3120, 0, 1, b.t, b.now}, false, false, true, &b.issued);
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_FULL, b.saver.waiting());
+  b.limits = true;
+  b.feed(3300, 8, true);  // auto save waits outside the limits: say so
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_OUT_OF_LIMITS, b.saver.waiting());
+  b.t += 250;
+  b.saver.update({true, true, true, false, 3300, 0, 1, b.t, b.now}, false, false, false, &b.issued, WSOFT_SAVE_BLANK,
+                 WSOFT_HILO_HIGH);
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_BLANK, b.saver.waiting());
+}
+
+void test_every_notice_fits_the_screens() {
+  WsoftSaveNotice n;
+  TEST_ASSERT_FALSE(wsoft_save_notice(WSOFT_SAVE_NONE, &n));
+  TEST_ASSERT_FALSE(wsoft_save_notice(WSOFT_SAVE_SAVED, &n));
+  TEST_ASSERT_FALSE(wsoft_save_notice(WSOFT_SAVE_EMPTY, &n));
+  for (int r = WSOFT_SAVE_SAVED; r <= WSOFT_SAVE_OUT_OF_LIMITS; r++) {
+    if (r == WSOFT_SAVE_EMPTY || r == WSOFT_SAVE_SAVED) continue;
+    TEST_ASSERT_TRUE(wsoft_save_notice((WsoftSaveResult)r, &n));
+    TEST_ASSERT_TRUE(strlen(n.title) > 0 && strlen(n.title) <= 20);
+    TEST_ASSERT_TRUE(strlen(n.detail) > 0 && strlen(n.detail) <= 32);
+    TEST_ASSERT_TRUE(strlen(n.code) > 0);
+  }
+  TEST_ASSERT_TRUE(wsoft_save_notice(WSOFT_SAVE_NEED_ZERO, &n));
+  TEST_ASSERT_EQUAL_STRING("TAKE THE LOAD OFF", n.title);
+  TEST_ASSERT_EQUAL_STRING("The scale must show 0 kg first", n.detail);
+  TEST_ASSERT_EQUAL(WSOFT_NOTICE_STOP, n.level);
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_kg_text_for_each_unit);
@@ -332,5 +403,9 @@ int main(int, char **) {
   RUN_TEST(test_auto_save_only_saves_inside_the_hi_lo_limits);
   RUN_TEST(test_tap_outside_the_limits_needs_a_second_tap);
   RUN_TEST(test_every_result_has_words);
+  RUN_TEST(test_notice_after_boot_says_take_the_load_off_even_while_moving);
+  RUN_TEST(test_notice_moving_only_after_three_seconds);
+  RUN_TEST(test_notice_for_signal_clock_full_and_limits);
+  RUN_TEST(test_every_notice_fits_the_screens);
   return UNITY_END();
 }

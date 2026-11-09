@@ -25,7 +25,17 @@ export interface WSoftStatus {
   polls: number;
   /** rs485 = DJB junction box over Modbus; rs232 = a scale line read by the Serial reader. */
   source: WSoftSource;
+  /** What stops a save right now (wsoft_save_notice). All null when nothing does. */
+  notice_code: string | null;
+  /** What to do, in capitals, e.g. TAKE THE LOAD OFF. */
+  notice_title: string | null;
+  /** Why, e.g. The scale must show 0 kg first. */
+  notice_detail: string | null;
+  /** stop = red, nothing saves until the person acts; wait = yellow; info = all is well. */
+  notice_level: WSoftNoticeLevel | null;
 }
+
+export type WSoftNoticeLevel = 'stop' | 'wait' | 'info';
 
 export type WSoftSource = 'rs485' | 'rs232';
 

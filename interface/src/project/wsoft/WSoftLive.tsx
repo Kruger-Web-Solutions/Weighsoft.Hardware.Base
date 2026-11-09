@@ -1,6 +1,6 @@
 import { FC } from 'react';
 
-import { Box, Chip, Paper, Table, TableBody, TableCell, TableRow, Typography } from '@mui/material';
+import { Alert, AlertTitle, Box, Chip, Paper, Table, TableBody, TableCell, TableRow, Typography } from '@mui/material';
 
 import { FormLoader, MessageBox, SectionContent } from '../../components';
 import { useWs } from '../../utils';
@@ -8,7 +8,7 @@ import { useWs } from '../../utils';
 import WSoftSavePanel from './WSoftSavePanel';
 import WSoftSwitches from './WSoftSwitches';
 import { WSOFT_STATUS_WEBSOCKET_URL } from './api';
-import { WSoftLink, WSoftStatus } from './types';
+import { WSoftLink, WSoftNoticeLevel, WSoftStatus } from './types';
 
 const LINK_LABEL: Record<WSoftLink, string> = {
   starting: 'Starting',
@@ -24,11 +24,35 @@ const linkColor = (link: WSoftLink) => {
   return 'error';
 };
 
+const NOTICE_SEVERITY: Record<WSoftNoticeLevel, 'error' | 'warning' | 'info'> = {
+  stop: 'error',
+  wait: 'warning',
+  info: 'info'
+};
+
+// The big message over the weight: what stops a save right now, in the board screen's words
+// (Rhyno, 9 Nov 2026: big and obvious, no looking around or clicking around).
+const SaveNotice: FC<{ status: WSoftStatus }> = ({ status }) => {
+  if (!status.notice_title || !status.notice_level) return null;
+  return (
+    <Alert
+      severity={NOTICE_SEVERITY[status.notice_level] ?? 'error'}
+      variant="filled"
+      role="alert"
+      sx={{ mb: 2, py: 2, '& .MuiAlert-icon': { fontSize: 48, alignItems: 'center' } }}
+    >
+      <AlertTitle sx={{ fontSize: '2rem', fontWeight: 700, lineHeight: 1.2, mb: 0.5 }}>{status.notice_title}</AlertTitle>
+      <Typography sx={{ fontSize: '1.25rem' }}>{status.notice_detail}</Typography>
+    </Alert>
+  );
+};
+
 const WSoftLive: FC = () => {
   const { connected, data } = useWs<WSoftStatus>(WSOFT_STATUS_WEBSOCKET_URL);
 
   const content = (status: WSoftStatus) => (
     <>
+      <SaveNotice status={status} />
       <Paper variant="outlined" sx={{ p: 3, mb: 2, textAlign: 'center' }}>
         <Typography variant="h2" component="div" sx={{ fontVariantNumeric: 'tabular-nums' }}>
           {status.weight_text ?? '----'}

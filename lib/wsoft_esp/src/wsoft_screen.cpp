@@ -190,25 +190,27 @@ static int text_width(const Font &font, const char *text) {
 
 enum Align { LEFT, RIGHT, CENTER };
 
-static void draw_text(const Font &font, int x, int y, const char *text, uint16_t color, Align align = LEFT) {
-  if (align == RIGHT) x -= text_width(font, text);
-  if (align == CENTER) x -= text_width(font, text) / 2;
+// scale 2 draws every glyph pixel as a 2 x 2 block: the notice title, twice the MID size.
+static void draw_text(const Font &font, int x, int y, const char *text, uint16_t color, Align align = LEFT,
+                      int scale = 1) {
+  if (align == RIGHT) x -= text_width(font, text) * scale;
+  if (align == CENTER) x -= text_width(font, text) * scale / 2;
   for (const char *p = text; *p; p++) {
     const Glyph *g = find_glyph(font, *p);
     if (!g) continue;
     const uint8_t *alpha = font.alpha + g->offset;
-    for (int row = 0; row < font.height; row++) {
+    for (int row = 0; row < font.height * scale; row++) {
       int py = y + row;
       if (py < 0 || py >= SCREEN_H) continue;
-      for (int col = 0; col < g->width; col++) {
+      for (int col = 0; col < g->width * scale; col++) {
         int px = x + col;
-        uint8_t a = alpha[row * g->width + col];
+        uint8_t a = alpha[(row / scale) * g->width + col / scale];
         if (a == 0 || px < 0 || px >= SCREEN_W) continue;
         uint16_t &dst = frame[py * SCREEN_W + px];
         dst = blend(dst, color, a);
       }
     }
-    x += g->advance;
+    x += g->advance * scale;
   }
 }
 
@@ -333,11 +335,28 @@ static void save_line(char *line, size_t size, uint16_t *fill) {
   } else if (recent) {
     strlcpy(line, wsoft_save_result_text(info.last_result), size);
     *fill = info.last_result == WSOFT_SAVE_ALREADY || info.last_result == WSOFT_SAVE_NEED_ZERO ? MUTED : RED;
+  } else if (info.waiting == WSOFT_SAVE_ALREADY) {
+    strlcpy(line, "Take load off", size);  // saved: the next load needs the scale at 0 first
+    *fill = MUTED;
   } else if (info.pending > 0) {
     snprintf(line, size, "%u to send", (unsigned)info.pending);
   } else {
     strlcpy(line, info.auto_save ? "AUTO SAVE ON" : "TAP TO SAVE", size);
   }
+}
+
+// The big notice over the weight (Rhyno, 9 Nov 2026: "make the message bigger and obvious so
+// the user knows what the problem is"). Shown while something stops a save: red when nothing
+// saves until the person acts, yellow when it may sort itself out. "Saved, take it off" is
+// not a problem, so it stays in the SAVE box. Same words as the Edge and the web page.
+static bool notice_now(WsoftSaveNotice *notice, uint16_t *fill, uint16_t *ink) {
+  WeighingsInfo info;
+  weighings_info(&info);
+  if (!wsoft_save_notice(info.waiting, notice) || notice->level == WSOFT_NOTICE_INFO) return false;
+  bool stop = notice->level == WSOFT_NOTICE_STOP;
+  *fill = stop ? RED : YELLOW;
+  *ink = stop ? WHITE : INK;
+  return true;
 }
 
 #if !WSOFT_BOARD_CYD
@@ -387,14 +406,33 @@ static void ws_draw_save_box() {
   draw_text(MID, cx, WS_SAVE_Y0 + 33, shown, WHITE, CENTER);
 }
 
-// True once each time the SAVE line or the product line changes, so the live page is drawn again.
+// The notice band across the card, over the trade band and the product line, right above the
+// weight: a title twice the MID size and the reason under it. Drawn last, so it covers them.
+static const int WS_NOTICE_X0 = 40, WS_NOTICE_Y0 = 94, WS_NOTICE_X1 = 760, WS_NOTICE_Y1 = 200;
+static void ws_draw_notice() {
+  WsoftSaveNotice notice;
+  uint16_t fill, ink;
+  if (!notice_now(&notice, &fill, &ink)) return;
+  char title[32], detail[48];
+  ws_upper(notice.title, title, sizeof title);
+  ws_upper(notice.detail, detail, sizeof detail);
+  fill_rect(WS_NOTICE_X0, WS_NOTICE_Y0, WS_NOTICE_X1, WS_NOTICE_Y1, fill);
+  int cx = (WS_NOTICE_X0 + WS_NOTICE_X1) / 2;
+  draw_text(MID, cx, WS_NOTICE_Y0 + 4, title, ink, CENTER, 2);
+  draw_text(MID, cx, WS_NOTICE_Y0 + 70, detail, ink, CENTER);
+}
+
+// True once each time the SAVE line, the product line or the notice changes, so the live page is drawn again.
 static bool ws_extras_changed() {
-  static char last[96] = "";
-  char line[32], target[48], key[96];
+  static char last[160] = "";
+  char line[32], target[48], key[160];
   uint16_t fill;
   save_line(line, sizeof line, &fill);
   target_text(target, sizeof target);
-  snprintf(key, sizeof key, "%s|%u|%s", line, fill, target);
+  WsoftSaveNotice notice;
+  uint16_t notice_fill, notice_ink;
+  bool notice = notice_now(&notice, &notice_fill, &notice_ink);
+  snprintf(key, sizeof key, "%s|%u|%s|%s", line, fill, target, notice ? notice.code : "");
   if (strcmp(key, last) == 0) return false;
   strlcpy(last, key, sizeof last);
   return true;
@@ -433,6 +471,7 @@ static void render(const Reading &r) {
   ws_draw_target();
   ws_draw_save_box();
   draw_approval();
+  ws_draw_notice();
   if (touch_ok) draw_text(MID, 400, 394, "MENU", MUTED, RIGHT);
   // The plate (SA no., Max, Min, e) under the card once the RS485 setup has one.
   char sa[48], limits[64], plate[112];
@@ -835,6 +874,39 @@ static void cyd_touch_poll() {
   was_down = down;
 }
 
+// The notice band across the top of the card (title, product line and trade band), right
+// above the weight. While it shows, render() leaves that strip alone; when it goes, the live
+// page is drawn again in full (live_epoch) so the strip comes back.
+static const int NOTICE_X = 8, NOTICE_Y = 38, NOTICE_W = CYD_W - 16, NOTICE_H = 52;
+static bool cyd_notice_on = false;
+
+static void cyd_notice() {
+  static char last[64] = "";
+  static uint32_t seen_epoch = 0;
+  if (seen_epoch != live_epoch) {
+    seen_epoch = live_epoch;
+    last[0] = 0;
+  }
+  WsoftSaveNotice notice;
+  uint16_t fill = 0, ink = 0;
+  bool on = notice_now(&notice, &fill, &ink);
+  if (!cyd_changed(last, sizeof last, on ? notice.code : "")) return;
+  if (!on) {
+    if (cyd_notice_on) {
+      cyd_notice_on = false;
+      live_epoch++;
+    }
+    return;
+  }
+  cyd_notice_on = true;
+  tft.fillRoundRect(NOTICE_X, NOTICE_Y, NOTICE_W, NOTICE_H, 6, fill);
+  const GFXfont *font = &FreeSansBold18pt7b;
+  tft.setFreeFont(font);
+  if (tft.textWidth(notice.title) > NOTICE_W - 8) font = &FreeSansBold12pt7b;
+  cyd_free(notice.title, CYD_W / 2, NOTICE_Y + 17, font, ink, MC_DATUM);
+  cyd_text(notice.detail, CYD_W / 2, NOTICE_Y + 34, 2, ink, fill, TC_DATUM);
+}
+
 static void cyd_box_value(int x, const char *text, uint16_t color) {
   tft.fillRect(x + 4, 186, 134, 36, BOX);
   cyd_free(text, x + 8, 206, &FreeSansBold12pt7b, color, ML_DATUM);
@@ -856,7 +928,8 @@ static void render(const Reading &r) {
   bool plate = plate_lines(sa, sizeof sa, limits, sizeof limits);
   target_text(target, sizeof target);
   snprintf(plate_key, sizeof plate_key, "%d|%s|%s", plate ? 1 : 0, plate ? sa : target, plate ? limits : "");
-  if (cyd_changed(last_plate, sizeof last_plate, plate_key)) {
+  // While the notice covers the top strip, its parts wait (their keys stay unchanged).
+  if (!cyd_notice_on && cyd_changed(last_plate, sizeof last_plate, plate_key)) {
     tft.fillRect(14, 60, 152, 26, WHITE);
     if (plate) {
       cyd_text(sa, 16, 62, 1, INK, WHITE, TL_DATUM);
@@ -888,7 +961,7 @@ static void render(const Reading &r) {
   uint16_t why_color;
   const char *why = trade_line(check, line, sizeof line, &why_color);
   snprintf(key, sizeof key, "%d|%s|%u", trade ? 1 : 0, why, why_color);
-  if (cyd_changed(last_band, sizeof last_band, key)) {
+  if (!cyd_notice_on && cyd_changed(last_band, sizeof last_band, key)) {
     uint16_t band = trade ? GREEN : RED;
     tft.fillRect(172, 42, 134, 20, band);
     cyd_text(trade ? "TRADE CHECKS ON" : "NOT FOR TRADE", 239, 45, 2, WHITE, band, TC_DATUM);
@@ -899,7 +972,7 @@ static void render(const Reading &r) {
   // NET label row carries the audit counter on the right.
   char audit[40];
   snprintf(audit, sizeof audit, "%s|AUDIT %lu", view_tared ? "NET (TARE)" : "NET", (unsigned long)approval_audit_counter());
-  if (cyd_changed(last_audit, sizeof last_audit, audit)) {
+  if (!cyd_notice_on && cyd_changed(last_audit, sizeof last_audit, audit)) {
     tft.fillRect(172, 84, 134, 16, WHITE);
     cyd_text(view_tared ? "NET (TARE)" : "NET", 172, 84, 2, MUTED, WHITE, TL_DATUM);
     cyd_text(strchr(audit, '|') + 1, 306, 84, 2, MUTED, WHITE, TR_DATUM);
@@ -1418,6 +1491,9 @@ static void publish_snapshot(const Reading &r, bool fresh, TradeCheck check, Hub
   next.polls = polls;
   next.updated_ms = millis();
   next.rs232 = rs232_mode;
+  WeighingsInfo weigh;
+  weighings_info(&weigh);
+  next.save_waiting = weigh.waiting;
   portENTER_CRITICAL(&snapshot_lock);
   snapshot = next;
   portEXIT_CRITICAL(&snapshot_lock);
@@ -1555,8 +1631,7 @@ void wsoft_screen_loop() {
   weighings_update(next.linked, fresh, next.alarm, next.value, next.decimals, next.unit, check == TRADE_OK,
                    tared ? scale_tare().value : 0, save_hold, picked ? &product : nullptr);
 #if WSOFT_BOARD_CYD
-  if (page == PAGE_LIVE) cyd_save_box();
-  const bool extras_changed = false;
+  const bool extras_changed = false;  // the SAVE box and the notice draw themselves, below
 #else
   // The SAVE box and the product line are part of the full-frame draw on this board.
   const bool extras_changed = page == PAGE_LIVE && ws_extras_changed();
@@ -1606,4 +1681,11 @@ void wsoft_screen_loop() {
       render(reading);
     }
   }
+#if WSOFT_BOARD_CYD
+  // After render, so a full redraw (back from the menu, notice gone) cannot wipe them.
+  if (page == PAGE_LIVE) {
+    cyd_notice();
+    cyd_save_box();
+  }
+#endif
 }

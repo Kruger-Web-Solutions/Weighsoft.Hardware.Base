@@ -87,9 +87,17 @@ load needs the scale back at **0** first (also after a restart). A changed weigh
 not a new load (Rhyno, 8 Nov 2026). Saved whether trade checks are on or
 not; the payload carries `for_trade`.
 
-- The SAVE button shows `SAVED #n`, or why not (`Wait: moving`, `Already saved`, `Go to 0 first`,
+- The SAVE button shows `SAVED #n`, or why not (`Wait: moving`, `Already saved`, `Take load off`,
   `Scale is empty`, `No scale signal`, `Clock not set`, `Memory full`) for 3 s, then how
-  many wait for the Hub.
+  many wait for the Hub. After a save it says `Take load off` while that load stays on.
+- **Big notice over the weight** (Rhyno, 9 Nov 2026): whenever something stops a save, a
+  band across the top of the card says what to do and why, without a tap. Red = nothing saves
+  until you act: `TAKE THE LOAD OFF` (the scale must show 0 kg first, also after a restart),
+  `NO SCALE SIGNAL`, `CLOCK NOT SET`, `OUT OF RANGE`, `BELOW MIN`, `MEMORY FULL`. Yellow =
+  `OUTSIDE HI-LO LIMITS` (tap SAVE twice) or `WEIGHT IS MOVING` (only after 3 s of movement).
+  A load still on the scale since boot says `TAKE THE LOAD OFF` even while it moves. The web
+  Live page shows the same words in a big alert (`notice_*` fields of the status). Rules and
+  words: `WsoftWeighingSaver::waiting()` and `wsoft_save_notice()` in `lib/wsoft_core`.
 - Up to 32 unsent weighings are kept in flash (NVS `weigh`). When full, Save answers
   `Memory full` until the Hub takes some: nothing is overwritten.
 - Each goes to `POST /api/v1/ingest/weighings` within ~5 s when the Hub is online:

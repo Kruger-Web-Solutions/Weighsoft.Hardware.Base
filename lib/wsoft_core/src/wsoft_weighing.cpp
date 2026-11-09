@@ -107,15 +107,40 @@ WsoftSaveResult WsoftWeighingSaver::update(const TradeReading &r, bool auto_save
 
   // A new load only after the scale showed 0: a changed weight alone is not a new load.
   bool new_load = seen_empty_;
+  bool loaded = r.linked && r.fresh && r.value > 0;
+  bool same_as_saved = last_.valid && r.value == last_.value && r.decimals == last_.decimals && r.unit == last_.unit;
+  bool outside = hilo == WSOFT_HILO_LOW || hilo == WSOFT_HILO_HIGH;
+
+  // The notice: the real reason, not just the first check that failed. A load that has not
+  // been off the scale is the reason even while it still moves (9 Nov 2026: the Edge said
+  // "waiting for a steady weight" when the scale had to show 0 first).
+  if (blocked == WSOFT_SAVE_NOT_STABLE && loaded) {
+    if (!moving_) {
+      moving_ = true;
+      moving_since_ = r.now_ms;
+    }
+  } else {
+    moving_ = false;
+  }
+  if (blocked == WSOFT_SAVE_NO_SIGNAL || blocked == WSOFT_SAVE_BLANK) waiting_ = blocked;
+  else if (r.now_unix < TRADE_CLOCK_VALID_AFTER) waiting_ = WSOFT_SAVE_NO_CLOCK;
+  else if (loaded && !new_load) waiting_ = same_as_saved ? WSOFT_SAVE_ALREADY : WSOFT_SAVE_NEED_ZERO;
+  else if (!loaded) waiting_ = WSOFT_SAVE_NONE;
+  else if (queue_full) waiting_ = WSOFT_SAVE_FULL;
+  else if (blocked == WSOFT_SAVE_BELOW_MIN) waiting_ = blocked;
+  else if (blocked == WSOFT_SAVE_NONE && outside) waiting_ = WSOFT_SAVE_OUT_OF_LIMITS;
+  else if (moving_ && r.now_ms - moving_since_ >= WSOFT_MOVING_NOTICE_MS) waiting_ = WSOFT_SAVE_NOT_STABLE;
+  else waiting_ = WSOFT_SAVE_NONE;
+
   if (!save_requested && !(auto_save && new_load)) return WSOFT_SAVE_NONE;
+  // A tap on a load that never left the scale gets that reason, even while it moves.
+  if (blocked == WSOFT_SAVE_NOT_STABLE && save_requested && loaded && !new_load) blocked = WSOFT_SAVE_NONE;
   if (blocked != WSOFT_SAVE_NONE) return save_requested ? blocked : WSOFT_SAVE_NONE;
   if (!new_load) {  // only reachable by a tap
-    bool same = last_.valid && r.value == last_.value && r.decimals == last_.decimals && r.unit == last_.unit;
-    return same ? WSOFT_SAVE_ALREADY : WSOFT_SAVE_NEED_ZERO;
+    return same_as_saved ? WSOFT_SAVE_ALREADY : WSOFT_SAVE_NEED_ZERO;
   }
   if (queue_full) return WSOFT_SAVE_FULL;
 
-  bool outside = hilo == WSOFT_HILO_LOW || hilo == WSOFT_HILO_HIGH;
   bool overridden = false;
   if (outside) {
     if (!save_requested) return WSOFT_SAVE_NONE;  // auto save waits for a weight inside the limits
@@ -140,6 +165,7 @@ WsoftSaveResult WsoftWeighingSaver::update(const TradeReading &r, bool auto_save
   last_ = w;
   last_overridden_ = overridden;
   seen_empty_ = false;
+  waiting_ = WSOFT_SAVE_ALREADY;  // saved: the load still on the scale is this one
   if (issued) *issued = w;
   return WSOFT_SAVE_SAVED;
 }
@@ -149,7 +175,7 @@ const char *wsoft_save_result_text(WsoftSaveResult result) {
     case WSOFT_SAVE_NONE: return "";
     case WSOFT_SAVE_SAVED: return "Saved";
     case WSOFT_SAVE_ALREADY: return "Already saved";
-    case WSOFT_SAVE_NEED_ZERO: return "Go to 0 first";
+    case WSOFT_SAVE_NEED_ZERO: return "Take load off";
     case WSOFT_SAVE_NOT_STABLE: return "Wait: moving";
     case WSOFT_SAVE_EMPTY: return "Scale is empty";
     case WSOFT_SAVE_NO_SIGNAL: return "No scale signal";
@@ -160,4 +186,71 @@ const char *wsoft_save_result_text(WsoftSaveResult result) {
     case WSOFT_SAVE_OUT_OF_LIMITS: return "Tap again: save";
   }
   return "";
+}
+
+bool wsoft_save_notice(WsoftSaveResult result, WsoftSaveNotice *out) {
+  WsoftSaveNotice n;
+  switch (result) {
+    case WSOFT_SAVE_NONE:
+    case WSOFT_SAVE_SAVED:
+    case WSOFT_SAVE_EMPTY:
+      return false;
+    case WSOFT_SAVE_NEED_ZERO:
+      n.code = "NEED_ZERO";
+      n.title = "TAKE THE LOAD OFF";
+      n.detail = "The scale must show 0 kg first";
+      n.level = WSOFT_NOTICE_STOP;
+      break;
+    case WSOFT_SAVE_ALREADY:
+      n.code = "ALREADY";
+      n.title = "SAVED";
+      n.detail = "Take it off for the next load";
+      n.level = WSOFT_NOTICE_INFO;
+      break;
+    case WSOFT_SAVE_NOT_STABLE:
+      n.code = "NOT_STABLE";
+      n.title = "WEIGHT IS MOVING";
+      n.detail = "Keep the load still";
+      n.level = WSOFT_NOTICE_WAIT;
+      break;
+    case WSOFT_SAVE_NO_SIGNAL:
+      n.code = "NO_SIGNAL";
+      n.title = "NO SCALE SIGNAL";
+      n.detail = "Check the scale cable and power";
+      n.level = WSOFT_NOTICE_STOP;
+      break;
+    case WSOFT_SAVE_NO_CLOCK:
+      n.code = "NO_CLOCK";
+      n.title = "CLOCK NOT SET";
+      n.detail = "Connect Wi-Fi to get the time";
+      n.level = WSOFT_NOTICE_STOP;
+      break;
+    case WSOFT_SAVE_FULL:
+      n.code = "FULL";
+      n.title = "MEMORY FULL";
+      n.detail = "Send saved weighings to the Hub";
+      n.level = WSOFT_NOTICE_STOP;
+      break;
+    case WSOFT_SAVE_BLANK:
+      n.code = "BLANK";
+      n.title = "OUT OF RANGE";
+      n.detail = "Weight is past the scale range";
+      n.level = WSOFT_NOTICE_STOP;
+      break;
+    case WSOFT_SAVE_BELOW_MIN:
+      n.code = "BELOW_MIN";
+      n.title = "BELOW MIN";
+      n.detail = "Too light while Approval is ON";
+      n.level = WSOFT_NOTICE_STOP;
+      break;
+    case WSOFT_SAVE_OUT_OF_LIMITS:
+      n.code = "OUT_OF_LIMITS";
+      n.title = "OUTSIDE HI-LO LIMITS";
+      n.detail = "Tap SAVE twice to save anyway";
+      n.level = WSOFT_NOTICE_WAIT;
+      break;
+  }
+  if (n.title[0] == 0) return false;
+  if (out) *out = n;
+  return true;
 }

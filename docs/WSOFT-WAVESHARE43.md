@@ -236,6 +236,10 @@ AUTO SAVE ON), and the product with its limits is painted over the background's 
 "Target 1.000 - 2.000 kg" line. Text is upper case because the panel font has no lower case.
 The zone word stays under the gauge. Not yet checked on the board.
 
+When something stops a save, a big band across the card (over the trade band and the product
+line, right above the weight) says what to do and why, the same words as the yellow board: see
+"Big notice over the weight" in `docs/WSOFT-CYD28.md`.
+
 **Update note.** Auto save moved from W-Soft > Settings to the switches (NVS `weigh`). At
 the first boot after the update the board reads the old `auto_save` once from
 `/config/wsoftSettings.json` and keeps it.
