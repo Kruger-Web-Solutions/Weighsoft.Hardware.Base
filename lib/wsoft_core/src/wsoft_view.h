@@ -13,6 +13,7 @@
 #include <stdint.h>
 
 #include "trade_logic.h"
+#include "wsoft_weighing.h"
 
 static const size_t WSOFT_HUB_TEXT_SIZE = 20;
 
@@ -36,6 +37,9 @@ struct WSoftSnapshot {
   uint32_t polls = 0;
   uint32_t updated_ms = 0;     // millis() of the poll this snapshot came from
   bool rs232 = false;          // weight from an RS232 scale line, not the DJB junction box
+  // What stops a save right now (WsoftWeighingSaver::waiting). The view writes it as the
+  // notice_* fields: the big message over the weight, the same words as the board's screen.
+  WsoftSaveResult save_waiting = WSOFT_SAVE_NONE;
 };
 
 // Parses the weight text an RS232 scale sends (after the Serial reader's pattern):

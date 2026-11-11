@@ -19,6 +19,7 @@ static uint32_t save_answered = 0;   // last request the screen task answered
 static WsoftSaveResult last_result = WSOFT_SAVE_NONE;
 static uint32_t last_result_ms = 0;
 static TradeWeight last_saved;
+static WsoftSaveResult waiting = WSOFT_SAVE_NONE;  // under lock
 
 // Screen task only.
 static WsoftWeighingSaver saver;
@@ -264,6 +265,7 @@ WsoftSaveResult weighings_update(bool linked, bool fresh, bool alarm, int32_t va
   if (result == WSOFT_SAVE_SAVED) store_saved(saved, for_trade, tare_value, hilo);
 
   portENTER_CRITICAL(&lock);
+  waiting = saver.waiting();
   if (tapped) save_answered = requests;
   if (result != WSOFT_SAVE_NONE) {
     last_result = result;
@@ -329,6 +331,7 @@ void weighings_info(WeighingsInfo *out) {
   out->last = last_saved;
   out->last_result = last_result;
   out->last_result_ms = last_result_ms;
+  out->waiting = waiting;
   portEXIT_CRITICAL(&lock);
 }
 

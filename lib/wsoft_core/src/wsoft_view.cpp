@@ -60,6 +60,25 @@ static void write_weight(const WSoftSnapshot &s, WSoftJsonSink &out) {
   }
 }
 
+// notice_code / notice_title / notice_detail / notice_level ("stop", "wait", "info"), all
+// null when nothing stops a save.
+static void write_notice(const WSoftSnapshot &s, WSoftJsonSink &out) {
+  WsoftSaveNotice notice;
+  if (!s.valid || !wsoft_save_notice(s.save_waiting, &notice)) {
+    out.put_null("notice_code");
+    out.put_null("notice_title");
+    out.put_null("notice_detail");
+    out.put_null("notice_level");
+    return;
+  }
+  out.put_str("notice_code", notice.code);
+  out.put_str("notice_title", notice.title);
+  out.put_str("notice_detail", notice.detail);
+  out.put_str("notice_level", notice.level == WSOFT_NOTICE_STOP   ? "stop"
+                              : notice.level == WSOFT_NOTICE_WAIT ? "wait"
+                                                                  : "info");
+}
+
 static const char *link_text(const WSoftSnapshot &s) {
   if (!s.valid) return "starting";
   if (!s.linked) return "no_signal";
@@ -87,6 +106,7 @@ void wsoft_view_write(const WSoftSnapshot &s, WSoftJsonSink &out) {
   out.put_bool("hub_online", s.hub_online);
   out.put_int("polls", s.polls);
   out.put_str("source", s.rs232 ? "rs232" : "rs485");
+  write_notice(s, out);
 }
 
 bool wsoft_parse_weight_text(const char *text, int32_t *value, int *decimals) {

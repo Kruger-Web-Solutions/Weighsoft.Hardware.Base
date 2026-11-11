@@ -202,8 +202,29 @@ void test_full_view_field_order_is_stable() {
       "\"weight_text\":\"1.520 kg\",\"unit\":\"kg\",\"decimals\":3,\"stable\":false,\"alarm\":false,"
       "\"approval_on\":false,\"for_trade\":false,\"trade_check\":\"approval_off\",\"audit_counter\":0,"
       "\"last_trade_seq\":0,\"trade_queue\":0,\"hub\":\"HUB ONLINE\",\"hub_online\":true,\"polls\":9,"
-      "\"source\":\"rs485\"}",
+      "\"source\":\"rs485\",\"notice_code\":null,\"notice_title\":null,\"notice_detail\":null,"
+      "\"notice_level\":null}",
       view(s).c_str());
+}
+
+// Rhyno, 9 Nov 2026: the web page shows why a save cannot happen, big, with the screen's words.
+void test_notice_says_what_stops_a_save() {
+  WSoftSnapshot s = live(31200);
+  s.save_waiting = WSOFT_SAVE_NEED_ZERO;
+  std::string j = view(s);
+  TEST_ASSERT_TRUE(has(j, "\"notice_code\":\"NEED_ZERO\""));
+  TEST_ASSERT_TRUE(has(j, "\"notice_title\":\"TAKE THE LOAD OFF\""));
+  TEST_ASSERT_TRUE(has(j, "\"notice_detail\":\"The scale must show 0 kg first\""));
+  TEST_ASSERT_TRUE(has(j, "\"notice_level\":\"stop\""));
+  s.save_waiting = WSOFT_SAVE_NOT_STABLE;
+  TEST_ASSERT_TRUE(has(view(s), "\"notice_level\":\"wait\""));
+  s.save_waiting = WSOFT_SAVE_ALREADY;
+  TEST_ASSERT_TRUE(has(view(s), "\"notice_level\":\"info\""));
+  s.save_waiting = WSOFT_SAVE_EMPTY;  // an empty scale is not a problem
+  TEST_ASSERT_TRUE(has(view(s), "\"notice_code\":null"));
+  s.valid = false;  // before the first poll: nothing
+  s.save_waiting = WSOFT_SAVE_NEED_ZERO;
+  TEST_ASSERT_TRUE(has(view(s), "\"notice_code\":null"));
 }
 
 // ---------- RS232 weight text ----------
@@ -271,6 +292,7 @@ int main(int, char **) {
   RUN_TEST(test_trade_ok_is_for_trade_with_seq_and_audit);
   RUN_TEST(test_full_view_field_order_is_stable);
   RUN_TEST(test_rs232_source_is_reported);
+  RUN_TEST(test_notice_says_what_stops_a_save);
   RUN_TEST(test_weight_text_parses_sign_digits_and_decimals);
   RUN_TEST(test_weight_text_rejects_non_weights_without_change);
   return UNITY_END();
