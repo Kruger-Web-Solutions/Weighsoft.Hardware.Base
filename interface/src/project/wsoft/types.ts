@@ -48,6 +48,14 @@ export interface WSoftSettings {
   mqtt_unique_id: string;
   /** Where the weight comes from. Saving a new source restarts the board. */
   source: WSoftSource;
+  /** Hi-Lo relay output: off by default. */
+  relay_enabled: boolean;
+  /** The relay (1 to 4, 0 = none) for each Hi-Lo zone. No relay twice. */
+  relay_low: number;
+  relay_ok: number;
+  relay_high: number;
+  /** Read-only: true on boards built with relay outputs (the yellow board). */
+  relay_available?: boolean;
   /** Read-only: false on boards without RS232 wiring (the Waveshare). */
   rs232_available?: boolean;
   /** Read-only: base path with placeholders expanded, plus "/status". */
@@ -197,4 +205,20 @@ export interface WSoftDjbReply {
   /** Lower-case code, e.g. not_linked, approval_on, range, busy. */
   error?: string;
   value?: number;
+}
+
+// Mirrors src/examples/relay/RelayBoardService.h (RelayBoardState).
+export interface WSoftRelayBoard {
+  relay1: boolean;
+  relay2: boolean;
+  relay3: boolean;
+  relay4: boolean;
+}
+
+// GET /rest/relayBoardStatus: pins (-1 = not fitted), the Hi-Lo zone and the relays now.
+export interface WSoftRelayStatus {
+  relay_active: 'low' | 'high';
+  pins: { ry1: number; ry2: number; ry3: number; ry4: number };
+  hilo: { enabled: boolean; relay_low: number; relay_ok: number; relay_high: number; zone: string };
+  relays: WSoftRelayBoard;
 }

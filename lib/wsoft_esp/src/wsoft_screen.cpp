@@ -7,6 +7,7 @@
 #include "hilo.h"
 #include "hub.h"
 #include "pin.h"
+#include "relay.h"
 #include "scale.h"
 #include "switches.h"
 #include "weighings.h"
@@ -1630,6 +1631,16 @@ void wsoft_screen_loop() {
   bool picked = hilo_current(&product);
   weighings_update(next.linked, fresh, next.alarm, next.value, next.decimals, next.unit, check == TRADE_OK,
                    tared ? scale_tare().value : 0, save_hold, picked ? &product : nullptr);
+  // Hi-Lo relay zone, from the same check as the ZONE word on the screen. Posted every poll;
+  // the relay service (if this board has one) drives the pins.
+  WsoftRelayInput relay_in;
+  relay_in.linked = next.linked;
+  relay_in.alarm = next.alarm;
+  relay_in.blanked = hold == WSOFT_HOLD_BLANK;
+  relay_in.picked = picked;
+  relay_in.value = next.value;
+  relay_in.state = picked ? wsoft_hilo_check(product, next.value, next.decimals, next.unit) : WSOFT_HILO_NONE;
+  relay_post(relay_in, fresh);
 #if WSOFT_BOARD_CYD
   const bool extras_changed = false;  // the SAVE box and the notice draw themselves, below
 #else

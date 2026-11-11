@@ -11,9 +11,16 @@ import { validate } from '../../validators';
 import { numberValue, updateValue, useRest } from '../../utils';
 
 import WSoftPinForm from './WSoftPinForm';
+import WSoftRelayTest from './WSoftRelayTest';
 import * as WSoftApi from './api';
 import { WSoftSettings } from './types';
 import { WSOFT_SETTINGS_VALIDATOR } from './validators';
+
+const RELAY_ZONES: { name: 'relay_low' | 'relay_ok' | 'relay_high'; label: string }[] = [
+  { name: 'relay_low', label: 'Relay for TOO LOW' },
+  { name: 'relay_ok', label: 'Relay for OK' },
+  { name: 'relay_high', label: 'Relay for TOO HIGH' }
+];
 
 const WSoftSettingsForm: FC = () => {
   const [fieldErrors, setFieldErrors] = useState<ValidateFieldsError>();
@@ -67,6 +74,43 @@ const WSoftSettingsForm: FC = () => {
             <MenuItem value="rs485">Junction box (RS485)</MenuItem>
             <MenuItem value="rs232">RS232 scale</MenuItem>
           </ValidatedTextField>
+        )}
+        {data.relay_available && (
+          <>
+            <BlockFormControlLabel
+              control={
+                <Checkbox
+                  name="relay_enabled"
+                  checked={data.relay_enabled}
+                  onChange={updateFormValue}
+                />
+              }
+              label="Switch the Hi-Lo relays (LOW / OK / HIGH)?"
+            />
+            {RELAY_ZONES.map((zone) => (
+              <ValidatedTextField
+                key={zone.name}
+                fieldErrors={fieldErrors}
+                name={zone.name}
+                label={zone.label}
+                value={data[zone.name]}
+                fullWidth
+                select
+                variant="outlined"
+                onChange={(event) => setData({ ...data, [zone.name]: Number(event.target.value) })}
+                margin="normal"
+              >
+                <MenuItem value={0}>None</MenuItem>
+                <MenuItem value={1}>Relay 1</MenuItem>
+                <MenuItem value={2}>Relay 2</MenuItem>
+                <MenuItem value={3}>Relay 3</MenuItem>
+                <MenuItem value={4}>Relay 4</MenuItem>
+              </ValidatedTextField>
+            ))}
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              All relays are off with no signal, an alarm, no product or an empty scale.
+            </Typography>
+          </>
         )}
         <ValidatedTextField
           fieldErrors={fieldErrors}
@@ -147,6 +191,7 @@ const WSoftSettingsForm: FC = () => {
       <SectionContent title="W-Soft settings" titleGutter>
         {content()}
       </SectionContent>
+      {data?.relay_available && <WSoftRelayTest hiloOn={data.relay_enabled} />}
       <WSoftPinForm />
     </>
   );

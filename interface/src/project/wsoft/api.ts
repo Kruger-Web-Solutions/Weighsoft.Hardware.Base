@@ -4,7 +4,7 @@ import { AXIOS, WEB_SOCKET_ROOT } from '../../api/endpoints';
 
 import {
   WSoftDjbReply, WSoftDjbRequest, WSoftHub, WSoftHubAction, WSoftPinReply, WSoftPinRequest, WSoftSave,
-  WSoftScaleSetup, WSoftScaleSetupRequest, WSoftSettings, WSoftStatus, WSoftSwitches, WSoftSwitchRequest
+  WSoftRelayBoard, WSoftRelayStatus, WSoftScaleSetup, WSoftScaleSetupRequest, WSoftSettings, WSoftStatus, WSoftSwitches, WSoftSwitchRequest
 } from './types';
 
 export const WSOFT_STATUS_WEBSOCKET_URL = WEB_SOCKET_ROOT + 'wsoftStatus';
@@ -49,3 +49,9 @@ export const updateWSoftScaleSetup = (request: WSoftScaleSetupRequest): AxiosPro
 
 /** Admin only. One weighing card register read or write, run by the screen task. */
 export const djb = (request: WSoftDjbRequest): AxiosPromise<WSoftDjbReply> => AXIOS.post('/djb', { ...request, channel: 1 });
+
+// Hi-Lo relays (boards built with relay outputs). Both need a login.
+export const readWSoftRelayStatus = (): AxiosPromise<WSoftRelayStatus> => AXIOS.get('/relayBoardStatus');
+
+export const updateWSoftRelays = (relays: Partial<WSoftRelayBoard>): AxiosPromise<WSoftRelayBoard> =>
+  AXIOS.post('/relayBoard', relays);

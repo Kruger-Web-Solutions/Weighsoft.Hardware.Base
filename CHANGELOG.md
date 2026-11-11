@@ -9,7 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- (Future changes will be listed here)
+- **W-Soft Hi-Lo relays on the yellow board** (`wsoft_cyd28`, firmware 0.7.0): three relay
+  outputs on the RGB LED pads follow the Hi-Lo check (LOW / OK / HIGH). Off by default; all
+  OFF with no signal, an alarm, no product or an empty scale. Settings and a relay test on
+  W-Soft > Settings. Guide: `docs/WSOFT-CYD28.md` section 2d. Not bench-tested yet.
 
 ### Changed
 

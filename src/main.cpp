@@ -12,6 +12,9 @@
 #include <examples/wsoft/WSoftSettingsService.h>
 #include <examples/wsoft/WSoftStatusService.h>
 #include <examples/wsoft/WSoftSwitchesService.h>
+#if FT_ENABLED(FT_WSOFT_RELAY)
+#include <examples/relay/RelayBoardService.h>
+#endif
 #if FT_ENABLED(FT_WSOFT)
 #include <wsoft_screen.h>
 #endif
@@ -147,6 +150,9 @@ LcdDisplayService* lcdDisplayService;
 WSoftSettingsService* wsoftSettingsService;
 WSoftStatusService* wsoftStatusService;
 WSoftSwitchesService* wsoftSwitchesService;
+#if FT_ENABLED(FT_WSOFT_RELAY)
+RelayBoardService* relayBoardService;
+#endif
 // The source read at boot; the loop restarts the board when the settings page changes it.
 WSoftSource wsoftBootSource = WSOFT_SOURCE_RS485;
 
@@ -210,6 +216,12 @@ void setup() {
   uartModeService->begin();
   Serial.println(F("[5/10] UART Mode service loaded OK"));
 
+#if FT_ENABLED(FT_WSOFT_RELAY)
+  // The LED example's pin is one of the Hi-Lo relay pins on this board (the RGB LED pads),
+  // so the example is not created: nothing but the relay service may drive those pins.
+  ledExampleService = nullptr;
+  Serial.println(F("[6/10] LED example off (its pin is a relay output on this board)"));
+#else
   Serial.println(F("[6/10] Initializing LED example service..."));
   ledExampleService = new LedExampleService(
       server,
@@ -224,6 +236,7 @@ void setup() {
   // load the initial LED settings
   ledExampleService->begin();
   Serial.println(F("[6/10] LED example loaded OK"));
+#endif
 
 #if !FT_ENABLED(FT_WSOFT)
   // W-Soft (FT_WSOFT) owns Serial1 for its RS485 DJB link, so none of the Serial1
@@ -356,6 +369,11 @@ void setup() {
   wsoftStatusService->begin();
   // Switches, the screen PIN and the RS485 scale setup on the web (after begin: the stores are loaded).
   wsoftSwitchesService = new WSoftSwitchesService(server, esp8266React->getSecurityManager());
+#if FT_ENABLED(FT_WSOFT_RELAY)
+  // Hi-Lo relay outputs: all OFF here, then they follow the zone the screen task posts.
+  relayBoardService = new RelayBoardService(server, esp8266React->getSecurityManager(), wsoftSettingsService);
+  relayBoardService->begin();
+#endif
   Serial.println(F("[9/10] W-Soft services loaded OK"));
 #endif
 
@@ -497,6 +515,9 @@ void loop() {
 #if FT_ENABLED(FT_WSOFT)
   if (serialService) serialService->loop();
   if (wsoftStatusService) wsoftStatusService->loop();
+#if FT_ENABLED(FT_WSOFT_RELAY)
+  if (relayBoardService) relayBoardService->loop();
+#endif
   // RS485 and RS232 share Serial1, so a new source starts cleanly after a restart.
   {
     static unsigned long sourceChangedMs = 0;

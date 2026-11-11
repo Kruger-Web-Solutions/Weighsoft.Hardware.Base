@@ -72,3 +72,18 @@ Source: community pin list witnessmenow/ESP32-Cheap-Yellow-Display `PINS.md` (re
 
 - Which relay module Rhyno has (trigger level, 3.3 V input ok). Decided on the bench by the click test; the active level is one build flag.
 - Relays follow the LIVE Hi-Lo state (with the 0.5 s hold). If Rhyno wants "only when steady", it is one rule in `wsoft_relay`.
+
+## Ledger (11 Nov 2026, SAST)
+
+- 21:25 Rhyno: "keep going get it all done". Built on `claude/project-thread-s7ewih` from `9f4l7x` @ 53a0cce.
+- Decided while building (told to Rhyno in the PR):
+  - An empty scale (0 or less) switches all relays OFF. Without this the LOW relay would sit ON all day.
+  - Relay switching and reading need a login on this board (the relay board firmware leaves them public).
+  - MQTT switch, digital inputs and the 3D page of the relay board firmware are not ported.
+  - The LED example is not created on the yellow board: its pin is relay 1.
+  - Firmware version 0.6.1 -> 0.7.0 (`src/version.h`; `interface/package.json` already said 0.7.0).
+- Evidence: `pio test -e native` 172/172 (158 before + 14 new). Each new rule was seen red
+  against a broken subject (empty scale, alarm, hold, stale poll, duplicate map, stale task,
+  map check, default off). `pio run -e wsoft_cyd28`: SUCCESS, flash 2 110 168 bytes
+  (2 108 412 before), RAM 84 108 bytes (84 076 before). `pio run -e wsoft_waveshare43`: SUCCESS.
+- Not done: flash, bench click test, real relay module. Those are Rhyno's bench steps.

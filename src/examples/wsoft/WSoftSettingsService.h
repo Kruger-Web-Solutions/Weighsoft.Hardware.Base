@@ -41,6 +41,10 @@ class WSoftSettings {
     root["mqtt_name"] = settings.data.mqtt_name;
     root["mqtt_unique_id"] = settings.data.mqtt_unique_id;
     root["source"] = wsoft_source_text(settings.data.source);
+    root["relay_enabled"] = settings.data.relay_enabled;
+    root["relay_low"] = settings.data.relay_low;
+    root["relay_ok"] = settings.data.relay_ok;
+    root["relay_high"] = settings.data.relay_high;
   }
 
   // Stored fields plus the resolved status topic, for the settings page.
@@ -50,6 +54,7 @@ class WSoftSettings {
     root["publish_interval_min_ms"] = WSOFT_PUBLISH_MIN_MS;
     root["publish_interval_max_ms"] = WSOFT_PUBLISH_MAX_MS;
     root["rs232_available"] = WSOFT_HAS_RS232 != 0;
+    root["relay_available"] = FT_ENABLED(FT_WSOFT_RELAY) != 0;
   }
 
   static StateUpdateResult update(JsonObject& root, WSoftSettings& settings) {
@@ -75,6 +80,20 @@ class WSoftSettings {
     // This board has no RS232 wiring: the source stays RS485 whatever is sent.
     if (in.source != nullptr && strcmp(in.source, "rs485") != 0) return StateUpdateResult::ERROR;
 #endif
+    if (root["relay_enabled"].is<bool>()) {
+      in.has_relay_enabled = true;
+      in.relay_enabled = root["relay_enabled"].as<bool>();
+    }
+    // A relay number must be a whole number; anything else is refused, never rounded.
+    if (!relayNumber(root["relay_low"], &in.has_relay_low, &in.relay_low) ||
+        !relayNumber(root["relay_ok"], &in.has_relay_ok, &in.relay_ok) ||
+        !relayNumber(root["relay_high"], &in.has_relay_high, &in.relay_high)) {
+      return StateUpdateResult::ERROR;
+    }
+#if !FT_ENABLED(FT_WSOFT_RELAY)
+    // This board has no relay outputs: the switch stays off whatever is sent.
+    if (in.relay_enabled) return StateUpdateResult::ERROR;
+#endif
 
     switch (wsoft_settings_update(in, &settings.data)) {
       case WSOFT_SETTINGS_CHANGED:
@@ -84,6 +103,15 @@ class WSoftSettings {
       default:
         return StateUpdateResult::UNCHANGED;
     }
+  }
+
+  // Missing or null = not sent (takes the default). A whole number = sent. Else refused.
+  static bool relayNumber(JsonVariant value, bool* has, int64_t* out) {
+    if (value.isNull()) return true;
+    if (!value.is<long>()) return false;
+    *has = true;
+    *out = value.as<long>();
+    return true;
   }
 
   // Placeholders such as #{unique_id} expanded.
@@ -105,6 +133,8 @@ class WSoftSettingsService : public StatefulService<WSoftSettings> {
   // Home Assistant discovery name and unique id, placeholders expanded.
   String mqttName();
   String mqttUniqueId();
+  // Hi-Lo relay output: the switch and the relay (1..4, 0 = none) for each zone.
+  void relayConfig(bool* enabled, uint8_t* low, uint8_t* ok, uint8_t* high);
 
  private:
   HttpEndpoint<WSoftSettings> _httpEndpoint;
