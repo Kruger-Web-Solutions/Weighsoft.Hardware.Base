@@ -4,6 +4,7 @@
 #include <examples/relay/RelayBoardService.h>
 #include <AsyncJson.h>
 #include <WiFi.h>
+#include <driver/gpio.h>
 
 #include <relay.h>
 
@@ -28,9 +29,12 @@ RelayBoardService::RelayBoardService(AsyncWebServer* server,
     _securityManager(securityManager),
     _settings(settings) {
   // OFF level first, then output: the pin never shows ON while it is being set up.
+  // gpio_set_level() sets the output latch before the pin is an output. (digitalWrite()
+  // refuses a pin that pinMode() has not claimed yet and logs "is not set as GPIO":
+  // seen on the yellow board's first boot, 11 Nov 2026.)
   for (uint8_t i = 0; i < WSOFT_RELAY_COUNT; i++) {
     if (!RelayBoardState::fitted(i)) continue;
-    digitalWrite(RelayBoardState::pinOf(i), RELAY_OFF);
+    gpio_set_level((gpio_num_t)RelayBoardState::pinOf(i), RELAY_OFF);
     pinMode(RelayBoardState::pinOf(i), OUTPUT);
     digitalWrite(RelayBoardState::pinOf(i), RELAY_OFF);
   }
