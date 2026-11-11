@@ -230,6 +230,12 @@ sent as `"operator_override":true` in the `hi_lo` block's `tolerance`. Each save
 (product, limits, LOW / PASS / HIGH, auto save or tap) in NVS `weigh` and sends it as the
 weighing's `hi_lo` block, which the Hub's Hi-Lo dashboard reads.
 
+**Waveshare live page (9 Nov 2026).** Like the yellow board: the ZONE box (bottom right) is
+the SAVE button (tap it to save; its second line shows the last result for 3 s, the queue, or
+AUTO SAVE ON), and the product with its limits is painted over the background's fixed
+"Target 1.000 - 2.000 kg" line. Text is upper case because the panel font has no lower case.
+The zone word stays under the gauge. Not yet checked on the board.
+
 **Update note.** Auto save moved from W-Soft > Settings to the switches (NVS `weigh`). At
 the first boot after the update the board reads the old `auto_save` once from
 `/config/wsoftSettings.json` and keeps it.

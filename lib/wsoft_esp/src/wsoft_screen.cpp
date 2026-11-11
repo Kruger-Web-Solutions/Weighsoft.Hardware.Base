@@ -321,6 +321,25 @@ static void target_text(char *out, size_t size) {
   snprintf(out, size, "%s %s-%s kg", product.name[0] ? product.name : product.code, low, high);
 }
 
+// The SAVE box's second line and colour, the same on both boards: the last result for 3 s,
+// then the queue, then whether a tap or Auto save does the saving.
+static void save_line(char *line, size_t size, uint16_t *fill) {
+  WeighingsInfo info;
+  weighings_info(&info);
+  bool recent = info.last_result != WSOFT_SAVE_NONE && millis() - info.last_result_ms < 3000;
+  *fill = GREEN;
+  if (recent && info.last_result == WSOFT_SAVE_SAVED && info.last.valid) {
+    snprintf(line, size, "SAVED #%lu", (unsigned long)info.last.seq);
+  } else if (recent) {
+    strlcpy(line, wsoft_save_result_text(info.last_result), size);
+    *fill = info.last_result == WSOFT_SAVE_ALREADY || info.last_result == WSOFT_SAVE_NEED_ZERO ? MUTED : RED;
+  } else if (info.pending > 0) {
+    snprintf(line, size, "%u to send", (unsigned)info.pending);
+  } else {
+    strlcpy(line, info.auto_save ? "AUTO SAVE ON" : "TAP TO SAVE", size);
+  }
+}
+
 #if !WSOFT_BOARD_CYD
 // Top right of the card: the trade band, then why it is not for trade (or the sequence), and the audit counter.
 static void draw_approval() {
@@ -337,6 +356,50 @@ static void draw_approval() {
   draw_text(MID, 760, 152, line, MUTED, RIGHT);
 }
 
+// The Waveshare font has capitals, digits, '.', '-', space, 'g', 'k' and 't' only.
+static void ws_upper(const char *in, char *out, size_t size) {
+  size_t i = 0;
+  for (; in[i] && i + 1 < size; i++) out[i] = toupper((unsigned char)in[i]);
+  out[i] = 0;
+}
+
+// The background picture has a fixed "Target 1.000 - 2.000 kg" under the title: paint it
+// over with the Hi-Lo product in use and its limits (or NO PRODUCT - TAP MENU).
+static void ws_draw_target() {
+  char target[48], shown[48];
+  target_text(target, sizeof target);
+  ws_upper(target, shown, sizeof shown);
+  fill_rect(40, 146, 436, 186, WHITE);
+  draw_text(MID, 48, 148, shown, MUTED);
+}
+
+// The ZONE box (bottom right) is the SAVE button here, like the yellow board: SAVE, then the
+// last result, the queue or AUTO SAVE ON. The zone word stays under the gauge.
+static const int WS_SAVE_X0 = 413, WS_SAVE_Y0 = 363, WS_SAVE_X1 = 750, WS_SAVE_Y1 = 430;
+static void ws_draw_save_box() {
+  char line[32], shown[32];
+  uint16_t fill;
+  save_line(line, sizeof line, &fill);
+  ws_upper(line, shown, sizeof shown);
+  fill_rect(WS_SAVE_X0, WS_SAVE_Y0, WS_SAVE_X1, WS_SAVE_Y1, fill);
+  int cx = (WS_SAVE_X0 + WS_SAVE_X1) / 2;
+  draw_text(MID, cx, WS_SAVE_Y0 + 1, "SAVE", WHITE, CENTER);
+  draw_text(MID, cx, WS_SAVE_Y0 + 33, shown, WHITE, CENTER);
+}
+
+// True once each time the SAVE line or the product line changes, so the live page is drawn again.
+static bool ws_extras_changed() {
+  static char last[96] = "";
+  char line[32], target[48], key[96];
+  uint16_t fill;
+  save_line(line, sizeof line, &fill);
+  target_text(target, sizeof target);
+  snprintf(key, sizeof key, "%s|%u|%s", line, fill, target);
+  if (strcmp(key, last) == 0) return false;
+  strlcpy(last, key, sizeof last);
+  return true;
+}
+
 static void render(const Reading &r) {
   memcpy(frame, background, SCREEN_W * SCREEN_H * sizeof(uint16_t));
 
@@ -348,7 +411,6 @@ static void render(const Reading &r) {
     draw_text(BIG, 690, 238, "----", MUTED, RIGHT);
     draw_text(MID, GAUGE_CX, 314, "WAITING", MUTED, CENTER);
     draw_text(MID, 68, 394, "----", MUTED);
-    draw_text(MID, 430, 394, "NO DJB REPLY", RED);
   } else {
     // Big number: NET (gross when no tare), or ---- when blanked. Bottom left: the gross.
     char value[16], gross_value[16], gross[24];
@@ -367,8 +429,9 @@ static void render(const Reading &r) {
     draw_text(BIG, 690, 238, value, INK, RIGHT);
     draw_text(MID, 700, 292, weight_unit_text(r.unit), MUTED);
     draw_text(MID, 68, 394, gross, INK);
-    draw_text(MID, 430, 394, zone, zone_color);
   }
+  ws_draw_target();
+  ws_draw_save_box();
   draw_approval();
   if (touch_ok) draw_text(MID, 400, 394, "MENU", MUTED, RIGHT);
   // The plate (SA no., Max, Min, e) under the card once the RS485 setup has one.
@@ -694,21 +757,9 @@ static void cyd_save_box() {
     seen_epoch = live_epoch;
     last[0] = 0;
   }
-  WeighingsInfo info;
-  weighings_info(&info);
-  bool recent = info.last_result != WSOFT_SAVE_NONE && millis() - info.last_result_ms < 3000;
   char line[32];
-  uint16_t fill = GREEN;
-  if (recent && info.last_result == WSOFT_SAVE_SAVED && info.last.valid) {
-    snprintf(line, sizeof line, "SAVED #%lu", (unsigned long)info.last.seq);
-  } else if (recent) {
-    strlcpy(line, wsoft_save_result_text(info.last_result), sizeof line);
-    fill = info.last_result == WSOFT_SAVE_ALREADY || info.last_result == WSOFT_SAVE_NEED_ZERO ? MUTED : RED;
-  } else if (info.pending > 0) {
-    snprintf(line, sizeof line, "%u to send", (unsigned)info.pending);
-  } else {
-    strlcpy(line, info.auto_save ? "AUTO SAVE ON" : "TAP TO SAVE", sizeof line);
-  }
+  uint16_t fill;
+  save_line(line, sizeof line, &fill);
   char key[48];
   snprintf(key, sizeof key, "%s|%u", line, fill);
   if (!cyd_changed(last, sizeof last, key)) return;
@@ -975,8 +1026,11 @@ static void ws_touch_poll() {
   if (down && !was_down && millis() - last_tap > 400) {
     int x = constrain(points[0].x, 0, SCREEN_W - 1) * 320 / SCREEN_W;
     int y = constrain(points[0].y, 0, SCREEN_H - 1) * 240 / SCREEN_H;
-    Serial0.printf("TOUCH screen=%d,%d\n", points[0].x, points[0].y);
-    ui_tap(x, y);
+    // The SAVE box (bottom right of the live page), with a 10 px margin like the CYD.
+    bool on_save = page == PAGE_LIVE && points[0].x >= WS_SAVE_X0 - 10 && points[0].y >= WS_SAVE_Y0 - 10;
+    Serial0.printf("TOUCH screen=%d,%d %s\n", points[0].x, points[0].y, on_save ? "SAVE" : "-");
+    if (on_save) weighings_request_save();
+    else ui_tap(x, y);
     last_tap = millis();
   }
   was_down = down;
@@ -1502,6 +1556,10 @@ void wsoft_screen_loop() {
                    tared ? scale_tare().value : 0, save_hold, picked ? &product : nullptr);
 #if WSOFT_BOARD_CYD
   if (page == PAGE_LIVE) cyd_save_box();
+  const bool extras_changed = false;
+#else
+  // The SAVE box and the product line are part of the full-frame draw on this board.
+  const bool extras_changed = page == PAGE_LIVE && ws_extras_changed();
 #endif
 
   if (next.linked && polls % 4 == 1) {
@@ -1535,7 +1593,7 @@ void wsoft_screen_loop() {
   // Back from the menu: the live page is drawn again in full.
   static uint32_t drawn_epoch = 0;
   bool back_to_live = page == PAGE_LIVE && drawn_epoch != live_epoch;
-  if (approval_changed || setup_changed || back_to_live || next.linked != reading.linked ||
+  if (approval_changed || setup_changed || back_to_live || extras_changed || next.linked != reading.linked ||
       next.value != reading.value || next.alarm != reading.alarm || next.decimals != reading.decimals ||
       next.unit != reading.unit || hub != shown_hub || polls == 1) {
     reading = next;
