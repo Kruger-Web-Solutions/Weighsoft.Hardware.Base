@@ -11,6 +11,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "wsoft_relay.h"
+
 static const uint32_t WSOFT_PUBLISH_MIN_MS = 250;  // the screen polls the DJB every 250 ms
 static const uint32_t WSOFT_PUBLISH_MAX_MS = 60000;
 static const uint32_t WSOFT_PUBLISH_DEFAULT_MS = 1000;
@@ -36,6 +38,12 @@ struct WSoftSettingsData {
   char mqtt_name[WSOFT_MQTT_ID_MAX + 1];
   char mqtt_unique_id[WSOFT_MQTT_ID_MAX + 1];
   WSoftSource source;
+  // Hi-Lo relay outputs (boards built with a relay, WSOFT_HAS_RELAY). OFF by default.
+  // relay_low / relay_ok / relay_high: the relay (1..4) for each zone, 0 = none.
+  bool relay_enabled;
+  uint8_t relay_low;
+  uint8_t relay_ok;
+  uint8_t relay_high;
 };
 
 // One field per option. A missing field (has_* false or a null string) takes its default:
@@ -50,6 +58,15 @@ struct WSoftSettingsInput {
   const char *mqtt_unique_id = nullptr;
   // "rs485" or "rs232"; anything else is an ERROR.
   const char *source = nullptr;
+  bool has_relay_enabled = false;
+  bool relay_enabled = false;
+  // 0..4 each, no relay twice (wsoft_relay_map_valid); anything else is an ERROR.
+  bool has_relay_low = false;
+  int64_t relay_low = 0;
+  bool has_relay_ok = false;
+  int64_t relay_ok = 0;
+  bool has_relay_high = false;
+  int64_t relay_high = 0;
 };
 
 enum WSoftSettingsResult { WSOFT_SETTINGS_UNCHANGED, WSOFT_SETTINGS_CHANGED, WSOFT_SETTINGS_ERROR };

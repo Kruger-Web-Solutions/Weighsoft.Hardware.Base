@@ -160,6 +160,61 @@ void test_bad_source_is_rejected_without_change() {
   TEST_ASSERT_EQUAL(WSOFT_SOURCE_RS232, s.source);
 }
 
+void test_relay_is_off_by_default_on_relays_1_2_3() {
+  WSoftSettingsData s = defaults();
+  TEST_ASSERT_FALSE(s.relay_enabled);
+  TEST_ASSERT_EQUAL(1, s.relay_low);
+  TEST_ASSERT_EQUAL(2, s.relay_ok);
+  TEST_ASSERT_EQUAL(3, s.relay_high);
+}
+
+void test_relay_settings_apply_and_report_changed() {
+  WSoftSettingsData s = defaults();
+  WSoftSettingsInput in;
+  in.has_relay_enabled = true;
+  in.relay_enabled = true;
+  in.has_relay_low = in.has_relay_ok = in.has_relay_high = true;
+  in.relay_low = 3;
+  in.relay_ok = 0;
+  in.relay_high = 4;
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_CHANGED, wsoft_settings_update(in, &s));
+  TEST_ASSERT_TRUE(s.relay_enabled);
+  TEST_ASSERT_EQUAL(3, s.relay_low);
+  TEST_ASSERT_EQUAL(0, s.relay_ok);
+  TEST_ASSERT_EQUAL(4, s.relay_high);
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_UNCHANGED, wsoft_settings_update(in, &s));
+  // A save without the relay fields (an older page) switches the relay output OFF again.
+  WSoftSettingsInput old_page;
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_CHANGED, wsoft_settings_update(old_page, &s));
+  TEST_ASSERT_FALSE(s.relay_enabled);
+  TEST_ASSERT_EQUAL(1, s.relay_low);
+}
+
+void test_bad_relay_numbers_are_rejected_without_change() {
+  const int64_t bad[][3] = {{5, 2, 3}, {1, -1, 3}, {1, 2, 256}, {1, 1, 3}, {1, 2, 2}, {3, 2, 3}};
+  for (size_t i = 0; i < sizeof bad / sizeof bad[0]; i++) {
+    WSoftSettingsData s = defaults();
+    WSoftSettingsInput in;
+    in.has_relay_enabled = true;
+    in.relay_enabled = true;
+    in.has_relay_low = in.has_relay_ok = in.has_relay_high = true;
+    in.relay_low = bad[i][0];
+    in.relay_ok = bad[i][1];
+    in.relay_high = bad[i][2];
+    TEST_ASSERT_EQUAL(WSOFT_SETTINGS_ERROR, wsoft_settings_update(in, &s));
+    TEST_ASSERT_FALSE(s.relay_enabled);
+    TEST_ASSERT_EQUAL(1, s.relay_low);
+    TEST_ASSERT_EQUAL(2, s.relay_ok);
+    TEST_ASSERT_EQUAL(3, s.relay_high);
+  }
+  // One field alone can also clash with a default: low = 2 while ok defaults to 2.
+  WSoftSettingsData s = defaults();
+  WSoftSettingsInput in;
+  in.has_relay_low = true;
+  in.relay_low = 2;
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_ERROR, wsoft_settings_update(in, &s));
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_defaults);
@@ -173,5 +228,8 @@ int main(int, char **) {
   RUN_TEST(test_bad_names_are_rejected);
   RUN_TEST(test_source_defaults_to_rs485_and_takes_rs232);
   RUN_TEST(test_bad_source_is_rejected_without_change);
+  RUN_TEST(test_relay_is_off_by_default_on_relays_1_2_3);
+  RUN_TEST(test_relay_settings_apply_and_report_changed);
+  RUN_TEST(test_bad_relay_numbers_are_rejected_without_change);
   return UNITY_END();
 }
