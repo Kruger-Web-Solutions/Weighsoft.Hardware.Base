@@ -272,6 +272,18 @@ void test_weight_text_rejects_non_weights_without_change() {
   TEST_ASSERT_EQUAL_INT(9, d);
 }
 
+// The weigh board's feed for a Writer: the number only, and nothing when there is no live weight.
+void test_feed_weight_is_the_number_or_nothing() {
+  char w[24];
+  TEST_ASSERT_TRUE(wsoft_feed_weight(live(12345), w, sizeof w));
+  TEST_ASSERT_EQUAL_STRING("12.345", w);
+  WSoftSnapshot lost = live(12345);
+  lost.fresh = false;  // a failed poll is never a weight
+  TEST_ASSERT_FALSE(wsoft_feed_weight(lost, w, sizeof w));
+  TEST_ASSERT_EQUAL_STRING("", w);
+  TEST_ASSERT_FALSE(wsoft_feed_weight(WSoftSnapshot(), w, sizeof w));
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_grams_from_kg_with_three_decimals);
@@ -295,5 +307,6 @@ int main(int, char **) {
   RUN_TEST(test_notice_says_what_stops_a_save);
   RUN_TEST(test_weight_text_parses_sign_digits_and_decimals);
   RUN_TEST(test_weight_text_rejects_non_weights_without_change);
+  RUN_TEST(test_feed_weight_is_the_number_or_nothing);
   return UNITY_END();
 }

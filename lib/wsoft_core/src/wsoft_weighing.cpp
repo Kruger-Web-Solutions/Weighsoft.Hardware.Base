@@ -97,6 +97,13 @@ WsoftSaveResult WsoftWeighingSaver::update(const TradeReading &r, bool auto_save
   stable_ = r.linked && r.fresh && !r.alarm && r.now_ms - unchanged_since_ >= TRADE_STABLE_MS;
   if (r.linked && r.fresh && r.value <= 0) seen_empty_ = true;
 
+  if (hold == WSOFT_SAVE_WRITER) {
+    moving_ = false;
+    armed_ = false;
+    waiting_ = WSOFT_SAVE_WRITER;
+    return save_requested ? WSOFT_SAVE_WRITER : WSOFT_SAVE_NONE;
+  }
+
   WsoftSaveResult blocked = WSOFT_SAVE_NONE;
   if (!r.linked || !r.fresh) blocked = WSOFT_SAVE_NO_SIGNAL;
   else if (r.alarm || !stable_) blocked = WSOFT_SAVE_NOT_STABLE;
@@ -184,6 +191,7 @@ const char *wsoft_save_result_text(WsoftSaveResult result) {
     case WSOFT_SAVE_BLANK: return "Out of range";
     case WSOFT_SAVE_BELOW_MIN: return "Below Min";
     case WSOFT_SAVE_OUT_OF_LIMITS: return "Tap again: save";
+    case WSOFT_SAVE_WRITER: return "Writer: no save";
   }
   return "";
 }
@@ -248,6 +256,12 @@ bool wsoft_save_notice(WsoftSaveResult result, WsoftSaveNotice *out) {
       n.title = "OUTSIDE HI-LO LIMITS";
       n.detail = "Tap SAVE twice to save anyway";
       n.level = WSOFT_NOTICE_WAIT;
+      break;
+    case WSOFT_SAVE_WRITER:
+      n.code = "WRITER";
+      n.title = "WRITER MODE";
+      n.detail = "The weigh board saves weighings";
+      n.level = WSOFT_NOTICE_INFO;
       break;
   }
   if (n.title[0] == 0) return false;

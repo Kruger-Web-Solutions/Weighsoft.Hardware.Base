@@ -306,7 +306,7 @@ void test_tap_outside_the_limits_needs_a_second_tap() {
 }
 
 void test_every_result_has_words() {
-  for (int r = WSOFT_SAVE_SAVED; r <= WSOFT_SAVE_OUT_OF_LIMITS; r++) {
+  for (int r = WSOFT_SAVE_SAVED; r <= WSOFT_SAVE_WRITER; r++) {
     size_t length = strlen(wsoft_save_result_text((WsoftSaveResult)r));
     TEST_ASSERT_TRUE(length > 0 && length <= 16);
   }
@@ -370,7 +370,7 @@ void test_every_notice_fits_the_screens() {
   TEST_ASSERT_FALSE(wsoft_save_notice(WSOFT_SAVE_NONE, &n));
   TEST_ASSERT_FALSE(wsoft_save_notice(WSOFT_SAVE_SAVED, &n));
   TEST_ASSERT_FALSE(wsoft_save_notice(WSOFT_SAVE_EMPTY, &n));
-  for (int r = WSOFT_SAVE_SAVED; r <= WSOFT_SAVE_OUT_OF_LIMITS; r++) {
+  for (int r = WSOFT_SAVE_SAVED; r <= WSOFT_SAVE_WRITER; r++) {
     if (r == WSOFT_SAVE_EMPTY || r == WSOFT_SAVE_SAVED) continue;
     TEST_ASSERT_TRUE(wsoft_save_notice((WsoftSaveResult)r, &n));
     TEST_ASSERT_TRUE(strlen(n.title) > 0 && strlen(n.title) <= 20);
@@ -381,6 +381,31 @@ void test_every_notice_fits_the_screens() {
   TEST_ASSERT_EQUAL_STRING("TAKE THE LOAD OFF", n.title);
   TEST_ASSERT_EQUAL_STRING("The scale must show 0 kg first", n.detail);
   TEST_ASSERT_EQUAL(WSOFT_NOTICE_STOP, n.level);
+}
+
+// Rhyno, 12 Nov 2026: a board in Writer mode shows the weigh board's weight but never saves,
+// not by a tap and not by auto save, so the Hub counts each weighing once (on the weigh board).
+void test_writer_mode_never_saves() {
+  WsoftWeighingSaver saver{1};
+  TradeWeight issued;
+  uint32_t t = 0;
+  int64_t now = 1762520400;
+  for (int i = 0; i < 4; i++, t += 250) {
+    saver.update({true, true, true, false, 0, 0, 1, t, now}, true, false, false, &issued, WSOFT_SAVE_WRITER);
+  }
+  for (int i = 0; i < 20; i++, t += 250) {  // a settled load with auto save on
+    TEST_ASSERT_EQUAL(WSOFT_SAVE_NONE, saver.update({true, true, true, false, 3120, 0, 1, t, now}, true, false, false,
+                                                    &issued, WSOFT_SAVE_WRITER));
+  }
+  t += 250;
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_WRITER, saver.update({true, true, true, false, 3120, 0, 1, t, now}, false, true, false,
+                                                    &issued, WSOFT_SAVE_WRITER));
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_WRITER, saver.waiting());
+  TEST_ASSERT_EQUAL_UINT32(1, saver.next_seq());  // nothing issued
+  WsoftSaveNotice n;
+  TEST_ASSERT_TRUE(wsoft_save_notice(WSOFT_SAVE_WRITER, &n));
+  TEST_ASSERT_EQUAL_STRING("WRITER", n.code);
+  TEST_ASSERT_EQUAL(WSOFT_NOTICE_INFO, n.level);
 }
 
 int main(int, char **) {
@@ -407,5 +432,6 @@ int main(int, char **) {
   RUN_TEST(test_notice_moving_only_after_three_seconds);
   RUN_TEST(test_notice_for_signal_clock_full_and_limits);
   RUN_TEST(test_every_notice_fits_the_screens);
+  RUN_TEST(test_writer_mode_never_saves);
   return UNITY_END();
 }

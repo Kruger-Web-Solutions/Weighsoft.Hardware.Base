@@ -67,4 +67,8 @@ bool wsoft_weight_grams(int32_t value, int decimals, int unit, int64_t *grams);
 // True when the snapshot carries a weight that may be shown as a number.
 bool wsoft_has_weight(const WSoftSnapshot &s);
 
+// The weight a Writer gets from this board (the weigh board's feed, /ws/serial): the number as
+// shown ("12.345"), without the unit. False when there is no live weight: then nothing is sent.
+bool wsoft_feed_weight(const WSoftSnapshot &s, char *weight, size_t size);
+
 void wsoft_view_write(const WSoftSnapshot &s, WSoftJsonSink &out);

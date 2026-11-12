@@ -35,6 +35,14 @@ bool wsoft_has_weight(const WSoftSnapshot &s) {
   return s.valid && s.linked && s.fresh;
 }
 
+bool wsoft_feed_weight(const WSoftSnapshot &s, char *weight, size_t size) {
+  if (weight == nullptr || size == 0) return false;
+  weight[0] = '\0';
+  if (!wsoft_has_weight(s)) return false;
+  format_weight(s.value, s.decimals, weight, size);
+  return true;
+}
+
 static void write_weight(const WSoftSnapshot &s, WSoftJsonSink &out) {
   int64_t grams = 0;
   if (wsoft_has_weight(s) && wsoft_weight_grams(s.value, s.decimals, s.unit, &grams)) {
@@ -42,9 +50,8 @@ static void write_weight(const WSoftSnapshot &s, WSoftJsonSink &out) {
   } else {
     out.put_null("weight_g");
   }
-  if (wsoft_has_weight(s)) {
-    char text[24];
-    format_weight(s.value, s.decimals, text, sizeof text);
+  char text[24];
+  if (wsoft_feed_weight(s, text, sizeof text)) {
     const char *unit = weight_unit_text(s.unit);
     if (unit[0] != '\0') {
       size_t used = strlen(text);
