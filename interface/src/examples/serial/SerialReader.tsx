@@ -1,7 +1,8 @@
-import React, { FC } from 'react';
+import React, { FC, useContext } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { Tab } from '@mui/material';
 import { RouterTabs, useRouterTab } from '../../components';
+import { FeaturesContext } from '../../contexts/features';
 
 import SerialInfoWithMode from './SerialInfoWithMode';
 import SerialConfig from './SerialConfig';
@@ -12,6 +13,9 @@ import Writers from './Writers';
 
 const SerialReader: FC = () => {
   const { routerTab } = useRouterTab();
+  const { features } = useContext(FeaturesContext);
+  // A W-Soft board keeps no Writers list (that service is not built there).
+  const showWriters = !features.wsoft;
   return (
     <>
       <RouterTabs value={routerTab}>
@@ -20,7 +24,7 @@ const SerialReader: FC = () => {
         <Tab value="rest" label="REST View" />
         <Tab value="stream" label="Live Stream" />
         <Tab value="ble" label="BLE Stream" />
-        <Tab value="writers" label="Writers" />
+        {showWriters && <Tab value="writers" label="Writers" />}
       </RouterTabs>
       <Routes>
         <Route path="information" element={<SerialInfoWithMode />} />
@@ -28,7 +32,7 @@ const SerialReader: FC = () => {
         <Route path="rest" element={<SerialRest />} />
         <Route path="stream" element={<SerialWebSocket />} />
         <Route path="ble" element={<SerialBle />} />
-        <Route path="writers" element={<Writers />} />
+        {showWriters && <Route path="writers" element={<Writers />} />}
         <Route path="/*" element={<Navigate replace to="information" />} />
       </Routes>
     </>

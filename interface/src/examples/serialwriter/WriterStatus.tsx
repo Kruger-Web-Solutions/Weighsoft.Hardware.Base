@@ -144,10 +144,10 @@ const WriterStatus: FC = () => {
               ) : forwarder.enabled ? (
                 <Alert severity={forwarder.last_error ? 'error' : 'warning'} sx={{ mb: 2 }}>
                   Trying to reconnect{forwarder.reconnect_attempts ? ` (attempt ${forwarder.reconnect_attempts})` : ''}.{' '}
-                  {forwarder.last_error || 'Check Reader power, WiFi, and URL.'}
+                  {forwarder.last_error || 'Check the Reader is on, on the same Wi-Fi, and the address is right.'}
                 </Alert>
               ) : (
-                <Alert severity="info" sx={{ mb: 2 }}>Serial Reader Source is disabled or not set up yet.</Alert>
+                <Alert severity="info" sx={{ mb: 2 }}>No Reader is set up or it is switched off. Go to Settings, Step 1.</Alert>
               )}
               <Typography variant="body2">Source URL: <code>{forwarder.source_url || '(not set)'}</code></Typography>
               <Typography variant="body2">

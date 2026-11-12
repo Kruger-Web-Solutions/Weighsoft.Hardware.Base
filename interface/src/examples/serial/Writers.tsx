@@ -130,7 +130,8 @@ const Writers: FC = () => {
   return (
     <SectionContent title="Writers" titleGutter>
       <Alert severity="info" sx={{ mb: 2 }}>
-        To add a Writer, open that device's UI, go to <strong>Serial &rarr; Settings</strong>, and paste this Reader's address:&nbsp;
+        Writers are the ESPs that take this scale's data and send it out to a printer, display or PC. To add one, open
+        that ESP's page, go to <strong>Serial &rarr; Settings &rarr; Step 1</strong>, and paste this Reader's address:&nbsp;
         <code>{hostIp}</code>
         <Tooltip title="Copy address">
           <IconButton size="small" onClick={() => navigator.clipboard?.writeText(hostIp)}>

@@ -24,10 +24,16 @@ const SerialInfo: FC = () => {
           </Typography>
         </Alert>
       )}
+    <Alert severity="info" sx={{ mb: 2 }}>
+      <Typography variant="body2">
+        <strong>Reader = scale in.</strong> A scale is wired to this ESP. The ESP listens on its RX pin,
+        finds the weight in each line and shares it over Wi-Fi (this page, MQTT, live stream, and any
+        Writer that connects to it).
+      </Typography>
+    </Alert>
     <Typography variant="body1" paragraph>
-      This service monitors Serial1 (GPIO18 RX / GPIO17 TX on ESP32-S3 boards; GPIO22 RX / GPIO27 TX on the CN1 plug of the 2.8" yellow CYD board) and streams the data
-      across all communication channels in real-time. You can configure baud rate,
-      data bits, stop bits, parity, and a regex pattern to extract weight values.
+      This service listens on Serial1 and streams each line in real time. You can set the baud rate,
+      data bits, stop bits, parity, and a pattern that picks the weight out of the line.
     </Typography>
 
     <Typography variant="h6" gutterBottom>
@@ -82,28 +88,35 @@ const SerialInfo: FC = () => {
     </Typography>
 
     <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
-      Hardware Setup
+      Wiring (Reader)
     </Typography>
     <Typography variant="body2">
-      Connect your serial device to:
+      The scale talks, the ESP listens. Cross the wires: scale TX goes to ESP RX.
     </Typography>
     <List dense>
       <ListItem>
         <ListItemText
-          primary="RX (GPIO18)"
-          secondary="Receives data from external device TX"
+          primary="Scale TX → ESP RX"
+          secondary="ESP32-S3 boards: GPIO18. Yellow 2.8 inch CYD board: GPIO22 on the CN1 plug."
         />
       </ListItem>
       <ListItem>
         <ListItemText
-          primary="TX (GPIO17)"
-          secondary="Not currently used by this service"
+          primary="ESP TX (not needed)"
+          secondary="ESP32-S3 boards: GPIO17. CYD: GPIO27 on CN1. The Reader only listens, so this wire can stay off."
         />
       </ListItem>
       <ListItem>
         <ListItemText
-          primary="GND"
-          secondary="Common ground with external device"
+          primary="GND → GND"
+          secondary="Always join the grounds."
+        />
+      </ListItem>
+      <ListItem>
+        <ListItemText
+          primary="RS232 scale? Use a converter"
+          secondary={'A real RS232 scale swings up to ±12 V. Put a 3.3 V RS232-to-TTL converter (MAX3232) '
+            + 'between the scale and the ESP pins.'}
         />
       </ListItem>
     </List>

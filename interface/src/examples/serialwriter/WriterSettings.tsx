@@ -156,10 +156,11 @@ const WriterSettings: FC = () => {
 
       <Card sx={{ mb: 2 }}>
         <CardContent>
-          <Typography variant="h6" gutterBottom>Serial Reader Source</Typography>
+          <Typography variant="h6" gutterBottom>Step 1: Data in (from the Reader)</Typography>
           <Typography color="text.secondary" paragraph>
-            Connect this Writer to the Reader that has the scale attached. Paste the Reader web address; the Writer will use
-            the live serial stream.
+            Writer = data out. This ESP has no scale. It gets each line over Wi-Fi from the Reader (the ESP that has the
+            scale wired to it). Pick the Reader below or paste its web address, then press Save Reader and Test Connection.
+            Both ESPs must be on the same Wi-Fi.
           </Typography>
           {src && (
             <>
@@ -220,7 +221,7 @@ const WriterSettings: FC = () => {
                 control={
                   <Switch checked={src.enabled} onChange={(e) => setSrcField('enabled')(e.target.checked)} />
                 }
-                label="Enable Serial Reader Source"
+                label="Take data from this Reader"
               />
               <FormControlLabel
                 control={
@@ -247,7 +248,12 @@ const WriterSettings: FC = () => {
 
       <Card>
         <CardContent>
-          <Typography variant="h6" gutterBottom>Serial Output</Typography>
+          <Typography variant="h6" gutterBottom>Step 2: Data out (wiring)</Typography>
+          <Typography color="text.secondary" paragraph>
+            The ESP talks, your device listens. Cross the wires: ESP TX (GPIO17) goes to the device RX. Join GND to GND.
+            The ESP RX pin (GPIO18) is not needed. An RS232 device needs a 3.3 V RS232-to-TTL converter (MAX3232) in
+            between. Set the speed and format below to match the device.
+          </Typography>
 
           <FormControl component="fieldset" sx={{ mb: 2 }}>
             <FormLabel>Output port</FormLabel>
