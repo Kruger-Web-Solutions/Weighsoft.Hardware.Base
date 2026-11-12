@@ -110,6 +110,16 @@ const WSoftSettingsForm: FC = () => {
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
               All relays are off with no signal, an alarm, no product or an empty scale.
             </Typography>
+            <BlockFormControlLabel
+              control={
+                <Checkbox
+                  name="relay_writer_follow"
+                  checked={!!data.relay_writer_follow}
+                  onChange={updateFormValue}
+                />
+              }
+              label="In Writer mode, switch the relays too (they follow the weigh board's weight)?"
+            />
           </>
         )}
         <ValidatedTextField

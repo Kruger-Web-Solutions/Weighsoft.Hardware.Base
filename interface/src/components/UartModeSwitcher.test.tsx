@@ -61,10 +61,13 @@ test('both roles say what they do in plain words', async () => {
   expect(button('writer').disabled).toBe(false);
 });
 
-test('a W-Soft board is always a Reader: Writer is off and explained', async () => {
+test('a W-Soft board weighs or writes: both roles on, in W-Soft words', async () => {
   await render({ ...baseFeatures, wsoft: true, wsoft_rs232: true });
-  expect(button('writer').disabled).toBe(true);
-  expect(button('reader').getAttribute('aria-pressed')).toBe('true');
-  expect(container.textContent).toContain('This W-Soft board is always a Reader');
+  expect(button('reader').textContent).toBe('Weigh (reads the scale)');
+  expect(button('writer').textContent).toBe('Writer (follows a weigh board)');
+  expect(button('writer').disabled).toBe(false);
+  // saved role is writer, so Writer is on and its hint says it saves nothing
+  expect(button('writer').getAttribute('aria-pressed')).toBe('true');
+  expect(container.textContent).toContain('It saves no weighings. Its Hub link stays.');
   expect(container.textContent).not.toContain('Mode has changed');
 });

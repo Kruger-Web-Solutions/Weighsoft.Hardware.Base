@@ -82,7 +82,13 @@ WSoftStatusService::WSoftStatusService(AsyncWebServer* server,
     _mqttPub(WSoftStatus::read, this, mqttClient, "", true),
     _mqttClient(mqttClient),
 #endif
-    _settingsService(settingsService) {
+    _settingsService(settingsService),
+    _feedSocket(WSOFT_FEED_SOCKET_PATH) {
+  // The weight feed for a Writer board: open and read-only, like /ws/serial.
+  server->addHandler(&_feedSocket);
+  server->on(WSOFT_FEED_ENDPOINT_PATH, HTTP_GET, [](AsyncWebServerRequest* request) {
+    request->send(200, "application/json", feedJson());
+  });
   AsyncCallbackJsonWebHandler* djbHandler = new AsyncCallbackJsonWebHandler(
       WSOFT_DJB_ENDPOINT_PATH,
       securityManager->wrapCallback(std::bind(&WSoftStatusService::handleDjb, this, std::placeholders::_1, std::placeholders::_2),
@@ -291,10 +297,13 @@ void WSoftStatusService::handleDjb(AsyncWebServerRequest* request, JsonVariant& 
 }
 
 void WSoftStatusService::begin() {
-  bool rs232 = _settingsService->source() == WSOFT_SOURCE_RS232;
-  Serial.println(rs232 ? F("[WSoft] Starting W-Soft screen (RS232 scale via the Serial reader)...")
-                       : F("[WSoft] Starting W-Soft screen (RS485 DJB on Serial1)..."));
-  wsoft_screen_setup(rs232);
+  WsoftScreenSource source = _settingsService->writerMode()                          ? WSOFT_SCREEN_WRITER
+                              : _settingsService->source() == WSOFT_SOURCE_RS232 ? WSOFT_SCREEN_RS232
+                                                                                 : WSOFT_SCREEN_RS485;
+  Serial.println(source == WSOFT_SCREEN_WRITER  ? F("[WSoft] Starting W-Soft screen (Writer: weight from a weigh board)...")
+                 : source == WSOFT_SCREEN_RS232 ? F("[WSoft] Starting W-Soft screen (RS232 scale via the Serial reader)...")
+                                                : F("[WSoft] Starting W-Soft screen (RS485 DJB on Serial1)..."));
+  wsoft_screen_setup(source);
   xTaskCreatePinnedToCore(screenTask,
                           "wsoftScreen",
                           WSOFT_SCREEN_TASK_STACK,
@@ -315,12 +324,32 @@ void WSoftStatusService::screenTask(void* param) {
   }
 }
 
+String WSoftStatusService::feedJson() {
+  WSoftSnapshot latest;
+  wsoft_screen_snapshot(&latest);
+  StaticJsonDocument<256> doc;
+  JsonObject root = doc.to<JsonObject>();
+  JsonObjectSink sink(root);
+  wsoft_feed_write(latest, sink);
+  String json;
+  serializeJson(doc, json);
+  return json;
+}
+
 void WSoftStatusService::loop() {
   unsigned long now = millis();
 
   if (now - _lastCleanupMs >= WSOFT_STATUS_WS_CLEANUP_MS) {
     _lastCleanupMs = now;
     _webSocket.cleanupClients();
+    _feedSocket.cleanupClients();
+  }
+
+  // Every WSOFT_FEED_MS, also when the weight holds still: a Writer takes a quiet feed as
+  // a lost weigh board after 3 s.
+  if (now - _lastFeedMs >= WSOFT_FEED_MS) {
+    _lastFeedMs = now;
+    if (_feedSocket.count() > 0) _feedSocket.textAll(feedJson());
   }
 
   if (now - _lastPublishMs < _settingsService->publishIntervalMs()) {

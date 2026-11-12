@@ -102,8 +102,12 @@ static const char* resetReasonLabel(esp_reset_reason_t reason) {
 static String composeApSsid(UartModeService* m) {
   if (!m) return "Weighsoft-Esp-NEW";
   if (m->isWriter()) return "Weighsoft-Esp-Writer";
+#if FT_ENABLED(FT_WSOFT)
+  return "Weighsoft-Esp-Reader";  // a W-Soft board weighs unless it is a Writer (same hotspot name as before)
+#else
   if (m->isReader()) return "Weighsoft-Esp-Reader";
   return "Weighsoft-Esp-NEW";
+#endif
 }
 
 // Update the AP SSID to match the current mode, but only if the current SSID
@@ -153,14 +157,22 @@ WSoftSwitchesService* wsoftSwitchesService;
 #if FT_ENABLED(FT_WSOFT_RELAY)
 RelayBoardService* relayBoardService;
 #endif
-// The source read at boot; the loop restarts the board when the settings page changes it.
+// The source and the role read at boot; the loop restarts the board when either changes.
 WSoftSource wsoftBootSource = WSOFT_SOURCE_RS485;
+bool wsoftBootWriter = false;
 
 // RS232 mode: hands the Serial reader's extracted weight to the W-Soft screen task.
-static bool wsoftReadSerialLine(char* weight, size_t size, uint32_t* receivedMs) {
+static bool wsoftReadSerialLine(char* weight, size_t size, uint32_t* receivedMs, int* unit) {
+  (void)unit;  // an RS232 scale line is kg
   if (serialService == nullptr) return false;
   // Latest-reading slot: newest line at full precision, stamped when it arrived.
   return serialService->latestWeight(weight, size, receivedMs);
+}
+
+// Writer mode: hands the weight received from the weigh board to the W-Soft screen task.
+static bool wsoftReadWriterWeight(char* weight, size_t size, uint32_t* receivedMs, int* unit) {
+  if (serialWriterForwarderService == nullptr) return false;
+  return serialWriterForwarderService->latestWeight(weight, size, receivedMs, unit);
 }
 #endif
 
@@ -344,7 +356,32 @@ void setup() {
       );
   wsoftSettingsService->begin();
   wsoftBootSource = wsoftSettingsService->source();
-  if (wsoftBootSource == WSOFT_SOURCE_RS232) {
+  // One port: the board weighs (Weigh, the default) or follows a weigh board over Wi-Fi and
+  // sends its weight out of the port (Writer). The Hub link is the board's either way.
+  wsoftBootWriter = uartModeService->isWriter();
+  wsoftSettingsService->setWriterMode(wsoftBootWriter);
+  if (wsoftBootWriter) {
+    // The existing Writer services own Serial1; W-Soft shows the weight they receive.
+    serialWriterService = new SerialWriterService(
+        server,
+        esp8266React->getFS(),
+        esp8266React->getSecurityManager(),
+        esp8266React->getMqttClient()
+        );
+    serialWriterService->begin();
+    serialWriterForwarderService = new SerialWriterForwarderService(
+        server,
+        esp8266React->getFS(),
+        esp8266React->getSecurityManager(),
+        serialWriterService
+        );
+    serialWriterForwarderService->begin();
+    uartModeService->setWriterService(serialWriterService);
+    uartModeService->setForwarderService(serialWriterForwarderService);
+    uartModeService->applyMode();
+    wsoft_screen_set_line_reader(wsoftReadWriterWeight);
+    Serial.println(F("[9/10] W-Soft role: Writer (weight from a weigh board, out of the port)"));
+  } else if (wsoftBootSource == WSOFT_SOURCE_RS232) {
     // RS232 scale: the existing Serial reader owns Serial1 (its page sets baud, format
     // and the weight pattern); W-Soft reads the weight it extracts. No RS485 poll.
     serialService = new SerialService(
@@ -514,17 +551,20 @@ void loop() {
 
 #if FT_ENABLED(FT_WSOFT)
   if (serialService) serialService->loop();
+  if (serialWriterService) serialWriterService->loop();
+  if (serialWriterForwarderService) serialWriterForwarderService->loop();
   if (wsoftStatusService) wsoftStatusService->loop();
 #if FT_ENABLED(FT_WSOFT_RELAY)
   if (relayBoardService) relayBoardService->loop();
 #endif
-  // RS485 and RS232 share Serial1, so a new source starts cleanly after a restart.
+  // RS485, RS232 and the Writer share Serial1, so a new source or role starts cleanly after a restart.
   {
     static unsigned long sourceChangedMs = 0;
-    if (wsoftSettingsService && wsoftSettingsService->source() != wsoftBootSource) {
+    if ((wsoftSettingsService && wsoftSettingsService->source() != wsoftBootSource) ||
+        uartModeService->isWriter() != wsoftBootWriter) {
       if (sourceChangedMs == 0) {
         sourceChangedMs = millis();
-        Serial.println(F("[WSoft] Source changed: restarting in 2 s"));
+        Serial.println(F("[WSoft] Source or role changed: restarting in 2 s"));
       } else if (millis() - sourceChangedMs > 2000UL) {
         ESP.restart();
       }

@@ -1,3 +1,4 @@
+#include <Features.h>
 #include "MdnsService.h"
 #include <ESPmDNS.h>
 #include <WiFi.h>
@@ -58,8 +59,12 @@ void MdnsService::applyServiceTxt() {
 String MdnsService::currentMode() const {
   if (!_uartModeService) return "new";
   if (_uartModeService->isWriter()) return "writer";
+#if FT_ENABLED(FT_WSOFT)
+  return "reader";  // a W-Soft board weighs unless it is a Writer: Writers can find it
+#else
   if (_uartModeService->isReader()) return "reader";
   return "new";
+#endif
 }
 
 String MdnsService::currentName() const {

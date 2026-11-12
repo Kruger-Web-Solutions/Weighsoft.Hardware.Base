@@ -1,6 +1,6 @@
 import React, { FC, useContext, useEffect, useState } from 'react';
 import { Alert, Box, CircularProgress } from '@mui/material';
-import { useLayoutTitle } from '../../components';
+import { useLayoutTitle, UartModeSwitcher } from '../../components';
 import { readUartMode } from '../../api/uartMode';
 import { UartMode } from '../../types/uartMode';
 import { FeaturesContext } from '../../contexts/features';
@@ -25,9 +25,15 @@ const SerialMonitor: FC = () => {
     readWSoftStatus().then((res) => setWsoftSource(res.data.source)).catch(() => setWsoftSource(null));
   }, [features.wsoft]);
 
+  if (mode === null) return <Box p={3}><CircularProgress size={24} /></Box>;
+
+  if (mode === 'writer') return <SerialWriter />;
+
+  // W-Soft weighing over RS485: the Serial reader is off, so only the Weigh / Writer switch.
   if (features.wsoft && wsoftSource === 'rs485') {
     return (
       <Box p={3}>
+        <UartModeSwitcher currentMode="reader" />
         <Alert severity="info">
           This board reads the scale over RS485 (the weighing card), so the Serial reader is off and this page has
           nothing to set. It is only for an RS232 scale: switch the source under W-Soft &gt; Settings.
@@ -36,11 +42,6 @@ const SerialMonitor: FC = () => {
     );
   }
 
-  if (mode === null) return <Box p={3}><CircularProgress size={24} /></Box>;
-
-  // A W-Soft board has no Writer service (its serial port reads the scale), so it always
-  // shows the Reader pages, even if an old saved mode says writer.
-  if (mode === 'writer' && !features.wsoft) return <SerialWriter />;
   return <SerialReader />;  // 'reader' OR '' (NEW) → render reader screens; the mode switcher inside surfaces the NEW prompt
 };
 

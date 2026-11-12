@@ -43,6 +43,19 @@ bool wsoft_feed_weight(const WSoftSnapshot &s, char *weight, size_t size) {
   return true;
 }
 
+// "12.345 kg": the number and the unit. False when there is no live weight.
+static bool weight_with_unit(const WSoftSnapshot &s, char *text, size_t size) {
+  if (!wsoft_feed_weight(s, text, size)) return false;
+  const char *unit = weight_unit_text(s.unit);
+  size_t used = strlen(text);
+  if (unit[0] != '\0' && used + 1 < size) {
+    text[used] = ' ';
+    text[used + 1] = '\0';
+    strncat(text, unit, size - used - 2);
+  }
+  return true;
+}
+
 static void write_weight(const WSoftSnapshot &s, WSoftJsonSink &out) {
   int64_t grams = 0;
   if (wsoft_has_weight(s) && wsoft_weight_grams(s.value, s.decimals, s.unit, &grams)) {
@@ -51,20 +64,26 @@ static void write_weight(const WSoftSnapshot &s, WSoftJsonSink &out) {
     out.put_null("weight_g");
   }
   char text[24];
-  if (wsoft_feed_weight(s, text, sizeof text)) {
-    const char *unit = weight_unit_text(s.unit);
-    if (unit[0] != '\0') {
-      size_t used = strlen(text);
-      if (used + 1 < sizeof text) {
-        text[used] = ' ';
-        text[used + 1] = '\0';
-        strncat(text, unit, sizeof text - strlen(text) - 1);
-      }
-    }
+  if (weight_with_unit(s, text, sizeof text)) {
     out.put_str("weight_text", text);
   } else {
     out.put_null("weight_text");
   }
+}
+
+void wsoft_feed_write(const WSoftSnapshot &s, WSoftJsonSink &out) {
+  char line[24];
+  char weight[24];
+  bool live = weight_with_unit(s, line, sizeof line) && wsoft_feed_weight(s, weight, sizeof weight);
+  out.put_str("last_line", live ? line : "");
+  if (live) {
+    out.put_str("weight", weight);
+  } else {
+    out.put_null("weight");
+  }
+  out.put_str("unit", weight_unit_text(s.unit));
+  out.put_bool("stable", live && s.stable);
+  out.put_int("timestamp", s.updated_ms);
 }
 
 // notice_code / notice_title / notice_detail / notice_level ("stop", "wait", "info"), all
@@ -113,6 +132,7 @@ void wsoft_view_write(const WSoftSnapshot &s, WSoftJsonSink &out) {
   out.put_bool("hub_online", s.hub_online);
   out.put_int("polls", s.polls);
   out.put_str("source", s.rs232 ? "rs232" : "rs485");
+  out.put_str("role", s.writer ? "writer" : "weigh");
   write_notice(s, out);
 }
 

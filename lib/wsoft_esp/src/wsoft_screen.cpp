@@ -83,11 +83,20 @@ static const int FAILS_BEFORE_NO_SIGNAL = 3;
 // RS232: a scale line older than this is no longer live (same 3 s stale rule as the Pi).
 static const uint32_t RS232_STALE_MS = 3000;
 
-static bool rs232_mode = false;
+// line_mode: the weight comes from the line reader (an RS232 scale, or a weigh board in
+// Writer mode), never from Serial1. writer_mode: this board follows a weigh board and saves
+// no weighings (WSOFT_SAVE_WRITER).
+static bool line_mode = false;
+static bool writer_mode = false;
 static WsoftLineReader line_reader = nullptr;
 
 void wsoft_screen_set_line_reader(WsoftLineReader reader) {
   line_reader = reader;
+}
+
+// The header word while the weight is live: where it comes from.
+static const char *live_text() {
+  return writer_mode ? "WRITER LIVE" : line_mode ? "RS232 LIVE" : "RS485 LIVE";
 }
 
 // Gauge end when no Hi-Lo product is picked (with one, the gauge follows its limits).
@@ -462,7 +471,7 @@ static void render(const Reading &r) {
     uint16_t zone_color;
     const char *zone = zone_of(n, &zone_color);
 
-    draw_text(MID, 772, 22, r.alarm ? "DJB ALARM" : "RS485 LIVE", r.alarm ? HEADER_BAD : HEADER_OK, RIGHT);
+    draw_text(MID, 772, 22, r.alarm ? "DJB ALARM" : live_text(), r.alarm ? HEADER_BAD : HEADER_OK, RIGHT);
     draw_needle(gauge_fraction(n));
     draw_text(MID, GAUGE_CX, 314, zone, zone_color, CENTER);
     draw_text(BIG, 690, 238, value, INK, RIGHT);
@@ -570,8 +579,8 @@ static void fill_ids(const WsoftDjbPlan *plan, WsoftDjbResult *out) {
 static void run_job(const WsoftDjbPlan *plan, WsoftDjbResult *out) {
   memset(out, 0, sizeof *out);
   fill_ids(plan, out);
-  if (rs232_mode) {
-    strlcpy(out->error, "rs232_mode", sizeof out->error);
+  if (line_mode) {
+    strlcpy(out->error, "line_mode", sizeof out->error);
     return;
   }
   if (!reading.linked) {
@@ -944,7 +953,7 @@ static void render(const Reading &r) {
 
   // Header, right side: Hub state, then the link state with a colour dot.
   HubState hub = hub_state();
-  const char *link = !r.linked ? "NO SIGNAL" : r.alarm ? "DJB ALARM" : rs232_mode ? "RS232 LIVE" : "RS485 LIVE";
+  const char *link = !r.linked ? "NO SIGNAL" : r.alarm ? "DJB ALARM" : live_text();
   bool link_ok = r.linked && !r.alarm;
   snprintf(key, sizeof key, "%s|%s", link, hub_state_text(hub));
   if (cyd_changed(last_head, sizeof last_head, key)) {
@@ -983,7 +992,7 @@ static void render(const Reading &r) {
   char value[16] = "----", gross[24] = "----";
   const char *unit = "kg";
   uint16_t zone_color = RED;
-  const char *zone = rs232_mode ? "NO SCALE LINE" : "NO DJB REPLY";
+  const char *zone = writer_mode ? "NO WEIGH BOARD" : line_mode ? "NO SCALE LINE" : "NO DJB REPLY";
   Reading n = net_of(r);
   if (r.linked) {
     char gross_value[16];
@@ -1491,7 +1500,8 @@ static void publish_snapshot(const Reading &r, bool fresh, TradeCheck check, Hub
   strlcpy(next.hub_text, hub_state_text(hub), sizeof next.hub_text);
   next.polls = polls;
   next.updated_ms = millis();
-  next.rs232 = rs232_mode;
+  next.rs232 = line_mode && !writer_mode;
+  next.writer = writer_mode;
   WeighingsInfo weigh;
   weighings_info(&weigh);
   next.save_waiting = weigh.waiting;
@@ -1506,8 +1516,9 @@ void wsoft_screen_snapshot(WSoftSnapshot *out) {
   portEXIT_CRITICAL(&snapshot_lock);
 }
 
-void wsoft_screen_setup(bool rs232) {
-  rs232_mode = rs232;
+void wsoft_screen_setup(WsoftScreenSource source) {
+  writer_mode = source == WSOFT_SCREEN_WRITER;
+  line_mode = source != WSOFT_SCREEN_RS485;
 #if WSOFT_BOARD_CYD
   // UART0 is the CH340 USB port on the CYD (default pins GPIO1 / GPIO3).
   Serial0.begin(115200);
@@ -1515,15 +1526,17 @@ void wsoft_screen_setup(bool rs232) {
   // UART0 is the CH343 port on this board: TX GPIO43, RX GPIO44.
   Serial0.begin(115200, SERIAL_8N1, 44, 43);
 #endif
-  log_line(rs232_mode ? "weigh screen boot (RS232 scale)" : "weigh screen boot (RS485 junction box)");
-  if (!rs232_mode) Serial1.begin(DJB_BAUD, SERIAL_8N1, RS485_RX, RS485_TX);
+  log_line(writer_mode ? "weigh screen boot (Writer: weight from a weigh board over Wi-Fi)"
+             : line_mode ? "weigh screen boot (RS232 scale)"
+                         : "weigh screen boot (RS485 junction box)");
+  if (!line_mode) Serial1.begin(DJB_BAUD, SERIAL_8N1, RS485_RX, RS485_TX);
 
   display_ready = start_display();
   log_line(display_ready ? "display ready" : "display failed");
-  scale_begin(!rs232_mode);
+  scale_begin(!line_mode);
   pin_begin();
   approval_begin();
-  weighings_begin(rs232_mode);
+  weighings_begin(line_mode && !writer_mode);
   hilo_begin();
   hub_begin();
 #if WSOFT_BOARD_CYD
@@ -1570,20 +1583,21 @@ static bool poll_djb(Reading *out) {
   return fresh;
 }
 
-// One RS232 pass: the newest weight the Serial reader extracted, stamped when its line
-// arrived. Fresh and linked while that reading is inside the live window, so a 1-2 Hz
-// scale stays fresh between lines and can settle. The scale sends no DJB alarm, unit or
-// decimals: unit is kg, decimals come from the text.
-static bool poll_rs232(Reading *out) {
+// One line pass (RS232 scale or Writer): the newest weight the line reader holds, stamped
+// when it arrived. Fresh and linked while that reading is inside the live window, so a 1-2 Hz
+// scale stays fresh between lines and can settle. No DJB alarm; decimals come from the text.
+// The unit is kg unless the reader says otherwise (a Writer gets it from the weigh board).
+static bool poll_line(Reading *out) {
   char text[24];
   uint32_t stamp = 0;
-  bool have = line_reader != nullptr && line_reader(text, sizeof text, &stamp);
+  int unit = 1;
+  bool have = line_reader != nullptr && line_reader(text, sizeof text, &stamp, &unit);
   int32_t value;
   int decimals;
   bool parsed = have && wsoft_parse_weight_text(text, &value, &decimals);
   bool fresh = parsed && millis() - stamp < RS232_STALE_MS;
   out->alarm = false;
-  out->unit = 1;
+  out->unit = unit;
   out->linked = fresh;
   if (fresh) {
     out->value = value;
@@ -1610,8 +1624,8 @@ void wsoft_screen_loop() {
 
   Reading next = reading;
   bool fresh;
-  if (rs232_mode) {
-    fresh = poll_rs232(&next);
+  if (line_mode) {
+    fresh = poll_line(&next);
     polls++;
   } else {
     fresh = poll_djb(&next);
@@ -1626,6 +1640,8 @@ void wsoft_screen_loop() {
   if (hold == WSOFT_HOLD_BLANK) save_hold = WSOFT_SAVE_BLANK;
   else if (hold == WSOFT_HOLD_NOT_STABLE) save_hold = WSOFT_SAVE_NOT_STABLE;
   else if (hold == WSOFT_HOLD_BELOW_MIN && approval_on()) save_hold = WSOFT_SAVE_BELOW_MIN;
+  // Writer mode: the weigh board saves; this board never does (no weighing counted twice).
+  if (writer_mode) save_hold = WSOFT_SAVE_WRITER;
   // A weighing for the Hub (Save tap or Auto save), saved whether trade checks are on or not.
   WsoftHiloProduct product;
   bool picked = hilo_current(&product);
@@ -1649,10 +1665,10 @@ void wsoft_screen_loop() {
 #endif
 
   if (next.linked && polls % 4 == 1) {
-    if (!rs232_mode) Serial0.printf("DJB slave=%u baud=%lu ", slave, (unsigned long)SCAN_BAUDS[baud_index]);
+    if (!line_mode) Serial0.printf("DJB slave=%u baud=%lu ", slave, (unsigned long)SCAN_BAUDS[baud_index]);
     char value[16];
     format_weight(next.value, next.decimals, value, sizeof value);
-    Serial0.printf("%s %s weight=%s %s raw=%ld alarm=%d stable=%d %s\n", rs232_mode ? "RS232" : "DJB", next.linked ? "LIVE" : "NO_SIGNAL", value,
+    Serial0.printf("%s %s weight=%s %s raw=%ld alarm=%d stable=%d %s\n", line_mode ? "RS232" : "DJB", next.linked ? "LIVE" : "NO_SIGNAL", value,
                    weight_unit_text(next.unit), (long)next.value, next.alarm ? 1 : 0, approval_stable() ? 1 : 0,
                    check == TRADE_OK ? "TRADE_CHECKS_ON" : "NOT_FOR_TRADE");
   }

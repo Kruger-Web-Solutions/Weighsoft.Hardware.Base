@@ -1,4 +1,5 @@
 #include <examples/serialwriter/SerialWriterService.h>
+#include <Features.h>
 
 #ifdef ESP32
 #include <HardwareSerial.h>
@@ -186,6 +187,11 @@ size_t SerialWriterService::doTransmit(const String& data, TxSource source) {
 void SerialWriterService::applySerialConfig() {
 #ifdef ESP32
   read([&](const SerialWriterState& s) { _outputPort = s.outputPort; });
+#if FT_ENABLED(FT_WSOFT)
+  // A W-Soft board's USB port carries the logs and the HUB / APPROVAL commands: the Writer
+  // always sends out of its port pins.
+  _outputPort = SERIALW_OUTPUT_SERIAL1;
+#endif
 
   uint32_t baud = 0;
   read([&](const SerialWriterState& s) { baud = s.baudrate; });

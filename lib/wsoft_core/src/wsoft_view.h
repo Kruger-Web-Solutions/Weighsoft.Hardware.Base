@@ -37,6 +37,7 @@ struct WSoftSnapshot {
   uint32_t polls = 0;
   uint32_t updated_ms = 0;     // millis() of the poll this snapshot came from
   bool rs232 = false;          // weight from an RS232 scale line, not the DJB junction box
+  bool writer = false;         // Writer mode: weight from a weigh board over Wi-Fi, never saved
   // What stops a save right now (WsoftWeighingSaver::waiting). The view writes it as the
   // notice_* fields: the big message over the weight, the same words as the board's screen.
   WsoftSaveResult save_waiting = WSOFT_SAVE_NONE;
@@ -67,8 +68,14 @@ bool wsoft_weight_grams(int32_t value, int decimals, int unit, int64_t *grams);
 // True when the snapshot carries a weight that may be shown as a number.
 bool wsoft_has_weight(const WSoftSnapshot &s);
 
-// The weight a Writer gets from this board (the weigh board's feed, /ws/serial): the number as
-// shown ("12.345"), without the unit. False when there is no live weight: then nothing is sent.
+// The weight a Writer gets from this board: the number as shown ("12.345"), without the unit.
+// False when there is no live weight: then nothing is sent.
 bool wsoft_feed_weight(const WSoftSnapshot &s, char *weight, size_t size);
+
+// The weigh board's open weight feed for a Writer (/ws/wsoftFeed, /rest/wsoftFeed). The same
+// keys a Writer already reads from the Serial reader (last_line, weight, timestamp), plus
+// unit and stable. last_line is the weight with its unit ("12.345 kg"). No live weight:
+// last_line "" and weight null, so a Writer sends nothing.
+void wsoft_feed_write(const WSoftSnapshot &s, WSoftJsonSink &out);
 
 void wsoft_view_write(const WSoftSnapshot &s, WSoftJsonSink &out);

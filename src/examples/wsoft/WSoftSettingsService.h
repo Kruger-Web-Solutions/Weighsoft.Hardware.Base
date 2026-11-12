@@ -139,9 +139,14 @@ class WSoftSettingsService : public StatefulService<WSoftSettings> {
   String mqttName();
   String mqttUniqueId();
   // Hi-Lo relay output: the switch and the relay (1..4, 0 = none) for each zone.
+  // In Writer mode the output is on only when "relays follow the weigh board" is on too.
   void relayConfig(bool* enabled, uint8_t* low, uint8_t* ok, uint8_t* high);
+  // Set once at boot from the board's role (UartModeService): true = Writer mode.
+  void setWriterMode(bool writer) { _writerMode = writer; }
+  bool writerMode() const { return _writerMode; }
 
  private:
+  bool _writerMode = false;
   HttpEndpoint<WSoftSettings> _httpEndpoint;
   FSPersistence<WSoftSettings> _fsPersistence;
   WebSocketTxRx<WSoftSettings> _webSocket;

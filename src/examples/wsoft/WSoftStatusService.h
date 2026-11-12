@@ -16,6 +16,9 @@
 // Hub pairing key; the board restarts after a change. The key is never sent back.
 // GET /rest/wsoftSave (logged in) shows the weighings waiting for the Hub; POST saves the
 // load on the scale now, like the SAVE button on the board's screen.
+// GET /rest/wsoftFeed and the /ws/wsoftFeed socket (open, read-only, like the Serial reader's
+// /rest/serial and /ws/serial): the weight for a Writer board (wsoft_feed_write), pushed every
+// WSOFT_FEED_MS while a Writer listens.
 // POST /rest/djb (admin) reads and writes the weighing card's registers. The screen task owns
 // Serial1 and runs that one transaction; this service only queues it. Refused with 409 NO_CARD
 // on RS232; every write that goes through adds 1 to the scale setup audit counter.
@@ -38,6 +41,9 @@ class AsyncMqttClient;
 #define WSOFT_SAVE_ENDPOINT_PATH "/rest/wsoftSave"
 #define WSOFT_STATUS_SOCKET_PATH "/ws/wsoftStatus"
 #define WSOFT_STATUS_WS_CLEANUP_MS 5000UL
+#define WSOFT_FEED_ENDPOINT_PATH "/rest/wsoftFeed"
+#define WSOFT_FEED_SOCKET_PATH "/ws/wsoftFeed"
+#define WSOFT_FEED_MS 500UL
 
 #define WSOFT_SCREEN_TASK_STACK 8192
 #define WSOFT_SCREEN_TASK_CORE 1
@@ -77,8 +83,11 @@ class WSoftStatusService : public StatefulService<WSoftStatus> {
   WSoftSettingsService* _settingsService;
   unsigned long _lastPublishMs = 0;
   unsigned long _lastCleanupMs = 0;
+  AsyncWebSocket _feedSocket;
+  unsigned long _lastFeedMs = 0;
 
   void configureMqtt();
+  static String feedJson();
   void publishDiscovery(const String& statusTopic);
   void handleDjb(AsyncWebServerRequest* request, JsonVariant& json);
   void readHub(AsyncWebServerRequest* request);

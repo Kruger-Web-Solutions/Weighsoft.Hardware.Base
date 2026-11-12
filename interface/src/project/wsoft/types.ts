@@ -54,6 +54,8 @@ export interface WSoftSettings {
   relay_low: number;
   relay_ok: number;
   relay_high: number;
+  /** Writer mode only: the relays follow the weigh board's weight. Off by default (relays stay off). */
+  relay_writer_follow?: boolean;
   /** Read-only: true on boards built with relay outputs (the yellow board). */
   relay_available?: boolean;
   /** Read-only: false on boards without RS232 wiring (the Waveshare). */
