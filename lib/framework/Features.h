@@ -66,5 +66,11 @@
 #define FT_WSOFT 0
 #endif
 
+// Hi-Lo relay outputs on a W-Soft board (src/examples/relay). Requires FT_WSOFT and a
+// board env that names the relay pins.
+#ifndef FT_WSOFT_RELAY
+#define FT_WSOFT_RELAY 0
+#endif
+
 
 #endif

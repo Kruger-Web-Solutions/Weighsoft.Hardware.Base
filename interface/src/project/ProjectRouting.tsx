@@ -1,4 +1,4 @@
-import { FC } from 'react';
+import { FC, useContext } from 'react';
 import { Navigate, Routes, Route } from 'react-router-dom';
 
 import LedExample from '../examples/led/LedExample';
@@ -8,14 +8,16 @@ import WeightForwarder from '../examples/weightforwarder/WeightForwarder';
 import RemoteWeightMonitor from '../examples/remoteweight/RemoteWeightMonitor';
 import LcdDisplay from '../examples/lcddisplay/LcdDisplay';
 import WSoft from './wsoft/WSoft';
+import { FeaturesContext } from '../contexts/features';
 
 const ProjectRouting: FC = () => {
+  const { features } = useContext(FeaturesContext);
   return (
     <Routes>
       {
-        // Default route for LED example project
+        // Default route: the W-Soft page on a W-Soft board, the LED example elsewhere
       }
-      <Route path="/*" element={<Navigate to="led-example/information" />} />
+      <Route path="/*" element={<Navigate to={features.wsoft ? 'wsoft' : 'led-example/information'} />} />
       {
         // LED Example project routes
       }

@@ -44,6 +44,14 @@ void FeaturesService::features(AsyncWebServerRequest* request) {
 #else
   root["ble"] = false;
 #endif
+  // Which device this build is, so the web menu shows only pages this board serves.
+  root["wsoft"] = FT_ENABLED(FT_WSOFT) != 0;
+  root["wsoft_relay"] = FT_ENABLED(FT_WSOFT_RELAY) != 0;
+#if defined(WSOFT_HAS_RS232) && WSOFT_HAS_RS232
+  root["wsoft_rs232"] = true;
+#else
+  root["wsoft_rs232"] = false;
+#endif
   response->setLength();
   request->send(response);
 }

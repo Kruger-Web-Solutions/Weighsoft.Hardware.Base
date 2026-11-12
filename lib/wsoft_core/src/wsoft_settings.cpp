@@ -14,6 +14,10 @@ void wsoft_settings_defaults(WSoftSettingsData *s) {
   copy_text(s->mqtt_name, sizeof s->mqtt_name, WSOFT_DEFAULT_MQTT_NAME);
   copy_text(s->mqtt_unique_id, sizeof s->mqtt_unique_id, WSOFT_DEFAULT_MQTT_UNIQUE_ID);
   s->source = WSOFT_SOURCE_RS485;
+  s->relay_enabled = false;
+  s->relay_low = WSOFT_RELAY_DEFAULT_LOW;
+  s->relay_ok = WSOFT_RELAY_DEFAULT_OK;
+  s->relay_high = WSOFT_RELAY_DEFAULT_HIGH;
 }
 
 const char *wsoft_source_text(WSoftSource source) {
@@ -71,6 +75,12 @@ static uint32_t clamp_interval(int64_t ms) {
   return (uint32_t)ms;
 }
 
+static bool relay_number(int64_t n, uint8_t *out) {
+  if (n < 0 || n > (int64_t)WSOFT_RELAY_COUNT) return false;
+  *out = (uint8_t)n;
+  return true;
+}
+
 WSoftSettingsResult wsoft_settings_update(const WSoftSettingsInput &in, WSoftSettingsData *s) {
   WSoftSettingsData next;
   wsoft_settings_defaults(&next);
@@ -90,10 +100,18 @@ WSoftSettingsResult wsoft_settings_update(const WSoftSettingsInput &in, WSoftSet
     copy_text(next.mqtt_unique_id, sizeof next.mqtt_unique_id, in.mqtt_unique_id);
   }
   if (in.source != nullptr && !wsoft_source_parse(in.source, &next.source)) return WSOFT_SETTINGS_ERROR;
+  if (in.has_relay_enabled) next.relay_enabled = in.relay_enabled;
+  // A relay number has no safe value to clamp to: a wrong one could switch the wrong output.
+  if (in.has_relay_low && !relay_number(in.relay_low, &next.relay_low)) return WSOFT_SETTINGS_ERROR;
+  if (in.has_relay_ok && !relay_number(in.relay_ok, &next.relay_ok)) return WSOFT_SETTINGS_ERROR;
+  if (in.has_relay_high && !relay_number(in.relay_high, &next.relay_high)) return WSOFT_SETTINGS_ERROR;
+  if (!wsoft_relay_map_valid(next.relay_low, next.relay_ok, next.relay_high)) return WSOFT_SETTINGS_ERROR;
 
   bool changed = next.publish_interval_ms != s->publish_interval_ms || next.mqtt_enabled != s->mqtt_enabled ||
                  strcmp(next.mqtt_base_path, s->mqtt_base_path) != 0 || strcmp(next.mqtt_name, s->mqtt_name) != 0 ||
-                 strcmp(next.mqtt_unique_id, s->mqtt_unique_id) != 0 || next.source != s->source;
+                 strcmp(next.mqtt_unique_id, s->mqtt_unique_id) != 0 || next.source != s->source ||
+                 next.relay_enabled != s->relay_enabled || next.relay_low != s->relay_low ||
+                 next.relay_ok != s->relay_ok || next.relay_high != s->relay_high;
   *s = next;
   return changed ? WSOFT_SETTINGS_CHANGED : WSOFT_SETTINGS_UNCHANGED;
 }

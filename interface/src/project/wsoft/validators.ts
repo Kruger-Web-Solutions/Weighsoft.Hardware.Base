@@ -21,6 +21,16 @@ const TOPIC_VALIDATOR = {
   }
 };
 
+// Same rules as wsoft_relay_map_valid (lib/wsoft_core): 0 (none) or 1 to 4, no relay twice.
+const RELAY_NUMBER = { type: 'integer' as const, min: 0, max: 4, message: 'Pick relay 1 to 4, or none' };
+
+const RELAY_NOT_TWICE = {
+  validator: (_rule: unknown, _value: unknown, callback: (error?: string) => void, source: Record<string, unknown>) => {
+    const used = [source.relay_low, source.relay_ok, source.relay_high].filter((n) => n !== 0);
+    callback(new Set(used).size === used.length ? undefined : 'Each relay can have only one job');
+  }
+};
+
 export const WSOFT_SETTINGS_VALIDATOR = new Schema({
   publish_interval_ms: [
     { required: true, message: 'Publish interval is required' },
@@ -41,6 +51,10 @@ export const WSOFT_SETTINGS_VALIDATOR = new Schema({
     { required: true, message: 'Unique id is required' },
     { pattern: new RegExp(`^[\\x21-\\x7e]{1,${ID_MAX}}$`), message: `Up to ${ID_MAX} characters, no spaces` }
   ]
+,
+  relay_low: [RELAY_NUMBER],
+  relay_ok: [RELAY_NUMBER],
+  relay_high: [RELAY_NUMBER, RELAY_NOT_TWICE]
 });
 
 // Contract A2/A5: a reason is 1 to 80 printable characters once trimmed.

@@ -115,9 +115,86 @@ not; the payload carries `for_trade`.
 Same as the Waveshare guide, section 4b (`docs/WSOFT-WAVESHARE43.md`): the endpoints, the
 PIN rules, the RS485 setup keys and the Hub commands are shared code.
 
+## 2d. Hi-Lo relays (LOW / OK / HIGH)
+
+The board can switch three relays from the Hi-Lo check: one for TOO LOW, one for OK, one for
+TOO HIGH (a light tower, a buzzer, a gate). **Built, not bench-tested yet (11 Nov 2026).**
+
+**Pins.** The CN1 plug is taken by the scale, so the relays use the pads of the small RGB
+LED. Pin list: witnessmenow/ESP32-Cheap-Yellow-Display `PINS.md` (community list, read
+11 Nov 2026). It has not been checked on our bench board: do the click test below first.
+
+| Relay | Default job | Pin | LED pad | Build flag |
+|---|---|---|---|---|
+| 1 | TOO LOW | GPIO17 | blue | `RELAY1_PIN` |
+| 2 | OK | GPIO16 | green | `RELAY2_PIN` |
+| 3 | TOO HIGH | GPIO4 | red | `RELAY3_PIN` |
+| 4 | not fitted | none | none | `RELAY4_PIN=-1` |
+
+- The pads are **active low** (`RELAY_ACTIVE_LOW=1`): pin LOW = relay ON, and the LED colour
+  lights with it. The pads rest HIGH, so the relays stay OFF while the board starts and after
+  a restart.
+- Use a relay module with **opto inputs that switch on a LOW level** and accept 3.3 V logic.
+  Give the relay coils their **own 5 V supply**; never power coils from the board's 3V3 pin.
+  Join the grounds as the module's manual says.
+- Wiring per relay: LED pad to the module input (IN1 / IN2 / IN3). Soldering is needed: the
+  pads are on the LED, not on a plug.
+- The LED example is not created on this board (its pin, GPIO17, is relay 1). Its menu page
+  gets 404.
+
+**When a relay is ON.** Only one Hi-Lo relay at a time, and only when all of this is true:
+the switch below is on, the scale answers, no alarm, the reading is not blanked, a Hi-Lo
+product is picked, and something is on the scale (above 0). Anything else: all three OFF.
+An empty scale is OFF, not TOO LOW.
+
+- A new zone must show on two polls in a row (about 0.5 s) before a relay changes, so a
+  weight on a limit does not make it chatter. Going OFF is never delayed.
+- The old relay goes OFF before the new one goes ON.
+- If the screen task stops posting for 2 s (stuck, or a W-Soft update running), the relays
+  go OFF.
+- The relays follow the **live** weight, moving or steady. The saved weighing still uses its
+  own rules (section 2b).
+
+**Settings** (browser, W-Soft > Settings, admin; saved in `/config/wsoftSettings.json`):
+
+| Field | Default | Meaning |
+|---|---|---|
+| `relay_enabled` | `false` | Switch the Hi-Lo relays. OFF until someone turns it on |
+| `relay_low` / `relay_ok` / `relay_high` | 1 / 2 / 3 | Relay for each zone, 0 = none. No relay twice (the save is refused otherwise) |
+
+Rules in `lib/wsoft_core/src/wsoft_relay.*` and `wsoft_settings.*` (host tests
+`test_wsoft_relay`, `test_wsoft_settings`). On a board without relays (the Waveshare)
+`relay_available` is false and `relay_enabled: true` is refused.
+
+**Endpoints** (same paths and relay names as the relay board firmware, branch
+`RelayBoardEspBuildIn`; here both need a login, because a relay can be a gate):
+
+| Endpoint | Who | What |
+|---|---|---|
+| `GET /rest/relayBoard` | logged-in user | `{"relay1":..,"relay2":..,"relay3":..,"relay4":..,"di1":false,"di2":false}` |
+| `POST /rest/relayBoard` | logged-in user | Switch the relays named in the body. While Hi-Lo drives, its relays are set back on the next pass |
+| `GET /rest/relayBoardStatus` | logged-in user | Pins, active level, `hilo` (switch, map, zone now) and `relays` |
+| `/ws/relayBoard` | logged-in user | The same state, live |
+
+Not ported from the relay board firmware: the MQTT switch, the digital inputs, the 3D page.
+Edge's relay driver expects no login, so it cannot switch these relays as they are; the
+board drives them itself.
+
+**Bench click test (before any real load is wired):**
+
+1. Flash, open W-Soft > Settings. Leave "Switch the Hi-Lo relays" **off**.
+2. In "Relay test" tap Relay 1, 2, 3 in turn. Each must click, and the LED must show blue,
+   green, red. A relay that clicks when it shows OFF means the module is the other way
+   round: set `RELAY_ACTIVE_LOW=0` in the env and build again (then the LED colours are
+   inverted and a relay may click once at boot: prefer a low-level module).
+3. Switch all three off. Tick "Switch the Hi-Lo relays" and save.
+4. Pick a Hi-Lo product, put a load on: below the low limit relay 1, inside relay 2, above
+   relay 3. Take the load off: all OFF. Pull the scale cable: all OFF once the screen shows NO SIGNAL (a few seconds).
+5. Only then wire the real light or gate. A switched relay proves the pin, not the contact.
+
 ## 3. Build and flash (laptop)
 
-1. `pio test -e native` (host tests, unchanged).
+1. `pio test -e native` (host tests).
 2. `pio run -e wsoft_cyd28`.
 3. Plug the CYD's **micro-USB** (CH340, `COM15` on Rhyno's laptop) and flash:
    `pio run -e wsoft_cyd28 -t upload`. This replaces the firmware on the board. Flashing is an
