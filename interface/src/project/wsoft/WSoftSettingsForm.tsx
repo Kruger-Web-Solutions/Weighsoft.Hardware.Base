@@ -51,7 +51,7 @@ const WSoftSettingsForm: FC = () => {
           level="info"
           message={
             'Wi-Fi, MQTT broker, NTP and OTA are on the framework pages. ' +
-            'Hub pairing is on the Hub tab. Approval and Auto save are switched on the Live tab.'
+            'Hub pairing is on the Hub item in the menu. Approval and Auto save are switched on the Live tab.'
           }
           my={2}
         />

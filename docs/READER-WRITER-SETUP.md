@@ -40,7 +40,7 @@ The Reader/Writer role is only about who owns the one serial port. It is **not**
 
 | Board build | Talks to the Hub? | How |
 | --- | --- | --- |
-| **W-Soft** (`FT_WSOFT`: `wsoft_cyd28`, `wsoft_waveshare43`) | **Yes** | `lib/wsoft_esp/src/hub.cpp`: signed heartbeat (`/api/v1/ingest/heartbeats`), saved weighings (`/ingest/weighings`), board switches (`/ingest/commands`), Hi-Lo products (`/ingest/hilo`). Paired on **W-Soft > Hub** (admin only). |
+| **W-Soft** (`FT_WSOFT`: `wsoft_cyd28`, `wsoft_waveshare43`) | **Yes** | `lib/wsoft_esp/src/hub.cpp`: signed heartbeat (`/api/v1/ingest/heartbeats`), saved weighings (`/ingest/weighings`), board switches (`/ingest/commands`), Hi-Lo products (`/ingest/hilo`). Paired on the **Hub** menu item (admin only; the old W-Soft > Hub link leads there). |
 | Plain **Reader** ESP (no W-Soft) | **No** | Shares the weight over its own page, MQTT, live stream, the Weight Forwarder and Writers. No Hub code in these builds. |
 | Plain **Writer** ESP | **No** | Only takes lines from a Reader and sends them out of TX. |
 
