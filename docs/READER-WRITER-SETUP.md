@@ -34,6 +34,29 @@ This checklist connects one Reader device to one Writer device with the Serial R
 | Reader | `http://192.168.2.60/` | Scale is connected here. It serves live serial lines from `/ws/serial`. |
 | Writer | `http://192.168.2.53/` | Serial output device is connected here. It pulls lines from the Reader and writes them out. |
 
+## Reader, Writer and the Weighsoft Hub
+
+The Reader/Writer role is only about who owns the one serial port. It is **not** a Hub setting.
+
+| Board build | Talks to the Hub? | How |
+| --- | --- | --- |
+| **W-Soft** (`FT_WSOFT`: `wsoft_cyd28`, `wsoft_waveshare43`) | **Yes** | `lib/wsoft_esp/src/hub.cpp`: signed heartbeat (`/api/v1/ingest/heartbeats`), saved weighings (`/ingest/weighings`), board switches (`/ingest/commands`), Hi-Lo products (`/ingest/hilo`). Paired on **W-Soft > Hub** (admin only). |
+| Plain **Reader** ESP (no W-Soft) | **No** | Shares the weight over its own page, MQTT, live stream, the Weight Forwarder and Writers. No Hub code in these builds. |
+| Plain **Writer** ESP | **No** | Only takes lines from a Reader and sends them out of TX. |
+
+What the Hub does with a W-Soft board (Weighsoft.Indicator.Hub): **status** from heartbeats (Fleet, Device, Device health, alerts),
+**reports** from the weighings (daily per scale and product, CSV), **setup** it sends down (products, Hi-Lo limits, Approval / Auto save switches).
+The Hub does not know or care whether the board is a "Reader": a W-Soft board is always one.
+
+## Known gaps (12 Nov 2026)
+
+| Gap | Effect | State |
+| --- | --- | --- |
+| The Serial menu shows on every `wsoft_cyd28` build (compile flag), but the Serial reader runs only when W-Soft's source is RS232. | On RS485 the page called a service that is not there. | **Fixed in PR #42**: the page now says the reader is off and points to W-Soft > Settings. |
+| `SERIALW_TX_PIN` 17 and `DIAG_*_PIN` 18/17 are their own copies; only the reader pins follow a board's `SERIAL2_*_PIN`. | On CYD / `esp32dev_tft` builds a Writer or Diagnostics would use 18/17, not the board's serial pads. W-Soft builds are not affected (no Writer). | Open: a pin decision for Rhyno. |
+| Heartbeat health names the link `djb_link` / `djb_weight` also on an RS232 scale. | The Hub's raw health view says "djb" for an RS232 board. Values are right. | Open: rename needs a Hub + board change together. |
+| A W-Soft board that once saved mode `writer` keeps that word in its hotspot name and mDNS. | Cosmetic only; the page now always shows Reader. | Open, low. |
+
 ## Setup Steps
 
 1. Open the Writer UI at `http://192.168.2.53/`.

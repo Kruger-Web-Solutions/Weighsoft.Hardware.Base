@@ -37,6 +37,8 @@ afterEach(() => {
 });
 
 const render = async (features: Features) => {
+  // react-dom's own act around createRoot().render; the rule mistakes it for Testing Library.
+  // eslint-disable-next-line testing-library/no-unnecessary-act
   await act(async () => {
     root.render(
       <SnackbarProvider>

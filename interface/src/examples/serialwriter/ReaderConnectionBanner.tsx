@@ -10,6 +10,7 @@ import {
   connectionMethodLabel,
   readerConnectionState,
   readerHostFromSourceUrl,
+  READER_UNREACHABLE_HINT,
 } from './serialWriterSource';
 
 interface ReaderConnectionBannerProps {
@@ -96,7 +97,7 @@ const ReaderConnectionBanner: FC<ReaderConnectionBannerProps> = ({ pollMs = 2000
       action={<Button color="inherit" size="small" onClick={refresh} startIcon={<RefreshIcon />}>Refresh</Button>}
     >
       Serial Reader <strong>{host || 'unknown'}</strong> is not connected. {reconnectText}{' '}
-      {source?.last_error ? <span>Last error: {source.last_error}</span> : <span>Check the Reader is on, on the same Wi-Fi, and the address is right.</span>}
+      {source?.last_error ? <span>Last error: {source.last_error}</span> : <span>{READER_UNREACHABLE_HINT}</span>}
     </Alert>
   );
 };

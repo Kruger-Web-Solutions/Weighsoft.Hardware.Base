@@ -12,6 +12,7 @@ import {
   readerConnectionState,
   readerHostFromSourceUrl,
   serialSummary,
+  READER_UNREACHABLE_HINT,
 } from './serialWriterSource';
 
 const sourceLabels = ['none', 'manual', 'rest', 'ws', 'mqtt', 'reader'];
@@ -144,7 +145,7 @@ const WriterStatus: FC = () => {
               ) : forwarder.enabled ? (
                 <Alert severity={forwarder.last_error ? 'error' : 'warning'} sx={{ mb: 2 }}>
                   Trying to reconnect{forwarder.reconnect_attempts ? ` (attempt ${forwarder.reconnect_attempts})` : ''}.{' '}
-                  {forwarder.last_error || 'Check the Reader is on, on the same Wi-Fi, and the address is right.'}
+                  {forwarder.last_error || READER_UNREACHABLE_HINT}
                 </Alert>
               ) : (
                 <Alert severity="info" sx={{ mb: 2 }}>No Reader is set up or it is switched off. Go to Settings, Step 1.</Alert>

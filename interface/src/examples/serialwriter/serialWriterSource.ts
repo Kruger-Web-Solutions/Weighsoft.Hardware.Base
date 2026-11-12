@@ -1,5 +1,8 @@
 import { SerialWriterForwarderData } from '../../types/serialWriter';
 
+/** Shown when the Writer cannot reach its Reader and the board gave no error text. */
+export const READER_UNREACHABLE_HINT = 'Check the Reader is on, on the same Wi-Fi, and the address is right.';
+
 export type ReaderConnectionState = 'not_configured' | 'connected' | 'reconnecting' | 'disabled' | 'error';
 
 export const normalizeReaderSourceUrl = (value: string): string => {
