@@ -1,3 +1,4 @@
+#include "wsoft_log.h"
 #include "pin.h"
 
 #include <Preferences.h>
@@ -38,7 +39,7 @@ void pin_begin() {
   }
   guard = WsoftPinGuard(fails, millis());
   portEXIT_CRITICAL(&lock);
-  Serial0.printf("PIN %s\n", have ? "set" : "not set (an admin sets it on the web page)");
+  WSOFT_LOG.printf("PIN %s\n", have ? "set" : "not set (an admin sets it on the web page)");
 }
 
 PinSaveResult pin_save(const char *pin) {
@@ -62,7 +63,7 @@ PinSaveResult pin_save(const char *pin) {
   portEXIT_CRITICAL(&lock);
   xSemaphoreGive(busy);
   memset(h, 0, sizeof h);
-  Serial0.println("PIN changed from the web page");
+  WSOFT_LOG.println("PIN changed from the web page");
   return PIN_SAVE_OK;
 }
 
@@ -110,9 +111,9 @@ WsoftPinResult pin_try(const char *entry) {
   if (g.fails() != fails_before) store_fails(g.fails());
   xSemaphoreGive(busy);
   if (result == WSOFT_PIN_WRONG) {
-    Serial0.printf("PIN wrong try %lu of %lu\n", (unsigned long)g.fails(), (unsigned long)WSOFT_PIN_TRIES);
+    WSOFT_LOG.printf("PIN wrong try %lu of %lu\n", (unsigned long)g.fails(), (unsigned long)WSOFT_PIN_TRIES);
   } else if (result == WSOFT_PIN_LOCKED && fails_before != g.fails()) {
-    Serial0.printf("PIN locked for %lu s after %lu wrong tries\n", (unsigned long)(WSOFT_PIN_LOCK_MS / 1000),
+    WSOFT_LOG.printf("PIN locked for %lu s after %lu wrong tries\n", (unsigned long)(WSOFT_PIN_LOCK_MS / 1000),
                    (unsigned long)WSOFT_PIN_TRIES);
   }
   return result;

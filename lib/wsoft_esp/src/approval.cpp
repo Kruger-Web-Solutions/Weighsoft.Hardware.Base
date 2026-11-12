@@ -1,3 +1,4 @@
+#include "wsoft_log.h"
 #include "approval.h"
 
 #include <Preferences.h>
@@ -96,7 +97,7 @@ void approval_begin() {
   prefs.end();
   queue.restore(head, count, slots);
   check = on ? TRADE_MOTION : TRADE_OFF;
-  print_status(Serial0);
+  print_status(WSOFT_LOG);
 }
 
 // ---------- technician switch (USB only) ----------
@@ -146,7 +147,7 @@ static void write_change(bool to, const String &technician, const String &reason
 // Hardware.Base: every place switches through switches.cpp, which checks the rules first.
 // Screen task only (it writes flash).
 void approval_set(bool to, const char *who, WsoftSwitchWhere where, const char *reason) {
-  write_change(to, String(who), String(reason), Serial0, where);
+  write_change(to, String(who), String(reason), WSOFT_LOG, where);
 }
 
 int approval_log_lines(char lines[][WSOFT_SWITCH_LOG_MAX], int max) {
@@ -309,7 +310,7 @@ TradeCheck approval_update_held(bool linked, bool fresh, bool alarm, int32_t val
     char weight[16], when[32];
     format_weight(issued.value, issued.decimals, weight, sizeof weight);
     format_time(issued.at, when, sizeof when);
-    Serial0.printf("TRADE seq=%lu weight=%s %s at=%s audit=%lu\n", (unsigned long)issued.seq, weight,
+    WSOFT_LOG.printf("TRADE seq=%lu weight=%s %s at=%s audit=%lu\n", (unsigned long)issued.seq, weight,
                    weight_unit_text(issued.unit), when, (unsigned long)audit_counter);
   }
   return next;

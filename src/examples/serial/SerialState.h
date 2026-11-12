@@ -12,7 +12,7 @@
 // mode) ships with a generic pattern: the first number in the line, with optional sign
 // and decimals, so W113 and other indicators work without setup. POSIX ERE syntax.
 #ifndef SERIAL_DEFAULT_REGEX
-#if defined(WSOFT_BOARD_CYD) && WSOFT_BOARD_CYD
+#if (defined(WSOFT_BOARD_CYD) && WSOFT_BOARD_CYD) || (defined(WSOFT_BOARD_HEADLESS) && WSOFT_BOARD_HEADLESS)
 #define SERIAL_DEFAULT_REGEX "([-+]?[ ]*[0-9]+([.,][0-9]+)?)"
 #else
 #define SERIAL_DEFAULT_REGEX ""
