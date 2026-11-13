@@ -19,6 +19,7 @@
 #include "gen/wsoft_ui_presets.h"
 #include "golden.h"
 #include "wsoft_gfx.h"
+#include "wsoft_ui_model.h"
 #include "wsoft_ui_paint.h"
 
 void setUp() {}
@@ -162,6 +163,431 @@ void test_tap_boxes() {
   TEST_ASSERT_TRUE(wsoft_ui_key_box(0, 3, 3, 1).hit(120, 210));
 }
 
+// ---------- from the facts to the words on the screen (wsoft_ui_model) ----------
+
+// A board that is weighing: Wi-Fi up, Hub online, a steady 50.120 kg on an RS232 scale.
+static WsoftUiInput weighing() {
+  WsoftUiInput in;
+  in.wifi_up = true;
+  in.rssi = -60;
+  in.ip = "192.168.0.142";
+  in.hub_online = true;
+  in.hub_text = "HUB ONLINE";
+  in.source = "RS232";
+  in.linked = true;
+  in.stable = true;
+  in.gross = in.net = 50120;
+  in.decimals = 3;
+  in.unit = 1;
+  return in;
+}
+
+static WsoftHiloProduct maize() {
+  WsoftHiloProduct p;
+  strcpy(p.code, "MZ50");
+  strcpy(p.name, "Maize");
+  p.target_g = 50000;
+  p.low_g = 49000;
+  p.high_g = 51000;
+  return p;
+}
+
+static WsoftUiModel model;
+
+void test_model_status_bar() {
+  WsoftUiInput in = weighing();
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_TRUE(model.wifi_up);
+  TEST_ASSERT_EQUAL(3, model.wifi_bars);
+  TEST_ASSERT_EQUAL_STRING("192.168.0.142", model.ip);
+  TEST_ASSERT_EQUAL_STRING("HUB", model.hub);
+  TEST_ASSERT_EQUAL(WSOFT_UI_TONE_OK, model.hub_tone);
+  TEST_ASSERT_EQUAL_STRING("RS232", model.link);
+  TEST_ASSERT_EQUAL(WSOFT_UI_TONE_OK, model.link_tone);
+  // Signal strength to bars.
+  TEST_ASSERT_EQUAL(4, wsoft_ui_wifi_bars(-50));
+  TEST_ASSERT_EQUAL(3, wsoft_ui_wifi_bars(-67));
+  TEST_ASSERT_EQUAL(2, wsoft_ui_wifi_bars(-75));
+  TEST_ASSERT_EQUAL(1, wsoft_ui_wifi_bars(-90));
+  // A Hub fault shows its own words in red; not paired yet is grey, not a fault.
+  in.hub_online = false;
+  in.hub_text = "HUB REJECTED";
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL_STRING("HUB REJECTED", model.hub);
+  TEST_ASSERT_EQUAL(WSOFT_UI_TONE_BAD, model.hub_tone);
+  in.hub_setup = true;
+  in.hub_text = "HUB SETUP";
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL_STRING("HUB SETUP", model.hub);
+  TEST_ASSERT_EQUAL(WSOFT_UI_TONE_SOFT, model.hub_tone);
+  // Wi-Fi down: no address, no bars, and the Hub is just red (the bar already says why).
+  in.hub_setup = false;
+  in.hub_text = "HUB NO WIFI";
+  in.wifi_up = false;
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL_STRING("NO WI-FI", model.ip);
+  TEST_ASSERT_EQUAL(0, model.wifi_bars);
+  TEST_ASSERT_EQUAL_STRING("HUB", model.hub);
+  TEST_ASSERT_EQUAL(WSOFT_UI_TONE_BAD, model.hub_tone);
+  // The scale link: red without a signal, yellow on an alarm.
+  in.linked = false;
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL(WSOFT_UI_TONE_BAD, model.link_tone);
+  in.linked = true;
+  in.alarm = true;
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL(WSOFT_UI_TONE_WAIT, model.link_tone);
+}
+
+void test_model_the_band_above_the_weight() {
+  WsoftUiInput in = weighing();
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL(WSOFT_UI_SLOT_NONE, model.slot);
+  // A yellow save notice, in the words of wsoft_save_notice.
+  in.waiting = WSOFT_SAVE_OUT_OF_LIMITS;
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL(WSOFT_UI_SLOT_WAIT, model.slot);
+  TEST_ASSERT_EQUAL_STRING("OUTSIDE HI-LO LIMITS", model.slot_title);
+  TEST_ASSERT_EQUAL_STRING("Tap SAVE twice to save anyway", model.slot_detail);
+  // The Wi-Fi alert goes over a yellow notice ...
+  in.wifi_alert = true;
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL(WSOFT_UI_SLOT_WIFI, model.slot);
+  // ... and a red notice goes over the Wi-Fi alert: nothing saves until the person acts.
+  in.waiting = WSOFT_SAVE_NEED_ZERO;
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL(WSOFT_UI_SLOT_STOP, model.slot);
+  TEST_ASSERT_EQUAL_STRING("TAKE THE LOAD OFF", model.slot_title);
+  // "Saved, take it off" and Writer mode are not problems: no band (the SAVE box says it).
+  in.wifi_alert = false;
+  in.waiting = WSOFT_SAVE_ALREADY;
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL(WSOFT_UI_SLOT_NONE, model.slot);
+  in.waiting = WSOFT_SAVE_WRITER;
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL(WSOFT_UI_SLOT_NONE, model.slot);
+}
+
+void test_model_trade_row() {
+  WsoftUiInput in = weighing();
+  in.audit = 7;
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_FALSE(model.trade_ok);
+  TEST_ASSERT_EQUAL_STRING("APPROVAL OFF", model.reason);
+  TEST_ASSERT_EQUAL(WSOFT_UI_TONE_SOFT, model.reason_tone);
+  TEST_ASSERT_EQUAL_STRING("AUDIT 7", model.audit);
+  TEST_ASSERT_EQUAL_STRING("STABLE", model.steady);
+  in.check = TRADE_OK;
+  in.trade_seq = 41;
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_TRUE(model.trade_ok);
+  TEST_ASSERT_EQUAL_STRING("SEQ 41", model.reason);
+  TEST_ASSERT_EQUAL(WSOFT_UI_TONE_OK, model.reason_tone);
+  in.check = TRADE_MOTION;
+  in.stable = false;
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_FALSE(model.trade_ok);
+  TEST_ASSERT_EQUAL_STRING("MOTION", model.reason);
+  TEST_ASSERT_EQUAL(WSOFT_UI_TONE_WAIT, model.reason_tone);
+  TEST_ASSERT_EQUAL_STRING("UNSTABLE", model.steady);
+  TEST_ASSERT_EQUAL(WSOFT_UI_TONE_WAIT, model.steady_tone);
+  // The scale setup's holds win over the plain reason while Approval is on.
+  in.hold = WSOFT_HOLD_BELOW_MIN;
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL_STRING("BELOW MIN", model.reason);
+  in.hold = WSOFT_HOLD_BLANK;
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL_STRING("OUT OF RANGE", model.reason);
+  in.check = TRADE_NO_SIGNAL;
+  in.hold = WSOFT_HOLD_NONE;
+  in.linked = false;
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL_STRING("NO SIGNAL", model.reason);
+  TEST_ASSERT_EQUAL_STRING("NO SIGNAL", model.steady);
+  TEST_ASSERT_EQUAL(WSOFT_UI_TONE_BAD, model.steady_tone);
+}
+
+void test_model_weight_and_gross() {
+  WsoftUiInput in = weighing();
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL_STRING("NET", model.label);
+  TEST_ASSERT_EQUAL_STRING("50.120", model.weight);
+  TEST_ASSERT_EQUAL_STRING("kg", model.unit);
+  TEST_ASSERT_EQUAL_STRING("50.120 kg", model.gross);
+  TEST_ASSERT_TRUE(model.live);
+  // A tare: the big number is the net weight, GROSS keeps the gross.
+  in.tared = true;
+  in.gross = 52620;
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL_STRING("NET (TARE)", model.label);
+  TEST_ASSERT_EQUAL_STRING("50.120", model.weight);
+  TEST_ASSERT_EQUAL_STRING("52.620 kg", model.gross);
+  // Blanked: dashes for the weight, never a number that may not be shown.
+  in.hold = WSOFT_HOLD_BLANK;
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL_STRING("----", model.weight);
+  // No signal: dashes everywhere. A failed poll is never a weight.
+  in.hold = WSOFT_HOLD_NONE;
+  in.linked = false;
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL_STRING("----", model.weight);
+  TEST_ASSERT_EQUAL_STRING("----", model.gross);
+  TEST_ASSERT_FALSE(model.live);
+}
+
+void test_model_hilo_follows_the_relay_zone() {
+  WsoftUiInput in = weighing();
+  WsoftHiloProduct product = maize();
+  in.product = &product;
+  in.product_count = 2;
+  in.zone = WSOFT_RELAY_OK;
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL(WSOFT_UI_ZONE_OK, model.zone);
+  TEST_ASSERT_EQUAL_STRING("OK", model.word);
+  TEST_ASSERT_EQUAL(WSOFT_UI_TONE_OK, model.word_tone);
+  TEST_ASSERT_TRUE(model.product_on);
+  TEST_ASSERT_EQUAL_STRING("MAIZE", model.product);
+  TEST_ASSERT_EQUAL_STRING("TARGET 50 KG", model.target);
+  TEST_ASSERT_EQUAL_STRING("49", model.low);
+  TEST_ASSERT_EQUAL_STRING("51", model.high);
+  TEST_ASSERT_EQUAL(wsoft_ui_pointer(50120, 49000, 51000), model.pointer);
+  in.zone = WSOFT_RELAY_LOW;
+  in.gross = in.net = 47350;
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL(WSOFT_UI_ZONE_LOW, model.zone);
+  TEST_ASSERT_EQUAL_STRING("TOO LOW", model.word);
+  TEST_ASSERT_EQUAL(WSOFT_UI_TONE_WAIT, model.word_tone);
+  in.zone = WSOFT_RELAY_HIGH;
+  in.gross = in.net = 52480;
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL(WSOFT_UI_ZONE_HIGH, model.zone);
+  TEST_ASSERT_EQUAL_STRING("TOO HIGH", model.word);
+  TEST_ASSERT_EQUAL(WSOFT_UI_TONE_BAD, model.word_tone);
+  // The marker follows the net weight in the reading's own unit: 0.05 t is 50 kg.
+  in.zone = WSOFT_RELAY_OK;
+  in.gross = in.net = 50;
+  in.decimals = 3;
+  in.unit = 2;
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL(500, model.pointer);
+}
+
+void test_model_hilo_without_a_zone() {
+  WsoftUiInput in = weighing();
+  WsoftHiloProduct product = maize();
+  // No product picked.
+  in.product_count = 2;
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL(WSOFT_UI_ZONE_NONE, model.zone);
+  TEST_ASSERT_FALSE(model.product_on);
+  TEST_ASSERT_EQUAL_STRING("NO PRODUCT", model.word);
+  TEST_ASSERT_EQUAL_STRING("PICK ONE IN THE MENU", model.target);
+  TEST_ASSERT_EQUAL(-1, model.pointer);
+  in.product_count = 0;
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL_STRING("SET LIMITS ON THE HUB", model.target);
+  // A product, nothing on the scale: the relays are off, so no colour and no "too low".
+  in.product = &product;
+  in.product_count = 2;
+  in.gross = in.net = 0;
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL(WSOFT_UI_ZONE_NONE, model.zone);
+  TEST_ASSERT_EQUAL_STRING("EMPTY", model.word);
+  TEST_ASSERT_EQUAL(WSOFT_UI_TONE_SOFT, model.word_tone);
+  TEST_ASSERT_EQUAL(0, model.pointer);
+  // A load is on but the relays have not switched yet (they wait two polls): the word of
+  // the check, without a colour.
+  in.gross = in.net = 50120;
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL_STRING("OK", model.word);
+  TEST_ASSERT_EQUAL(WSOFT_UI_TONE_SOFT, model.word_tone);
+  TEST_ASSERT_EQUAL(WSOFT_UI_ZONE_NONE, model.zone);
+  // An alarm, a blanked reading and no signal each say so, and show no marker.
+  in.alarm = true;
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL_STRING("ALARM", model.word);
+  TEST_ASSERT_EQUAL(WSOFT_UI_TONE_BAD, model.word_tone);
+  TEST_ASSERT_EQUAL(-1, model.pointer);
+  in.alarm = false;
+  in.hold = WSOFT_HOLD_BLANK;
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL_STRING("OUT OF RANGE", model.word);
+  TEST_ASSERT_EQUAL(-1, model.pointer);
+  in.hold = WSOFT_HOLD_NONE;
+  in.linked = false;
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL_STRING("WAITING", model.word);
+  TEST_ASSERT_EQUAL(-1, model.pointer);
+}
+
+void test_model_product_names() {
+  WsoftUiInput in = weighing();
+  WsoftHiloProduct product = maize();
+  in.product = &product;
+  // Capitals; a letter the screen cannot draw becomes one '?'.
+  strcpy(product.name, "Caf\xC3\xA9 beans");
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL_STRING("CAF? BEANS", model.product);
+  // No name: the code.
+  product.name[0] = 0;
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL_STRING("MZ50", model.product);
+}
+
+void test_model_save_button() {
+  WsoftUiInput in = weighing();
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL_STRING("TAP TO SAVE", model.save_line);
+  TEST_ASSERT_EQUAL(WSOFT_UI_LOOK_ON, model.save_look);
+  in.auto_save = true;
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL_STRING("AUTO SAVE ON", model.save_line);
+  in.pending = 3;
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL_STRING("3 TO SEND", model.save_line);
+  // Saved: the load must come off before the next one.
+  in.waiting = WSOFT_SAVE_ALREADY;
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL_STRING("TAKE LOAD OFF", model.save_line);
+  TEST_ASSERT_EQUAL(WSOFT_UI_LOOK_BTN, model.save_look);
+  // The last result shows for its 3 seconds, over everything else.
+  in.recent = WSOFT_SAVE_SAVED;
+  in.saved_seq = 8;
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL_STRING("SAVED #8", model.save_line);
+  TEST_ASSERT_EQUAL(WSOFT_UI_LOOK_ON, model.save_look);
+  in.recent = WSOFT_SAVE_OUT_OF_LIMITS;
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL_STRING("TAP AGAIN: SAVE", model.save_line);
+  TEST_ASSERT_EQUAL(WSOFT_UI_LOOK_BAD, model.save_look);
+  in.recent = WSOFT_SAVE_NEED_ZERO;
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL_STRING("TAKE LOAD OFF", model.save_line);
+  TEST_ASSERT_EQUAL(WSOFT_UI_LOOK_BTN, model.save_look);
+  // A Writer never saves: the button says so, greyed.
+  in.recent = WSOFT_SAVE_NONE;
+  in.writer = true;
+  in.waiting = WSOFT_SAVE_WRITER;
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL_STRING("WRITER: NO SAVE", model.save_line);
+  TEST_ASSERT_EQUAL(WSOFT_UI_LOOK_BTN, model.save_look);
+}
+
+void test_model_menu_tiles() {
+  WsoftUiInput in = weighing();
+  WsoftHiloProduct product = maize();
+  in.page = WSOFT_UI_PAGE_MENU;
+  in.message = "AUTO SAVE ON";
+  in.auto_save = true;
+  in.product_count = 0;
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL(WSOFT_UI_PAGE_MENU, model.page);
+  TEST_ASSERT_EQUAL_STRING("MENU", model.title);
+  TEST_ASSERT_EQUAL_STRING("AUTO SAVE ON", model.message);
+  // An RS232 board: Approval, Auto save, Product, Screen, Wi-Fi.
+  TEST_ASSERT_EQUAL(5, model.tile_count);
+  TEST_ASSERT_EQUAL(WSOFT_UI_TILE_APPROVAL, model.tiles[0].id);
+  TEST_ASSERT_EQUAL_STRING("OFF", model.tiles[0].value);
+  TEST_ASSERT_EQUAL(WSOFT_UI_LOOK_BTN, model.tiles[0].look);
+  TEST_ASSERT_EQUAL(WSOFT_UI_TILE_AUTO, model.tiles[1].id);
+  TEST_ASSERT_EQUAL_STRING("ON", model.tiles[1].value);
+  TEST_ASSERT_EQUAL(WSOFT_UI_LOOK_ON, model.tiles[1].look);
+  TEST_ASSERT_EQUAL(WSOFT_UI_TILE_PRODUCT, model.tiles[2].id);
+  TEST_ASSERT_EQUAL_STRING("NONE ON THE HUB", model.tiles[2].value);
+  TEST_ASSERT_EQUAL(WSOFT_UI_TILE_THEME, model.tiles[3].id);
+  TEST_ASSERT_EQUAL_STRING("DARK", model.tiles[3].value);
+  TEST_ASSERT_EQUAL(WSOFT_UI_TILE_WIFI, model.tiles[4].id);
+  TEST_ASSERT_EQUAL_STRING("192.168.0.142", model.tiles[4].value);
+  // An RS485 board with a preset tare gets TARE and PRESET TARE too.
+  in.rs485 = true;
+  in.approval_on = true;
+  in.tare_on = true;
+  in.tare_value = 2500;
+  in.preset_on = true;
+  in.preset_text = "2.5 kg";
+  in.product = &product;
+  in.product_count = 2;
+  in.dark = false;
+  in.wifi_up = false;
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL(7, model.tile_count);
+  TEST_ASSERT_EQUAL_STRING("ON", model.tiles[0].value);
+  TEST_ASSERT_EQUAL(WSOFT_UI_TILE_TARE, model.tiles[2].id);
+  TEST_ASSERT_EQUAL_STRING("2.500 kg", model.tiles[2].value);
+  TEST_ASSERT_EQUAL(WSOFT_UI_LOOK_ON, model.tiles[2].look);
+  TEST_ASSERT_EQUAL(WSOFT_UI_TILE_PRESET, model.tiles[3].id);
+  TEST_ASSERT_EQUAL_STRING("2.5 kg", model.tiles[3].value);
+  TEST_ASSERT_EQUAL_STRING("MAIZE", model.tiles[4].value);
+  TEST_ASSERT_EQUAL(WSOFT_UI_LOOK_ON, model.tiles[4].look);
+  TEST_ASSERT_EQUAL_STRING("LIGHT", model.tiles[5].value);
+  TEST_ASSERT_EQUAL_STRING("OFF", model.tiles[6].value);
+  TEST_ASSERT_FALSE(model.dark);
+}
+
+void test_model_pages() {
+  WsoftUiInput in = weighing();
+  in.page = WSOFT_UI_PAGE_PIN;
+  in.pin_count = 3;
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL_STRING("ENTER PIN", model.title);
+  TEST_ASSERT_EQUAL(3, model.pin_count);
+  in.page = WSOFT_UI_PAGE_NO_PIN;
+  in.address = "192.168.0.142";
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL_STRING("APPROVAL", model.title);
+  TEST_ASSERT_EQUAL_STRING("192.168.0.142", model.address);
+  in.page = WSOFT_UI_PAGE_WIFI;
+  in.wifi_up = false;
+  in.address = "192.168.4.1";
+  in.ap_name = "Weighsoft-Esp-NEW";
+  in.wifi_trying = true;
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL_STRING("WI-FI", model.title);
+  TEST_ASSERT_EQUAL_STRING("Weighsoft-Esp-NEW", model.ap_name);
+  TEST_ASSERT_TRUE(model.wifi_trying);
+}
+
+void test_model_same_facts_same_bytes() {
+  // The board compares models byte by byte to see what changed.
+  WsoftUiInput in = weighing();
+  static WsoftUiModel a, b;
+  memset(&a, 0xFF, sizeof a);
+  memset(&b, 0x00, sizeof b);
+  wsoft_ui_model(in, &a);
+  wsoft_ui_model(in, &b);
+  TEST_ASSERT_EQUAL_MEMORY(&a, &b, sizeof a);
+  // And a text too long for its place is cut, never run over its neighbour.
+  in.ip = "1234:5678:9abc:def0:1234:5678:9abc:def0";
+  in.message = "A MESSAGE THAT IS MUCH TOO LONG FOR THE ROOM IT HAS ON THE SCREEN";
+  wsoft_ui_model(in, &a);
+  TEST_ASSERT_EQUAL(sizeof a.ip - 1, strlen(a.ip));
+  TEST_ASSERT_EQUAL(sizeof a.message - 1, strlen(a.message));
+}
+
+void test_model_plate_line() {
+  WsoftScaleSetup setup;
+  WsoftCardFormat card;
+  char plate[64];
+  // Nothing set: no plate.
+  wsoft_ui_plate_text(setup, card, plate, sizeof plate);
+  TEST_ASSERT_EQUAL_STRING("", plate);
+  TEST_ASSERT_TRUE(wsoft_kg_parse("150", &setup.max_kg));
+  TEST_ASSERT_TRUE(wsoft_kg_parse("1", &setup.min_kg));
+  strcpy(setup.sa_number, "1234/56");
+  card.read = true;
+  card.division = 5;
+  card.decimal = 2;
+  card.unit = 1;
+  wsoft_ui_plate_text(setup, card, plate, sizeof plate);
+  TEST_ASSERT_EQUAL_STRING("SA 1234/56   MAX 150 MIN 1 E 0.05 KG", plate);
+  // What is not known yet shows as '-' or '?', as on the old screen.
+  setup.sa_number[0] = 0;
+  setup.min_kg = WSOFT_KG_UNSET;
+  card.read = false;
+  wsoft_ui_plate_text(setup, card, plate, sizeof plate);
+  TEST_ASSERT_EQUAL_STRING("SA -   MAX 150 MIN - E ? KG", plate);
+}
+
 // ---------- every test screen against the reference drawing ----------
 
 static uint16_t frame[800 * 480];
@@ -239,6 +665,18 @@ int main(int, char **) {
   RUN_TEST(test_text_width_and_alignment);
   RUN_TEST(test_marker_position_on_the_bar);
   RUN_TEST(test_tap_boxes);
+  RUN_TEST(test_model_status_bar);
+  RUN_TEST(test_model_the_band_above_the_weight);
+  RUN_TEST(test_model_trade_row);
+  RUN_TEST(test_model_weight_and_gross);
+  RUN_TEST(test_model_hilo_follows_the_relay_zone);
+  RUN_TEST(test_model_hilo_without_a_zone);
+  RUN_TEST(test_model_product_names);
+  RUN_TEST(test_model_save_button);
+  RUN_TEST(test_model_menu_tiles);
+  RUN_TEST(test_model_pages);
+  RUN_TEST(test_model_same_facts_same_bytes);
+  RUN_TEST(test_model_plate_line);
   RUN_TEST(test_there_is_a_golden_for_every_screen);
   RUN_TEST(test_every_screen_on_the_yellow_board);
   RUN_TEST(test_every_screen_on_the_waveshare);
