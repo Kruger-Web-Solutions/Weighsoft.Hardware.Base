@@ -23,6 +23,8 @@ class SerialWriterForwarderState {
   String        lastWeight;
   String        lastUnit;     // from a W-Soft weigh board's feed; empty from a Serial reader
   String        lastSent;     // the formatted line sent out of the port
+  bool          hasProduct = false;  // the source sent a product (a W-Soft weigh board does)
+  String        lastProduct;  // its product code ("" = none)
   uint16_t      reconnectAttempts = 0;
   String        lastError;
 
@@ -48,6 +50,7 @@ class SerialWriterForwarderState {
     root["last_weight"]        = state.lastWeight;
     root["last_unit"]          = state.lastUnit;
     root["last_sent"]          = state.lastSent;
+    root["last_product"]       = state.lastProduct;
     root["reconnect_attempts"] = state.reconnectAttempts;
     root["last_error"]         = state.lastError;
   }

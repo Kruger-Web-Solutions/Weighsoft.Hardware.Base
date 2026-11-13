@@ -451,10 +451,21 @@ void SerialWriterForwarderService::onReaderData(JsonObject data) {
     s.lastWeight = fields.weight;
     s.lastUnit = fields.unit;
     s.lastSent = sent;
+    s.hasProduct = data.containsKey("product");
+    s.lastProduct = data["product"] | "";
     s.lastReceivedAt = millis();
     s.lastError = ok ? "" : "Not sent: the format needs a weight, or the line is too long";
     return StateUpdateResult::CHANGED;
   }, "fwd-rx");
+}
+
+bool SerialWriterForwarderService::latestProduct(String* code) {
+  bool has = false;
+  read([&](const SerialWriterForwarderState& s) {
+    has = s.hasProduct;
+    *code = s.lastProduct;
+  });
+  return has;
 }
 
 bool SerialWriterForwarderService::latestWeight(char* weight, size_t size, uint32_t* receivedMs, int* unit) {

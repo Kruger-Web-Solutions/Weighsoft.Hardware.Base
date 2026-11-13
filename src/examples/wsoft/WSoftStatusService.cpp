@@ -9,6 +9,7 @@
 
 #include <RestartService.h>
 
+#include <hilo.h>
 #include <hub_web.h>
 #include <scale.h>
 #include <weighings.h>
@@ -331,6 +332,9 @@ String WSoftStatusService::feedJson() {
   JsonObject root = doc.to<JsonObject>();
   JsonObjectSink sink(root);
   wsoft_feed_write(latest, sink);
+  // The product in use, so a Writer can follow it ("" = none).
+  WsoftHiloProduct product;
+  root["product"] = hilo_current(&product) ? String(product.code) : String();
   String json;
   serializeJson(doc, json);
   return json;

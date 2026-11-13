@@ -17,6 +17,7 @@
 #endif
 #if FT_ENABLED(FT_WSOFT)
 #include <wsoft_screen.h>
+#include <hilo.h>
 #endif
 #include "VersionService.h"
 #include "UartModeService.h"
@@ -552,7 +553,12 @@ void loop() {
 #if FT_ENABLED(FT_WSOFT)
   if (serialService) serialService->loop();
   if (serialWriterService) serialWriterService->loop();
-  if (serialWriterForwarderService) serialWriterForwarderService->loop();
+  if (serialWriterForwarderService) {
+    serialWriterForwarderService->loop();
+    // Writer: the same product as the weigh board, so screen, relays and Hub match.
+    String product;
+    if (serialWriterForwarderService->latestProduct(&product)) hilo_follow(product.c_str());
+  }
   if (wsoftStatusService) wsoftStatusService->loop();
 #if FT_ENABLED(FT_WSOFT_RELAY)
   if (relayBoardService) relayBoardService->loop();

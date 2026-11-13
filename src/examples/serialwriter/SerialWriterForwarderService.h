@@ -32,6 +32,8 @@ class SerialWriterForwarderService : public StatefulService<SerialWriterForwarde
   // code (1 kg, 2 t, 3 g; left alone when the source sent no unit). False before the first
   // weight. Safe from another task (the W-Soft screen task in Writer mode).
   bool latestWeight(char* weight, size_t size, uint32_t* receivedMs, int* unit);
+  // The weigh board's product code ("" = none). False when the source sends no product.
+  bool latestProduct(String* code);
 
  private:
   HttpEndpoint<SerialWriterForwarderState>  _httpEndpoint;

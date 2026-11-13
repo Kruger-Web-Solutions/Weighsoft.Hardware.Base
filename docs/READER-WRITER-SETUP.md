@@ -46,6 +46,7 @@ The word "Reader" is not used on W-Soft boards.
 | Saves weighings | Yes (SAVE, Auto save) | **Never** (`WSOFT_SAVE_WRITER`), so nothing is counted twice |
 | Hub | Heartbeats + weighings | Heartbeats only; the pairing stays when you flip the switch |
 | Hi-Lo relays | Follow the zone | Off, unless "In Writer mode, switch the relays too" is on |
+| Product | Picked on its screen or by the Hub | Follows the weigh board's product (feed field `product`); a code it does not hold = no product |
 | Screen header | `RS485 LIVE` / `RS232 LIVE` | `WRITER LIVE`, or `NO WEIGH BOARD` |
 
 How to set it up:
