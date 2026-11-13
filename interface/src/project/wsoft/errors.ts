@@ -26,6 +26,13 @@ const PLAIN: Record<string, string> = {
     'A value is out of range: stable samples 3 to 20, blank counts 0 to 100, ' +
     'most tare up to Max, preset tare up to most tare.',
   COMMAND_EXPIRED: 'The command waited too long and was dropped.',
+  BAD_CODE: 'Code: 1 to 32 letters, numbers, - or _. No spaces.',
+  BAD_NAME: 'Name: 1 to 24 plain letters, numbers or signs.',
+  BAD_LIMITS: 'Low must be below High, and Target between them.',
+  HUB_CODE: 'That code belongs to the Hub. Pick another code.',
+  DUPLICATE: 'This board already has a product with that code.',
+  FULL: 'This board holds 20 products. Delete one first.',
+  NOT_FOUND: 'That product is not on this board any more.',
   // /rest/djb codes are lower case.
   not_linked: 'The weighing card is not linked. Check the RS485 cable.',
   approval_on: 'Switch Approval off to change the setup.',

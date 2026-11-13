@@ -48,7 +48,7 @@ const WSoftInfo: FC = () => (
     <Alert severity="info" sx={{ mt: 2 }}>
       Endpoints: GET /rest/wsoftStatus · WebSocket /ws/wsoftStatus · MQTT &lt;base path&gt;/status ·
       GET/POST /rest/wsoftSettings (admin) · GET/POST /rest/wsoftHub (admin) · GET /rest/wsoftSwitches ·
-      POST /rest/wsoftSwitches (admin) · POST /rest/wsoftPin (admin) · GET /rest/wsoftScaleSetup ·
+      POST /rest/wsoftSwitches (admin) · POST /rest/wsoftPin (admin) · GET/POST /rest/wsoftProducts (POST admin) · GET /rest/wsoftScaleSetup ·
       POST /rest/wsoftScaleSetup (admin) · POST /rest/djb (admin)
     </Alert>
   </SectionContent>

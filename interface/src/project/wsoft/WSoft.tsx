@@ -9,6 +9,7 @@ import { PROJECT_PATH } from '../../api/env';
 
 import WSoftInfo from './WSoftInfo';
 import WSoftLive from './WSoftLive';
+import WSoftProducts from './WSoftProducts';
 import WSoftScaleSetup from './WSoftScaleSetup';
 import WSoftSettingsForm from './WSoftSettingsForm';
 
@@ -22,12 +23,14 @@ const WSoft: FC = () => {
     <>
       <RouterTabs value={routerTab}>
         <Tab value="live" label="Live" />
+        <Tab value="products" label="Products" />
         <Tab value="setup" label="Scale setup" />
         {isAdmin && <Tab value="settings" label="Settings" />}
         <Tab value="info" label="Information" />
       </RouterTabs>
       <Routes>
         <Route path="live" element={<WSoftLive />} />
+        <Route path="products" element={<WSoftProducts />} />
         <Route path="setup" element={<WSoftScaleSetup />} />
         {isAdmin && <Route path="settings" element={<WSoftSettingsForm />} />}
         {/* The Hub moved to its own sidebar item; old links still work. */}

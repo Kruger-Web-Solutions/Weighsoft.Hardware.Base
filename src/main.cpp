@@ -12,6 +12,7 @@
 #include <examples/wsoft/WSoftSettingsService.h>
 #include <examples/wsoft/WSoftStatusService.h>
 #include <examples/wsoft/WSoftSwitchesService.h>
+#include <examples/wsoft/WSoftProductsService.h>
 #if FT_ENABLED(FT_WSOFT_RELAY)
 #include <examples/relay/RelayBoardService.h>
 #endif
@@ -155,6 +156,7 @@ LcdDisplayService* lcdDisplayService;
 WSoftSettingsService* wsoftSettingsService;
 WSoftStatusService* wsoftStatusService;
 WSoftSwitchesService* wsoftSwitchesService;
+WSoftProductsService* wsoftProductsService;
 #if FT_ENABLED(FT_WSOFT_RELAY)
 RelayBoardService* relayBoardService;
 #endif
@@ -407,6 +409,8 @@ void setup() {
   wsoftStatusService->begin();
   // Switches, the screen PIN and the RS485 scale setup on the web (after begin: the stores are loaded).
   wsoftSwitchesService = new WSoftSwitchesService(server, esp8266React->getSecurityManager());
+  // Products on the web page: Hub ones read-only, board ones added and edited here.
+  wsoftProductsService = new WSoftProductsService(server, esp8266React->getSecurityManager());
 #if FT_ENABLED(FT_WSOFT_RELAY)
   // Hi-Lo relay outputs: all OFF here, then they follow the zone the screen task posts.
   relayBoardService = new RelayBoardService(server, esp8266React->getSecurityManager(), wsoftSettingsService);

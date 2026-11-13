@@ -224,3 +224,30 @@ export interface WSoftRelayStatus {
   hilo: { enabled: boolean; relay_low: number; relay_ok: number; relay_high: number; zone: string };
   relays: WSoftRelayBoard;
 }
+
+/** One product on GET /rest/wsoftProducts. Limits in whole grams. */
+export interface WSoftProduct {
+  code: string;
+  name: string;
+  low_g: number;
+  target_g: number;
+  high_g: number;
+  /** hub = pulled from the Hub (read-only here); board = made on this board. */
+  from: 'hub' | 'board';
+  /** A board product the Hub now has the same code for: the Hub one is used. */
+  hidden: boolean;
+}
+
+export interface WSoftProducts {
+  /** Code in use, "" = no product. */
+  current: string;
+  board_max: number;
+  products: WSoftProduct[];
+}
+
+export type WSoftProductInput = Pick<WSoftProduct, 'code' | 'name' | 'low_g' | 'target_g' | 'high_g'>;
+
+export type WSoftProductAction =
+  | { action: 'put'; old_code: string; product: WSoftProductInput }
+  | { action: 'delete'; code: string }
+  | { action: 'use'; code: string };
