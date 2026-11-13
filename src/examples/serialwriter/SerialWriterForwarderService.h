@@ -28,6 +28,13 @@ class SerialWriterForwarderService : public StatefulService<SerialWriterForwarde
   void start();
   void stop();
 
+  // The newest weight received (the number only), the millis() it arrived and its DJB unit
+  // code (1 kg, 2 t, 3 g; left alone when the source sent no unit). False before the first
+  // weight. Safe from another task (the W-Soft screen task in Writer mode).
+  bool latestWeight(char* weight, size_t size, uint32_t* receivedMs, int* unit);
+  // The weigh board's product code ("" = none). False when the source sends no product.
+  bool latestProduct(String* code);
+
  private:
   HttpEndpoint<SerialWriterForwarderState>  _httpEndpoint;
   FSPersistence<SerialWriterForwarderState> _fsPersistence;
@@ -41,7 +48,6 @@ class SerialWriterForwarderService : public StatefulService<SerialWriterForwarde
 
   unsigned long _lastAnnounceMs = 0;
   String        _announceUrl;   // e.g. "http://192.168.2.50/rest/writers/announce"
-  String        _readerAccessToken;
   unsigned long _lastPollMs = 0;
   String        _serialRestUrl;
   uint8_t       _readerPollFailures = 0;
@@ -51,6 +57,7 @@ class SerialWriterForwarderService : public StatefulService<SerialWriterForwarde
   void connectReader();
   void disconnectWs();
   void onWiFiGotIP();
+  uint32_t _lastTimestamp = 0;  // the source's timestamp of the last line handled (0 = none)
   uint8_t _activeConnectionMethod = SERIALW_FWD_METHOD_WS;
   bool _wifiWasConnected = false;
 
@@ -60,7 +67,7 @@ class SerialWriterForwarderService : public StatefulService<SerialWriterForwarde
   void pollReaderRest();
   void markReaderOk();
   void handleReaderPollFailure(const String& message);
-  String fetchReaderAccessToken(const String& host, uint16_t port);
+  void onReaderData(JsonObject data);
 };
 
 #endif

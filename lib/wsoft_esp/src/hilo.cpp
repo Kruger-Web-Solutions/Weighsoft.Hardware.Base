@@ -84,6 +84,23 @@ void hilo_select_next() {
   WSOFT_LOG.printf("HILO operator picked %s\n", code[0] ? code : "no product");
 }
 
+void hilo_follow(const char *code) {
+  if (code == nullptr) return;
+  char now[WSOFT_HILO_CODE_MAX + 1];
+  portENTER_CRITICAL(&lock);
+  const char *want = wsoft_hilo_find(list, code) != nullptr ? code : "";
+  bool same = strcmp(pick.current, want) == 0;
+  if (!same) {
+    strlcpy(pick.current, want, sizeof pick.current);
+    next_pull_ms = millis() + AFTER_PICK_MS;
+  }
+  strlcpy(now, pick.current, sizeof now);
+  portEXIT_CRITICAL(&lock);
+  if (same) return;
+  save(false);
+  WSOFT_LOG.printf("HILO following the weigh board: %s\n", now[0] ? now : "no product");
+}
+
 bool hilo_pull_due() {
   portENTER_CRITICAL(&lock);
   bool due = (int32_t)(millis() - next_pull_ms) >= 0;

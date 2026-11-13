@@ -65,7 +65,7 @@ String WSoftSettingsService::mqttUniqueId() {
 
 void WSoftSettingsService::relayConfig(bool* enabled, uint8_t* low, uint8_t* ok, uint8_t* high) {
   read([&](const WSoftSettings& s) {
-    *enabled = FT_ENABLED(FT_WSOFT_RELAY) && s.data.relay_enabled;
+    *enabled = FT_ENABLED(FT_WSOFT_RELAY) && s.data.relay_enabled && (!_writerMode || s.data.relay_writer_follow);
     *low = s.data.relay_low;
     *ok = s.data.relay_ok;
     *high = s.data.relay_high;

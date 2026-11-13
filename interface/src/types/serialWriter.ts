@@ -31,10 +31,15 @@ export interface SerialWriterForwarderData {
   connection_method: 0 | 1;  // 0=WS, 1=HTTP
   auto_reconnect: boolean;
   enabled: boolean;
+  // Weight formatter template: {line} {weight} {unit} {stable}; "{line}" sends the line as received.
+  output_format: string;
 
   connected: boolean;
   last_received_at: number;
   last_received: string;
+  last_weight?: string;
+  last_unit?: string;
+  last_sent?: string;
   reconnect_attempts: number;
   last_error: string;
 }

@@ -44,6 +44,9 @@ struct WSoftSettingsData {
   uint8_t relay_low;
   uint8_t relay_ok;
   uint8_t relay_high;
+  // Writer mode only (Rhyno, 12 Nov 2026): the relays follow the weigh board's weight.
+  // OFF by default: a Writer's relays stay off.
+  bool relay_writer_follow;
 };
 
 // One field per option. A missing field (has_* false or a null string) takes its default:
@@ -67,6 +70,8 @@ struct WSoftSettingsInput {
   int64_t relay_ok = 0;
   bool has_relay_high = false;
   int64_t relay_high = 0;
+  bool has_relay_writer_follow = false;
+  bool relay_writer_follow = false;
 };
 
 enum WSoftSettingsResult { WSOFT_SETTINGS_UNCHANGED, WSOFT_SETTINGS_CHANGED, WSOFT_SETTINGS_ERROR };

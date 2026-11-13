@@ -166,6 +166,20 @@ void test_relay_is_off_by_default_on_relays_1_2_3() {
   TEST_ASSERT_EQUAL(1, s.relay_low);
   TEST_ASSERT_EQUAL(2, s.relay_ok);
   TEST_ASSERT_EQUAL(3, s.relay_high);
+  TEST_ASSERT_FALSE(s.relay_writer_follow);
+}
+
+void test_relay_writer_follow_applies_and_an_old_page_turns_it_off() {
+  WSoftSettingsData s = defaults();
+  WSoftSettingsInput in;
+  in.has_relay_writer_follow = true;
+  in.relay_writer_follow = true;
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_CHANGED, wsoft_settings_update(in, &s));
+  TEST_ASSERT_TRUE(s.relay_writer_follow);
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_UNCHANGED, wsoft_settings_update(in, &s));
+  WSoftSettingsInput old_page;
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_CHANGED, wsoft_settings_update(old_page, &s));
+  TEST_ASSERT_FALSE(s.relay_writer_follow);
 }
 
 void test_relay_settings_apply_and_report_changed() {
@@ -230,6 +244,7 @@ int main(int, char **) {
   RUN_TEST(test_bad_source_is_rejected_without_change);
   RUN_TEST(test_relay_is_off_by_default_on_relays_1_2_3);
   RUN_TEST(test_relay_settings_apply_and_report_changed);
+  RUN_TEST(test_relay_writer_follow_applies_and_an_old_page_turns_it_off);
   RUN_TEST(test_bad_relay_numbers_are_rejected_without_change);
   return UNITY_END();
 }

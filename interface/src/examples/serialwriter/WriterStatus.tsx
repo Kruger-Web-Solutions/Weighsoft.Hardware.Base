@@ -1,4 +1,4 @@
-import React, { FC, useEffect, useRef } from 'react';
+import React, { FC, useContext, useEffect, useRef } from 'react';
 import { useSnackbar } from 'notistack';
 import { Box, Button, Card, CardContent, Chip, Divider, TextField, Typography, Alert } from '@mui/material';
 import SettingsIcon from '@mui/icons-material/Settings';
@@ -7,11 +7,13 @@ import { SectionContent, FormLoader } from '../../components';
 import { useRest } from '../../utils';
 import { readSerialWriter, updateSerialWriter, readWriterSource } from '../../api/serialWriter';
 import { SerialWriterData, SerialWriterForwarderData } from '../../types/serialWriter';
+import { FeaturesContext } from '../../contexts/features';
 import {
   connectionMethodLabel,
   readerConnectionState,
   readerHostFromSourceUrl,
   serialSummary,
+  READER_UNREACHABLE_HINT,
 } from './serialWriterSource';
 
 const sourceLabels = ['none', 'manual', 'rest', 'ws', 'mqtt', 'reader'];
@@ -32,6 +34,8 @@ const formatObservedAgo = (observedAt: number | null): string => {
 
 const WriterStatus: FC = () => {
   const { enqueueSnackbar } = useSnackbar();
+  const { features } = useContext(FeaturesContext);
+  const wsoft = !!features.wsoft;
   const { data, loadData, saveData, saving, setData, errorMessage } = useRest<SerialWriterData>({
     read: readSerialWriter,
     update: updateSerialWriter,
@@ -88,14 +92,15 @@ const WriterStatus: FC = () => {
   }
 
   const connectionState = readerConnectionState(forwarder);
+  const name = wsoft ? 'weigh board' : 'Reader';
   const readerHost = readerHostFromSourceUrl(forwarder?.source_url || '');
   const connected = connectionState === 'connected';
 
   return (
     <SectionContent title="Status" titleGutter>
       <Alert severity="info" sx={{ mb: 2 }}>
-        Use this page during setup. It shows whether this Writer is pulling scale lines from the Reader and whether anything
-        left Serial1.
+        Use this page during setup. It shows whether this Writer is getting the weight from the {name} and whether
+        anything went out of its port.
       </Alert>
 
       <Card sx={{ mb: 2 }}>
@@ -106,7 +111,7 @@ const WriterStatus: FC = () => {
             value={data.friendly_name}
             onChange={(e) => setData((p) => p ? { ...p, friendly_name: e.target.value } : p)}
             placeholder={data.device_id}
-            helperText="Shown on the source Reader's Writers tab."
+            helperText={wsoft ? 'A name for this Writer.' : "Shown on the source Reader's Writers tab."}
           />
           <Box mt={1}><Button variant="contained" onClick={saveData} disabled={saving}>Save name</Button></Box>
         </CardContent>
@@ -116,9 +121,9 @@ const WriterStatus: FC = () => {
         <CardContent>
           <Box display="flex" justifyContent="space-between" alignItems="flex-start" gap={2} flexWrap="wrap">
             <Box>
-              <Typography variant="h6" gutterBottom>Serial Reader connection</Typography>
+              <Typography variant="h6" gutterBottom>{wsoft ? 'Weigh board connection' : 'Serial Reader connection'}</Typography>
               <Typography color="text.secondary" variant="body2">
-                The Reader is the device with the scale connected to it.
+                The {name} is the board with the scale connected to it.
               </Typography>
             </Box>
             <Button size="small" component={RouterLink} to="../settings" startIcon={<SettingsIcon />}>
@@ -133,21 +138,21 @@ const WriterStatus: FC = () => {
                   color={connected ? 'success' : forwarder.last_error ? 'error' : 'default'}
                   label={connected ? 'Connected' : 'Not connected'}
                 />
-                <Chip variant="outlined" label={readerHost || 'No Reader URL'} />
+                <Chip variant="outlined" label={readerHost || `No ${name} address`} />
                 <Chip variant="outlined" label={forwarder.enabled ? 'Enabled' : 'Disabled'} />
                 <Chip variant="outlined" label={connectionMethodLabel(forwarder.connection_method)} />
               </Box>
               {connected ? (
                 <Alert severity="success" sx={{ mb: 2 }}>
-                  Reader link is live. New scale lines will be written out through this Writer.
+                  Link to the {name} is live. New weights go out through this Writer.
                 </Alert>
               ) : forwarder.enabled ? (
                 <Alert severity={forwarder.last_error ? 'error' : 'warning'} sx={{ mb: 2 }}>
                   Trying to reconnect{forwarder.reconnect_attempts ? ` (attempt ${forwarder.reconnect_attempts})` : ''}.{' '}
-                  {forwarder.last_error || 'Check Reader power, WiFi, and URL.'}
+                  {forwarder.last_error || READER_UNREACHABLE_HINT}
                 </Alert>
               ) : (
-                <Alert severity="info" sx={{ mb: 2 }}>Serial Reader Source is disabled or not set up yet.</Alert>
+                <Alert severity="info" sx={{ mb: 2 }}>No {name} is set up or it is switched off. Go to Settings, Step 1.</Alert>
               )}
               <Typography variant="body2">Source URL: <code>{forwarder.source_url || '(not set)'}</code></Typography>
               <Typography variant="body2">

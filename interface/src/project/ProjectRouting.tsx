@@ -8,6 +8,7 @@ import WeightForwarder from '../examples/weightforwarder/WeightForwarder';
 import RemoteWeightMonitor from '../examples/remoteweight/RemoteWeightMonitor';
 import LcdDisplay from '../examples/lcddisplay/LcdDisplay';
 import WSoft from './wsoft/WSoft';
+import WSoftHubPage from './wsoft/WSoftHubPage';
 import { FeaturesContext } from '../contexts/features';
 
 const ProjectRouting: FC = () => {
@@ -46,6 +47,10 @@ const ProjectRouting: FC = () => {
         // W-Soft weigh screen (Waveshare 4.3 + DJB over RS485, env wsoft_waveshare43)
       }
       <Route path="wsoft/*" element={<WSoft />} />
+      {
+        // W-Soft Hub link (admin), its own sidebar item
+      }
+      {features.wsoft && <Route path="hub" element={<WSoftHubPage />} />}
     </Routes>
   );
 };

@@ -202,7 +202,7 @@ void test_full_view_field_order_is_stable() {
       "\"weight_text\":\"1.520 kg\",\"unit\":\"kg\",\"decimals\":3,\"stable\":false,\"alarm\":false,"
       "\"approval_on\":false,\"for_trade\":false,\"trade_check\":\"approval_off\",\"audit_counter\":0,"
       "\"last_trade_seq\":0,\"trade_queue\":0,\"hub\":\"HUB ONLINE\",\"hub_online\":true,\"polls\":9,"
-      "\"source\":\"rs485\",\"notice_code\":null,\"notice_title\":null,\"notice_detail\":null,"
+      "\"source\":\"rs485\",\"role\":\"weigh\",\"notice_code\":null,\"notice_title\":null,\"notice_detail\":null,"
       "\"notice_level\":null}",
       view(s).c_str());
 }
@@ -272,6 +272,52 @@ void test_weight_text_rejects_non_weights_without_change() {
   TEST_ASSERT_EQUAL_INT(9, d);
 }
 
+// The weigh board's feed for a Writer: the number only, and nothing when there is no live weight.
+void test_feed_weight_is_the_number_or_nothing() {
+  char w[24];
+  TEST_ASSERT_TRUE(wsoft_feed_weight(live(12345), w, sizeof w));
+  TEST_ASSERT_EQUAL_STRING("12.345", w);
+  WSoftSnapshot lost = live(12345);
+  lost.fresh = false;  // a failed poll is never a weight
+  TEST_ASSERT_FALSE(wsoft_feed_weight(lost, w, sizeof w));
+  TEST_ASSERT_EQUAL_STRING("", w);
+  TEST_ASSERT_FALSE(wsoft_feed_weight(WSoftSnapshot(), w, sizeof w));
+}
+
+static std::string feed(const WSoftSnapshot &s) {
+  StringSink sink;
+  wsoft_feed_write(s, sink);
+  return sink.done();
+}
+
+// The weigh board's feed for a Writer: the keys a Writer already reads, plus unit and stable.
+void test_feed_has_line_weight_unit_stable_and_time() {
+  WSoftSnapshot s = live(12345);
+  s.stable = true;
+  s.updated_ms = 777;
+  TEST_ASSERT_EQUAL_STRING(
+      "{\"last_line\":\"12.345 kg\",\"weight\":\"12.345\",\"unit\":\"kg\",\"stable\":true,\"timestamp\":777}",
+      feed(s).c_str());
+}
+
+// No live weight: an empty line, so a Writer sends nothing out of its port.
+void test_feed_without_live_weight_sends_nothing() {
+  WSoftSnapshot lost = live(12345);
+  lost.fresh = false;
+  lost.stable = true;
+  std::string json = feed(lost);
+  TEST_ASSERT_TRUE(has(json, "\"last_line\":\"\""));
+  TEST_ASSERT_TRUE(has(json, "\"weight\":null"));
+  TEST_ASSERT_TRUE(has(json, "\"stable\":false"));
+}
+
+void test_role_is_weigh_or_writer() {
+  WSoftSnapshot s = live(1520);
+  TEST_ASSERT_TRUE(has(view(s), "\"role\":\"weigh\""));
+  s.writer = true;
+  TEST_ASSERT_TRUE(has(view(s), "\"role\":\"writer\""));
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_grams_from_kg_with_three_decimals);
@@ -295,5 +341,9 @@ int main(int, char **) {
   RUN_TEST(test_notice_says_what_stops_a_save);
   RUN_TEST(test_weight_text_parses_sign_digits_and_decimals);
   RUN_TEST(test_weight_text_rejects_non_weights_without_change);
+  RUN_TEST(test_feed_weight_is_the_number_or_nothing);
+  RUN_TEST(test_feed_has_line_weight_unit_stable_and_time);
+  RUN_TEST(test_feed_without_live_weight_sends_nothing);
+  RUN_TEST(test_role_is_weigh_or_writer);
   return UNITY_END();
 }

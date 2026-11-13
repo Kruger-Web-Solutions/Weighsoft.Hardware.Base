@@ -5,8 +5,8 @@ import { Tab } from '@mui/material';
 
 import { RouterTabs, useLayoutTitle, useRouterTab } from '../../components';
 import { AuthenticationContext } from '../../contexts/authentication';
+import { PROJECT_PATH } from '../../api/env';
 
-import WSoftHubForm from './WSoftHubForm';
 import WSoftInfo from './WSoftInfo';
 import WSoftLive from './WSoftLive';
 import WSoftScaleSetup from './WSoftScaleSetup';
@@ -24,14 +24,14 @@ const WSoft: FC = () => {
         <Tab value="live" label="Live" />
         <Tab value="setup" label="Scale setup" />
         {isAdmin && <Tab value="settings" label="Settings" />}
-        {isAdmin && <Tab value="hub" label="Hub" />}
         <Tab value="info" label="Information" />
       </RouterTabs>
       <Routes>
         <Route path="live" element={<WSoftLive />} />
         <Route path="setup" element={<WSoftScaleSetup />} />
         {isAdmin && <Route path="settings" element={<WSoftSettingsForm />} />}
-        {isAdmin && <Route path="hub" element={<WSoftHubForm />} />}
+        {/* The Hub moved to its own sidebar item; old links still work. */}
+        <Route path="hub" element={<Navigate replace to={`/${PROJECT_PATH}/hub`} />} />
         <Route path="info" element={<WSoftInfo />} />
         <Route path="/*" element={<Navigate replace to="live" />} />
       </Routes>

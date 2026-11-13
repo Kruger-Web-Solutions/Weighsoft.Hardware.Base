@@ -8,17 +8,20 @@ import SendIcon from '@mui/icons-material/Send';
 import MonitorWeightIcon from '@mui/icons-material/Monitor';
 import TvIcon from '@mui/icons-material/Tv';
 import ScaleIcon from '@mui/icons-material/Scale';
+import HubIcon from '@mui/icons-material/Hub';
 
 import { PROJECT_PATH } from '../api/env';
 import LayoutMenuItem from '../components/layout/LayoutMenuItem';
 import { FeaturesContext } from '../contexts/features';
+import { AuthenticationContext } from '../contexts/authentication';
 
 // A W-Soft board does not create the Serial1 devices (Diagnostics, Weight Forwarder), the
 // Remote Weight receiver or the LCD device, so their pages only answer 404 there: the menu
 // leaves them out. Serial stays on boards wired for an RS232 scale (its page sets the speed
-// and the weight pattern). Every other board keeps the full list.
+// and the weight pattern). Every other board keeps the full list. Hub: W-Soft boards, admins only.
 const ProjectMenu: FC = () => {
   const { features } = useContext(FeaturesContext);
+  const { me } = useContext(AuthenticationContext);
   const wsoft = !!features.wsoft;
   return (
     <List>
@@ -35,6 +38,7 @@ const ProjectMenu: FC = () => {
       )}
       {!wsoft && <LayoutMenuItem icon={TvIcon} label="LCD Display" to={`/${PROJECT_PATH}/lcd-display`} />}
       <LayoutMenuItem icon={ScaleIcon} label="W-Soft" to={`/${PROJECT_PATH}/wsoft`} />
+      {wsoft && me?.admin && <LayoutMenuItem icon={HubIcon} label="Hub" to={`/${PROJECT_PATH}/hub`} />}
     </List>
   );
 };

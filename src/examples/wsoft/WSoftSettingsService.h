@@ -45,6 +45,7 @@ class WSoftSettings {
     root["relay_low"] = settings.data.relay_low;
     root["relay_ok"] = settings.data.relay_ok;
     root["relay_high"] = settings.data.relay_high;
+    root["relay_writer_follow"] = settings.data.relay_writer_follow;
   }
 
   // Stored fields plus the resolved status topic, for the settings page.
@@ -83,6 +84,10 @@ class WSoftSettings {
     if (root["relay_enabled"].is<bool>()) {
       in.has_relay_enabled = true;
       in.relay_enabled = root["relay_enabled"].as<bool>();
+    }
+    if (root["relay_writer_follow"].is<bool>()) {
+      in.has_relay_writer_follow = true;
+      in.relay_writer_follow = root["relay_writer_follow"].as<bool>();
     }
     // A relay number must be a whole number; anything else is refused, never rounded.
     if (!relayNumber(root["relay_low"], &in.has_relay_low, &in.relay_low) ||
@@ -134,9 +139,14 @@ class WSoftSettingsService : public StatefulService<WSoftSettings> {
   String mqttName();
   String mqttUniqueId();
   // Hi-Lo relay output: the switch and the relay (1..4, 0 = none) for each zone.
+  // In Writer mode the output is on only when "relays follow the weigh board" is on too.
   void relayConfig(bool* enabled, uint8_t* low, uint8_t* ok, uint8_t* high);
+  // Set once at boot from the board's role (UartModeService): true = Writer mode.
+  void setWriterMode(bool writer) { _writerMode = writer; }
+  bool writerMode() const { return _writerMode; }
 
  private:
+  bool _writerMode = false;
   HttpEndpoint<WSoftSettings> _httpEndpoint;
   FSPersistence<WSoftSettings> _fsPersistence;
   WebSocketTxRx<WSoftSettings> _webSocket;

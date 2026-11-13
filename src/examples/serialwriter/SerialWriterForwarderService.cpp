@@ -1,6 +1,7 @@
 #include <examples/serialwriter/SerialWriterForwarderService.h>
 #include <examples/serialwriter/SerialWriterService.h>
 #include <WiFi.h>
+#include <trade_logic.h>
 
 #ifndef SERIALW_FWD_REST_POLL_INTERVAL_MS
 #define SERIALW_FWD_REST_POLL_INTERVAL_MS 1000
@@ -207,11 +208,6 @@ void SerialWriterForwarderService::connectReader() {
       host = hostPort;
     }
 
-    String accessToken = fetchReaderAccessToken(host, port);
-    if (accessToken.length() > 0) {
-      _readerAccessToken = accessToken;
-    }
-
     _announceUrl = String("http://") + host + ":" + String(port) + "/rest/writers";
     _serialRestUrl = String("http://") + host + ":" + String(port) + path;
 
@@ -258,17 +254,11 @@ void SerialWriterForwarderService::connectReader() {
   }
 
   String fullPath = path + "?role=writer&id=" + SettingValue::getUniqueId();
-  String accessToken = fetchReaderAccessToken(host, port);
-  if (accessToken.length() > 0) {
-    _readerAccessToken = accessToken;
-  }
-
-  if (_readerAccessToken.length() > 0) {
-    fullPath += "&access_token=" + _readerAccessToken;
-  }
-
-  _announceUrl = String("http://") + host + ":" + String(port) + "/rest/writers";
-  _serialRestUrl = String("http://") + host + ":" + String(port) + "/rest/serial";
+  // A W-Soft weigh board keeps no Writers list, so there is nothing to announce to.
+  _announceUrl = path.startsWith("/ws/wsoftFeed") ? String() : String("http://") + host + ":" + String(port) + "/rest/writers";
+  // The REST twin of the socket: /ws/serial -> /rest/serial, /ws/wsoftFeed -> /rest/wsoftFeed.
+  String restPath = path.startsWith("/ws/") ? String("/rest/") + path.substring(4) : String("/rest/serial");
+  _serialRestUrl = String("http://") + host + ":" + String(port) + restPath;
 
   _wsClient.begin(host, port, fullPath);
   // No heartbeat: actual data lines from the Reader (~every 5s) act as natural
@@ -338,22 +328,10 @@ void SerialWriterForwarderService::onWsEvent(WStype_t type, uint8_t* payload, si
       break;
 
     case WStype_TEXT: {
-      String line((const char*)payload, length);
       StaticJsonDocument<1024> doc;
-      if (deserializeJson(doc, line) == DeserializationError::Ok) {
-        JsonObject payload = doc["payload"].is<JsonObject>() ? doc["payload"].as<JsonObject>() : doc.as<JsonObject>();
-        String lastLine = payload["last_line"] | "";
-        String lastWeight = payload["weight"] | "";
-        if (lastLine.length() > 0 && _writerService) {
-          markReaderOk();
-          _writerService->transmit(lastLine, TxSource::READER);
-          update([&](SerialWriterForwarderState& s) {
-            s.lastReceived = lastLine;
-            s.lastWeight = lastWeight;
-            s.lastReceivedAt = millis();
-            return StateUpdateResult::CHANGED;
-          }, "fwd-rx");
-        }
+      if (deserializeJson(doc, payload, length) == DeserializationError::Ok) {
+        markReaderOk();
+        onReaderData(doc["payload"].is<JsonObject>() ? doc["payload"].as<JsonObject>() : doc.as<JsonObject>());
       }
       break;
     }
@@ -390,9 +368,6 @@ void SerialWriterForwarderService::announce() {
   http.begin(_announceUrl);
   http.setTimeout(1500);
   http.addHeader("Content-Type", "application/json");
-  if (_readerAccessToken.length() > 0) {
-    http.addHeader("Authorization", "Bearer " + _readerAccessToken);
-  }
   String ip = WiFi.localIP().toString();
   String body = String("{\"id\":\"") + id + "\",\"name\":\"" + name + "\",\"ip\":\"" + ip + "\"}";
   int status = http.POST(body);
@@ -406,9 +381,6 @@ void SerialWriterForwarderService::pollReaderRest() {
   HTTPClient http;
   http.begin(_serialRestUrl);
   http.setTimeout(1500);
-  if (_readerAccessToken.length() > 0) {
-    http.addHeader("Authorization", "Bearer " + _readerAccessToken);
-  }
 
   int status = http.GET();
   if (status != 200) {
@@ -442,18 +414,72 @@ void SerialWriterForwarderService::pollReaderRest() {
     }
   }
 
-  String lastLine = doc["last_line"] | "";
-  String lastWeight = doc["weight"] | "";
-  if (lastLine.length() == 0) return;
+  onReaderData(doc.as<JsonObject>());
+}
 
-  _writerService->transmit(lastLine, TxSource::READER);
+// One reading from the Reader (WebSocket push or REST poll): format it, send it out of the
+// port, and keep it for the page and the W-Soft screen. A reading already handled (same
+// timestamp, e.g. the backup REST poll) is not sent twice. Nothing is sent without a line,
+// or when the format needs a weight the reading does not have.
+void SerialWriterForwarderService::onReaderData(JsonObject data) {
+  const char* line = data["last_line"] | "";
+  if (line[0] == '\0' || !_writerService) return;
+  uint32_t timestamp = data["timestamp"] | (uint32_t)0;
+  if (timestamp != 0 && timestamp == _lastTimestamp) return;
+  _lastTimestamp = timestamp;
+
+  WsoftOutputFields fields;
+  fields.line = line;
+  fields.weight = data["weight"] | "";
+  fields.unit = data["unit"] | "";
+  fields.has_stable = data["stable"].is<bool>();
+  fields.stable = data["stable"] | false;
+  String format;
+  read([&](const SerialWriterForwarderState& s) { format = s.outputFormat; });
+  // The default "{line}" sends the line exactly as received, whatever its length.
+  String sent = line;
+  bool ok = true;
+  if (format.length() > 0 && format != WSOFT_OUTPUT_FORMAT_DEFAULT) {
+    char out[WSOFT_OUTPUT_FORMAT_MAX * 2];
+    ok = wsoft_format_output(format.c_str(), fields, out, sizeof out);
+    sent = ok ? String(out) : String();
+  }
+  if (ok) _writerService->transmit(sent, TxSource::READER);
+
   update([&](SerialWriterForwarderState& s) {
-    s.lastReceived = lastLine;
-    s.lastWeight = lastWeight;
+    s.lastReceived = line;
+    s.lastWeight = fields.weight;
+    s.lastUnit = fields.unit;
+    s.lastSent = sent;
+    s.hasProduct = data.containsKey("product");
+    s.lastProduct = data["product"] | "";
     s.lastReceivedAt = millis();
-    s.lastError = "";
+    s.lastError = ok ? "" : "Not sent: the format needs a weight, or the line is too long";
     return StateUpdateResult::CHANGED;
   }, "fwd-rx");
+}
+
+bool SerialWriterForwarderService::latestProduct(String* code) {
+  bool has = false;
+  read([&](const SerialWriterForwarderState& s) {
+    has = s.hasProduct;
+    *code = s.lastProduct;
+  });
+  return has;
+}
+
+bool SerialWriterForwarderService::latestWeight(char* weight, size_t size, uint32_t* receivedMs, int* unit) {
+  bool have = false;
+  read([&](const SerialWriterForwarderState& s) {
+    if (s.lastWeight.length() == 0 || s.lastReceivedAt == 0) return;
+    strlcpy(weight, s.lastWeight.c_str(), size);
+    *receivedMs = (uint32_t)s.lastReceivedAt;
+    for (int code = 1; code <= 3; code++) {
+      if (s.lastUnit == weight_unit_text(code)) *unit = code;
+    }
+    have = true;
+  });
+  return have;
 }
 
 void SerialWriterForwarderService::markReaderOk() {
@@ -483,30 +509,4 @@ void SerialWriterForwarderService::handleReaderPollFailure(const String& message
     }
     return StateUpdateResult::CHANGED;
   }, "fwd-error");
-}
-
-String SerialWriterForwarderService::fetchReaderAccessToken(const String& host, uint16_t port) {
-  HTTPClient http;
-  String url = String("http://") + host + ":" + String(port) + "/rest/signIn";
-  http.begin(url);
-  http.setTimeout(3000);
-  http.addHeader("Content-Type", "application/json");
-
-  int status = http.POST("{\"username\":\"admin\",\"password\":\"admin\"}");
-  if (status != 200) {
-    http.end();
-    Serial.printf("[SerialWriterForwarder] Reader sign-in skipped/failed (HTTP %d); continuing without token\n", status);
-    return "";
-  }
-
-  String payload = http.getString();
-  http.end();
-
-  StaticJsonDocument<512> doc;
-  if (deserializeJson(doc, payload) != DeserializationError::Ok) {
-    Serial.println(F("[SerialWriterForwarder] Reader sign-in returned invalid JSON; continuing without token"));
-    return "";
-  }
-
-  return doc["access_token"] | "";
 }

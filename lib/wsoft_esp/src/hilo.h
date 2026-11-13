@@ -23,6 +23,11 @@ bool hilo_current(WsoftHiloProduct *out);
 // Screen task: the operator's next product (none -> first -> ... -> last -> none).
 void hilo_select_next();
 
+// Writer mode: use the weigh board's product (its code; "" = none), so the screen, the relays
+// and the Hub show the same product on both boards. A code this board's list does not hold
+// means no product (relays OFF). Does nothing when the pick is already that one.
+void hilo_follow(const char *code);
+
 // Hub task: time for a pull (60 s since the last one, or soon after an operator change).
 bool hilo_pull_due();
 // Hub task: the C1 request body for this pull.

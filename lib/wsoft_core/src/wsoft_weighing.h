@@ -62,6 +62,10 @@ enum WsoftSaveResult {
   // tap arms an override: a second tap within WSOFT_OVERRIDE_MS on the same weight saves it,
   // marked as an operator override (Rhyno, 8 Nov 2026). Auto save never saves such a weight.
   WSOFT_SAVE_OUT_OF_LIMITS,
+  // Writer mode (Rhyno, 12 Nov 2026): the board shows the weigh board's weight and sends it out
+  // of its port, but never saves: the weigh board saves, so the Hub counts each weighing once.
+  // Passed as hold; nothing else is checked.
+  WSOFT_SAVE_WRITER,
 };
 
 class WsoftWeighingSaver {
@@ -85,7 +89,7 @@ class WsoftWeighingSaver {
   // Auto save) would go through, or the scale is simply empty. Priority, first wins:
   // NO_SIGNAL, BLANK, NO_CLOCK, then a load still on since the last save or boot (ALREADY when
   // it is the saved load, else NEED_ZERO), FULL, BELOW_MIN, OUT_OF_LIMITS, and NOT_STABLE only
-  // after WSOFT_MOVING_NOTICE_MS of movement with a load on.
+  // after WSOFT_MOVING_NOTICE_MS of movement with a load on. WRITER whenever the board is a Writer.
   WsoftSaveResult waiting() const { return waiting_; }
   uint32_t next_seq() const { return next_seq_; }
   const TradeWeight &last() const { return last_; }

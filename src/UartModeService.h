@@ -4,6 +4,7 @@
 #include <HttpEndpoint.h>
 #include <FSPersistence.h>
 #include <WebSocketTxRx.h>
+#include <Features.h>
 #include "UartMode.h"
 
 // Forward declarations
@@ -14,7 +15,13 @@ class DiagnosticsService;
 
 #define UART_MODE_ENDPOINT_PATH "/rest/uartMode"
 #define UART_MODE_SOCKET_PATH "/ws/uartMode"
+#if FT_ENABLED(FT_WSOFT)
+// W-Soft: "reader" or no file = Weigh (the default), "writer" = Writer. Its own file, so a
+// mode saved by older firmware on this board never turns a weigh board into a Writer.
+#define UART_MODE_CONFIG_FILE "/config/wsoftRole.json"
+#else
 #define UART_MODE_CONFIG_FILE "/config/uartMode.json"
+#endif
 
 class UartModeService : public StatefulService<UartModeState> {
  public:

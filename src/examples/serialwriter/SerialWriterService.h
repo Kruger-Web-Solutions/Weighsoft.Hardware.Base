@@ -17,8 +17,14 @@ extern bool g_usbOutputActive;
 #define SERIALW_CONFIG_FILE      "/config/serialWriterConfig.json"
 
 #define SERIALW_UART1_PORT       Serial1
+// A W-Soft board sets these to its one scale port in platformio.ini (the Writer uses that
+// port: the board either weighs or writes).
+#ifndef SERIALW_RX_PIN
 #define SERIALW_RX_PIN           18
+#endif
+#ifndef SERIALW_TX_PIN
 #define SERIALW_TX_PIN           17
+#endif
 
 // Source identifiers for transmitted lines (also surfaced in WS broadcast events)
 enum class TxSource : uint8_t {
