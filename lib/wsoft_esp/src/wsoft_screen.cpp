@@ -1,4 +1,6 @@
 #include <Arduino.h>
+
+#include "wsoft_log.h"
 #include <WiFi.h>
 #include <math.h>
 
@@ -13,9 +15,18 @@
 #include "weighings.h"
 #include "wsoft_screen.h"
 
-// Two boards share this file. The poll, the Modbus jobs and the snapshot are the same on
-// both; only the panel (start_display, render) and the pins differ.
-#if WSOFT_BOARD_CYD
+// Three boards share this file. The poll, the Modbus jobs and the snapshot are the same on
+// all; only the panel (start_display, render) and the pins differ.
+// WSOFT_BOARD_HEADLESS: a bare ESP32-S3 board with no screen (env wsoft_s3_headless). The
+// weight, Hub, approval, Hi-Lo and relays run as on the screen boards; nothing is drawn.
+#ifndef WSOFT_BOARD_HEADLESS
+#define WSOFT_BOARD_HEADLESS 0
+#endif
+#if WSOFT_BOARD_HEADLESS
+// Scale UART pins come from the env (TTL converter or TTL-to-RS485 module).
+static const int RS485_RX = WSOFT_RS485_RX;
+static const int RS485_TX = WSOFT_RS485_TX;
+#elif WSOFT_BOARD_CYD
 // Sunton ESP32-2432S028 ("CYD"): 2.8" 320x240 ILI9341 over SPI, no PSRAM, no RS485 transceiver.
 // RS485 comes from an external 3.3 V TTL-to-RS485 module with automatic direction on the
 // CN1 connector (GPIO22 / GPIO27), the same free pads the cyd28 env used for its scale UART.
@@ -92,7 +103,7 @@ void wsoft_screen_set_line_reader(WsoftLineReader reader) {
 
 // Gauge end when no Hi-Lo product is picked (with one, the gauge follows its limits).
 static const float GAUGE_FULL_KG = 3.0f;
-#if !WSOFT_BOARD_CYD
+#if !WSOFT_BOARD_CYD && !WSOFT_BOARD_HEADLESS
 static const int GAUGE_CX = 250, GAUGE_CY = 292, GAUGE_R = 92;
 #endif
 
@@ -144,10 +155,10 @@ static Reading net_of(const Reading &r) {
 }
 
 static void log_line(const char *message) {
-  Serial0.println(message);
+  WSOFT_LOG.println(message);
 }
 
-#if !WSOFT_BOARD_CYD
+#if !WSOFT_BOARD_CYD && !WSOFT_BOARD_HEADLESS
 static Board *board = nullptr;
 static LCD *lcd = nullptr;
 static Touch *touch = nullptr;
@@ -360,7 +371,7 @@ static bool notice_now(WsoftSaveNotice *notice, uint16_t *fill, uint16_t *ink) {
   return true;
 }
 
-#if !WSOFT_BOARD_CYD
+#if !WSOFT_BOARD_CYD && !WSOFT_BOARD_HEADLESS
 // Top right of the card: the trade band, then why it is not for trade (or the sequence), and the audit counter.
 static void draw_approval() {
   TradeCheck check = approval_check();
@@ -713,7 +724,12 @@ bool wsoft_screen_djb(const WsoftDjbPlan *plan, WsoftDjbResult *out, uint32_t ti
 
 // ---------- main ----------
 
-#if WSOFT_BOARD_CYD
+#if WSOFT_BOARD_HEADLESS
+// ---------- no panel ----------
+// Nothing to draw. The loop still polls the scale and runs the Hub, approval, Hi-Lo and relays.
+static bool start_display() { return false; }
+static void render(const Reading &r) { (void)r; }
+#elif WSOFT_BOARD_CYD
 // ---------- CYD panel (320 x 240) ----------
 
 static TFT_eSPI tft;
@@ -823,7 +839,7 @@ static void cyd_touch_begin() {
   touch_spi.begin(WSOFT_TOUCH_CLK, WSOFT_TOUCH_MISO, WSOFT_TOUCH_MOSI, -1);
   touch_ready = true;
   touch_ok = true;
-  Serial0.println("TOUCH ready");
+  WSOFT_LOG.println("TOUCH ready");
 }
 
 // One XPT2046 read: pressure, then X and Y (average of two readings after a dropped first one).
@@ -867,7 +883,7 @@ static void cyd_touch_poll() {
     int x = constrain(map(p.x, WSOFT_TOUCH_X_MIN, WSOFT_TOUCH_X_MAX, 0, CYD_W - 1), 0, CYD_W - 1);
     int y = constrain(map(p.y, WSOFT_TOUCH_Y_MIN, WSOFT_TOUCH_Y_MAX, 0, 239), 0, 239);
     bool on_save = page == PAGE_LIVE && x >= SAVE_X - 10 && x <= SAVE_X + SAVE_W + 10 && y >= SAVE_Y - 10;
-    Serial0.printf("TOUCH raw=%d,%d,%d screen=%d,%d %s\n", p.x, p.y, p.z, x, y, on_save ? "SAVE" : "-");
+    WSOFT_LOG.printf("TOUCH raw=%d,%d,%d screen=%d,%d %s\n", p.x, p.y, p.z, x, y, on_save ? "SAVE" : "-");
     if (on_save) weighings_request_save();
     else ui_tap(x, y);
     last_tap = millis();
@@ -1036,7 +1052,7 @@ static bool start_display() {
   for (int attempt = 1; expander != nullptr && attempt <= 20 && !expander_ok; attempt++) {
     expander_ok = expander->begin();
     if (!expander_ok) {
-      Serial0.printf("expander begin failed, attempt %d\n", attempt);
+      WSOFT_LOG.printf("expander begin failed, attempt %d\n", attempt);
       delay(200);
     }
   }
@@ -1102,7 +1118,7 @@ static void ws_touch_poll() {
     int y = constrain(points[0].y, 0, SCREEN_H - 1) * 240 / SCREEN_H;
     // The SAVE box (bottom right of the live page), with a 10 px margin like the CYD.
     bool on_save = page == PAGE_LIVE && points[0].x >= WS_SAVE_X0 - 10 && points[0].y >= WS_SAVE_Y0 - 10;
-    Serial0.printf("TOUCH screen=%d,%d %s\n", points[0].x, points[0].y, on_save ? "SAVE" : "-");
+    WSOFT_LOG.printf("TOUCH screen=%d,%d %s\n", points[0].x, points[0].y, on_save ? "SAVE" : "-");
     if (on_save) weighings_request_save();
     else ui_tap(x, y);
     last_tap = millis();
@@ -1190,7 +1206,16 @@ static bool plate_lines(char *sa, size_t sa_size, char *limits, size_t limits_si
 }
 
 // ----- drawing, per board -----
-#if WSOFT_BOARD_CYD
+#if WSOFT_BOARD_HEADLESS
+// No panel: the menu pages are never opened (no touch), so these draw nothing.
+static void ui_page_begin(const char *title) { (void)title; }
+static void ui_button(const UiBox &b, const char *label, uint16_t fill) {
+  (void)b;
+  (void)label;
+  (void)fill;
+}
+static void ui_page_end() {}
+#elif WSOFT_BOARD_CYD
 static void ui_page_begin(const char *title) {
   tft.fillScreen(PAGE);
   tft.fillRect(0, 0, CYD_W, 30, INK);
@@ -1231,7 +1256,14 @@ static void ui_page_end() {
 #endif
 
 // One centred line on the open page. y is on the CYD's 240 rows; big = the larger font.
-#if WSOFT_BOARD_CYD
+#if WSOFT_BOARD_HEADLESS
+static void ui_line(const char *text, int y, bool big, uint16_t color) {
+  (void)text;
+  (void)y;
+  (void)big;
+  (void)color;
+}
+#elif WSOFT_BOARD_CYD
 static void ui_line(const char *text, int y, bool big, uint16_t color) {
   cyd_text(text, CYD_W / 2, y, big ? 4 : 2, color, PAGE, TC_DATUM);
 }
@@ -1508,18 +1540,22 @@ void wsoft_screen_snapshot(WSoftSnapshot *out) {
 
 void wsoft_screen_setup(bool rs232) {
   rs232_mode = rs232;
-#if WSOFT_BOARD_CYD
+#if defined(WSOFT_LOG_USB) && WSOFT_LOG_USB
+  // The S3's own USB port. Never wait on it: with no PC reading, prints are dropped.
+  WSOFT_LOG.begin(115200);
+  WSOFT_LOG.setTxTimeoutMs(0);
+#elif WSOFT_BOARD_CYD
   // UART0 is the CH340 USB port on the CYD (default pins GPIO1 / GPIO3).
-  Serial0.begin(115200);
+  WSOFT_LOG.begin(115200);
 #else
   // UART0 is the CH343 port on this board: TX GPIO43, RX GPIO44.
-  Serial0.begin(115200, SERIAL_8N1, 44, 43);
+  WSOFT_LOG.begin(115200, SERIAL_8N1, 44, 43);
 #endif
   log_line(rs232_mode ? "weigh screen boot (RS232 scale)" : "weigh screen boot (RS485 junction box)");
   if (!rs232_mode) Serial1.begin(DJB_BAUD, SERIAL_8N1, RS485_RX, RS485_TX);
 
   display_ready = start_display();
-  log_line(display_ready ? "display ready" : "display failed");
+  log_line(display_ready ? "display ready" : WSOFT_BOARD_HEADLESS ? "no display (headless board)" : "display failed");
   scale_begin(!rs232_mode);
   pin_begin();
   approval_begin();
@@ -1561,10 +1597,10 @@ static bool poll_djb(Reading *out) {
     next.alarm = ((((uint32_t)words[2] << 16) | words[3]) & ALARM_BLOCKING_MASK) != 0;
   } else if (++fails >= FAILS_BEFORE_NO_SIGNAL) {
     next.linked = false;
-    Serial0.printf("DJB no reply slave=%u baud=%lu rx_bytes=%u", slave, (unsigned long)SCAN_BAUDS[baud_index],
+    WSOFT_LOG.printf("DJB no reply slave=%u baud=%lu rx_bytes=%u", slave, (unsigned long)SCAN_BAUDS[baud_index],
                    (unsigned)last_rx_bytes);
-    for (size_t i = 0; i < last_rx_bytes && i < sizeof last_rx; i++) Serial0.printf(" %02X", last_rx[i]);
-    Serial0.println();
+    for (size_t i = 0; i < last_rx_bytes && i < sizeof last_rx; i++) WSOFT_LOG.printf(" %02X", last_rx[i]);
+    WSOFT_LOG.println();
     next_scan_target();
   }
   return fresh;
@@ -1595,17 +1631,18 @@ static bool poll_rs232(Reading *out) {
 void wsoft_screen_loop() {
   static uint32_t last_poll = 0;
   static HubState shown_hub = HUB_SETUP;
-  hub_handle_serial(Serial0);
+  hub_handle_serial(WSOFT_LOG);
   hub_ota_poll();
   service_job();
   switches_poll();
 #if WSOFT_BOARD_CYD
   cyd_touch_poll();
-#else
+#elif !WSOFT_BOARD_HEADLESS
   ws_touch_poll();
 #endif
   ui_poll();
-  if (hub_ota_busy() || !display_ready || millis() - last_poll < POLL_MS) return;
+  // The headless board has no panel and polls anyway.
+  if (hub_ota_busy() || (!display_ready && !WSOFT_BOARD_HEADLESS) || millis() - last_poll < POLL_MS) return;
   last_poll = millis();
 
   Reading next = reading;
@@ -1641,7 +1678,7 @@ void wsoft_screen_loop() {
   relay_in.value = next.value;
   relay_in.state = picked ? wsoft_hilo_check(product, next.value, next.decimals, next.unit) : WSOFT_HILO_NONE;
   relay_post(relay_in, fresh);
-#if WSOFT_BOARD_CYD
+#if WSOFT_BOARD_CYD || WSOFT_BOARD_HEADLESS
   const bool extras_changed = false;  // the SAVE box and the notice draw themselves, below
 #else
   // The SAVE box and the product line are part of the full-frame draw on this board.
@@ -1649,10 +1686,10 @@ void wsoft_screen_loop() {
 #endif
 
   if (next.linked && polls % 4 == 1) {
-    if (!rs232_mode) Serial0.printf("DJB slave=%u baud=%lu ", slave, (unsigned long)SCAN_BAUDS[baud_index]);
+    if (!rs232_mode) WSOFT_LOG.printf("DJB slave=%u baud=%lu ", slave, (unsigned long)SCAN_BAUDS[baud_index]);
     char value[16];
     format_weight(next.value, next.decimals, value, sizeof value);
-    Serial0.printf("%s %s weight=%s %s raw=%ld alarm=%d stable=%d %s\n", rs232_mode ? "RS232" : "DJB", next.linked ? "LIVE" : "NO_SIGNAL", value,
+    WSOFT_LOG.printf("%s %s weight=%s %s raw=%ld alarm=%d stable=%d %s\n", rs232_mode ? "RS232" : "DJB", next.linked ? "LIVE" : "NO_SIGNAL", value,
                    weight_unit_text(next.unit), (long)next.value, next.alarm ? 1 : 0, approval_stable() ? 1 : 0,
                    check == TRADE_OK ? "TRADE_CHECKS_ON" : "NOT_FOR_TRADE");
   }

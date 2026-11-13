@@ -1,3 +1,4 @@
+#include "wsoft_log.h"
 #include "weighings.h"
 
 #include <LittleFS.h>
@@ -162,14 +163,14 @@ void weighings_begin(bool rs232) {
     prefs.begin("weigh", false);
     prefs.putBool("auto", automatic);  // from now on NVS holds it
     prefs.end();
-    Serial0.printf("WEIGH auto_save carried over from the old settings: %s\n", automatic ? "on" : "off");
+    WSOFT_LOG.printf("WEIGH auto_save carried over from the old settings: %s\n", automatic ? "on" : "off");
   }
   saver = WsoftWeighingSaver(next_seq);
   portENTER_CRITICAL(&lock);
   queue.restore(head, count, slots);
   auto_save = automatic;
   portEXIT_CRITICAL(&lock);
-  Serial0.printf("WEIGH next_seq=%lu queued=%u auto_save=%s\n", (unsigned long)next_seq, (unsigned)queue.size(),
+  WSOFT_LOG.printf("WEIGH next_seq=%lu queued=%u auto_save=%s\n", (unsigned long)next_seq, (unsigned)queue.size(),
                  automatic ? "on" : "off");
 }
 
@@ -279,12 +280,12 @@ WsoftSaveResult weighings_update(bool linked, bool fresh, bool alarm, int32_t va
     format_weight(saved.value, saved.decimals, weight, sizeof weight);
     char tare_text[16];
     format_weight(tare_value, saved.decimals, tare_text, sizeof tare_text);
-    Serial0.printf("WEIGH saved seq=%lu weight=%s %s tare=%s %s for_trade=%d hilo=%s %s%s\n", (unsigned long)saved.seq,
+    WSOFT_LOG.printf("WEIGH saved seq=%lu weight=%s %s tare=%s %s for_trade=%d hilo=%s %s%s\n", (unsigned long)saved.seq,
                    weight, weight_unit_text(saved.unit), tare_text, tapped ? "tap" : "auto", for_trade ? 1 : 0,
                    hilo.on ? hilo.code : "-", hilo.on ? wsoft_hilo_state_wire(hilo.state) : "",
                    hilo.overridden ? " OVERRIDE" : "");
   } else if (tapped) {
-    Serial0.printf("WEIGH save refused: %s\n", wsoft_save_result_text(result));
+    WSOFT_LOG.printf("WEIGH save refused: %s\n", wsoft_save_result_text(result));
   }
   return result;
 }

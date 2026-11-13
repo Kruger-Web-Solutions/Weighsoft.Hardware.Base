@@ -1,3 +1,4 @@
+#include "wsoft_log.h"
 #include "scale.h"
 
 #include <Preferences.h>
@@ -60,7 +61,7 @@ void scale_begin(bool is_rs485) {
   stored_setup = loaded;
   audit = counter;
   portEXIT_CRITICAL(&lock);
-  Serial0.printf("SETUP %s audit=%lu\n", is_rs485 ? "rs485 (kept on the board)" : "rs232 (set on the indicator)",
+  WSOFT_LOG.printf("SETUP %s audit=%lu\n", is_rs485 ? "rs485 (kept on the board)" : "rs232 (set on the indicator)",
                  (unsigned long)counter);
 }
 
@@ -108,7 +109,7 @@ void scale_card_written() {
   store.putUInt("audit", counter);
   store.end();
   scale_unlock();
-  Serial0.printf("SETUP card write audit=%lu\n", (unsigned long)counter);
+  WSOFT_LOG.printf("SETUP card write audit=%lu\n", (unsigned long)counter);
 }
 
 void scale_info(ScaleInfo *out) {
@@ -140,7 +141,7 @@ WsoftTareError scale_tare_toggle(bool stable, int32_t value, int decimals, int u
   portEXIT_CRITICAL(&lock);
   if (!on_rs485) return WSOFT_TARE_OFF;
   if (was_on) {
-    Serial0.println("TARE cleared");
+    WSOFT_LOG.println("TARE cleared");
     return WSOFT_TARE_OK;
   }
   WsoftTare next;
@@ -150,7 +151,7 @@ WsoftTareError scale_tare_toggle(bool stable, int32_t value, int decimals, int u
     tare = next;
     portEXIT_CRITICAL(&lock);
   }
-  Serial0.printf("TARE %s\n", error == WSOFT_TARE_OK ? "on" : wsoft_tare_error_code(error));
+  WSOFT_LOG.printf("TARE %s\n", error == WSOFT_TARE_OK ? "on" : wsoft_tare_error_code(error));
   return error;
 }
 
@@ -167,7 +168,7 @@ WsoftTareError scale_tare_preset(int decimals, int unit) {
     tare = next;
     portEXIT_CRITICAL(&lock);
   }
-  Serial0.printf("TARE preset %s\n", error == WSOFT_TARE_OK ? "on" : wsoft_tare_error_code(error));
+  WSOFT_LOG.printf("TARE preset %s\n", error == WSOFT_TARE_OK ? "on" : wsoft_tare_error_code(error));
   return error;
 }
 
@@ -185,7 +186,7 @@ bool scale_net(int32_t gross, int decimals, int unit, int32_t *net) {
     portENTER_CRITICAL(&lock);
     tare = WsoftTare();
     portEXIT_CRITICAL(&lock);
-    Serial0.println("TARE cleared: the scale's unit or decimals changed");
+    WSOFT_LOG.println("TARE cleared: the scale's unit or decimals changed");
   }
   return false;
 }
@@ -213,9 +214,9 @@ WsoftSetupError scale_save(const WsoftScaleSetupInput &in, const char *who) {
   }
   scale_unlock();
   if (error != WSOFT_SETUP_OK) {
-    Serial0.printf("SETUP save refused %s by=%s\n", wsoft_setup_error_code(error), who);
+    WSOFT_LOG.printf("SETUP save refused %s by=%s\n", wsoft_setup_error_code(error), who);
   } else if (changed) {
-    Serial0.printf("SETUP saved audit=%lu by=%s why=%s\n", (unsigned long)counter, who, in.reason);
+    WSOFT_LOG.printf("SETUP saved audit=%lu by=%s why=%s\n", (unsigned long)counter, who, in.reason);
   }
   return error;
 }

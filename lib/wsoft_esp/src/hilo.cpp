@@ -1,3 +1,4 @@
+#include "wsoft_log.h"
 #include "hilo.h"
 
 #include <Preferences.h>
@@ -60,7 +61,7 @@ void hilo_begin() {
   list = stored;
   pick = stored_pick;
   portEXIT_CRITICAL(&lock);
-  Serial0.printf("HILO products=%u current=%s\n", (unsigned)stored.count,
+  WSOFT_LOG.printf("HILO products=%u current=%s\n", (unsigned)stored.count,
                  stored_pick.current[0] ? stored_pick.current : "none");
 }
 
@@ -80,7 +81,7 @@ void hilo_select_next() {
   next_pull_ms = millis() + AFTER_PICK_MS;
   portEXIT_CRITICAL(&lock);
   save(false);
-  Serial0.printf("HILO operator picked %s\n", code[0] ? code : "no product");
+  WSOFT_LOG.printf("HILO operator picked %s\n", code[0] ? code : "no product");
 }
 
 bool hilo_pull_due() {
@@ -111,9 +112,9 @@ void hilo_take(const WsoftHiloList &fresh) {
   // Flash is written only when something changed (a pull a minute must not wear it out).
   if (list_changed || pick_changed) save(list_changed);
   if (pick_changed && strcmp(before.current, after.current) != 0) {
-    Serial0.printf("HILO product %s (Hub default or product removed)\n", after.current[0] ? after.current : "none");
+    WSOFT_LOG.printf("HILO product %s (Hub default or product removed)\n", after.current[0] ? after.current : "none");
   }
-  if (list_changed) Serial0.printf("HILO list now %u products\n", (unsigned)fresh.count);
+  if (list_changed) WSOFT_LOG.printf("HILO list now %u products\n", (unsigned)fresh.count);
 }
 
 void hilo_failed() {

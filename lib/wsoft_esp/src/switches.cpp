@@ -1,3 +1,4 @@
+#include "wsoft_log.h"
 #include "switches.h"
 
 #include "approval_base.h"
@@ -38,7 +39,7 @@ static WsoftSwitchError apply(const WsoftSwitchRequest &r) {
       approval_set(r.on, r.who, r.where, r.reason);
     } else {
       weighings_set_auto_save(r.on);
-      Serial0.printf("SWITCH auto_save %s->%s by=%s where=%s why=%s\n", before.auto_save ? "ON" : "OFF",
+      WSOFT_LOG.printf("SWITCH auto_save %s->%s by=%s where=%s why=%s\n", before.auto_save ? "ON" : "OFF",
                      r.on ? "ON" : "OFF", r.who, wsoft_switch_where_text(r.where), r.reason);
     }
     portENTER_CRITICAL(&lock);
@@ -47,7 +48,7 @@ static WsoftSwitchError apply(const WsoftSwitchRequest &r) {
   }
   scale_unlock();
   if (error != WSOFT_SWITCH_OK) {
-    Serial0.printf("SWITCH %s %s refused %s by=%s where=%s\n", wsoft_switch_name(r.which), r.on ? "ON" : "OFF",
+    WSOFT_LOG.printf("SWITCH %s %s refused %s by=%s where=%s\n", wsoft_switch_name(r.which), r.on ? "ON" : "OFF",
                    wsoft_switch_error_code(error), r.who, wsoft_switch_where_text(r.where));
   }
   return error;
