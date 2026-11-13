@@ -17,7 +17,13 @@ export function buildMockup() {
   const fonts = existsSync(fontsFile) ? readFileSync(fontsFile, 'utf8') : 'null';
   let page = readFileSync(join(here, 'mockup.html'), 'utf8');
   const status = process.env.WSOFT_UI_STATUS || 'This screen is being built for both boards.';
-  page = page.replace('/*@ref*/', () => ref).replace('/*@fonts*/null', () => fonts).replace('/*@status*/', () => status);
+  // The pictures the two bench boards sent of their own screens, when they are in the repo.
+  const shots = join(here, '..', '..', 'docs', 'img', 'wsoft-screen');
+  const uri = (name) => 'data:image/png;base64,' + readFileSync(join(shots, name)).toString('base64');
+  const real = existsSync(join(shots, 'board-yellow-live.png')) && existsSync(join(shots, 'board-waveshare-live.png'))
+    ? JSON.stringify({ yellow: uri('board-yellow-live.png'), wave: uri('board-waveshare-live.png') }) : 'null';
+  page = page.replace('/*@ref*/', () => ref).replace('/*@fonts*/null', () => fonts).replace('/*@status*/', () => status)
+    .replace('/*@real*/null', () => real);
   writeFileSync(join(out, 'mockup.html'), page);
   writeFileSync(join(out, 'preview.html'),
     `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head><body style="margin:0">${page}</body></html>`);

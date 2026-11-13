@@ -107,7 +107,30 @@ reports a checksum that differs and takes the picture again.
 picture: the only check of the glass itself that needs nobody at the board. If the panel does
 not answer reads, it says so; that is not a fault of the screen.
 
-## 7. Known gaps
+## 7. On the two bench boards (14 Nov 2026)
+
+Both boards were flashed with commit `cc41e7a` (app only at 0x10000, nothing erased) and checked
+over USB with `shot.ps1`. Pictures sent by the boards themselves:
+
+| Yellow board, COM13, MAC 6c:c8:40:45:60:f4 | Waveshare, COM11, MAC 94:a9:90:02:96:68 |
+|---|---|
+| ![yellow live](img/wsoft-screen/board-yellow-live.png) | ![waveshare live](img/wsoft-screen/board-waveshare-live.png) |
+| ![yellow menu](img/wsoft-screen/board-yellow-menu.png) | ![waveshare menu](img/wsoft-screen/board-waveshare-menu.png) |
+
+| Check | Yellow board | Waveshare |
+|---|---|---|
+| Boots, settings kept (source, Wi-Fi, Hub pairing, product, auto save) | yes | yes |
+| `SCREEN CRC`: all 25 test screens equal `golden.h` | yes | yes |
+| `SCREEN TAP`: MENU, SCREEN light and back, WI-FI page, status bar tap, BACK | yes | yes |
+| `GLASS`: 48 dots read back from the panel equal the picture | yes, 48 of 48 | not possible on this panel |
+| Firmware size | 2,261,952 of 3,407,872 bytes (66%) | 2,642,480 of 6,553,600 bytes (40%) |
+| Not checked: a finger on the touch screen, and eyes on the Waveshare glass | | |
+
+The yellow board showed a red TOO HIGH panel because its RS232 line was sending 982760 kg
+against Maize at 7000 to 7200 kg; the Waveshare showed ALARM because its junction box
+reports a blocking alarm at -0.3 kg. Both are the boards' real inputs that night.
+
+## 8. Known gaps
 
 - No Wi-Fi setup on the screen itself: the phone steps only.
 - Writer mode with a tare on the weigh board: the feed to the Writer (`wsoft_feed_write`) carries

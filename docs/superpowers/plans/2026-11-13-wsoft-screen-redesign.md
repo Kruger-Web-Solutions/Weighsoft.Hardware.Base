@@ -34,3 +34,14 @@ then `C:\Python313\python.exe -m platformio test -e native -f test_wsoft_ui`.
 
 - 13 Nov 2026 22:45 SAST: task 0 done. Yellow: 4,194,304 bytes. Waveshare: 16,777,216 bytes.
 - 13 Nov 2026 23:10 SAST: task 1 done. Letters: 27,631 bytes (yellow), 100,423 bytes (Waveshare).
+- 13 Nov 2026 23:21 SAST: tasks 2 to 5 done. Yellow build 2,258,784 bytes. Flashed (app only), all 20 test screens equal on the board.
+- 13 Nov 2026 23:33 SAST: Waveshare build 2,637,856 bytes. Flashed (app only), all 20 test screens equal on the board.
+- 13 Nov 2026 23:50 SAST: task 8, review by a fresh reviewer: nothing critical; six important and several small findings. Fixed in `cc41e7a` (see its message). Left open, in the guide's known gaps: Writer feed with a tare, empty judged on the gross by the saver, the Wi-Fi alert at every start without Wi-Fi.
+- 14 Nov 2026 00:08 SAST: yellow board, final build `cc41e7a` 2,261,952 bytes: 25 of 25 test screens equal, pages walk, 48 of 48 dots read back from the panel equal.
+- 14 Nov 2026 00:20 SAST: Waveshare, final build `cc41e7a` 2,642,480 bytes: 25 of 25 test screens equal, pages walk.
+
+## Recovery lines
+
+- Problem: the first two firmware builds failed without a code error.
+  What failed: (1) two builds at once ran `npm install` in the one `interface` folder; (2) `pio test` run during a build cleaned the build folder after `platformio.ini` changed.
+  Next action: one PlatformIO process at a time in this folder; done, every later build passed.

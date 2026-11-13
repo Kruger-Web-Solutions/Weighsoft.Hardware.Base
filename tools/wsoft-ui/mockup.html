@@ -31,7 +31,7 @@ section { display: grid; gap: 14px; min-width: 0; }
 figure { margin: 0; display: grid; gap: 8px; min-width: 0; }
 .bezel { background: var(--bezel); padding: 2.2%; border-radius: 10px; border: 3px solid var(--blue); }
 .yellow .bezel { border-color: var(--yellow); }
-canvas { display: block; width: 100%; height: auto; border-radius: 3px; }
+canvas, .bezel img { display: block; width: 100%; height: auto; border-radius: 3px; }
 .tag { font-size: 13px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted);
   display: flex; align-items: center; gap: 8px; }
 .tag i { width: 10px; height: 10px; border-radius: 50%; background: var(--blue); flex: none; }
@@ -69,6 +69,15 @@ canvas { display: block; width: 100%; height: auto; border-radius: 3px; }
     <h2>Both boards, side by side</h2>
     <div class="pair" id="hero"></div>
     <p class="note">The two pictures keep the true size difference between the 2.8 inch and the 4.3 inch screen. Same layout on both, so you learn it once. The weight panel turns green, yellow or red together with the OK, LOW and HIGH relays.</p>
+  </section>
+
+  <section id="real" hidden>
+    <h2>What your two boards sent back</h2>
+    <div class="pair">
+      <figure class="yellow"><div class="tag"><i></i>Yellow board, drawn by the board itself</div><div class="bezel"><img id="real-yellow" alt="The live screen the yellow board sent over USB"></div></figure>
+      <figure class="wave"><div class="tag"><i></i>Waveshare, drawn by the board itself</div><div class="bezel"><img id="real-wave" alt="The live screen the Waveshare sent over USB"></div></figure>
+    </div>
+    <p class="note">Each board sent this picture of its own screen over USB after the flash. The yellow one is red because its scale line reads 982760 kg against Maize at 7000 to 7200 kg. The Waveshare says ALARM because its junction box reports one.</p>
   </section>
 
   <section>
@@ -119,6 +128,13 @@ canvas { display: block; width: 100%; height: auto; border-radius: 3px; }
 'use strict';
 const U = WsoftUi, DPR = Math.max(1, window.devicePixelRatio || 1);
 const PACKED = /*@fonts*/null;
+// Pictures the boards sent of their own screens (docs/img/wsoft-screen/board-*-live.png), when there are any.
+const REAL = /*@real*/null;
+if (REAL) {
+  document.getElementById('real-yellow').src = REAL.yellow;
+  document.getElementById('real-wave').src = REAL.wave;
+  document.getElementById('real').hidden = false;
+}
 const fonts = {};
 const fontsOf = (id) => fonts[id] || (fonts[id] = PACKED ? PACKED[id].map(U.unpackFont) : U.buildFonts(U.BOARDS[id].sy));
 const canvasOf = (id) => { const b = U.BOARDS[id]; return new U.Canvas(b.W, b.H, b.sx, b.sy, fontsOf(id)); };
