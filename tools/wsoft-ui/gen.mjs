@@ -66,6 +66,15 @@ function colorsHeader(theme, bar) {
     `static const uint16_t WSOFT_UI_WHITE = 0xFFFF;\nstatic const uint16_t WSOFT_UI_DARK_INK = 0x1946;\n`;
 }
 
+// Room for each text in WsoftUiModel (lib/wsoft_core/src/wsoft_ui_paint.h), the ending 0 included.
+const ROOM = { ip: 16, hub: 14, link: 8, slot_title: 24, slot_detail: 36, reason: 18, steady: 10, plate: 64, audit: 18, label: 12,
+  weight: 14, unit: 4, word: 14, product: 26, target: 26, low: 12, high: 12, gross: 22, save_line: 18, title: 12, message: 40,
+  address: 20, ap_name: 34, caption: 14, value: 26 };
+function checkRoom(title, key, text) {
+  if (!(key in ROOM)) throw new Error('no room set for the text ' + key);
+  if (text.length >= ROOM[key]) throw new Error(`test screen "${title}": ${key} is ${text.length} long, the model holds ${ROOM[key] - 1}`);
+}
+
 const TILE_ID = { approval: 'APPROVAL', auto: 'AUTO', tare: 'TARE', preset: 'PRESET', product: 'PRODUCT', theme: 'THEME', wifi: 'WIFI' };
 function presetsHeader(models) {
   let s = `${HEAD}// The test screens: what test/test_wsoft_ui draws and what SCREEN SHOT n draws on a board.\n#pragma once\n\n` +
@@ -78,9 +87,12 @@ function presetsHeader(models) {
       if (k === 'tiles') {
         v.forEach((t, i) => {
           s += `      m->tiles[${i}].id = WSOFT_UI_TILE_${TILE_ID[t.id]};\n      m->tiles[${i}].look = ${t.look};\n`;
+          checkRoom(title, 'caption', t.caption);
+          checkRoom(title, 'value', t.value);
           s += `      WSOFT_UI_PRESET_SET(m->tiles[${i}].caption, ${cstr(t.caption)});\n      WSOFT_UI_PRESET_SET(m->tiles[${i}].value, ${cstr(t.value)});\n`;
         });
       } else if (typeof v === 'string') {
+        checkRoom(title, k, v);
         if (v.length) s += `      WSOFT_UI_PRESET_SET(m->${k}, ${cstr(v)});\n`;
       } else if (v !== 0 && v !== false) {
         s += `      m->${k} = ${v};\n`;

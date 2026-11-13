@@ -179,6 +179,12 @@ const WsoftUi = (() => {
       return w > 0 && w > f.track ? w - f.track : 0;
     }
     width(str, role) { return this.dots(str, role) / this.sx; }
+    // The longest start of str that is no wider than max layout units.
+    fit(str, role, max) {
+      let n = str.length;
+      while (n > 0 && this.width(str.slice(0, n), role) > max) n--;
+      return str.slice(0, n);
+    }
     // y is the middle of the capital letters. Returns the width in layout units.
     text(str, x, y, role, c, align) {
       const f = this.fonts[role], w = this.dots(str, role);
@@ -257,8 +263,9 @@ const WsoftUi = (() => {
     if (m.slot !== SLOT_NONE) {
       const stop = m.slot === SLOT_STOP, ink = stop ? WHITE : DARK;
       c.rect(6, 22, 308, 40, stop ? T.stop : T.wait, 8);
-      c.text(m.slot_title, 160, 34, c.width(m.slot_title, BIG) <= 292 ? BIG : MID, ink, CENTER);
-      c.text(m.slot_detail, 160, 53, SMALL, ink, CENTER);
+      if (c.width(m.slot_title, BIG) <= 292) c.text(m.slot_title, 160, 34, BIG, ink, CENTER);
+      else c.text(c.fit(m.slot_title, MID, 296), 160, 34, MID, ink, CENTER);
+      c.text(c.fit(m.slot_detail, SMALL, 296), 160, 53, SMALL, ink, CENTER);
       return;
     }
     const chip = m.trade_ok ? 'TRADE CHECKS ON' : 'NOT FOR TRADE';
@@ -266,11 +273,11 @@ const WsoftUi = (() => {
     c.rect(8, 24, w, 17, m.trade_ok ? T.ok : T.bad, 4);
     c.rect(9, 25, w - 2, 15, m.trade_ok ? T.chip_ok : T.chip_bad, 3);
     c.text(chip, 8 + w / 2, 32.5, SMALL, m.trade_ok ? T.ok_ink : T.bad_ink, CENTER);
-    c.text(m.reason, 8 + w + 7, 32.5, TINY, tone(T, m.reason_tone), LEFT);
     const sw = c.text(m.steady, 312, 32.5, SMALL, tone(T, m.steady_tone), RIGHT);
     c.disc(312 - sw - 8, 32.5, 4, dot(T, m.steady_tone));
-    c.text(m.plate, 10, 52, TINY, T.soft, LEFT);
-    c.text(m.audit, 312, 52, TINY, T.soft, RIGHT);
+    c.text(c.fit(m.reason, TINY, 312 - sw - 20 - (8 + w + 7)), 8 + w + 7, 32.5, TINY, tone(T, m.reason_tone), LEFT);
+    const aw = c.text(m.audit, 312, 52, TINY, T.soft, RIGHT);
+    c.text(c.fit(m.plate, TINY, 312 - aw - 8 - 10), 10, 52, TINY, T.soft, LEFT);
   }
 
   // The weight panel takes the colour of the Hi-Lo zone the relays are in: yellow LOW, green
@@ -290,15 +297,17 @@ const WsoftUi = (() => {
   function paintHilo(c, m, T) {
     c.rect(0, 122, 320, 66, T.bg, 0);
     c.disc(16, 137, 5, dot(T, m.word_tone));
-    c.text(m.word, 28, 137, m.product_on ? BIG : MID, tone(T, m.word_tone), LEFT);
+    const ww = c.text(m.word, 28, 137, m.product_on ? BIG : MID, tone(T, m.word_tone), LEFT);
+    // What is left of the line for the product, right of the word.
+    const room = 310 - (28 + ww + 10);
     const bx = 10, bw = 300, by = 157, bh = 12;
     if (!m.product_on) {
-      c.text(m.target, 310, 137, TINY, T.soft, RIGHT);
+      c.text(c.fit(m.target, TINY, room), 310, 137, TINY, T.soft, RIGHT);
       c.rect(bx, by, bw, bh, T.line, -1);
       return;
     }
-    c.text(m.product, 310, 129.5, SMALL, T.ink, RIGHT);
-    c.text(m.target, 310, 143, TINY, T.soft, RIGHT);
+    c.text(c.fit(m.product, SMALL, room), 310, 129.5, SMALL, T.ink, RIGHT);
+    c.text(c.fit(m.target, TINY, room), 310, 143, TINY, T.soft, RIGHT);
     // The bar: LOW, OK and HIGH. The limits sit 6/22 and 16/22 along it, as on the Edge.
     const lo = bx + bw * 6 / 22, hi = bx + bw * 16 / 22;
     c.rect(bx, by, bw, bh, T.bad, -1);
@@ -319,14 +328,16 @@ const WsoftUi = (() => {
     c.rect(8, 190, 104, 46, T.line, 8);
     c.rect(9, 191, 102, 44, T.panel, 7);
     c.text('GROSS', 17, 202, TINY, T.soft, LEFT);
-    c.text(m.gross, 17, 221, c.width(m.gross, MID) <= 88 ? MID : SMALL, m.live ? T.ink : T.soft, LEFT);
+    if (c.width(m.gross, MID) <= 88) c.text(m.gross, 17, 221, MID, m.live ? T.ink : T.soft, LEFT);
+    else c.text(c.fit(m.gross, SMALL, 88), 17, 221, SMALL, m.live ? T.ink : T.soft, LEFT);
     c.rect(120, 190, 72, 46, T.btn, 8);
     for (let i = 0; i < 3; i++) c.rect(144, 200 + i * 6, 24, 3, T.btn_ink, 1);
     c.text('MENU', 156, 226, SMALL, T.btn_ink, CENTER);
     c.rect(200, 190, 112, 46, m.save_look === LOOK_ON ? T.ok : m.save_look === LOOK_BAD ? T.stop : T.btn, 8);
     const ink = m.save_look === LOOK_BTN ? T.btn_ink : WHITE;
     c.text('SAVE', 256, 206, MID, ink, CENTER);
-    c.text(m.save_line, 256, 225, c.width(m.save_line, SMALL) <= 104 ? SMALL : TINY, ink, CENTER);
+    if (c.width(m.save_line, SMALL) <= 104) c.text(m.save_line, 256, 225, SMALL, ink, CENTER);
+    else c.text(c.fit(m.save_line, TINY, 104), 256, 225, TINY, ink, CENTER);
   }
 
   // ---------- the menu pages (everything under the status bar) ----------
@@ -342,7 +353,8 @@ const WsoftUi = (() => {
     const ink = strong ? WHITE : look === LOOK_PLAIN ? T.ink : T.btn_ink;
     if (caption.length) {
       c.text(caption, x + 10, y + 13, TINY, strong ? WHITE : T.soft, LEFT);
-      c.text(value, x + 10, y + 30, c.width(value, MID) <= w - 20 ? MID : SMALL, ink, LEFT);
+      if (c.width(value, MID) <= w - 20) c.text(value, x + 10, y + 30, MID, ink, LEFT);
+      else c.text(c.fit(value, SMALL, w - 20), x + 10, y + 30, SMALL, ink, LEFT);
     } else {
       c.text(value, x + w / 2, y + h / 2, MID, ink, CENTER);
     }
@@ -350,8 +362,8 @@ const WsoftUi = (() => {
 
   function paintPage(c, m, T) {
     c.rect(0, 20, 320, 220, T.bg, 0);
-    c.text(m.title, 10, 32, SMALL, T.ink, LEFT);
-    c.text(m.message, 310, 32, SMALL, T.wait_ink, RIGHT);
+    const tw = c.text(m.title, 10, 32, SMALL, T.ink, LEFT);
+    c.text(c.fit(m.message, SMALL, 310 - (10 + tw + 12 + m.pin_count * 14)), 310, 32, SMALL, T.wait_ink, RIGHT);
     if (m.page === PAGE_MENU) {
       for (let i = 0; i < m.tile_count; i++) paintTile(c, T, tileBox(i), m.tiles[i].caption, m.tiles[i].value, m.tiles[i].look);
       paintTile(c, T, BOX.back, '', 'BACK', LOOK_PLAIN);
@@ -380,7 +392,8 @@ const WsoftUi = (() => {
         c.text(String.fromCharCode(49 + i), 22, 58 + i * 40, SMALL, WHITE, CENTER);
       }
       c.text('On your phone, join this Wi-Fi', 42, 50, TINY, T.soft, LEFT);
-      c.text(m.ap_name, 42, 67, MID, T.ink, LEFT);
+      if (c.width(m.ap_name, MID) <= 268) c.text(m.ap_name, 42, 67, MID, T.ink, LEFT);
+      else c.text(c.fit(m.ap_name, SMALL, 268), 42, 67, SMALL, T.ink, LEFT);
       c.text('Then open this address', 42, 90, TINY, T.soft, LEFT);
       c.text(m.address, 42, 107, MID, T.ink, LEFT);
       c.text('Log in, tap Wi-Fi and pick yours', 42, 138, SMALL, T.ink, LEFT);
@@ -511,6 +524,7 @@ const WsoftUi = (() => {
   // ---------- the test screens ----------
   const MAIZE = { name: 'Maize', low: 49000, target: 50000, high: 51000 };
   const SUGAR = { name: 'Sugar 25', low: 24900, target: 25000, high: 25250 };
+  const LONG = { name: 'Yellow maize meal 12.5', low: 12400, target: 12500, high: 12650 };
   function state(patch = {}) {
     const S = {
       dark: true, page: 'live', message: '', pin: '',
@@ -544,6 +558,11 @@ const WsoftUi = (() => {
     ['Approval tapped with no PIN', 'It says plainly where to set the PIN.', state({ page: 'nopin' })],
     ['Light mode, too high', 'The colours carry over to light mode.', state({ dark: false, gross: 52480, waiting: 'OUT_OF_LIMITS' })],
     ['Menu in light mode', 'The menu in light.', state({ dark: false, page: 'menu' })],
+    // Long words must be cut to their room, never run into their neighbours.
+    ['Long product name', 'The name is cut where the word begins.', state({ product: LONG, gross: 12700, waiting: 'OUT_OF_LIMITS' })],
+    ['Long hotspot name', 'A long hotspot name drops to the smaller letters.', state({ page: 'wifi', wifi: { up: false, ap: 'esp-W-Soft/yellow2-workshop-bench' } })],
+    ['Long menu message', 'The message stops before the title.', state({ page: 'menu', product: LONG, message: 'PRODUCT YELLOW MAIZE MEAL 12.5 KG BAG' })],
+    ['Long plate line', 'The plate stops before the audit counter.', state({ source: 'RS485', approval: true, check: 'motion', audit: 1234567, plate: { sa: 'SA-2026/0001234567890', max: '60000', min: '400', e: '20' } })],
   ];
 
   const BOARDS = {

@@ -58,6 +58,9 @@ class WsoftCanvas {
   int dots(const char *text, int font) const;
   // Width in layout units.
   double width(const char *text, int font) const;
+  // Copies into out the longest start of text that is no wider than max layout units (and
+  // fits size). Returns out.
+  const char *fit(const char *text, int font, double max, char *out, size_t size) const;
   // y is the middle of the capital letters. Returns the width in layout units.
   double text(const char *text, double x, double y, int font, uint16_t color, WsoftAlign align = WSOFT_LEFT);
 

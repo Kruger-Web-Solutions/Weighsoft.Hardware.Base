@@ -120,6 +120,18 @@ double WsoftCanvas::width(const char *text, int font) const {
   return dots(text, font) / sx_;
 }
 
+const char *WsoftCanvas::fit(const char *text, int font, double max, char *out, size_t size) const {
+  size_t n = 0;
+  if (size == 0) return "";
+  while (text[n] && n + 1 < size) {
+    out[n] = text[n];
+    n++;
+  }
+  out[n] = 0;
+  while (n > 0 && width(out, font) > max) out[--n] = 0;
+  return out;
+}
+
 double WsoftCanvas::text(const char *text, double x, double y, int font, uint16_t color, WsoftAlign align) {
   const WsoftFont &f = fonts_[font];
   int w = dots(text, font);

@@ -13,6 +13,9 @@ static const uint16_t DARK = WSOFT_UI_DARK_INK;
 
 enum { TINY = WSOFT_UI_TINY, SMALL = WSOFT_UI_SMALL, MID = WSOFT_UI_MID, BIG = WSOFT_UI_BIG, HERO = WSOFT_UI_HERO };
 
+// Room for the longest text of the model, cut to fit its place (WsoftCanvas::fit).
+static const size_t CUT_SIZE = 72;
+
 // The colour of a word, and of the dot beside it.
 static uint16_t tone(const Theme &T, int t) {
   return t == WSOFT_UI_TONE_OK ? T.ok_ink : t == WSOFT_UI_TONE_WAIT ? T.wait_ink : t == WSOFT_UI_TONE_BAD ? T.bad_ink : T.soft;
@@ -45,6 +48,7 @@ static void paint_bar(WsoftCanvas &c, const WsoftUiModel &m) {
 }
 
 static void paint_top(WsoftCanvas &c, const WsoftUiModel &m, const Theme &T) {
+  char cut[CUT_SIZE];
   c.rect(0, 20, 320, 42, T.bg);
   if (m.slot == WSOFT_UI_SLOT_WIFI) {
     c.rect(6, 22, 308, 40, T.wait, 8);
@@ -60,8 +64,9 @@ static void paint_top(WsoftCanvas &c, const WsoftUiModel &m, const Theme &T) {
     bool stop = m.slot == WSOFT_UI_SLOT_STOP;
     uint16_t ink = stop ? WHITE : DARK;
     c.rect(6, 22, 308, 40, stop ? T.stop : T.wait, 8);
-    c.text(m.slot_title, 160, 34, c.width(m.slot_title, BIG) <= 292 ? BIG : MID, ink, WSOFT_CENTER);
-    c.text(m.slot_detail, 160, 53, SMALL, ink, WSOFT_CENTER);
+    if (c.width(m.slot_title, BIG) <= 292) c.text(m.slot_title, 160, 34, BIG, ink, WSOFT_CENTER);
+    else c.text(c.fit(m.slot_title, MID, 296, cut, sizeof cut), 160, 34, MID, ink, WSOFT_CENTER);
+    c.text(c.fit(m.slot_detail, SMALL, 296, cut, sizeof cut), 160, 53, SMALL, ink, WSOFT_CENTER);
     return;
   }
   const char *chip = m.trade_ok ? "TRADE CHECKS ON" : "NOT FOR TRADE";
@@ -69,11 +74,12 @@ static void paint_top(WsoftCanvas &c, const WsoftUiModel &m, const Theme &T) {
   c.rect(8, 24, w, 17, m.trade_ok ? T.ok : T.bad, 4);
   c.rect(9, 25, w - 2, 15, m.trade_ok ? T.chip_ok : T.chip_bad, 3);
   c.text(chip, 8 + w / 2, 32.5, SMALL, m.trade_ok ? T.ok_ink : T.bad_ink, WSOFT_CENTER);
-  c.text(m.reason, 8 + w + 7, 32.5, TINY, tone(T, m.reason_tone));
   double sw = c.text(m.steady, 312, 32.5, SMALL, tone(T, m.steady_tone), WSOFT_RIGHT);
   c.disc(312 - sw - 8, 32.5, 4, dot(T, m.steady_tone));
-  c.text(m.plate, 10, 52, TINY, T.soft);
-  c.text(m.audit, 312, 52, TINY, T.soft, WSOFT_RIGHT);
+  c.text(c.fit(m.reason, TINY, 312 - sw - 20 - (8 + w + 7), cut, sizeof cut), 8 + w + 7, 32.5, TINY,
+         tone(T, m.reason_tone));
+  double aw = c.text(m.audit, 312, 52, TINY, T.soft, WSOFT_RIGHT);
+  c.text(c.fit(m.plate, TINY, 312 - aw - 8 - 10, cut, sizeof cut), 10, 52, TINY, T.soft);
 }
 
 // The weight panel takes the colour of the Hi-Lo zone the relays are in: yellow LOW, green
@@ -91,17 +97,20 @@ static void paint_weight(WsoftCanvas &c, const WsoftUiModel &m, const Theme &T) 
 }
 
 static void paint_hilo(WsoftCanvas &c, const WsoftUiModel &m, const Theme &T) {
+  char cut[CUT_SIZE];
   c.rect(0, 122, 320, 66, T.bg);
   c.disc(16, 137, 5, dot(T, m.word_tone));
-  c.text(m.word, 28, 137, m.product_on ? BIG : MID, tone(T, m.word_tone));
+  double ww = c.text(m.word, 28, 137, m.product_on ? BIG : MID, tone(T, m.word_tone));
+  // What is left of the line for the product, right of the word.
+  double room = 310 - (28 + ww + 10);
   const double bx = 10, bw = 300, by = 157, bh = 12;
   if (!m.product_on) {
-    c.text(m.target, 310, 137, TINY, T.soft, WSOFT_RIGHT);
+    c.text(c.fit(m.target, TINY, room, cut, sizeof cut), 310, 137, TINY, T.soft, WSOFT_RIGHT);
     c.rect(bx, by, bw, bh, T.line, -1);
     return;
   }
-  c.text(m.product, 310, 129.5, SMALL, T.ink, WSOFT_RIGHT);
-  c.text(m.target, 310, 143, TINY, T.soft, WSOFT_RIGHT);
+  c.text(c.fit(m.product, SMALL, room, cut, sizeof cut), 310, 129.5, SMALL, T.ink, WSOFT_RIGHT);
+  c.text(c.fit(m.target, TINY, room, cut, sizeof cut), 310, 143, TINY, T.soft, WSOFT_RIGHT);
   // The bar: LOW, OK and HIGH. The limits sit 6/22 and 16/22 along it, as on the Edge.
   double lo = bx + bw * 6 / 22, hi = bx + bw * 16 / 22;
   c.rect(bx, by, bw, bh, T.bad, -1);
@@ -118,18 +127,21 @@ static void paint_hilo(WsoftCanvas &c, const WsoftUiModel &m, const Theme &T) {
 }
 
 static void paint_bottom(WsoftCanvas &c, const WsoftUiModel &m, const Theme &T) {
+  char cut[CUT_SIZE];
   c.rect(0, 188, 320, 52, T.bg);
   c.rect(8, 190, 104, 46, T.line, 8);
   c.rect(9, 191, 102, 44, T.panel, 7);
   c.text("GROSS", 17, 202, TINY, T.soft);
-  c.text(m.gross, 17, 221, c.width(m.gross, MID) <= 88 ? MID : SMALL, m.live ? T.ink : T.soft);
+  if (c.width(m.gross, MID) <= 88) c.text(m.gross, 17, 221, MID, m.live ? T.ink : T.soft);
+  else c.text(c.fit(m.gross, SMALL, 88, cut, sizeof cut), 17, 221, SMALL, m.live ? T.ink : T.soft);
   c.rect(120, 190, 72, 46, T.btn, 8);
   for (int i = 0; i < 3; i++) c.rect(144, 200 + i * 6, 24, 3, T.btn_ink, 1);
   c.text("MENU", 156, 226, SMALL, T.btn_ink, WSOFT_CENTER);
   c.rect(200, 190, 112, 46, m.save_look == WSOFT_UI_LOOK_ON ? T.ok : m.save_look == WSOFT_UI_LOOK_BAD ? T.stop : T.btn, 8);
   uint16_t ink = m.save_look == WSOFT_UI_LOOK_BTN ? T.btn_ink : WHITE;
   c.text("SAVE", 256, 206, MID, ink, WSOFT_CENTER);
-  c.text(m.save_line, 256, 225, c.width(m.save_line, SMALL) <= 104 ? SMALL : TINY, ink, WSOFT_CENTER);
+  if (c.width(m.save_line, SMALL) <= 104) c.text(m.save_line, 256, 225, SMALL, ink, WSOFT_CENTER);
+  else c.text(c.fit(m.save_line, TINY, 104, cut, sizeof cut), 256, 225, TINY, ink, WSOFT_CENTER);
 }
 
 // ---------- the menu pages (everything under the status bar) ----------
@@ -146,17 +158,21 @@ static void paint_tile(WsoftCanvas &c, const Theme &T, const WsoftUiBox &box, co
   }
   uint16_t ink = strong ? WHITE : look == WSOFT_UI_LOOK_PLAIN ? T.ink : T.btn_ink;
   if (caption[0]) {
+    char cut[CUT_SIZE];
     c.text(caption, x + 10, y + 13, TINY, strong ? WHITE : T.soft);
-    c.text(value, x + 10, y + 30, c.width(value, MID) <= w - 20 ? MID : SMALL, ink);
+    if (c.width(value, MID) <= w - 20) c.text(value, x + 10, y + 30, MID, ink);
+    else c.text(c.fit(value, SMALL, w - 20, cut, sizeof cut), x + 10, y + 30, SMALL, ink);
   } else {
     c.text(value, x + w / 2, y + h / 2, MID, ink, WSOFT_CENTER);
   }
 }
 
 static void paint_page(WsoftCanvas &c, const WsoftUiModel &m, const Theme &T) {
+  char cut[CUT_SIZE];
   c.rect(0, 20, 320, 220, T.bg);
-  c.text(m.title, 10, 32, SMALL, T.ink);
-  c.text(m.message, 310, 32, SMALL, T.wait_ink, WSOFT_RIGHT);
+  double tw = c.text(m.title, 10, 32, SMALL, T.ink);
+  c.text(c.fit(m.message, SMALL, 310 - (10 + tw + 12 + m.pin_count * 14), cut, sizeof cut), 310, 32, SMALL, T.wait_ink,
+         WSOFT_RIGHT);
   if (m.page == WSOFT_UI_PAGE_MENU) {
     for (int i = 0; i < m.tile_count && i < WSOFT_UI_TILES_MAX; i++) {
       paint_tile(c, T, wsoft_ui_tile_box(i), m.tiles[i].caption, m.tiles[i].value, m.tiles[i].look);
@@ -191,7 +207,8 @@ static void paint_page(WsoftCanvas &c, const WsoftUiModel &m, const Theme &T) {
       c.text(number, 22, 58 + i * 40, SMALL, WHITE, WSOFT_CENTER);
     }
     c.text("On your phone, join this Wi-Fi", 42, 50, TINY, T.soft);
-    c.text(m.ap_name, 42, 67, MID, T.ink);
+    if (c.width(m.ap_name, MID) <= 268) c.text(m.ap_name, 42, 67, MID, T.ink);
+    else c.text(c.fit(m.ap_name, SMALL, 268, cut, sizeof cut), 42, 67, SMALL, T.ink);
     c.text("Then open this address", 42, 90, TINY, T.soft);
     c.text(m.address, 42, 107, MID, T.ink);
     c.text("Log in, tap Wi-Fi and pick yours", 42, 138, SMALL, T.ink);
