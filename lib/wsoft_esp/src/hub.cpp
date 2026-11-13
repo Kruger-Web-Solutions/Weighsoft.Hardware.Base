@@ -1,3 +1,4 @@
+#include "wsoft_log.h"
 #include "hub.h"
 #include "approval.h"
 #ifdef WSOFT_ON_BASE
@@ -36,6 +37,8 @@ static const char *RELEASE_VERSION = "bench-2026-10-24";
 #endif
 #if defined(WSOFT_BOARD_CYD)
 static const char *STATION_MODEL = "wsoft-cyd28";
+#elif defined(WSOFT_BOARD_HEADLESS) && WSOFT_BOARD_HEADLESS
+static const char *STATION_MODEL = "wsoft-s3-headless";
 #else
 static const char *STATION_MODEL = "wsoft-waveshare43";
 #endif
@@ -311,13 +314,13 @@ static void send_weighings() {
     meta.hilo = &hilo;
     char body[900];
     if (!wsoft_weighing_json(w, meta, body, sizeof body)) {
-      Serial0.printf("WEIGH seq=%lu cannot be sent (weight or time out of range): dropped\n", (unsigned long)w.seq);
+      WSOFT_LOG.printf("WEIGH seq=%lu cannot be sent (weight or time out of range): dropped\n", (unsigned long)w.seq);
       weighings_delivered(w.seq);
       continue;
     }
     String reply;
     int status = post_signed("/api/v1/ingest/weighings", String(body), &reply);
-    Serial0.printf("WEIGH sent seq=%lu status=%d %s\n", (unsigned long)w.seq, status, reply.substring(0, 80).c_str());
+    WSOFT_LOG.printf("WEIGH sent seq=%lu status=%d %s\n", (unsigned long)w.seq, status, reply.substring(0, 80).c_str());
     if (status == 201 || status == 200) {
       weighings_delivered(w.seq);
     } else if (status == 400) {
@@ -400,13 +403,13 @@ static bool pull_signed(const char *path, const char *request, const char *prefi
   http.end();
 
   if (status != 200) {
-    Serial0.printf("HUB %s status=%d\n", what, status);
+    WSOFT_LOG.printf("HUB %s status=%d\n", what, status);
     return false;
   }
   if (!wsoft_hub_verify_answer(signing_key, prefix, key_id.c_str(), nonce.c_str(), answer_key.c_str(),
                                answer_time.c_str(), answer_nonce.c_str(), answer_signature.c_str(), reply->c_str(),
                                reply->length())) {
-    Serial0.printf("HUB %s bad signature\n", what);
+    WSOFT_LOG.printf("HUB %s bad signature\n", what);
     return false;
   }
   return true;
@@ -425,7 +428,7 @@ static void pull_commands() {
   static WsoftHubCommand commands[WSOFT_CMD_PER_PULL];
   size_t count = 0;
   if (!wsoft_hub_commands_parse(reply.c_str(), reply.length(), commands, &count)) {
-    Serial0.println("HUB commands bad body");
+    WSOFT_LOG.println("HUB commands bad body");
     return;
   }
   // Oldest first (the Hub sends them that way; sorted here in case it ever does not).
@@ -446,7 +449,7 @@ static void pull_commands() {
     keep_result(c.id, error);
     commands_applied = c.id;
     save_commands_applied(commands_applied);
-    Serial0.printf("HUB command id=%llu %s %s: %s\n", (unsigned long long)c.id, wsoft_switch_name(c.which),
+    WSOFT_LOG.printf("HUB command id=%llu %s %s: %s\n", (unsigned long long)c.id, wsoft_switch_name(c.which),
                    c.on ? "ON" : "OFF", error == WSOFT_SWITCH_OK ? "done" : wsoft_switch_error_code(error));
   }
 }
@@ -469,7 +472,7 @@ static void pull_hilo() {
   }
   static WsoftHiloList list;  // static: too big for the Hub task's stack
   if (!wsoft_hilo_parse(reply.c_str(), reply.length(), &list)) {
-    Serial0.println("HUB hilo bad body");
+    WSOFT_LOG.println("HUB hilo bad body");
     hilo_failed();
     return;
   }
@@ -513,14 +516,14 @@ static void send_heartbeat() {
   } else {
     state = HUB_UNREACHABLE;
   }
-  Serial0.printf("HUB heartbeat status=%d %s\n", status, reply.substring(0, 120).c_str());
+  WSOFT_LOG.printf("HUB heartbeat status=%d %s\n", status, reply.substring(0, 120).c_str());
 }
 
 static void hub_task(void *) {
 #ifndef WSOFT_ON_BASE
   WiFi.onEvent(
       [](WiFiEvent_t, WiFiEventInfo_t info) {
-        Serial0.printf("HUB wifi refused reason=%d\n", info.wifi_sta_disconnected.reason);
+        WSOFT_LOG.printf("HUB wifi refused reason=%d\n", info.wifi_sta_disconnected.reason);
       },
       ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
   WiFi.mode(WIFI_STA);
@@ -539,7 +542,7 @@ static void hub_task(void *) {
   for (;;) {
     if ((int32_t)(millis() - next_report) >= 0) {
       next_report = millis() + 10000;
-      Serial0.printf("HUB state=%s wifi_status=%d ip=%s clock=%ld\n", hub_state_text(state), (int)WiFi.status(),
+      WSOFT_LOG.printf("HUB state=%s wifi_status=%d ip=%s clock=%ld\n", hub_state_text(state), (int)WiFi.status(),
                      WiFi.localIP().toString().c_str(), (long)time(nullptr));
 #ifndef WSOFT_ON_BASE
       if (WiFi.status() != WL_CONNECTED) {
@@ -549,10 +552,10 @@ static void hub_task(void *) {
         for (int i = 0; i < found; i++) {
           if (WiFi.SSID(i) == wifi_ssid) {
             seen = true;
-            Serial0.printf("HUB wifi seen rssi=%d channel=%d\n", WiFi.RSSI(i), WiFi.channel(i));
+            WSOFT_LOG.printf("HUB wifi seen rssi=%d channel=%d\n", WiFi.RSSI(i), WiFi.channel(i));
           }
         }
-        if (!seen) Serial0.printf("HUB wifi not seen among %d networks (needs 2.4 GHz)\n", found);
+        if (!seen) WSOFT_LOG.printf("HUB wifi not seen among %d networks (needs 2.4 GHz)\n", found);
         WiFi.scanDelete();
         WiFi.begin(wifi_ssid.c_str(), wifi_pass.c_str());
       }
@@ -617,15 +620,15 @@ void hub_ota_poll() {
     ArduinoOTA.setPassword(ota_pass.c_str());
     ArduinoOTA.setTimeout(10000);
     WiFi.setSleep(false);
-    ArduinoOTA.onStart([]() { ota_busy = true; Serial0.println("HUB ota start"); });
-    ArduinoOTA.onEnd([]() { Serial0.println("HUB ota end"); });
+    ArduinoOTA.onStart([]() { ota_busy = true; WSOFT_LOG.println("HUB ota start"); });
+    ArduinoOTA.onEnd([]() { WSOFT_LOG.println("HUB ota end"); });
     ArduinoOTA.onError([](ota_error_t error) {
       ota_busy = false;
-      Serial0.printf("HUB ota error %u\n", (unsigned)error);
+      WSOFT_LOG.printf("HUB ota error %u\n", (unsigned)error);
     });
     ArduinoOTA.begin();
     ota_started = true;
-    Serial0.printf("HUB ota ready ip=%s\n", WiFi.localIP().toString().c_str());
+    WSOFT_LOG.printf("HUB ota ready ip=%s\n", WiFi.localIP().toString().c_str());
   }
   ArduinoOTA.handle();
 #endif
@@ -642,13 +645,13 @@ void hub_begin() {
   if (!configured) {
     state = HUB_SETUP;
 #ifndef WSOFT_ON_BASE
-    Serial0.println("HUB not configured: send HUB WIFI / HUB PASS / HUB PAIR / HUB SAVE over USB");
+    WSOFT_LOG.println("HUB not configured: send HUB WIFI / HUB PASS / HUB PAIR / HUB SAVE over USB");
 #else
-    Serial0.println("HUB not configured: paste the pairing key on the web page W-Soft > Hub, or send HUB PAIR / HUB SAVE over USB");
+    WSOFT_LOG.println("HUB not configured: paste the pairing key on the web page W-Soft > Hub, or send HUB PAIR / HUB SAVE over USB");
 #endif
     return;
   }
-  Serial0.printf("HUB configured for %s key %s\n", hub_url.c_str(), key_id.c_str());
+  WSOFT_LOG.printf("HUB configured for %s key %s\n", hub_url.c_str(), key_id.c_str());
   xTaskCreatePinnedToCore(hub_task, "hub", 8192, nullptr, 1, nullptr, 0);
 }
 
@@ -691,7 +694,7 @@ WsoftHubCodeError hub_web_save(const char *code) {
   store.putString("pair", trimmed);
   forget_commands_applied(store);
   store.end();
-  Serial0.printf("HUB pairing saved from the web page for %s key %s\n", parsed.hub_url, parsed.key_id);
+  WSOFT_LOG.printf("HUB pairing saved from the web page for %s key %s\n", parsed.hub_url, parsed.key_id);
   return WSOFT_HUB_CODE_OK;
 }
 
@@ -701,7 +704,7 @@ void hub_web_forget() {
   store.remove("pair");
   forget_commands_applied(store);
   store.end();
-  Serial0.println("HUB pairing forgotten from the web page");
+  WSOFT_LOG.println("HUB pairing forgotten from the web page");
 }
 
 void hub_web_info(HubWebInfo *out) {
