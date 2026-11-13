@@ -47,6 +47,7 @@ void ui_loop();
 //                     they must equal test/test_wsoft_ui/golden.h
 //   SCREEN SHOT       sends the screen as it is now (run-length text, tools/wsoft-ui/shot.ps1)
 //   SCREEN SHOT n     sends test screen n
+//   SCREEN PIXEL x y  one dot read back from the panel's own memory (yellow board), panel dots
 //   SCREEN TAP x y    a tap at layout position x, y (320 x 240)
 // While a picture is sent the weigh loop waits, so the relays rest (their zone goes stale).
 void ui_handle_command(const String &command, Stream &port);

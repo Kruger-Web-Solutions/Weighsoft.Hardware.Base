@@ -77,7 +77,8 @@ struct WsoftUiModel {
   uint8_t reason_tone;
   char steady[10];
   uint8_t steady_tone;
-  char plate[64];
+  char plate_sa[40];      // "SA 1234/56", "" when there is no plate
+  char plate_limits[56];  // "MAX 150 MIN 1 E 0.05 KG"
   char audit[18];
   // weight row
   char label[12];
@@ -104,8 +105,8 @@ struct WsoftUiModel {
   uint8_t tile_count;
   WsoftUiTile tiles[WSOFT_UI_TILES_MAX];
   uint8_t pin_count;  // digits typed on the PIN pad
-  char address[20];   // the address to open: on the no-PIN note and the Wi-Fi page
-  char ap_name[34];   // the board's own hotspot
+  char address[20];   // the address to open: on the no-PIN note and the Wi-Fi page; "" when there is none
+  char ap_name[34];   // the board's own hotspot; "" when it is off
 };
 
 enum {
@@ -152,6 +153,12 @@ static const WsoftUiBox WSOFT_UI_BOX_WIDE = {8, 190, 304, 44};     // one button
 WsoftUiBox wsoft_ui_tile_box(int i);
 // A PIN pad key: column 0..3, row 0..3, spanning cols x rows keys.
 WsoftUiBox wsoft_ui_key_box(int col, int row, int cols, int rows);
+
+// The plate as one line no wider than room layout units, for the canvas's small letters.
+// Its limits are never cut: a cut number would be a wrong number ("MIN 4" for "MIN 400"). A
+// long SA number is cut and marked with dots; if there is no room for any of it, the limits
+// alone; if even they do not fit, whole words only, marked too. out needs 128 bytes.
+const char *wsoft_ui_plate_line(const WsoftCanvas &canvas, const WsoftUiModel &model, double room, char *out, size_t size);
 
 // Where the marker sits on the Hi-Lo bar, 0..1000, for a net weight of g grams: the bar runs
 // 0.6 of the span past each limit (the Edge's band), so low is at 6/22 and high at 16/22.

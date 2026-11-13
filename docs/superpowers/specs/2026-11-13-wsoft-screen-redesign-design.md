@@ -40,7 +40,8 @@ Go-ahead to build and flash: 13 Nov 20:31 ("get all the work done ... flash the 
 
 ## Not in this change
 
-- No change to the weigh loop, the Modbus poll, approval, weighings, Hub, web page or MQTT.
+- No change to the Modbus poll, approval, weighings, Hub, web page or MQTT. The weigh loop
+  changes in one place only: the relay zone is judged on the net weight (see "Bug fixed").
 - No Wi-Fi setup typed on the screen (no keyboard, no network list): the phone steps stay.
 - The screen never shows a password.
 - No QR code.
@@ -109,9 +110,11 @@ Rules:
 - `lib/wsoft_esp/src/wsoft_ui.*`: fills the model from the services each poll, repaints the
   rows whose model part changed, pages and taps, the panel and touch drivers of each board.
   `wsoft_screen.cpp` keeps the scale poll, the jobs and the snapshot and hands over one view.
-- USB technician commands for checks without a person at the board: `SCREEN SHOT` (the
-  screen as it is now, run-length text), `SCREEN SHOT n` (test screen n with its CRC),
-  `SCREEN TAP x y` (a tap at layout position x, y).
+- USB technician commands for checks without a person at the board: `SCREEN CRC` (paints
+  every test screen and prints its CRC), `SCREEN SHOT` (the screen as it is now, run-length
+  text), `SCREEN SHOT n` (test screen n), `SCREEN PIXEL x y` (one dot read back from the
+  yellow board's panel), `SCREEN TAP x y` (a tap at layout position x, y). Bench use: the
+  weigh loop waits while a picture is sent.
 - `screen_rle.h` (the Waveshare background picture) and `fonts.h` go.
 
 Bug fixed on the way: the relay zone was judged on the gross weight while the screen word and
@@ -124,7 +127,7 @@ net weight too.
   sizes, whole-frame and in bands, and its CRC-32 must equal the reference drawing's
   (`golden.h`, written by `tools/wsoft-ui/gen.mjs`). Unit tests for blend, clip and the marker
   position.
-- On each board after the flash: `SCREEN SHOT n` must print the same CRCs; `SCREEN SHOT`
+- On each board after the flash: `SCREEN CRC` must print the same CRCs; `SCREEN SHOT`
   must decode to the expected live screen; `SCREEN TAP` walks MENU, SCREEN, WI-FI and back.
 
 ## Builder's calls (Rhyno can change any of them)

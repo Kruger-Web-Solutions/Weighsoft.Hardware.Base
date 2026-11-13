@@ -67,7 +67,7 @@ function colorsHeader(theme, bar) {
 }
 
 // Room for each text in WsoftUiModel (lib/wsoft_core/src/wsoft_ui_paint.h), the ending 0 included.
-const ROOM = { ip: 16, hub: 14, link: 8, slot_title: 24, slot_detail: 36, reason: 18, steady: 10, plate: 64, audit: 18, label: 12,
+const ROOM = { ip: 16, hub: 14, link: 8, slot_title: 24, slot_detail: 36, reason: 18, steady: 10, plate_sa: 40, plate_limits: 56, audit: 18, label: 12,
   weight: 14, unit: 4, word: 14, product: 26, target: 26, low: 12, high: 12, gross: 22, save_line: 18, title: 12, message: 40,
   address: 20, ap_name: 34, caption: 14, value: 26 };
 function checkRoom(title, key, text) {

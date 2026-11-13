@@ -428,6 +428,10 @@ void test_model_product_names() {
   strcpy(product.name, "Caf\xC3\xA9 beans");
   wsoft_ui_model(in, &model);
   TEST_ASSERT_EQUAL_STRING("CAF? BEANS", model.product);
+  // A backtick stands taller than a capital: it is drawn as an apostrophe.
+  strcpy(product.name, "Mike`s mix");
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL_STRING("MIKE'S MIX", model.product);
   // No name: the code.
   product.name[0] = 0;
   wsoft_ui_model(in, &model);
@@ -597,6 +601,21 @@ void test_only_rows_that_changed_get_painted() {
   TEST_ASSERT_NOT_EQUAL(wsoft_ui_row_key(a, WSOFT_UI_ROW_BAR), wsoft_ui_row_key(b, WSOFT_UI_ROW_BAR));
   TEST_ASSERT_NOT_EQUAL(wsoft_ui_row_key(a, WSOFT_UI_ROW_PAGE), wsoft_ui_row_key(b, WSOFT_UI_ROW_PAGE));
   TEST_ASSERT_EQUAL_HEX32(wsoft_ui_row_key(a, WSOFT_UI_ROW_WEIGHT), wsoft_ui_row_key(b, WSOFT_UI_ROW_WEIGHT));
+  // The signal flickers by a bar: the status bar only. A menu page must not be painted again
+  // four times a second because of it.
+  in.ip = "192.168.0.142";
+  wsoft_ui_model(in, &a);
+  in.rssi = -80;
+  wsoft_ui_model(in, &b);
+  TEST_ASSERT_NOT_EQUAL(a.wifi_bars, b.wifi_bars);
+  TEST_ASSERT_NOT_EQUAL(wsoft_ui_row_key(a, WSOFT_UI_ROW_BAR), wsoft_ui_row_key(b, WSOFT_UI_ROW_BAR));
+  TEST_ASSERT_EQUAL_HEX32(wsoft_ui_row_key(a, WSOFT_UI_ROW_PAGE), wsoft_ui_row_key(b, WSOFT_UI_ROW_PAGE));
+  in.rssi = -60;
+  // Wi-Fi drops: the pages that show the address follow.
+  in.wifi_up = false;
+  wsoft_ui_model(in, &b);
+  TEST_ASSERT_NOT_EQUAL(wsoft_ui_row_key(a, WSOFT_UI_ROW_PAGE), wsoft_ui_row_key(b, WSOFT_UI_ROW_PAGE));
+  in.wifi_up = true;
   // GROSS is greyed without a signal, so the bottom row follows `live` too.
   in.ip = "192.168.0.142";
   wsoft_ui_model(in, &a);
@@ -615,10 +634,11 @@ void test_only_rows_that_changed_get_painted() {
 void test_model_plate_line() {
   WsoftScaleSetup setup;
   WsoftCardFormat card;
-  char plate[64];
+  char sa[40], limits[56];
   // Nothing set: no plate.
-  wsoft_ui_plate_text(setup, card, plate, sizeof plate);
-  TEST_ASSERT_EQUAL_STRING("", plate);
+  wsoft_ui_plate_text(setup, card, sa, sizeof sa, limits, sizeof limits);
+  TEST_ASSERT_EQUAL_STRING("", sa);
+  TEST_ASSERT_EQUAL_STRING("", limits);
   TEST_ASSERT_TRUE(wsoft_kg_parse("150", &setup.max_kg));
   TEST_ASSERT_TRUE(wsoft_kg_parse("1", &setup.min_kg));
   strcpy(setup.sa_number, "1234/56");
@@ -626,14 +646,58 @@ void test_model_plate_line() {
   card.division = 5;
   card.decimal = 2;
   card.unit = 1;
-  wsoft_ui_plate_text(setup, card, plate, sizeof plate);
-  TEST_ASSERT_EQUAL_STRING("SA 1234/56   MAX 150 MIN 1 E 0.05 KG", plate);
+  wsoft_ui_plate_text(setup, card, sa, sizeof sa, limits, sizeof limits);
+  TEST_ASSERT_EQUAL_STRING("SA 1234/56", sa);
+  TEST_ASSERT_EQUAL_STRING("MAX 150 MIN 1 E 0.05 KG", limits);
   // What is not known yet shows as '-' or '?', as on the old screen.
   setup.sa_number[0] = 0;
   setup.min_kg = WSOFT_KG_UNSET;
   card.read = false;
-  wsoft_ui_plate_text(setup, card, plate, sizeof plate);
-  TEST_ASSERT_EQUAL_STRING("SA -   MAX 150 MIN - E ? KG", plate);
+  wsoft_ui_plate_text(setup, card, sa, sizeof sa, limits, sizeof limits);
+  TEST_ASSERT_EQUAL_STRING("SA -", sa);
+  TEST_ASSERT_EQUAL_STRING("MAX 150 MIN - E ? KG", limits);
+  // The longest SA number the setup takes still fits its part.
+  memset(setup.sa_number, 'A', WSOFT_SA_NUMBER_MAX);
+  setup.sa_number[WSOFT_SA_NUMBER_MAX] = 0;
+  wsoft_ui_plate_text(setup, card, sa, sizeof sa, limits, sizeof limits);
+  TEST_ASSERT_EQUAL(3 + WSOFT_SA_NUMBER_MAX, strlen(sa));
+}
+
+void test_a_plate_never_shows_a_cut_number() {
+  // A cut limit would be a wrong limit ("MIN 4" for "MIN 400"): the screen cuts the SA
+  // number instead, and marks it.
+  static uint16_t frame[320 * 16];
+  WsoftCanvas c;
+  c.begin(320, 240, 1, 1, WSOFT_UI_FONTS_1X);
+  c.window(frame, 0, 16);
+  static WsoftUiModel m;
+  char line[128];
+  memset(&m, 0, sizeof m);
+  // It all fits: the line as it always was.
+  strcpy(m.plate_sa, "SA 1234/56");
+  strcpy(m.plate_limits, "MAX 150 MIN 1 E 0.05 KG");
+  TEST_ASSERT_EQUAL_STRING("SA 1234/56   MAX 150 MIN 1 E 0.05 KG", wsoft_ui_plate_line(c, m, 250, line, sizeof line));
+  // Too long: the limits stay whole, the SA number ends in dots.
+  strcpy(m.plate_sa, "SA NRCS/SA1234/2026-0001234567890");
+  strcpy(m.plate_limits, "MAX 60000 MIN 400 E 20 KG");
+  const char *cut = wsoft_ui_plate_line(c, m, 230, line, sizeof line);
+  TEST_ASSERT_TRUE(c.width(cut, WSOFT_UI_TINY) <= 230);
+  const char *tail = strstr(cut, "...   MAX 60000 MIN 400 E 20 KG");
+  TEST_ASSERT_NOT_NULL(tail);
+  TEST_ASSERT_EQUAL_STRING("...   MAX 60000 MIN 400 E 20 KG", tail);
+  TEST_ASSERT_EQUAL_STRING_LEN("SA NRCS", cut, 7);
+  // No room for any of the SA number: the limits alone.
+  TEST_ASSERT_EQUAL_STRING("MAX 60000 MIN 400 E 20 KG", wsoft_ui_plate_line(c, m, 170, line, sizeof line));
+  // Not even the limits fit: whole words only, and dots say something is missing.
+  cut = wsoft_ui_plate_line(c, m, 100, line, sizeof line);
+  TEST_ASSERT_TRUE(c.width(cut, WSOFT_UI_TINY) <= 100);
+  size_t kept = strlen(cut) - 4;
+  TEST_ASSERT_EQUAL_STRING(" ...", cut + kept);
+  TEST_ASSERT_EQUAL_STRING_LEN(m.plate_limits, cut, kept);
+  TEST_ASSERT_EQUAL(' ', m.plate_limits[kept]);  // cut between two words, never inside a number
+  // No plate: nothing.
+  m.plate_sa[0] = m.plate_limits[0] = 0;
+  TEST_ASSERT_EQUAL_STRING("", wsoft_ui_plate_line(c, m, 250, line, sizeof line));
 }
 
 // ---------- every test screen against the reference drawing ----------
@@ -726,6 +790,7 @@ int main(int, char **) {
   RUN_TEST(test_model_same_facts_same_bytes);
   RUN_TEST(test_only_rows_that_changed_get_painted);
   RUN_TEST(test_model_plate_line);
+  RUN_TEST(test_a_plate_never_shows_a_cut_number);
   RUN_TEST(test_there_is_a_golden_for_every_screen);
   RUN_TEST(test_every_screen_on_the_yellow_board);
   RUN_TEST(test_every_screen_on_the_waveshare);

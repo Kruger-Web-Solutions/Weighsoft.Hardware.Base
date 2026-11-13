@@ -32,6 +32,7 @@
 //   gx_flush    show what was drawn (boards that draw into a frame first)
 //   gx_touch    is a finger down, and where (layout units, 320 x 240)
 //   gx_capture  hand every dot of a screen to a sink, top to bottom (for SCREEN SHOT / CRC)
+//   gx_pixel    one dot as the panel has it (panel dots, not layout units)
 // ======================================================================================
 
 static WsoftCanvas canvas;
@@ -46,6 +47,7 @@ static void gx_paint(const WsoftUiModel &, int) {}
 static void gx_flush() {}
 static bool gx_touch(int *, int *) { return false; }
 static void gx_capture(const WsoftUiModel *, DotSink, void *) {}
+static uint16_t gx_pixel(int, int) { return 0; }
 
 #elif WSOFT_BOARD_CYD
 // ---------- yellow board: Sunton ESP32-2432S028 ("CYD"), 2.8" 320 x 240 over SPI ----------
@@ -136,6 +138,11 @@ static void gx_capture(const WsoftUiModel *model, DotSink sink, void *arg) {
       sink(band, (size_t)PANEL_W * rows, arg);
     }
   }
+}
+
+// One dot read back from the panel's own memory: what the glass really got.
+static uint16_t gx_pixel(int x, int y) {
+  return tft.readPixel(x, y);
 }
 
 // One XPT2046 read: pressure, then X and Y (average of two readings after a dropped first one).
@@ -279,6 +286,11 @@ static void gx_capture(const WsoftUiModel *model, DotSink sink, void *arg) {
   sink(frame, (size_t)PANEL_W * PANEL_H, arg);
 }
 
+// One dot of the frame the panel was last handed (this panel cannot be read back).
+static uint16_t gx_pixel(int x, int y) {
+  return frame[y * PANEL_W + x];
+}
+
 // Read every 30 ms; in between the last answer stands.
 static bool gx_touch(int *x, int *y) {
   static uint32_t last_read = 0;
@@ -367,8 +379,9 @@ struct Facts {
   WsoftHiloProduct product;
   char ip[20];
   char address[20];
-  char ap_name[34];
-  char plate[64];
+  char ap_name[33];  // 32 characters at most: a longer answer from the Wi-Fi driver is not the name
+  char plate_sa[40];
+  char plate_limits[56];
   char preset[24];
 };
 
@@ -408,9 +421,12 @@ static void gather(Facts *f) {
   in.audit = approval_audit_counter();
   ScaleInfo scale;
   scale_info(&scale);
-  f->plate[0] = 0;
-  if (scale.rs485) wsoft_ui_plate_text(scale.setup, scale.card, f->plate, sizeof f->plate);
-  in.plate = f->plate;
+  f->plate_sa[0] = f->plate_limits[0] = 0;
+  if (scale.rs485) {
+    wsoft_ui_plate_text(scale.setup, scale.card, f->plate_sa, sizeof f->plate_sa, f->plate_limits, sizeof f->plate_limits);
+  }
+  in.plate_sa = f->plate_sa;
+  in.plate_limits = f->plate_limits;
 
   // The zone the relays are driven with, so the weight panel and the relays always agree.
   in.zone = relay_zone();
@@ -447,9 +463,10 @@ static void gather(Facts *f) {
   in.message = message;
   in.pin_count = (int)strlen(pad.entry());
   // The address to type on a phone or PC: the Wi-Fi address, else the board's own hotspot.
-  // The Wi-Fi page is about joining the hotspot, so it always shows the hotspot's.
-  strlcpy(f->address, "-", sizeof f->address);
-  strlcpy(f->ap_name, "-", sizeof f->ap_name);
+  // The Wi-Fi page is about joining the hotspot, so it always shows the hotspot's. Both stay
+  // empty with no hotspot; the pages then say so. The name is cut at 32 characters: for a
+  // name of exactly 32 the Wi-Fi driver's answer runs on into the hotspot password.
+  f->address[0] = f->ap_name[0] = 0;
   if (hotspot) {
     strlcpy(f->address, WiFi.softAPIP().toString().c_str(), sizeof f->address);
     strlcpy(f->ap_name, WiFi.softAPSSID().c_str(), sizeof f->ap_name);
@@ -459,8 +476,13 @@ static void gather(Facts *f) {
   in.ap_name = f->ap_name;
 }
 
+// Every row is painted again at the next refresh.
+static void invalidate() {
+  for (int row = 0; row < WSOFT_UI_ROW_COUNT; row++) shown_valid[row] = false;
+}
+
 // Builds the model from the facts and paints the rows whose part of it changed.
-static void refresh(bool all) {
+static void refresh() {
   static Facts facts;
   static WsoftUiModel next;
   if (!ready) return;
@@ -472,7 +494,7 @@ static void refresh(bool all) {
       continue;
     }
     uint32_t key = wsoft_ui_row_key(next, row);
-    if (!all && shown_valid[row] && shown_key[row] == key) continue;
+    if (shown_valid[row] && shown_key[row] == key) continue;
     gx_paint(next, row);
     shown_key[row] = key;
     shown_valid[row] = true;
@@ -612,14 +634,18 @@ static void pin_tap(int x, int y) {
 // x, y in layout units. Works on what is on the panel now (`shown`).
 static void tap(int x, int y) {
   last_tap_ms = millis();
+  // The Wi-Fi part of the status bar opens the Wi-Fi page from any page.
+  if (page != WSOFT_UI_PAGE_WIFI && WSOFT_UI_BOX_WIFI_BAR.hit(x, y)) {
+    message[0] = 0;
+    open_page(WSOFT_UI_PAGE_WIFI);
+    return;
+  }
   switch (page) {
     case WSOFT_UI_PAGE_LIVE:
       if (shown.slot == WSOFT_UI_SLOT_WIFI && WSOFT_UI_BOX_CONNECT.hit(x, y)) {
         open_page(WSOFT_UI_PAGE_WIFI);
       } else if (shown.slot == WSOFT_UI_SLOT_WIFI && WSOFT_UI_BOX_DISMISS.hit(x, y)) {
         wifi_dismissed = true;
-      } else if (WSOFT_UI_BOX_WIFI_BAR.hit(x, y)) {
-        open_page(WSOFT_UI_PAGE_WIFI);
       } else if (shown.slot == WSOFT_UI_SLOT_STOP && !shown.wifi_up && WSOFT_UI_BOX_SLOT.hit(x, y)) {
         // "CLOCK NOT SET - Connect Wi-Fi to get the time": a tap on it shows how.
         WeighingsInfo weigh;
@@ -663,7 +689,7 @@ bool ui_begin() {
 
 void ui_show(const WsoftUiView &next) {
   view = next;
-  refresh(false);
+  refresh();
 }
 
 void ui_loop() {
@@ -681,13 +707,13 @@ void ui_loop() {
     WSOFT_LOG.printf("TOUCH screen=%d,%d\n", x, y);
 #endif
     tap(x, y);
-    refresh(false);
+    refresh();
   }
   was_down = down;
   if (wifi_up()) wifi_dismissed = false;  // the alert comes back the next time Wi-Fi drops
   if (page != WSOFT_UI_PAGE_LIVE && millis() - last_tap_ms > (page == WSOFT_UI_PAGE_WIFI ? WIFI_IDLE_MS : IDLE_MS)) {
     open_page(WSOFT_UI_PAGE_LIVE);
-    refresh(false);
+    refresh();
   }
 }
 
@@ -757,7 +783,7 @@ void ui_handle_command(const String &command, Stream &port) {
       delay(1);
     }
     port.println("SCREEN_OK crc");
-    refresh(true);
+    invalidate();  // a board with a frame painted the test screens into it: paint the live screen again
   } else if (command.startsWith("SCREEN SHOT")) {
     String rest = command.substring(11);
     rest.trim();
@@ -770,8 +796,13 @@ void ui_handle_command(const String &command, Stream &port) {
       model = &preset;
     }
 #if !WSOFT_BOARD_CYD
-    // A board with a frame sends the frame itself: exactly what is on the panel.
-    if (rest.length() == 0) model = nullptr;
+    // A board with a frame sends the frame itself: exactly what is on the panel. If a test
+    // screen was just painted into it (SCREEN CRC or SHOT n in the same burst), paint the
+    // live screen back first.
+    if (rest.length() == 0) {
+      refresh();
+      model = nullptr;
+    }
 #endif
     static ShotSink sink;
     memset(&sink, 0, sizeof sink);
@@ -781,7 +812,7 @@ void ui_handle_command(const String &command, Stream &port) {
     shot_run(&sink);
     shot_line(&sink);
     port.printf("SCREEN_END %08lX\n", (unsigned long)sink.crc);
-    refresh(true);
+    if (model == &preset) invalidate();
   } else if (command.startsWith("SCREEN TAP ")) {
     int x = -1, y = -1;
     if (sscanf(command.c_str() + 11, "%d %d", &x, &y) != 2 || x < 0 || x >= 320 || y < 0 || y >= 240) {
@@ -789,9 +820,16 @@ void ui_handle_command(const String &command, Stream &port) {
       return;
     }
     tap(x, y);
-    refresh(false);
+    refresh();
     port.printf("SCREEN_OK tap %d %d page=%d\n", x, y, page);
+  } else if (command.startsWith("SCREEN PIXEL ")) {
+    int x = -1, y = -1;
+    if (sscanf(command.c_str() + 13, "%d %d", &x, &y) != 2 || x < 0 || x >= PANEL_W || y < 0 || y >= PANEL_H) {
+      port.printf("SCREEN_ERR use SCREEN PIXEL x y, x 0-%d, y 0-%d\n", PANEL_W - 1, PANEL_H - 1);
+      return;
+    }
+    port.printf("SCREEN_PIXEL %d %d %04X\n", x, y, gx_pixel(x, y));
   } else {
-    port.println("SCREEN_ERR use SCREEN CRC, SCREEN SHOT [n] or SCREEN TAP x y");
+    port.println("SCREEN_ERR use SCREEN CRC, SCREEN SHOT [n], SCREEN PIXEL x y or SCREEN TAP x y");
   }
 }

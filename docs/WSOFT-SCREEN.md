@@ -86,6 +86,7 @@ USB technician commands (115200 baud, the board's log port), handled by `ui_hand
 | `SCREEN CRC` | Paints every test screen on the board and prints `SCREEN_CRC n XXXXXXXX`. They must equal `golden.h` |
 | `SCREEN SHOT` | Sends the screen as it is now as run-length text |
 | `SCREEN SHOT n` | Sends test screen n |
+| `SCREEN PIXEL x y` | One dot as the panel has it (panel dots). The yellow board reads it back from the panel's own memory, so it proves what is on the glass; the Waveshare answers from its frame |
 | `SCREEN TAP x y` | A tap at layout position x, y (320 x 240), the same as a finger |
 
 `tools/wsoft-ui/shot.ps1` runs them and saves the pictures:
@@ -95,12 +96,26 @@ powershell -File tools/wsoft-ui/shot.ps1 -Port COM13 -Panel yellow -Do CRC,SHOT
 powershell -File tools/wsoft-ui/shot.ps1 -Port COM11 -Panel wave -Do "TAP 156 213",SHOT
 ```
 
-While a picture is sent the weigh loop waits (about 10 s on the yellow board, longer on the
-Waveshare), so the relays rest: their zone goes stale. `SCREEN TAP` can do whatever a finger
-can, SAVE included.
+**Bench use only, with the scale idle.** While the test screens are painted (a few seconds) or a
+picture is sent (about 10 s on the yellow board, longer on the Waveshare) the weigh loop waits:
+the relays rest because their zone goes stale, the web page, MQTT and a Writer keep the last
+weight, and a save or switch from the web page times out. `SCREEN TAP` can do whatever a finger
+can, SAVE included. A log line from another task can land inside a picture; `shot.ps1` then
+reports a checksum that differs and takes the picture again.
+
+`shot.ps1 -Do SHOT,GLASS` reads 48 dots back from the yellow board's panel and holds them to the
+picture: the only check of the glass itself that needs nobody at the board. If the panel does
+not answer reads, it says so; that is not a fault of the screen.
 
 ## 7. Known gaps
 
 - No Wi-Fi setup on the screen itself: the phone steps only.
+- Writer mode with a tare on the weigh board: the feed to the Writer (`wsoft_feed_write`) carries
+  the gross weight, so the Writer shows and judges the gross while the weigh board shows and
+  judges the net. The feed needs the net weight too.
+- The saver's "the scale must show 0 first" rule looks at the gross weight; the screen's EMPTY
+  and the relays look at the net. With a tared container left on, the screen says NET 0 and
+  EMPTY while the red note says TAKE THE LOAD OFF.
+- The Wi-Fi alert comes back at every start without Wi-Fi until X is tapped.
 - A panel that fails to start still stops the weigh loop on a board with a screen
   (`wsoft_screen_loop`), as before.

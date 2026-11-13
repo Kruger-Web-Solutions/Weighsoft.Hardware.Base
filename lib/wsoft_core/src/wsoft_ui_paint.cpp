@@ -1,5 +1,8 @@
 #include "wsoft_ui_paint.h"
 
+#include <stdio.h>
+#include <string.h>
+
 #include "gen/wsoft_ui_colors.h"
 
 // Line-for-line with the paint functions in tools/wsoft-ui/ref.js. Every number here is a
@@ -38,13 +41,42 @@ static void paint_bar(WsoftCanvas &c, const WsoftUiModel &m) {
     int h = 4 + i * 3;
     c.rect(8 + i * 5, 15 - h, 3, h, m.wifi_up && i < m.wifi_bars ? BAR.ok : BAR.dim);
   }
-  c.text(m.ip, 32, 10, SMALL, m.wifi_up ? BAR.ink : BAR.bad);
+  // The address is never cut: a cut address is another address. When the bar is too full,
+  // the Hub's words give way and only its dot tells its state.
+  bool full = 32 + c.width(m.ip, SMALL) <= 312 - c.width(m.link, SMALL) - 20 - c.width(m.hub, SMALL) - 16.5;
   double x = 312;
   x -= c.text(m.link, x, 10, SMALL, m.link_tone == WSOFT_UI_TONE_OK ? BAR.ink : bar_tone(m.link_tone), WSOFT_RIGHT);
   c.disc(x - 7, 10, 3.5, bar_tone(m.link_tone));
   x -= 20;
-  x -= c.text(m.hub, x, 10, SMALL, m.hub_tone == WSOFT_UI_TONE_OK ? BAR.ink : bar_tone(m.hub_tone), WSOFT_RIGHT);
+  x -= c.text(full ? m.hub : "HUB", x, 10, SMALL, m.hub_tone == WSOFT_UI_TONE_OK ? BAR.ink : bar_tone(m.hub_tone), WSOFT_RIGHT);
   c.disc(x - 7, 10, 3.5, bar_tone(m.hub_tone));
+  c.text(m.ip, 32, 10, SMALL, m.wifi_up ? BAR.ink : BAR.bad);
+}
+
+const char *wsoft_ui_plate_line(const WsoftCanvas &c, const WsoftUiModel &m, double room, char *out, size_t size) {
+  char sa[sizeof m.plate_sa];
+  out[0] = 0;
+  if (!m.plate_sa[0] && !m.plate_limits[0]) return out;
+  snprintf(out, size, "%s   %s", m.plate_sa, m.plate_limits);
+  if (c.width(out, TINY) <= room) return out;
+  snprintf(out, size, "...   %s", m.plate_limits);
+  c.fit(m.plate_sa, TINY, room - c.width(out, TINY), sa, sizeof sa);
+  if (strlen(sa) > 3) {
+    snprintf(out, size, "%s...   %s", sa, m.plate_limits);
+    return out;
+  }
+  if (c.width(m.plate_limits, TINY) <= room) {
+    snprintf(out, size, "%s", m.plate_limits);
+    return out;
+  }
+  char cut[sizeof m.plate_limits];
+  snprintf(cut, sizeof cut, "%s", m.plate_limits);
+  for (;;) {
+    snprintf(out, size, "%s ...", cut);
+    if (cut[0] == 0 || c.width(out, TINY) <= room) return out;
+    char *space = strrchr(cut, ' ');
+    cut[space ? space - cut : 0] = 0;
+  }
 }
 
 static void paint_top(WsoftCanvas &c, const WsoftUiModel &m, const Theme &T) {
@@ -79,7 +111,8 @@ static void paint_top(WsoftCanvas &c, const WsoftUiModel &m, const Theme &T) {
   c.text(c.fit(m.reason, TINY, 312 - sw - 20 - (8 + w + 7), cut, sizeof cut), 8 + w + 7, 32.5, TINY,
          tone(T, m.reason_tone));
   double aw = c.text(m.audit, 312, 52, TINY, T.soft, WSOFT_RIGHT);
-  c.text(c.fit(m.plate, TINY, 312 - aw - 8 - 10, cut, sizeof cut), 10, 52, TINY, T.soft);
+  char plate[128];
+  c.text(wsoft_ui_plate_line(c, m, 312 - aw - 8 - 10, plate, sizeof plate), 10, 52, TINY, T.soft);
 }
 
 // The weight panel takes the colour of the Hi-Lo zone the relays are in: yellow LOW, green
@@ -190,8 +223,14 @@ static void paint_page(WsoftCanvas &c, const WsoftUiModel &m, const Theme &T) {
     paint_tile(c, T, wsoft_ui_key_box(3, 2, 1, 2), "", "OK", WSOFT_UI_LOOK_ON);
   } else if (m.page == WSOFT_UI_PAGE_NO_PIN) {
     c.text("SET A SCREEN PIN FIRST", 160, 62, MID, T.bad_ink, WSOFT_CENTER);
-    c.text("On a phone or PC, open", 160, 90, SMALL, T.soft, WSOFT_CENTER);
-    c.text(m.address, 160, 112, MID, T.ink, WSOFT_CENTER);
+    if (m.address[0]) {
+      c.text("On a phone or PC, open", 160, 90, SMALL, T.soft, WSOFT_CENTER);
+      c.text(m.address, 160, 112, MID, T.ink, WSOFT_CENTER);
+    } else {
+      // No Wi-Fi and no hotspot: there is no address to give yet.
+      c.text("Connect the board to Wi-Fi,", 160, 90, SMALL, T.ink, WSOFT_CENTER);
+      c.text("then open its web page", 160, 112, SMALL, T.ink, WSOFT_CENTER);
+    }
     c.text("Log in as admin, then", 160, 140, SMALL, T.soft, WSOFT_CENTER);
     c.text("W-Soft  >  Settings  >  Approval PIN", 160, 160, SMALL, T.ink, WSOFT_CENTER);
     paint_tile(c, T, WSOFT_UI_BOX_WIDE, "", "BACK", WSOFT_UI_LOOK_PLAIN);
@@ -199,6 +238,12 @@ static void paint_page(WsoftCanvas &c, const WsoftUiModel &m, const Theme &T) {
     c.text("CONNECTED", 160, 84, BIG, T.ok_ink, WSOFT_CENTER);
     c.text(m.ip, 160, 118, MID, T.ink, WSOFT_CENTER);
     c.text("Type this address in a browser on the same Wi-Fi", 160, 144, TINY, T.soft, WSOFT_CENTER);
+    paint_tile(c, T, WSOFT_UI_BOX_WIDE, "", "BACK", WSOFT_UI_LOOK_PLAIN);
+  } else if (!m.ap_name[0]) {
+    // No Wi-Fi and the board's own hotspot is off: nothing to join.
+    c.text("NO WI-FI", 160, 84, BIG, T.bad_ink, WSOFT_CENTER);
+    c.text("The board hotspot is off too.", 160, 118, SMALL, T.ink, WSOFT_CENTER);
+    c.text("Restart the board to open its hotspot", 160, 144, TINY, T.soft, WSOFT_CENTER);
     paint_tile(c, T, WSOFT_UI_BOX_WIDE, "", "BACK", WSOFT_UI_LOOK_PLAIN);
   } else {
     for (int i = 0; i < 3; i++) {
@@ -252,9 +297,11 @@ uint32_t wsoft_ui_row_key(const WsoftUiModel &m, int row) {
       key = stretch(key, m, bottom, page);
       return stretch(key, m, offsetof(WsoftUiModel, live), offsetof(WsoftUiModel, live) + sizeof m.live);
     case WSOFT_UI_ROW_PAGE:
-      // The Wi-Fi page shows the address from the status bar's part.
+      // The Wi-Fi page shows whether Wi-Fi is up and the address. Not the whole status bar:
+      // a signal bar that flickers must not paint the page again.
       key = stretch(key, m, page, sizeof m);
-      return stretch(key, m, bar, top);
+      key = stretch(key, m, offsetof(WsoftUiModel, wifi_up), offsetof(WsoftUiModel, wifi_up) + sizeof m.wifi_up);
+      return stretch(key, m, offsetof(WsoftUiModel, ip), offsetof(WsoftUiModel, ip) + sizeof m.ip);
     default: return 0;
   }
 }

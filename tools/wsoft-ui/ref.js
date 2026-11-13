@@ -239,13 +239,31 @@ const WsoftUi = (() => {
       const h = 4 + i * 3;
       c.rect(8 + i * 5, 15 - h, 3, h, m.wifi_up && i < m.wifi_bars ? BAR.ok : BAR.dim, 0);
     }
-    c.text(m.ip, 32, 10, SMALL, m.wifi_up ? BAR.ink : BAR.bad, LEFT);
+    // The address is never cut: a cut address is another address. When the bar is too full,
+    // the Hub's words give way and only its dot tells its state.
+    const full = 32 + c.width(m.ip, SMALL) <= 312 - c.width(m.link, SMALL) - 20 - c.width(m.hub, SMALL) - 16.5;
     let x = 312;
     x -= c.text(m.link, x, 10, SMALL, m.link_tone === TONE_OK ? BAR.ink : barTone(m.link_tone), RIGHT);
     c.disc(x - 7, 10, 3.5, barTone(m.link_tone));
     x -= 20;
-    x -= c.text(m.hub, x, 10, SMALL, m.hub_tone === TONE_OK ? BAR.ink : barTone(m.hub_tone), RIGHT);
+    x -= c.text(full ? m.hub : 'HUB', x, 10, SMALL, m.hub_tone === TONE_OK ? BAR.ink : barTone(m.hub_tone), RIGHT);
     c.disc(x - 7, 10, 3.5, barTone(m.hub_tone));
+    c.text(m.ip, 32, 10, SMALL, m.wifi_up ? BAR.ink : BAR.bad, LEFT);
+  }
+
+  // The plate beside the audit counter. Its limits are never cut: a cut number would be a
+  // wrong number. A long SA number is cut and marked with dots. If even the limits do not
+  // fit, whole words only, marked too.
+  function plateLine(c, sa, limits, room) {
+    if (!sa.length && !limits.length) return '';
+    const tail = '   ' + limits;
+    if (c.width(sa + tail, TINY) <= room) return sa + tail;
+    const short = c.fit(sa, TINY, room - c.width('...' + tail, TINY));
+    if (short.length > 3) return short + '...' + tail;
+    if (c.width(limits, TINY) <= room) return limits;
+    let cut = limits;
+    while (cut.length && c.width(cut + ' ...', TINY) > room) cut = cut.slice(0, Math.max(0, cut.lastIndexOf(' ')));
+    return cut + ' ...';
   }
 
   function paintTop(c, m, T) {
@@ -277,7 +295,7 @@ const WsoftUi = (() => {
     c.disc(312 - sw - 8, 32.5, 4, dot(T, m.steady_tone));
     c.text(c.fit(m.reason, TINY, 312 - sw - 20 - (8 + w + 7)), 8 + w + 7, 32.5, TINY, tone(T, m.reason_tone), LEFT);
     const aw = c.text(m.audit, 312, 52, TINY, T.soft, RIGHT);
-    c.text(c.fit(m.plate, TINY, 312 - aw - 8 - 10), 10, 52, TINY, T.soft, LEFT);
+    c.text(plateLine(c, m.plate_sa, m.plate_limits, 312 - aw - 8 - 10), 10, 52, TINY, T.soft, LEFT);
   }
 
   // The weight panel takes the colour of the Hi-Lo zone the relays are in: yellow LOW, green
@@ -376,8 +394,14 @@ const WsoftUi = (() => {
       paintTile(c, T, keyBox(3, 2, 1, 2), '', 'OK', LOOK_ON);
     } else if (m.page === PAGE_NO_PIN) {
       c.text('SET A SCREEN PIN FIRST', 160, 62, MID, T.bad_ink, CENTER);
-      c.text('On a phone or PC, open', 160, 90, SMALL, T.soft, CENTER);
-      c.text(m.address, 160, 112, MID, T.ink, CENTER);
+      if (m.address.length) {
+        c.text('On a phone or PC, open', 160, 90, SMALL, T.soft, CENTER);
+        c.text(m.address, 160, 112, MID, T.ink, CENTER);
+      } else {
+        // No Wi-Fi and no hotspot: there is no address to give yet.
+        c.text('Connect the board to Wi-Fi,', 160, 90, SMALL, T.ink, CENTER);
+        c.text('then open its web page', 160, 112, SMALL, T.ink, CENTER);
+      }
       c.text('Log in as admin, then', 160, 140, SMALL, T.soft, CENTER);
       c.text('W-Soft  >  Settings  >  Approval PIN', 160, 160, SMALL, T.ink, CENTER);
       paintTile(c, T, BOX.wide, '', 'BACK', LOOK_PLAIN);
@@ -385,6 +409,12 @@ const WsoftUi = (() => {
       c.text('CONNECTED', 160, 84, BIG, T.ok_ink, CENTER);
       c.text(m.ip, 160, 118, MID, T.ink, CENTER);
       c.text('Type this address in a browser on the same Wi-Fi', 160, 144, TINY, T.soft, CENTER);
+      paintTile(c, T, BOX.wide, '', 'BACK', LOOK_PLAIN);
+    } else if (!m.ap_name.length) {
+      // No Wi-Fi and the board's own hotspot is off: nothing to join.
+      c.text('NO WI-FI', 160, 84, BIG, T.bad_ink, CENTER);
+      c.text('The board hotspot is off too.', 160, 118, SMALL, T.ink, CENTER);
+      c.text('Restart the board to open its hotspot', 160, 144, TINY, T.soft, CENTER);
       paintTile(c, T, BOX.wide, '', 'BACK', LOOK_PLAIN);
     } else {
       for (let i = 0; i < 3; i++) {
@@ -471,7 +501,8 @@ const WsoftUi = (() => {
     m.reason_tone = !S.approval ? TONE_SOFT : m.trade_ok ? TONE_OK : TONE_WAIT;
     m.steady = !S.linked ? 'NO SIGNAL' : S.alarm ? 'ALARM' : S.stable ? 'STABLE' : 'UNSTABLE';
     m.steady_tone = !S.linked || S.alarm ? TONE_BAD : S.stable ? TONE_OK : TONE_WAIT;
-    m.plate = S.plate ? `SA ${S.plate.sa}   MAX ${S.plate.max} MIN ${S.plate.min} E ${S.plate.e} KG` : '';
+    m.plate_sa = S.plate ? `SA ${S.plate.sa}` : '';
+    m.plate_limits = S.plate ? `MAX ${S.plate.max} MIN ${S.plate.min} E ${S.plate.e} KG` : '';
     m.audit = 'AUDIT ' + S.audit;
     m.label = S.tare ? 'NET (TARE)' : 'NET';
     m.live = S.linked;
@@ -514,8 +545,8 @@ const WsoftUi = (() => {
     tile('wifi', 'WI-FI', up ? S.wifi.ip : 'OFF', LOOK_BTN);
     m.tile_count = m.tiles.length;
     m.pin_count = S.pin.length;
-    m.address = m.page === PAGE_NO_PIN && up ? S.wifi.ip : S.wifi.apIp;
-    m.ap_name = S.wifi.ap;
+    m.address = m.page === PAGE_NO_PIN && up ? S.wifi.ip : S.wifi.hotspot ? S.wifi.apIp : '';
+    m.ap_name = S.wifi.hotspot ? S.wifi.ap : '';
     return m;
   }
 
@@ -526,7 +557,7 @@ const WsoftUi = (() => {
   function state(patch = {}) {
     const S = {
       dark: true, page: 'live', message: '', pin: '',
-      wifi: { up: true, ip: '192.168.0.142', bars: 3, ap: 'Weighsoft-Esp-NEW', apIp: '192.168.4.1', dismissed: false },
+      wifi: { up: true, ip: '192.168.0.142', bars: 3, ap: 'Weighsoft-Esp-NEW', apIp: '192.168.4.1', hotspot: true, dismissed: false },
       hub: 'online', source: 'RS232', linked: true, alarm: false, stable: true,
       gross: 50120, tare: 0, presetTare: 0, decimals: 3, unit: 'kg', hold: 'none',
       approval: false, check: 'off', seq: 0, audit: 0, plate: null,
@@ -560,7 +591,12 @@ const WsoftUi = (() => {
     ['Long product name', 'The name is cut where the word begins.', state({ product: LONG, gross: 12700, waiting: 'OUT_OF_LIMITS' })],
     ['Long hotspot name', 'A long hotspot name drops to the smaller letters.', state({ page: 'wifi', wifi: { up: false, ap: 'esp-W-Soft/yellow2-workshop-bench' } })],
     ['Long menu message', 'The message stops before the title.', state({ page: 'menu', product: LONG, message: 'PRODUCT YELLOW MAIZE MEAL 12.5 KG BAG' })],
-    ['Long plate line', 'The plate stops before the audit counter.', state({ source: 'RS485', approval: true, check: 'motion', audit: 1234567, plate: { sa: 'SA-2026/0001234567890', max: '60000', min: '400', e: '20' } })],
+    ['Long plate line', 'A long SA number is cut and marked; Max, Min and e stay whole.', state({ source: 'RS485', approval: true, check: 'motion', stable: false, audit: 1234567, plate: { sa: 'NRCS/SA1234/2026-0001234567890', max: '60000', min: '400', e: '20' } })],
+    ['Plate limits too long', 'If even the limits do not fit, whole words only, and dots say something is missing.', state({ source: 'RS485', approval: true, check: 'ok', seq: 5, audit: 4294967295, plate: { sa: '1', max: '99999.99999', min: '99999.99999', e: '99999.99999' } })],
+    ['Wi-Fi page, connected', 'Once the board is on Wi-Fi the page shows its address.', state({ page: 'wifi' })],
+    ['Wi-Fi page, hotspot off', 'No Wi-Fi and no hotspot: nothing to join.', state({ page: 'wifi', wifi: { up: false, hotspot: false } })],
+    ['No PIN, no address', 'With neither Wi-Fi nor hotspot the note says to connect first.', state({ page: 'nopin', wifi: { up: false, hotspot: false } })],
+    ['Longest status bar', 'The address is never cut: the Hub shows only its dot when the bar is full.', state({ source: 'WRITER', hub: 'rejected', wifi: { ip: '192.168.100.200', bars: 1 } })],
   ];
 
   const BOARDS = {

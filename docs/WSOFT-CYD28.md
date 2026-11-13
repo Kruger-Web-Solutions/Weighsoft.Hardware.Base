@@ -67,7 +67,7 @@ board: `-DST7789_DRIVER=1`, `-DTFT_RGB_ORDER=TFT_BGR`, `WSOFT_CYD_ROTATION=3`,
 | What the screen shows | Change |
 |---|---|
 | Sideways, cut off, a noisy strip on one side | wrong controller: swap `ST7789_DRIVER` / `ILI9341_DRIVER` |
-| Dark background, light text | flip `WSOFT_CYD_INVERT` |
+| The colours are the negative of the pictures in [img/wsoft-screen](img/wsoft-screen) (a pale status bar; a white screen in dark mode) | flip `WSOFT_CYD_INVERT` |
 | Upside down | `WSOFT_CYD_ROTATION=1` |
 | Red shows as blue | flip `TFT_RGB_ORDER` between `TFT_BGR` and `TFT_RGB` |
 

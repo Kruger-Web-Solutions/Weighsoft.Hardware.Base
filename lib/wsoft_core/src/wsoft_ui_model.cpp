@@ -23,6 +23,8 @@ static void put_upper(char (&field)[N], const char *text) {
       if ((ch & 0xC0) == 0xC0) field[n++] = '?';  // the first byte of a UTF-8 letter; the rest are dropped
     } else if (ch < 0x20) {
       field[n++] = '?';
+    } else if (ch == '`') {
+      field[n++] = '\'';  // a backtick stands taller than a capital and would leave its row
     } else {
       field[n++] = ch >= 'a' && ch <= 'z' ? (char)(ch - 32) : (char)ch;
     }
@@ -34,17 +36,18 @@ int wsoft_ui_wifi_bars(int rssi) {
   return rssi >= -55 ? 4 : rssi >= -67 ? 3 : rssi >= -75 ? 2 : 1;
 }
 
-void wsoft_ui_plate_text(const WsoftScaleSetup &setup, const WsoftCardFormat &card, char *out, size_t size) {
-  if (out == nullptr || size == 0) return;
-  out[0] = 0;
+void wsoft_ui_plate_text(const WsoftScaleSetup &setup, const WsoftCardFormat &card, char *sa, size_t sa_size, char *limits,
+                         size_t limits_size) {
+  if (sa == nullptr || sa_size == 0 || limits == nullptr || limits_size == 0) return;
+  sa[0] = limits[0] = 0;
   if (setup.sa_number[0] == 0 && setup.max_kg == WSOFT_KG_UNSET) return;
   char max_text[24], min_text[24], e_text[24] = "?";
   wsoft_kg_text(setup.max_kg, max_text, sizeof max_text);
   wsoft_kg_text(setup.min_kg, min_text, sizeof min_text);
   int64_t e;
   if (wsoft_card_e(card, &e)) wsoft_kg_text(e, e_text, sizeof e_text);
-  snprintf(out, size, "SA %s   MAX %s MIN %s E %s KG", setup.sa_number[0] ? setup.sa_number : "-",
-           max_text[0] ? max_text : "-", min_text[0] ? min_text : "-", e_text);
+  snprintf(sa, sa_size, "SA %s", setup.sa_number[0] ? setup.sa_number : "-");
+  snprintf(limits, limits_size, "MAX %s MIN %s E %s KG", max_text[0] ? max_text : "-", min_text[0] ? min_text : "-", e_text);
 }
 
 // Why it is not for trade, or the number of the last trade weight.
@@ -119,7 +122,8 @@ static void top(const WsoftUiInput &in, WsoftUiModel *m) {
     put(m->steady, in.stable ? "STABLE" : "UNSTABLE");
     m->steady_tone = in.stable ? WSOFT_UI_TONE_OK : WSOFT_UI_TONE_WAIT;
   }
-  put(m->plate, in.plate);
+  put(m->plate_sa, in.plate_sa);
+  put(m->plate_limits, in.plate_limits);
   snprintf(m->audit, sizeof m->audit, "AUDIT %lu", (unsigned long)in.audit);
 }
 

@@ -44,7 +44,8 @@ struct WsoftUiInput {
   TradeCheck check = TRADE_OFF;
   uint32_t trade_seq = 0;     // the last trade weight
   uint32_t audit = 0;
-  const char *plate = "";     // wsoft_ui_plate_text, "" when there is none
+  const char *plate_sa = "";      // wsoft_ui_plate_text: "SA 1234/56", "" when there is no plate
+  const char *plate_limits = "";  // "MAX 150 MIN 1 E 0.05 KG"
 
   // Hi-Lo
   WsoftRelayZone zone = WSOFT_RELAY_NONE;       // the zone the relays are driven with
@@ -70,8 +71,8 @@ struct WsoftUiInput {
   // the pages
   const char *message = "";   // the page's top-right line
   int pin_count = 0;          // digits typed
-  const char *address = "";   // to open in a browser: the no-PIN note and the Wi-Fi page
-  const char *ap_name = "";   // the board's own hotspot
+  const char *address = "";   // to open in a browser: the no-PIN note and the Wi-Fi page; "" when there is none
+  const char *ap_name = "";   // the board's own hotspot; "" when it is off
 };
 
 // Fills *model (every byte of it) from the facts.
@@ -80,6 +81,8 @@ void wsoft_ui_model(const WsoftUiInput &in, WsoftUiModel *model);
 // Wi-Fi bars from the signal in dBm: 4 from -55, 3 from -67, 2 from -75, else 1.
 int wsoft_ui_wifi_bars(int rssi);
 
-// The plate line: "SA 1234/56   MAX 150 MIN 1 E 0.05 KG". "" when the setup has neither an SA
+// The plate, in two parts so the screen can cut a long SA number without ever cutting a
+// limit: "SA 1234/56" and "MAX 150 MIN 1 E 0.05 KG". Both "" when the setup has neither an SA
 // number nor a Max. What is not known shows as '-' (e: '?').
-void wsoft_ui_plate_text(const WsoftScaleSetup &setup, const WsoftCardFormat &card, char *out, size_t size);
+void wsoft_ui_plate_text(const WsoftScaleSetup &setup, const WsoftCardFormat &card, char *sa, size_t sa_size, char *limits,
+                         size_t limits_size);

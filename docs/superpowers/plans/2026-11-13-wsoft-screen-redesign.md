@@ -15,7 +15,7 @@ then `C:\Python313\python.exe -m platformio test -e native -f test_wsoft_ui`.
 | 0 | Full flash backup of both boards | `C:\Projects\firmware\backups\2026-11-13\` (not in git: holds Wi-Fi and Hub secrets) | Both `.bin` files have the full flash size |
 | 1 | Reference drawing, mock-up, generator | `tools/wsoft-ui/ref.js`, `mockup.html`, `build.mjs`, `gen.html`, `gen.mjs`, `shoot.ps1` | `node tools/wsoft-ui/gen.mjs` writes the letters, colours, test screens, `golden.h` and the pictures |
 | 2 | Drawing engine | `lib/wsoft_core/src/wsoft_gfx.h`, `.cpp`; `test/test_wsoft_ui/test_main.cpp` | Tests for blend, rect clip, rounded corner coverage, letters and CRC pass |
-| 3 | Paint and model | `lib/wsoft_core/src/wsoft_ui_paint.h`, `.cpp` | All 16 test screens match `golden.h` on 320 x 240 and 800 x 480, whole-frame and in 16-line bands |
+| 3 | Paint and model | `lib/wsoft_core/src/wsoft_ui_paint.h`, `.cpp`, `wsoft_ui_model.h`, `.cpp` | Every test screen (25 by the end) matches `golden.h` on 320 x 240 and 800 x 480, whole-frame and in 16-line bands; the wording rules are tested |
 | 4 | Board side | `lib/wsoft_esp/src/wsoft_ui.h`, `.cpp`; `wsoft_screen.cpp` slimmed; `hub.cpp` (SCREEN command); `screen_rle.h`, `fonts.h` removed; `platformio.ini` (TFT_eSPI font flags off for `wsoft_cyd28`, SSE flags for `native`) | `wsoft_cyd28`, `wsoft_waveshare43` and `wsoft_s3_headless` build |
 | 5 | Relay zone on the net weight | `lib/wsoft_esp/src/wsoft_screen.cpp` | Relay input uses the same net weight as the screen word |
 | 6 | Yellow board: flash, check | COM13 (CH340, MAC 6c:c8:40:45:60:f4) | Boots; `SCREEN SHOT n` CRCs equal `golden.h`; live `SCREEN SHOT` decodes to the expected screen; `SCREEN TAP` opens MENU, switches SCREEN, opens WI-FI |
