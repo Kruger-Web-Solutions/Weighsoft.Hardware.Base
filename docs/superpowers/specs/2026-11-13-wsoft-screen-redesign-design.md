@@ -31,7 +31,7 @@ Go-ahead to build and flash: 13 Nov 20:31 ("get all the work done ... flash the 
    plain when the relays are off (no product, empty scale, no signal, alarm, blanked).
 4. GROSS, MENU and SAVE are three separate boxes.
 5. The IP address and Wi-Fi strength are always on the status bar. When Wi-Fi is down a yellow
-   alert offers CONNECT (try the saved Wi-Fi again and show the phone steps) or X.
+   alert offers CONNECT (the steps to put the board on Wi-Fi from a phone) or X.
 6. Every function of the old screen stays: SAVE with its result line, the red and yellow
    save notices, trade band and reason, plate line, audit counter, NET / NET (TARE), Hub
    state, scale link, MENU with Approval (PIN pad, the no-PIN note), Auto save, TARE, PRESET
@@ -83,7 +83,7 @@ Live page, top to bottom:
 Pages under the status bar: MENU (tiles that show their current value: APPROVAL, AUTO SAVE,
 TARE and PRESET TARE on RS485, PRODUCT, SCREEN dark/light, WI-FI, and BACK), the PIN pad
 (phone layout, DEL, BACK, OK), the no-PIN note, the Wi-Fi page (connected: the address;
-not connected: three phone steps, TRY AGAIN, BACK).
+not connected: three phone steps and BACK).
 
 Rules:
 
@@ -93,7 +93,9 @@ Rules:
 - The Wi-Fi alert shows 15 s after start while Wi-Fi is down; X hides it until Wi-Fi has been
   up again. Tapping the Wi-Fi part of the status bar opens the Wi-Fi page at any time. A red
   `CLOCK NOT SET` notice opens it too while Wi-Fi is down.
-- TRY AGAIN and CONNECT call `WiFi.reconnect()` when a station network is configured.
+- There is no retry button: the framework's Wi-Fi service (`WiFiSettingsService`) already tries
+  its saved network again as soon as an attempt fails, so a manual retry would add nothing.
+  The Wi-Fi page says so and turns into the connected page by itself.
 - Pages other than the live page close after 30 s without a tap (the Wi-Fi page after 3 min).
 
 ## How it is built
@@ -138,3 +140,5 @@ net weight too.
 
 - 13 Nov 2026 20:26: Rhyno approved the look and asked for the Hi-Lo colour change.
 - 13 Nov 2026 20:31: Rhyno: build it and flash both boards tonight.
+- 13 Nov 2026 (build): TRY AGAIN dropped from the Wi-Fi page after reading the framework's
+  reconnect loop; long texts are cut to their room (`WsoftCanvas::fit`); 20 test screens.

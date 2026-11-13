@@ -51,17 +51,14 @@ scale.
 
 ## 2. Screen (320 x 240)
 
-Same design as the Waveshare 4.3" screen (`screen_rle.h`), scaled down, so both boards look alike.
+The same screen as on the Waveshare, in the look of the Edge bench screen, light or dark:
+[WSOFT-SCREEN.md](WSOFT-SCREEN.md) says what every part shows, how MENU and the Wi-Fi alert work,
+how it is built and how to check a board over USB (`SCREEN CRC`, `SCREEN SHOT`, `SCREEN TAP`).
 
-| Part | Shows |
-|---|---|
-| Header | `LIVE WEIGHT`; Hub state; link state with a colour dot (`RS485 LIVE` / `RS232 LIVE` / `NO SIGNAL` / `DJB ALARM`) |
-| Card, left | `Live Weight`, the plate (`SA ...` and `MAX ... MIN ... E ... KG`) once the RS485 setup has one, else the target line; the gauge (yellow / green / red) with its needle and zone word |
-| Card, right | Trade band (`TRADE CHECKS ON` green / `NOT FOR TRADE` red), why not for trade or `SEQ n`, `NET` + `AUDIT n`, the NET weight and unit |
-| Bottom boxes | `GROSS` weight and **MENU** (tap the box); the green **SAVE** button (touch). The zone word stays under the gauge |
-| MENU page | Approval (asks for the screen PIN), Auto save, TARE and PRESET TARE (RS485), BACK. Back to the live page after 30 s without a tap |
+![The live page](img/wsoft-screen/yellow-00.png)
 
-The static parts draw once; each live part redraws only when it changes, so the screen does not flicker.
+This board has no memory for a whole frame. A row of the screen is drawn 16 lines at a time and
+pushed over SPI; a row is drawn again only when what it shows changed, so nothing flickers.
 
 CYD batches use different panel controllers. The env defaults to the TPM408-2.8 bench
 board: `-DST7789_DRIVER=1`, `-DTFT_RGB_ORDER=TFT_BGR`, `WSOFT_CYD_ROTATION=3`,
@@ -104,7 +101,7 @@ not; the payload carries `for_trade`.
   `weighing_id` = `<MAC>-<unix time>-<seq>`, gross = net = the weight in kg, tare 0,
   basis `GS`; with a tare on (RS485), gross / tare / net and basis `NT`. 201/200 remove it from the board.
 - Touch: XPT2046 on HSPI (CLK 25, MISO 39, MOSI 32, CS 33, IRQ 36), no extra library.
-  Each tap logs `TOUCH raw=x,y,z screen=x,y SAVE|-` on USB. The same touch drives MENU. If taps land in the wrong
+  Each tap logs `TOUCH raw=x,y,z screen=x,y` on USB. The same touch drives MENU and the menu pages. If taps land in the wrong
   place on another batch, set `WSOFT_TOUCH_ROTATION` or `WSOFT_TOUCH_X_MIN/MAX`,
   `WSOFT_TOUCH_Y_MIN/MAX` in the env.
 - `GET /rest/wsoftSave` (logged in): pending count and last saved. `POST` saves now
@@ -207,8 +204,7 @@ board drives them itself.
 ## 4. Known gaps
 
 - Built in the cloud only; not yet run on a CYD. Bench steps above are still to do.
-- The demo target band (1.000–2.000 kg) is the same as on the Waveshare.
-- Touch is SAVE and MENU only. Settings and the scale setup are on the web pages.
+- Touch is SAVE, MENU and the menu pages. Settings and the scale setup are on the web pages.
 - GPIO2 is the screen's DC line, so the LED example drives the blue RGB LED (GPIO17) here.
 - Host tests ran in the cloud with a stand-in Unity (the PlatformIO registry was not
   reachable there); run `pio test -e native` on the laptop for the real runner.
