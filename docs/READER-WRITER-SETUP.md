@@ -46,7 +46,7 @@ The word "Reader" is not used on W-Soft boards.
 | Saves weighings | Yes (SAVE, Auto save) | **Never** (`WSOFT_SAVE_WRITER`), so nothing is counted twice |
 | Hub | Heartbeats + weighings | Heartbeats only; the pairing stays when you flip the switch |
 | Hi-Lo relays | Follow the zone | Off, unless "In Writer mode, switch the relays too" is on |
-| Product | Picked on its screen or by the Hub | Follows the weigh board's product (feed field `product`); a code it does not hold = no product |
+| Product | Picked on its screen, its **W-Soft › Products** page, or by the Hub | Follows the weigh board's product (feed field `product`); a code it does not hold = no product, so add the same board product on both boards |
 | Screen header | `RS485 LIVE` / `RS232 LIVE` | `WRITER LIVE`, or `NO WEIGH BOARD` |
 
 How to set it up:
@@ -142,3 +142,23 @@ flowchart LR
   WriterStatus["Writer Status page"] -->|shows connection and last line| Writer
   ReaderWriters["Reader Writers tab"] -->|shows Writer online| Reader
 ```
+
+## W-Soft: products made on the board (13 Nov 2026)
+
+**W-Soft › Products** lists every product the board can use:
+
+| From | Where it is made | On the board |
+| --- | --- | --- |
+| **Hub** | Hub › Setup › Products (limits on the NONE container) | Read-only (lock icon). Pulled every 60 s, up to 50. |
+| **This board** | Here: code, name, Low / Target / High in kg | Add, edit, delete. Up to 20, kept in flash (NVS `hilo`, key `local`). Works with no Hub. |
+
+- Admins add, edit, delete and **Use** products; other users only see the list.
+- Rules (board and page): code `[A-Za-z0-9_-]{1,32}`, name 1 to 24 plain characters, 0 < Low < High,
+  Low ≤ Target ≤ High. A code the Hub already uses is refused ("That code belongs to the Hub").
+- If the Hub later adds the same code, the Hub product wins and the board one shows as **Hidden (Hub code)**.
+- The screen's MENU › PRODUCT steps through Hub products, then board products, then no product.
+- Board products are **not sent to the Hub as products**. Every weighing still carries the product code,
+  target and limits, and the Hub shows which product is in use, so reports keep working.
+  Sending board products up to the Hub's product list is a later step (needs a Hub change).
+- API: `GET /rest/wsoftProducts` (logged in), `POST /rest/wsoftProducts` (admin) with
+  `{"action":"put"|"delete"|"use",...}`; see `src/examples/wsoft/WSoftProductsService.h`.

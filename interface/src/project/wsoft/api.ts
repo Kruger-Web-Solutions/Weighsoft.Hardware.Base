@@ -4,7 +4,7 @@ import { AXIOS, WEB_SOCKET_ROOT } from '../../api/endpoints';
 
 import {
   WSoftDjbReply, WSoftDjbRequest, WSoftHub, WSoftHubAction, WSoftPinReply, WSoftPinRequest, WSoftSave,
-  WSoftRelayBoard, WSoftRelayStatus, WSoftScaleSetup, WSoftScaleSetupRequest, WSoftSettings, WSoftStatus, WSoftSwitches, WSoftSwitchRequest
+  WSoftProductAction, WSoftProducts, WSoftRelayBoard, WSoftRelayStatus, WSoftScaleSetup, WSoftScaleSetupRequest, WSoftSettings, WSoftStatus, WSoftSwitches, WSoftSwitchRequest
 } from './types';
 
 export const WSOFT_STATUS_WEBSOCKET_URL = WEB_SOCKET_ROOT + 'wsoftStatus';
@@ -55,3 +55,10 @@ export const readWSoftRelayStatus = (): AxiosPromise<WSoftRelayStatus> => AXIOS.
 
 export const updateWSoftRelays = (relays: Partial<WSoftRelayBoard>): AxiosPromise<WSoftRelayBoard> =>
   AXIOS.post('/relayBoard', relays);
+
+/** Logged-in users. Hub products and board products, and the one in use. */
+export const readWSoftProducts = (): AxiosPromise<WSoftProducts> => AXIOS.get('/wsoftProducts');
+
+/** Admin only. Add, edit or delete a board product, or pick the product in use. 400/409 with a code when it cannot. */
+export const updateWSoftProducts = (action: WSoftProductAction): AxiosPromise<WSoftProducts> =>
+  AXIOS.post('/wsoftProducts', action);
