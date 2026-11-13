@@ -268,5 +268,4 @@ void wsoft_ui_model(const WsoftUiInput &in, WsoftUiModel *m) {
   m->pin_count = (uint8_t)(in.pin_count < 0 ? 0 : in.pin_count > 6 ? 6 : in.pin_count);
   put(m->address, in.address);
   put(m->ap_name, in.ap_name);
-  m->wifi_trying = in.wifi_trying;
 }

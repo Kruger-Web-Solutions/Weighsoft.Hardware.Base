@@ -221,7 +221,7 @@ const WsoftUi = (() => {
   const BOX = {
     wifiBar: [0, 0, 150, 20], slot: [6, 22, 308, 40], connect: [160, 26, 100, 32], dismiss: [266, 26, 42, 32],
     gross: [8, 190, 104, 46], menu: [120, 190, 72, 46], save: [200, 190, 112, 46],
-    back: [164, 190, 148, 44], wide: [8, 190, 304, 44], left: [8, 190, 148, 44],
+    back: [164, 190, 148, 44], wide: [8, 190, 304, 44],
   };
   const tileBox = (i) => [i % 2 ? 164 : 8, 46 + (i >> 1) * 48, 148, 44];
   const KEY_X = [8, 86, 164, 242];
@@ -397,9 +397,8 @@ const WsoftUi = (() => {
       c.text('Then open this address', 42, 90, TINY, T.soft, LEFT);
       c.text(m.address, 42, 107, MID, T.ink, LEFT);
       c.text('Log in, tap Wi-Fi and pick yours', 42, 138, SMALL, T.ink, LEFT);
-      c.text(m.wifi_trying ? 'Trying your saved Wi-Fi again...' : 'Or tap TRY AGAIN to use the saved Wi-Fi', 42, 170, TINY, m.wifi_trying ? T.wait_ink : T.soft, LEFT);
-      paintTile(c, T, BOX.left, '', 'TRY AGAIN', LOOK_ACCENT);
-      paintTile(c, T, BOX.back, '', 'BACK', LOOK_PLAIN);
+      c.text('The board keeps looking for its saved Wi-Fi by itself', 42, 170, TINY, T.wait_ink, LEFT);
+      paintTile(c, T, BOX.wide, '', 'BACK', LOOK_PLAIN);
     }
   }
 
@@ -517,7 +516,6 @@ const WsoftUi = (() => {
     m.pin_count = S.pin.length;
     m.address = m.page === PAGE_NO_PIN && up ? S.wifi.ip : S.wifi.apIp;
     m.ap_name = S.wifi.ap;
-    m.wifi_trying = S.wifi.trying;
     return m;
   }
 
@@ -528,7 +526,7 @@ const WsoftUi = (() => {
   function state(patch = {}) {
     const S = {
       dark: true, page: 'live', message: '', pin: '',
-      wifi: { up: true, ip: '192.168.0.142', bars: 3, ap: 'Weighsoft-Esp-NEW', apIp: '192.168.4.1', dismissed: false, trying: false },
+      wifi: { up: true, ip: '192.168.0.142', bars: 3, ap: 'Weighsoft-Esp-NEW', apIp: '192.168.4.1', dismissed: false },
       hub: 'online', source: 'RS232', linked: true, alarm: false, stable: true,
       gross: 50120, tare: 0, presetTare: 0, decimals: 3, unit: 'kg', hold: 'none',
       approval: false, check: 'off', seq: 0, audit: 0, plate: null,
@@ -549,7 +547,7 @@ const WsoftUi = (() => {
     ['Saved', 'SAVE shows the number of the saved weighing.', state({ save: { recent: { result: 'SAVED', seq: 8 } }, waiting: 'ALREADY' })],
     ['Nothing on the scale', 'No colour until a load is on, the same as the relays.', state({ gross: 0, save: { auto: false } })],
     ['Wi-Fi drops', 'A yellow alert with CONNECT and X. The top bar shows NO WI-FI in red.', state({ wifi: { up: false } })],
-    ['CONNECT tapped', 'It tries your saved Wi-Fi again and shows how to set it from a phone.', state({ page: 'wifi', wifi: { up: false, trying: true } })],
+    ['CONNECT tapped', 'The steps to put the board on Wi-Fi from a phone. It keeps looking for its saved Wi-Fi by itself.', state({ page: 'wifi', wifi: { up: false } })],
     ['Scale unplugged', 'A red note says what to check. The weight shows dashes, never an old number.', state({ linked: false, waiting: 'NO_SIGNAL' })],
     ['Approval on, with tare', 'Trade checks, the plate line, the audit counter and NET (TARE), in their old words.', state({ source: 'RS485', approval: true, check: 'ok', seq: 41, audit: 7, decimals: 2, gross: 52600, tare: 2500, presetTare: 2500, plate: { sa: '1234/56', max: '150', min: '1', e: '0.05' } })],
     ['No product picked', 'Plain weighing. The bar goes grey and says where to pick a product.', state({ product: null })],

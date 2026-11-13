@@ -438,7 +438,6 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       m->tile_count = 5;
       WSOFT_UI_PRESET_SET(m->address, "192.168.4.1");
       WSOFT_UI_PRESET_SET(m->ap_name, "Weighsoft-Esp-NEW");
-      m->wifi_trying = true;
       return true;
     case 8:  // Scale unplugged
       m->dark = true;

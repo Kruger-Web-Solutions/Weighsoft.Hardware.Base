@@ -106,7 +106,6 @@ struct WsoftUiModel {
   uint8_t pin_count;  // digits typed on the PIN pad
   char address[20];   // the address to open: on the no-PIN note and the Wi-Fi page
   char ap_name[34];   // the board's own hotspot
-  bool wifi_trying;
 };
 
 enum {
@@ -127,6 +126,10 @@ WsoftUiSpan wsoft_ui_row_span(int row);
 // The live page is the bar and the four live rows; any other page is the bar and the page row.
 bool wsoft_ui_row_on_page(int row, int page);
 
+// A number that changes when what the row draws changes: the board paints a row again only
+// when its key moved. The model must have been zero-filled before it was filled in.
+uint32_t wsoft_ui_row_key(const WsoftUiModel &model, int row);
+
 // Paints one row into the canvas's window. Dots of the row outside the window are skipped.
 void wsoft_ui_paint_row(WsoftCanvas &canvas, const WsoftUiModel &model, int row);
 // Paints every row of the model's page.
@@ -145,7 +148,6 @@ static const WsoftUiBox WSOFT_UI_BOX_MENU = {120, 190, 72, 46};
 static const WsoftUiBox WSOFT_UI_BOX_SAVE = {200, 190, 112, 46};
 static const WsoftUiBox WSOFT_UI_BOX_BACK = {164, 190, 148, 44};   // bottom right of a page
 static const WsoftUiBox WSOFT_UI_BOX_WIDE = {8, 190, 304, 44};     // one button across a page
-static const WsoftUiBox WSOFT_UI_BOX_LEFT = {8, 190, 148, 44};     // bottom left of a page
 // Menu tile i: two columns, rows of 48.
 WsoftUiBox wsoft_ui_tile_box(int i);
 // A PIN pad key: column 0..3, row 0..3, spanning cols x rows keys.

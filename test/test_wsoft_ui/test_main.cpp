@@ -540,11 +540,9 @@ void test_model_pages() {
   in.wifi_up = false;
   in.address = "192.168.4.1";
   in.ap_name = "Weighsoft-Esp-NEW";
-  in.wifi_trying = true;
   wsoft_ui_model(in, &model);
   TEST_ASSERT_EQUAL_STRING("WI-FI", model.title);
   TEST_ASSERT_EQUAL_STRING("Weighsoft-Esp-NEW", model.ap_name);
-  TEST_ASSERT_TRUE(model.wifi_trying);
 }
 
 void test_model_same_facts_same_bytes() {
@@ -562,6 +560,56 @@ void test_model_same_facts_same_bytes() {
   wsoft_ui_model(in, &a);
   TEST_ASSERT_EQUAL(sizeof a.ip - 1, strlen(a.ip));
   TEST_ASSERT_EQUAL(sizeof a.message - 1, strlen(a.message));
+}
+
+void test_only_rows_that_changed_get_painted() {
+  // The board paints a row again when its key changes. A row's key covers what it draws.
+  WsoftUiInput in = weighing();
+  WsoftHiloProduct product = maize();
+  in.product = &product;
+  in.product_count = 1;
+  in.zone = WSOFT_RELAY_OK;
+  static WsoftUiModel a, b;
+  wsoft_ui_model(in, &a);
+  wsoft_ui_model(in, &b);
+  for (int row = 0; row < WSOFT_UI_ROW_COUNT; row++) {
+    TEST_ASSERT_EQUAL_HEX32(wsoft_ui_row_key(a, row), wsoft_ui_row_key(b, row));
+  }
+  // The weight moves 10 g: the weight, the marker and GROSS change; the bar and trade row do not.
+  in.gross = in.net = 50130;
+  wsoft_ui_model(in, &b);
+  TEST_ASSERT_EQUAL_HEX32(wsoft_ui_row_key(a, WSOFT_UI_ROW_BAR), wsoft_ui_row_key(b, WSOFT_UI_ROW_BAR));
+  TEST_ASSERT_EQUAL_HEX32(wsoft_ui_row_key(a, WSOFT_UI_ROW_TOP), wsoft_ui_row_key(b, WSOFT_UI_ROW_TOP));
+  TEST_ASSERT_NOT_EQUAL(wsoft_ui_row_key(a, WSOFT_UI_ROW_WEIGHT), wsoft_ui_row_key(b, WSOFT_UI_ROW_WEIGHT));
+  TEST_ASSERT_NOT_EQUAL(wsoft_ui_row_key(a, WSOFT_UI_ROW_HILO), wsoft_ui_row_key(b, WSOFT_UI_ROW_HILO));
+  TEST_ASSERT_NOT_EQUAL(wsoft_ui_row_key(a, WSOFT_UI_ROW_BOTTOM), wsoft_ui_row_key(b, WSOFT_UI_ROW_BOTTOM));
+  // Only the steady word changes: only the trade row.
+  in.gross = in.net = 50120;
+  in.stable = false;
+  wsoft_ui_model(in, &b);
+  TEST_ASSERT_NOT_EQUAL(wsoft_ui_row_key(a, WSOFT_UI_ROW_TOP), wsoft_ui_row_key(b, WSOFT_UI_ROW_TOP));
+  TEST_ASSERT_EQUAL_HEX32(wsoft_ui_row_key(a, WSOFT_UI_ROW_WEIGHT), wsoft_ui_row_key(b, WSOFT_UI_ROW_WEIGHT));
+  TEST_ASSERT_EQUAL_HEX32(wsoft_ui_row_key(a, WSOFT_UI_ROW_BOTTOM), wsoft_ui_row_key(b, WSOFT_UI_ROW_BOTTOM));
+  // The address changes: the status bar, and the pages that show it. Not the weight.
+  in.stable = true;
+  in.ip = "192.168.0.143";
+  wsoft_ui_model(in, &b);
+  TEST_ASSERT_NOT_EQUAL(wsoft_ui_row_key(a, WSOFT_UI_ROW_BAR), wsoft_ui_row_key(b, WSOFT_UI_ROW_BAR));
+  TEST_ASSERT_NOT_EQUAL(wsoft_ui_row_key(a, WSOFT_UI_ROW_PAGE), wsoft_ui_row_key(b, WSOFT_UI_ROW_PAGE));
+  TEST_ASSERT_EQUAL_HEX32(wsoft_ui_row_key(a, WSOFT_UI_ROW_WEIGHT), wsoft_ui_row_key(b, WSOFT_UI_ROW_WEIGHT));
+  // GROSS is greyed without a signal, so the bottom row follows `live` too.
+  in.ip = "192.168.0.142";
+  wsoft_ui_model(in, &a);
+  a.live = true;
+  b = a;
+  b.live = false;
+  TEST_ASSERT_NOT_EQUAL(wsoft_ui_row_key(a, WSOFT_UI_ROW_BOTTOM), wsoft_ui_row_key(b, WSOFT_UI_ROW_BOTTOM));
+  // Light or dark changes every row.
+  b = a;
+  b.dark = !a.dark;
+  for (int row = 0; row < WSOFT_UI_ROW_COUNT; row++) {
+    TEST_ASSERT_NOT_EQUAL(wsoft_ui_row_key(a, row), wsoft_ui_row_key(b, row));
+  }
 }
 
 void test_model_plate_line() {
@@ -676,6 +724,7 @@ int main(int, char **) {
   RUN_TEST(test_model_menu_tiles);
   RUN_TEST(test_model_pages);
   RUN_TEST(test_model_same_facts_same_bytes);
+  RUN_TEST(test_only_rows_that_changed_get_painted);
   RUN_TEST(test_model_plate_line);
   RUN_TEST(test_there_is_a_golden_for_every_screen);
   RUN_TEST(test_every_screen_on_the_yellow_board);

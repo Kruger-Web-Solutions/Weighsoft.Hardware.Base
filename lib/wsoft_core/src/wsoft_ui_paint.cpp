@@ -212,10 +212,8 @@ static void paint_page(WsoftCanvas &c, const WsoftUiModel &m, const Theme &T) {
     c.text("Then open this address", 42, 90, TINY, T.soft);
     c.text(m.address, 42, 107, MID, T.ink);
     c.text("Log in, tap Wi-Fi and pick yours", 42, 138, SMALL, T.ink);
-    c.text(m.wifi_trying ? "Trying your saved Wi-Fi again..." : "Or tap TRY AGAIN to use the saved Wi-Fi", 42, 170, TINY,
-           m.wifi_trying ? T.wait_ink : T.soft);
-    paint_tile(c, T, WSOFT_UI_BOX_LEFT, "", "TRY AGAIN", WSOFT_UI_LOOK_ACCENT);
-    paint_tile(c, T, WSOFT_UI_BOX_BACK, "", "BACK", WSOFT_UI_LOOK_PLAIN);
+    c.text("The board keeps looking for its saved Wi-Fi by itself", 42, 170, TINY, T.wait_ink);
+    paint_tile(c, T, WSOFT_UI_BOX_WIDE, "", "BACK", WSOFT_UI_LOOK_PLAIN);
   }
 }
 
@@ -231,6 +229,34 @@ bool wsoft_ui_row_on_page(int row, int page) {
   if (row == WSOFT_UI_ROW_BAR) return true;
   if (row == WSOFT_UI_ROW_PAGE) return page != WSOFT_UI_PAGE_LIVE;
   return row > WSOFT_UI_ROW_BAR && row < WSOFT_UI_ROW_PAGE && page == WSOFT_UI_PAGE_LIVE;
+}
+
+// The model's fields are in the order of the rows, so a row's key is the CRC of its stretch
+// of the model, plus the mode and page that every row depends on.
+static uint32_t stretch(uint32_t crc, const WsoftUiModel &m, size_t from, size_t to) {
+  return wsoft_crc32(crc, (const uint8_t *)&m + from, to - from);
+}
+
+uint32_t wsoft_ui_row_key(const WsoftUiModel &m, int row) {
+  const size_t bar = offsetof(WsoftUiModel, wifi_up), top = offsetof(WsoftUiModel, slot);
+  const size_t weight = offsetof(WsoftUiModel, label), hilo = offsetof(WsoftUiModel, word);
+  const size_t bottom = offsetof(WsoftUiModel, gross), page = offsetof(WsoftUiModel, title);
+  uint32_t key = stretch(0, m, 0, bar);  // dark, page
+  switch (row) {
+    case WSOFT_UI_ROW_BAR: return stretch(key, m, bar, top);
+    case WSOFT_UI_ROW_TOP: return stretch(key, m, top, weight);
+    case WSOFT_UI_ROW_WEIGHT: return stretch(key, m, weight, hilo);
+    case WSOFT_UI_ROW_HILO: return stretch(key, m, hilo, bottom);
+    case WSOFT_UI_ROW_BOTTOM:
+      // GROSS is greyed when no weight arrives.
+      key = stretch(key, m, bottom, page);
+      return stretch(key, m, offsetof(WsoftUiModel, live), offsetof(WsoftUiModel, live) + sizeof m.live);
+    case WSOFT_UI_ROW_PAGE:
+      // The Wi-Fi page shows the address from the status bar's part.
+      key = stretch(key, m, page, sizeof m);
+      return stretch(key, m, bar, top);
+    default: return 0;
+  }
 }
 
 void wsoft_ui_paint_row(WsoftCanvas &c, const WsoftUiModel &m, int row) {

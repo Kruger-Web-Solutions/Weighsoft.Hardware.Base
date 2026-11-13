@@ -72,7 +72,6 @@ struct WsoftUiInput {
   int pin_count = 0;          // digits typed
   const char *address = "";   // to open in a browser: the no-PIN note and the Wi-Fi page
   const char *ap_name = "";   // the board's own hotspot
-  bool wifi_trying = false;
 };
 
 // Fills *model (every byte of it) from the facts.
