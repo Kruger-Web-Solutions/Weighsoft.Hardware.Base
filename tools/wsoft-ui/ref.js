@@ -175,7 +175,8 @@ const WsoftUi = (() => {
         const k = str.charCodeAt(i) - f.first;
         if (k >= 0 && k < f.count) w += f.glyphs[k].adv;
       }
-      return w > f.track ? w - f.track : w;
+      // The last letter's spacing is not part of the text.
+      return w > 0 && w > f.track ? w - f.track : 0;
     }
     width(str, role) { return this.dots(str, role) / this.sx; }
     // y is the middle of the capital letters. Returns the width in layout units.
