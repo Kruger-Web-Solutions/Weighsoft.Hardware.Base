@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { calibrateBlock, parseTestWeight, spanDigits } from './calibrate';
+import { adWriteRequest, alarmReadRequest, calibrateBlock, parseTestWeight, spanDigits } from './calibrate';
 import { WSoftStatus } from './types';
 
 const status = (overrides: Partial<WSoftStatus>): WSoftStatus =>
@@ -35,5 +35,17 @@ describe('who can calibrate here', () => {
     expect(calibrateBlock(status({ source: 'rs232' }))).toBe('rs232');
     expect(calibrateBlock(status({ approval_on: true }))).toBe('approval');
     expect(calibrateBlock(status({ linked: false }))).toBe('not_linked');
+  });
+});
+
+describe('junction box requests', () => {
+  // The board answers bad_channel to an AD or alarm request without a channel.
+  it('sends zero and span to load cell 1', () => {
+    expect(adWriteRequest(0)).toEqual({ op: 'write', field: 'ad', value: 0, channel: 1 });
+    expect(adWriteRequest(2000)).toEqual({ op: 'write', field: 'ad', value: 2000, channel: 1 });
+  });
+
+  it('reads the alarm bits of load cell 1', () => {
+    expect(alarmReadRequest()).toEqual({ op: 'read', field: 'alarm', channel: 1 });
   });
 });

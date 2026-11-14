@@ -7,7 +7,7 @@
 // Waveshare branch. The board refuses the write while Approval is ON, and counts every write
 // that goes through on the audit counter.
 
-import { WSoftStatus } from './types';
+import { WSoftDjbRequest, WSoftStatus } from './types';
 
 /** The test weight in the box's display digits, e.g. 2.000 kg with 3 decimals = 2000. */
 export const spanDigits = (weight: number, decimals: number) => Math.round(weight * Math.pow(10, decimals));
@@ -41,3 +41,14 @@ export const CALIBRATE_BLOCK_TEXT: Record<CalibrateBlock, string> = {
   approval: 'Approval is ON. Switch Approval off on the Live tab before calibrating.',
   not_linked: 'The board can not see the junction box. Check the RS485 cable.'
 };
+
+// The junction box's first load cell (LC1). Its AD value is register 41003 in
+// DJB protocol V2.0, and the board refuses an AD or alarm request without a channel.
+export const LOAD_CELL_CHANNEL = 1;
+
+// Write 0 for zero, or the span in display digits (DJB protocol V2.0, reg 41003).
+export const adWriteRequest = (value: number): WSoftDjbRequest =>
+  ({ op: 'write', field: 'ad', value, channel: LOAD_CELL_CHANNEL });
+
+export const alarmReadRequest = (): WSoftDjbRequest =>
+  ({ op: 'read', field: 'alarm', channel: LOAD_CELL_CHANNEL });

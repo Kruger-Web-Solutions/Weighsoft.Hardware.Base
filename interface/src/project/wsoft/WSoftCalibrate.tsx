@@ -10,7 +10,9 @@ import { useWs } from '../../utils';
 
 import * as WSoftApi from './api';
 import { WSOFT_STATUS_WEBSOCKET_URL } from './api';
-import { CALIBRATE_BLOCK_TEXT, calibrateBlock, parseTestWeight, spanDigits } from './calibrate';
+import {
+  adWriteRequest, alarmReadRequest, CALIBRATE_BLOCK_TEXT, calibrateBlock, parseTestWeight, spanDigits
+} from './calibrate';
 import { boardErrorText, plainError } from './errors';
 import { WSoftStatus } from './types';
 
@@ -41,7 +43,7 @@ const WSoftCalibrate: FC = () => {
 
   const readAlarm = async () => {
     try {
-      const reply = (await WSoftApi.djb({ op: 'read', field: 'alarm' })).data;
+      const reply = (await WSoftApi.djb(alarmReadRequest())).data;
       const bits = reply.alarm_bits;
       if (!reply.ok || !bits) {
         setAlarmText(`Could not read the alarm (${plainError(reply.error) ?? 'no answer'}).`);
@@ -65,7 +67,7 @@ const WSoftCalibrate: FC = () => {
     setBusy(true);
     setError(undefined);
     try {
-      const reply = (await WSoftApi.djb({ op: 'write', field: 'ad', value })).data;
+      const reply = (await WSoftApi.djb(adWriteRequest(value))).data;
       if (reply.ok) {
         setStep(next);
       } else {

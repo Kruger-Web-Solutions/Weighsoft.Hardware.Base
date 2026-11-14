@@ -218,8 +218,8 @@ export type WSoftCardField =
 // 'ad' is the calibration register (DJB Communication Protocol V2.0, LC1 AD 41003): write 0 = zero
 // calibration, write CW > 0 = load calibration with the test weight on. 'alarm' is read-only.
 export type WSoftDjbRequest =
-  | { op: 'read'; field: WSoftCardField | 'alarm' }
-  | { op: 'write'; field: WSoftCardField | 'ad'; value: number };
+  | { op: 'read'; field: WSoftCardField | 'alarm'; channel?: number }
+  | { op: 'write'; field: WSoftCardField | 'ad'; value: number; channel?: number };
 
 export interface WSoftDjbAlarmBits {
   parameter_changed: boolean;
