@@ -22,7 +22,13 @@ struct WSoftSnapshot {
   bool display_ready = false;  // the RGB panel and frame buffers came up
   bool linked = false;         // DJB answered recently (fewer than 3 failed polls in a row)
   bool fresh = false;          // the most recent poll answered
-  bool alarm = false;          // DJB blocking alarm bits set
+  bool alarm = false;          // DJB blocking alarm bits set (allowed bits not counted)
+  // Allowed alarm (wsoft_djb.h): flagged, never blocking. alarm_word is the raw DJB alarm state
+  // of the last fresh read; alarm_changes counts changes since boot (Rhyno, 14 Nov 2026).
+  bool alarm_allowed = false;
+  bool alarm_word_valid = false;
+  uint32_t alarm_word = 0;
+  uint32_t alarm_changes = 0;
   int32_t value = 0;           // raw DJB value, scaled by decimals
   int decimals = 3;
   int unit = 1;                // DJB unit code: 0 none, 1 kg, 2 t, 3 g

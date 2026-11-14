@@ -97,3 +97,37 @@ int wsoft_djb_parse(const uint8_t *reply,
                     uint8_t *exception_code);
 
 void wsoft_djb_alarm_bits(int32_t raw, WsoftDjbAlarmBits *bits);
+
+// ---------- allowed alarms (Rhyno, 14 Nov 2026) ----------
+// The bench DJB-M1X reports the EEPROM failure bit (high-word bit 15) all the time. The
+// supplier says it is not a fault, just a flag left set at the factory. That one bit is
+// allowed: it no longer stops a weighing or shows SCALE ALARM, but it is still reported
+// ("allowed, monitoring") and any change in the alarm word is counted and logged. Every
+// other blocking bit (ADC failure, over range) still blocks as before.
+static const uint32_t WSOFT_DJB_ALARM_BLOCKING = 0xE0000000u;  // high-word bits 13, 14, 15
+static const uint32_t WSOFT_DJB_ALARM_ALLOWED = 0x80000000u;   // EEPROM failure, bit 15
+
+struct WsoftDjbAlarmCheck {
+  bool blocking = false;  // a blocking bit that is not on the allowed list
+  bool allowed = false;   // an allowed bit is set (flag it, do not block)
+};
+
+WsoftDjbAlarmCheck wsoft_djb_alarm_check(uint32_t alarm_word);
+
+// Watches the raw alarm word on fresh reads. The first fresh read is the baseline; every
+// later different word counts as a change.
+class WsoftDjbAlarmWatch {
+ public:
+  // Returns true when this fresh read changed the word.
+  bool update(bool fresh, uint32_t alarm_word);
+  bool seen() const { return seen_; }
+  uint32_t first() const { return first_; }
+  uint32_t last() const { return last_; }
+  uint32_t changes() const { return changes_; }
+
+ private:
+  bool seen_ = false;
+  uint32_t first_ = 0;
+  uint32_t last_ = 0;
+  uint32_t changes_ = 0;
+};

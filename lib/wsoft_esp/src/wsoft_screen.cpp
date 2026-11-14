@@ -44,7 +44,7 @@ static const uint16_t REG_LC1_WEIGHT = 1004;  // 41005, followed by alarm state 
 static const uint16_t REG_WEIGHT_UNIT = 1302;  // 41303: 0 none, 1 kg, 2 t, 3 g
 static const uint16_t REG_DECIMAL = 1304;      // 41305: digits after the point
 static const uint16_t REG_DIVISION = 1306;     // 41307: e in display steps (1, 2, 5, 10 ... 500)
-static const uint32_t ALARM_BLOCKING_MASK = 0xE0000000;  // bits 13-15 of the high word
+// Which alarm bits block, and which are allowed: wsoft_djb_alarm_check (wsoft_djb.h).
 
 static const uint32_t POLL_MS = 250;
 static const int FAILS_BEFORE_NO_SIGNAL = 3;
@@ -64,7 +64,10 @@ void wsoft_screen_set_line_reader(WsoftLineReader reader) {
 
 struct Reading {
   bool linked = false;
-  bool alarm = false;
+  bool alarm = false;          // a blocking alarm bit that is not on the allowed list
+  bool alarm_allowed = false;  // an allowed alarm bit is set: flagged, never blocking
+  bool alarm_word_valid = false;
+  uint32_t alarm_word = 0;     // raw DJB alarm state of the last fresh read
   int32_t value = 0;
   int decimals = 3;
   int unit = 1;
@@ -308,6 +311,8 @@ bool wsoft_screen_djb(const WsoftDjbPlan *plan, WsoftDjbResult *out, uint32_t ti
 
 static portMUX_TYPE snapshot_lock = portMUX_INITIALIZER_UNLOCKED;
 static WSoftSnapshot snapshot;
+// Every change in the DJB alarm word since boot (Rhyno, 14 Nov 2026: tell me if it changes).
+static WsoftDjbAlarmWatch alarm_watch;
 
 static void publish_snapshot(const Reading &r, bool fresh, TradeCheck check, HubState hub, bool tared, int32_t net) {
   WSoftSnapshot next;
@@ -318,6 +323,10 @@ static void publish_snapshot(const Reading &r, bool fresh, TradeCheck check, Hub
   next.linked = r.linked;
   next.fresh = fresh;
   next.alarm = r.alarm;
+  next.alarm_allowed = r.alarm_allowed;
+  next.alarm_word_valid = r.alarm_word_valid;
+  next.alarm_word = r.alarm_word;
+  next.alarm_changes = alarm_watch.changes();
   next.value = r.value;
   next.decimals = r.decimals;
   next.unit = r.unit;
@@ -402,7 +411,12 @@ static bool poll_djb(Reading *out) {
     fails = 0;
     next.linked = true;
     next.value = (int32_t)(((uint32_t)words[0] << 16) | words[1]);
-    next.alarm = ((((uint32_t)words[2] << 16) | words[3]) & ALARM_BLOCKING_MASK) != 0;
+    uint32_t alarm_word = ((uint32_t)words[2] << 16) | words[3];
+    WsoftDjbAlarmCheck alarm_check = wsoft_djb_alarm_check(alarm_word);
+    next.alarm = alarm_check.blocking;
+    next.alarm_allowed = alarm_check.allowed;
+    next.alarm_word = alarm_word;
+    next.alarm_word_valid = true;
   } else if (++fails >= FAILS_BEFORE_NO_SIGNAL) {
     next.linked = false;
     WSOFT_LOG.printf("DJB no reply slave=%u baud=%lu rx_bytes=%u", slave, (unsigned long)SCAN_BAUDS[baud_index],
@@ -428,6 +442,8 @@ static bool poll_line(Reading *out) {
   bool parsed = have && wsoft_parse_weight_text(text, &value, &decimals);
   bool fresh = parsed && millis() - stamp < RS232_STALE_MS;
   out->alarm = false;
+  out->alarm_allowed = false;
+  out->alarm_word_valid = false;
   out->unit = unit;
   out->linked = fresh;
   if (fresh) {
@@ -455,6 +471,16 @@ void wsoft_screen_loop() {
     polls++;
   } else {
     fresh = poll_djb(&next);
+    uint32_t before = alarm_watch.last();
+    bool first = !alarm_watch.seen();
+    if (alarm_watch.update(fresh && next.alarm_word_valid, next.alarm_word)) {
+      WSOFT_LOG.printf("DJB alarm CHANGED %08lX -> %08lX (change %lu since boot)%s\n", (unsigned long)before,
+                       (unsigned long)next.alarm_word, (unsigned long)alarm_watch.changes(),
+                       next.alarm ? " BLOCKING" : next.alarm_allowed ? " allowed, monitoring" : "");
+    } else if (first && alarm_watch.seen()) {
+      WSOFT_LOG.printf("DJB alarm %08lX at start%s\n", (unsigned long)next.alarm_word,
+                       next.alarm ? " BLOCKING" : next.alarm_allowed ? ": EEPROM allowed, monitoring" : "");
+    }
   }
 
   // RS485 setup: blanking, below Min and the stable samples hold a reading back (NONE on RS232).

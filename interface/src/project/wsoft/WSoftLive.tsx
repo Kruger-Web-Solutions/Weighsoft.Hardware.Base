@@ -103,6 +103,14 @@ const WSoftLive: FC = () => {
             <TableCell>{status.hub}</TableCell>
           </TableRow>
           <TableRow>
+            <TableCell><strong>Junction box alarm</strong></TableCell>
+            <TableCell>
+              {status.alarm_allowed ? 'Allowed, monitoring: ' + (status.alarm_note ?? '') : status.alarm ? 'ALARM (blocking)' : 'None'}
+              {status.alarm_word_hex ? ` (code ${status.alarm_word_hex})` : ''}
+              {status.alarm_changes > 0 ? `. CHANGED ${status.alarm_changes}x since start` : ''}
+            </TableCell>
+          </TableRow>
+          <TableRow>
             <TableCell><strong>Screen</strong></TableCell>
             <TableCell>{status.display_ready ? 'Ready' : 'Not ready'}</TableCell>
           </TableRow>
