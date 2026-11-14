@@ -34,6 +34,8 @@ export interface WSoftStatus {
   polls: number;
   /** rs485 = DJB junction box over Modbus; rs232 = a scale line read by the Serial reader. */
   source: WSoftSource;
+  /** weigh = this board reads the scale and saves; writer = it shows a weigh board's weight and never saves. */
+  role?: 'weigh' | 'writer';
   /** What stops a save right now (wsoft_save_notice). All null when nothing does. */
   notice_code: string | null;
   /** What to do, in capitals, e.g. TAKE THE LOAD OFF. */
@@ -213,8 +215,19 @@ export interface WSoftScaleSetupRequest {
 export type WSoftCardField =
   'division' | 'decimal' | 'unit' | 'zero_track_limit' | 'zero_track_time' | 'stability_range' | 'stability_time';
 
+// 'ad' is the calibration register (DJB Communication Protocol V2.0, LC1 AD 41003): write 0 = zero
+// calibration, write CW > 0 = load calibration with the test weight on. 'alarm' is read-only.
 export type WSoftDjbRequest =
-  { op: 'read'; field: WSoftCardField } | { op: 'write'; field: WSoftCardField; value: number };
+  | { op: 'read'; field: WSoftCardField | 'alarm' }
+  | { op: 'write'; field: WSoftCardField | 'ad'; value: number };
+
+export interface WSoftDjbAlarmBits {
+  parameter_changed: boolean;
+  software_match: boolean;
+  adc_failure: boolean;
+  over_range: boolean;
+  eeprom: boolean;
+}
 
 export interface WSoftDjbReply {
   ok: boolean;
@@ -222,6 +235,11 @@ export interface WSoftDjbReply {
   /** Lower-case code, e.g. not_linked, approval_on, range, busy. */
   error?: string;
   value?: number;
+  /** The Modbus frames, for a bench check. */
+  request_hex?: string;
+  reply_hex?: string;
+  /** Only on an alarm read. */
+  alarm_bits?: WSoftDjbAlarmBits;
 }
 
 // Mirrors src/examples/relay/RelayBoardService.h (RelayBoardState).
