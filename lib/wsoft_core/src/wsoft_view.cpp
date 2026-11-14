@@ -35,17 +35,25 @@ bool wsoft_has_weight(const WSoftSnapshot &s) {
   return s.valid && s.linked && s.fresh;
 }
 
-bool wsoft_feed_weight(const WSoftSnapshot &s, char *weight, size_t size) {
+// The number of value (in the snapshot's decimals). False when there is no live weight.
+static bool weight_number(const WSoftSnapshot &s, int32_t value, char *weight, size_t size) {
   if (weight == nullptr || size == 0) return false;
   weight[0] = '\0';
   if (!wsoft_has_weight(s)) return false;
-  format_weight(s.value, s.decimals, weight, size);
+  format_weight(value, s.decimals, weight, size);
   return true;
 }
 
-// "12.345 kg": the number and the unit. False when there is no live weight.
-static bool weight_with_unit(const WSoftSnapshot &s, char *text, size_t size) {
-  if (!wsoft_feed_weight(s, text, size)) return false;
+// The feed sends the net when a tare is on.
+static int32_t feed_value(const WSoftSnapshot &s) { return s.tared ? s.net_value : s.value; }
+
+bool wsoft_feed_weight(const WSoftSnapshot &s, char *weight, size_t size) {
+  return weight_number(s, feed_value(s), weight, size);
+}
+
+// "12.345 kg": the number of value and the unit. False when there is no live weight.
+static bool weight_with_unit(const WSoftSnapshot &s, int32_t value, char *text, size_t size) {
+  if (!weight_number(s, value, text, size)) return false;
   const char *unit = weight_unit_text(s.unit);
   size_t used = strlen(text);
   if (unit[0] != '\0' && used + 1 < size) {
@@ -64,7 +72,7 @@ static void write_weight(const WSoftSnapshot &s, WSoftJsonSink &out) {
     out.put_null("weight_g");
   }
   char text[24];
-  if (weight_with_unit(s, text, sizeof text)) {
+  if (weight_with_unit(s, s.value, text, sizeof text)) {
     out.put_str("weight_text", text);
   } else {
     out.put_null("weight_text");
@@ -74,7 +82,7 @@ static void write_weight(const WSoftSnapshot &s, WSoftJsonSink &out) {
 void wsoft_feed_write(const WSoftSnapshot &s, WSoftJsonSink &out) {
   char line[24];
   char weight[24];
-  bool live = weight_with_unit(s, line, sizeof line) && wsoft_feed_weight(s, weight, sizeof weight);
+  bool live = weight_with_unit(s, feed_value(s), line, sizeof line) && wsoft_feed_weight(s, weight, sizeof weight);
   out.put_str("last_line", live ? line : "");
   if (live) {
     out.put_str("weight", weight);
