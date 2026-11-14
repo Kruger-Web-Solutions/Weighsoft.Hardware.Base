@@ -652,6 +652,9 @@ static void tap(int x, int y) {
         WeighingsInfo weigh;
         weighings_info(&weigh);
         if (weigh.waiting == WSOFT_SAVE_NO_CLOCK) open_page(WSOFT_UI_PAGE_WIFI);
+      } else if (shown.slot == WSOFT_UI_SLOT_NONE && !shown.trade_ok && WSOFT_UI_BOX_STAR.hit(x, y)) {
+        // The not-for-trade star (Rhyno, 14 Nov 2026): a tap says what it means.
+        say("NOT TRADE APPROVED");
       } else if (x >= WSOFT_UI_BOX_SAVE.x - 4 && y >= WSOFT_UI_BOX_SAVE.y - 4) {
         // SAVE reaches to the corner of the screen: a tap near the edge still saves.
         weighings_request_save();
