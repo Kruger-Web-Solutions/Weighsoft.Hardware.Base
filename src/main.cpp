@@ -19,6 +19,7 @@
 #if FT_ENABLED(FT_WSOFT)
 #include <wsoft_screen.h>
 #include <hilo.h>
+#include <weighings.h>
 #endif
 #include "VersionService.h"
 #include "UartModeService.h"
@@ -383,6 +384,8 @@ void setup() {
     uartModeService->setForwarderService(serialWriterForwarderService);
     uartModeService->applyMode();
     wsoft_screen_set_line_reader(wsoftReadWriterWeight);
+    // SAVE on a Writer is saved by the weigh board (Rhyno, 14 Nov 2026), counted once.
+    weighings_set_remote_save(SerialWriterForwarderService::requestSave);
     Serial.println(F("[9/10] W-Soft role: Writer (weight from a weigh board, out of the port)"));
   } else if (wsoftBootSource == WSOFT_SOURCE_RS232) {
     // RS232 scale: the existing Serial reader owns Serial1 (its page sets baud, format
@@ -559,9 +562,37 @@ void loop() {
   if (serialWriterService) serialWriterService->loop();
   if (serialWriterForwarderService) {
     serialWriterForwarderService->loop();
-    // Writer: the same product as the weigh board, so screen, relays and Hub match.
+    // Writer: follows the weigh board's product when the weigh board picks or changes one, so
+    // screen, relays and Hub match. Between changes a product picked on this board stays
+    // (Rhyno, 14 Nov 2026: the Writer picks its own product too). A weigh board with no
+    // product at first contact leaves this board's pick alone.
+    static bool feedProductSeen = false;
+    static String feedProduct;
     String product;
-    if (serialWriterForwarderService->latestProduct(&product)) hilo_follow(product.c_str());
+    if (serialWriterForwarderService->latestProduct(&product)) {
+      if (feedProductSeen ? product != feedProduct : product.length() > 0) hilo_follow(product.c_str());
+      feedProductSeen = true;
+      feedProduct = product;
+    }
+    // Writer: the weigh board's "what stops a save" and each of its Save results on this
+    // screen. No feed for 3 s = no signal (the same 3 s rule as the weight).
+    static uint32_t saveCountSeen = 0;
+    static bool saveCountKnown = false;
+    int saveWaiting = 0, saveResult = 0;
+    uint32_t saveCount = 0;
+    char feedWeight[24];
+    uint32_t feedMs = 0;
+    int feedUnit = 0;
+    bool feedLive = serialWriterForwarderService->latestWeight(feedWeight, sizeof feedWeight, &feedMs, &feedUnit) &&
+                    millis() - feedMs < 3000;
+    if (serialWriterForwarderService->latestSaveStatus(&saveWaiting, &saveCount, &saveResult) && feedLive) {
+      weighings_remote_status((WsoftSaveResult)saveWaiting);
+      if (saveCountKnown && saveCount != saveCountSeen) weighings_remote_result((WsoftSaveResult)saveResult);
+      saveCountKnown = true;
+      saveCountSeen = saveCount;
+    } else {
+      weighings_remote_status(WSOFT_SAVE_NO_SIGNAL);
+    }
   }
   if (wsoftStatusService) wsoftStatusService->loop();
 #if FT_ENABLED(FT_WSOFT_RELAY)

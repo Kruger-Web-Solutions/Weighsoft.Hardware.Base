@@ -94,6 +94,15 @@ void SerialWriterForwarderService::loop() {
       _backoffMs = 1000;
       _nextRetryMs = now;
     }
+    if (_saveRequested) {
+      _saveRequested = false;
+      if (_wsClient.isConnected()) {
+        _wsClient.sendTXT("{\"cmd\":\"save\"}");
+        Serial.println(F("[SerialWriterForwarder] SAVE sent to the weigh board"));
+      } else {
+        Serial.println(F("[SerialWriterForwarder] SAVE not sent: no link to the weigh board"));
+      }
+    }
     if (!_wsClient.isConnected() && now >= _nextRetryMs) {
       yield();
       connectReader();
@@ -455,6 +464,12 @@ void SerialWriterForwarderService::pollReaderRest() {
 // timestamp, e.g. the backup REST poll) is not sent twice. Nothing is sent without a line,
 // or when the format needs a weight the reading does not have.
 void SerialWriterForwarderService::onReaderData(JsonObject data) {
+  if (data["save_n"].is<uint32_t>()) {
+    _hasSaveStatus = true;
+    _saveWaiting = data["save_waiting"] | 0;
+    _saveCount = data["save_n"] | (uint32_t)0;
+    _saveResult = data["save_result"] | 0;
+  }
   const char* line = data["last_line"] | "";
   if (line[0] == '\0' || !_writerService) return;
   uint32_t timestamp = data["timestamp"] | (uint32_t)0;
@@ -490,6 +505,18 @@ void SerialWriterForwarderService::onReaderData(JsonObject data) {
     s.lastError = ok ? "" : "Not sent: the format needs a weight, or the line is too long";
     return StateUpdateResult::CHANGED;
   }, "fwd-rx");
+}
+
+volatile bool SerialWriterForwarderService::_saveRequested = false;
+
+void SerialWriterForwarderService::requestSave() { _saveRequested = true; }
+
+bool SerialWriterForwarderService::latestSaveStatus(int* waiting, uint32_t* count, int* result) {
+  if (!_hasSaveStatus) return false;
+  *waiting = _saveWaiting;
+  *count = _saveCount;
+  *result = _saveResult;
+  return true;
 }
 
 bool SerialWriterForwarderService::latestProduct(String* code) {

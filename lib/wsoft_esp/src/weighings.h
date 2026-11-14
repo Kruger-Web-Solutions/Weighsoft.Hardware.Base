@@ -33,6 +33,17 @@ WsoftSaveResult weighings_save(uint32_t timeout_ms, TradeWeight *saved);
 // Screen task: a tap on the board's own screen (no waiting, the next pass handles it).
 void weighings_request_save();
 
+// Writer role (Rhyno, 14 Nov 2026): a Save tap on this board goes to the weigh board, which
+// saves it, so each load is still counted once. fn runs in the tapping task and must only set
+// a flag. nullptr (the default) = this board saves its own weighings.
+void weighings_set_remote_save(void (*fn)());
+// Writer role: the weigh board's "what stops a save" and each of its Save results, from its
+// feed, shown on this board's screen like its own.
+void weighings_remote_status(WsoftSaveResult waiting);
+void weighings_remote_result(WsoftSaveResult result);
+// Weigh board: Save results (tap or auto) since boot, for the feed; 0 = none yet.
+uint32_t weighings_result_count();
+
 // Screen task only (it writes flash, NVS "weigh" key "auto"), through switches.cpp.
 void weighings_set_auto_save(bool on);
 
