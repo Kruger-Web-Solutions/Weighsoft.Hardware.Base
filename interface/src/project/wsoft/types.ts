@@ -13,6 +13,13 @@ export interface WSoftStatus {
   decimals: number;
   stable: boolean;
   alarm: boolean;
+  /** An allowed junction box alarm is set (EEPROM factory flag): flagged, never blocking. */
+  alarm_allowed: boolean;
+  alarm_note: string | null;
+  /** Raw DJB alarm state of the last good read, 8 hex digits. */
+  alarm_word_hex: string | null;
+  /** How often the alarm state changed since the board started. */
+  alarm_changes: number;
   /** Read-only here. Switch it with POST /rest/wsoftSwitches (WSoftSwitches). */
   approval_on: boolean;
   for_trade: boolean;

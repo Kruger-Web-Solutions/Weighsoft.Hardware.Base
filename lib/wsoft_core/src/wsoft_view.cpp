@@ -1,5 +1,6 @@
 #include "wsoft_view.h"
 
+#include <stdio.h>
 #include <string.h>
 
 static const int WSOFT_MAX_DECIMALS = 6;
@@ -130,6 +131,20 @@ void wsoft_view_write(const WSoftSnapshot &s, WSoftJsonSink &out) {
   out.put_int("decimals", s.decimals);
   out.put_bool("stable", wsoft_has_weight(s) && s.stable);
   out.put_bool("alarm", s.valid && s.alarm);
+  out.put_bool("alarm_allowed", s.valid && s.alarm_allowed);
+  if (s.valid && s.alarm_allowed) {
+    out.put_str("alarm_note", "EEPROM alarm allowed (supplier: factory flag), monitoring");
+  } else {
+    out.put_null("alarm_note");
+  }
+  if (s.valid && s.alarm_word_valid) {
+    char hex[12];
+    snprintf(hex, sizeof hex, "%08lX", (unsigned long)s.alarm_word);
+    out.put_str("alarm_word_hex", hex);
+  } else {
+    out.put_null("alarm_word_hex");
+  }
+  out.put_int("alarm_changes", s.alarm_changes);
   out.put_bool("approval_on", s.approval_on);
   out.put_bool("for_trade", s.trade_check == TRADE_OK);
   out.put_str("trade_check", trade_check_text(s.trade_check));
