@@ -40,7 +40,8 @@ TradeCheck TradeEngine::update(const TradeReading &r, bool queue_full, TradeWeig
     unchanged_since_ = r.now_ms;
   }
   after_stale_ = !r.fresh;
-  stable_ = r.linked && r.fresh && !r.alarm && r.now_ms - unchanged_since_ >= TRADE_STABLE_MS;
+  // Still is still: an alarm blocks trade on its own (TRADE_ALARM), it is not motion (14 Nov 2026).
+  stable_ = r.linked && r.fresh && r.now_ms - unchanged_since_ >= TRADE_STABLE_MS;
   if (r.linked && r.fresh && r.value <= 0) seen_empty_ = true;
 
   TradeCheck check;

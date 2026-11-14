@@ -306,7 +306,7 @@ void test_tap_outside_the_limits_needs_a_second_tap() {
 }
 
 void test_every_result_has_words() {
-  for (int r = WSOFT_SAVE_SAVED; r <= WSOFT_SAVE_WRITER; r++) {
+  for (int r = WSOFT_SAVE_SAVED; r <= WSOFT_SAVE_ALARM; r++) {
     size_t length = strlen(wsoft_save_result_text((WsoftSaveResult)r));
     TEST_ASSERT_TRUE(length > 0 && length <= 16);
   }
@@ -370,7 +370,7 @@ void test_every_notice_fits_the_screens() {
   TEST_ASSERT_FALSE(wsoft_save_notice(WSOFT_SAVE_NONE, &n));
   TEST_ASSERT_FALSE(wsoft_save_notice(WSOFT_SAVE_SAVED, &n));
   TEST_ASSERT_FALSE(wsoft_save_notice(WSOFT_SAVE_EMPTY, &n));
-  for (int r = WSOFT_SAVE_SAVED; r <= WSOFT_SAVE_WRITER; r++) {
+  for (int r = WSOFT_SAVE_SAVED; r <= WSOFT_SAVE_ALARM; r++) {
     if (r == WSOFT_SAVE_EMPTY || r == WSOFT_SAVE_SAVED) continue;
     TEST_ASSERT_TRUE(wsoft_save_notice((WsoftSaveResult)r, &n));
     TEST_ASSERT_TRUE(strlen(n.title) > 0 && strlen(n.title) <= 20);
@@ -408,6 +408,31 @@ void test_writer_mode_never_saves() {
   TEST_ASSERT_EQUAL(WSOFT_NOTICE_INFO, n.level);
 }
 
+// Rhyno, 14 Nov 2026: a junction box alarm on a still load said "WEIGHT IS MOVING". The alarm
+// gets its own reason and notice; nothing saves while it alarms, by tap or by auto save.
+void test_alarm_says_alarm_not_moving() {
+  Bench b;
+  b.feed(0, 4, true);
+  for (int i = 0; i < 20; i++) {  // 5 s of a dead still load while the box alarms
+    b.t += 250;
+    TEST_ASSERT_EQUAL(WSOFT_SAVE_NONE, b.saver.update({true, true, true, true, 3120, 0, 1, b.t, b.now}, true, false,
+                                                      false, &b.issued));
+    TEST_ASSERT_FALSE(b.issued.valid);
+  }
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_ALARM, b.saver.waiting());
+  b.t += 250;
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_ALARM, b.saver.update({true, true, true, true, 3120, 0, 1, b.t, b.now}, false, true,
+                                                     false, &b.issued));
+  TEST_ASSERT_FALSE(b.issued.valid);
+  WsoftSaveNotice n;
+  TEST_ASSERT_TRUE(wsoft_save_notice(WSOFT_SAVE_ALARM, &n));
+  TEST_ASSERT_EQUAL_STRING("ALARM", n.code);
+  TEST_ASSERT_EQUAL(WSOFT_NOTICE_STOP, n.level);
+  TEST_ASSERT_EQUAL_STRING("Scale alarm", wsoft_save_result_text(WSOFT_SAVE_ALARM));
+  // The alarm clears on the same still load: it saves at once, the load was already settled.
+  TEST_ASSERT_EQUAL(1, b.feed(3120, 1, true));
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_kg_text_for_each_unit);
@@ -433,5 +458,6 @@ int main(int, char **) {
   RUN_TEST(test_notice_for_signal_clock_full_and_limits);
   RUN_TEST(test_every_notice_fits_the_screens);
   RUN_TEST(test_writer_mode_never_saves);
+  RUN_TEST(test_alarm_says_alarm_not_moving);
   return UNITY_END();
 }

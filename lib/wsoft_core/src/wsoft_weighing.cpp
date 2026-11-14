@@ -94,7 +94,8 @@ WsoftSaveResult WsoftWeighingSaver::update(const TradeReading &r, bool auto_save
     unchanged_since_ = r.now_ms;
   }
   after_stale_ = !r.fresh;
-  stable_ = r.linked && r.fresh && !r.alarm && r.now_ms - unchanged_since_ >= TRADE_STABLE_MS;
+  // Still is still: an alarm blocks trade on its own (TRADE_ALARM), it is not motion (14 Nov 2026).
+  stable_ = r.linked && r.fresh && r.now_ms - unchanged_since_ >= TRADE_STABLE_MS;
   if (r.linked && r.fresh && r.value <= 0) seen_empty_ = true;
 
   if (hold == WSOFT_SAVE_WRITER) {
@@ -106,7 +107,8 @@ WsoftSaveResult WsoftWeighingSaver::update(const TradeReading &r, bool auto_save
 
   WsoftSaveResult blocked = WSOFT_SAVE_NONE;
   if (!r.linked || !r.fresh) blocked = WSOFT_SAVE_NO_SIGNAL;
-  else if (r.alarm || !stable_) blocked = WSOFT_SAVE_NOT_STABLE;
+  else if (r.alarm) blocked = WSOFT_SAVE_ALARM;
+  else if (!stable_) blocked = WSOFT_SAVE_NOT_STABLE;
   else if (r.value <= 0) blocked = WSOFT_SAVE_EMPTY;
   else if (r.now_unix < TRADE_CLOCK_VALID_AFTER) blocked = WSOFT_SAVE_NO_CLOCK;
   if (hold == WSOFT_SAVE_BLANK && blocked != WSOFT_SAVE_NO_SIGNAL) blocked = hold;
@@ -129,7 +131,7 @@ WsoftSaveResult WsoftWeighingSaver::update(const TradeReading &r, bool auto_save
   } else {
     moving_ = false;
   }
-  if (blocked == WSOFT_SAVE_NO_SIGNAL || blocked == WSOFT_SAVE_BLANK) waiting_ = blocked;
+  if (blocked == WSOFT_SAVE_NO_SIGNAL || blocked == WSOFT_SAVE_BLANK || blocked == WSOFT_SAVE_ALARM) waiting_ = blocked;
   else if (r.now_unix < TRADE_CLOCK_VALID_AFTER) waiting_ = WSOFT_SAVE_NO_CLOCK;
   else if (loaded && !new_load) waiting_ = same_as_saved ? WSOFT_SAVE_ALREADY : WSOFT_SAVE_NEED_ZERO;
   else if (!loaded) waiting_ = WSOFT_SAVE_NONE;
@@ -192,6 +194,7 @@ const char *wsoft_save_result_text(WsoftSaveResult result) {
     case WSOFT_SAVE_BELOW_MIN: return "Below Min";
     case WSOFT_SAVE_OUT_OF_LIMITS: return "Tap again: save";
     case WSOFT_SAVE_WRITER: return "Writer: no save";
+    case WSOFT_SAVE_ALARM: return "Scale alarm";
   }
   return "";
 }
@@ -262,6 +265,12 @@ bool wsoft_save_notice(WsoftSaveResult result, WsoftSaveNotice *out) {
       n.title = "WRITER MODE";
       n.detail = "The weigh board saves weighings";
       n.level = WSOFT_NOTICE_INFO;
+      break;
+    case WSOFT_SAVE_ALARM:
+      n.code = "ALARM";
+      n.title = "SCALE ALARM";
+      n.detail = "The junction box shows an alarm";
+      n.level = WSOFT_NOTICE_STOP;
       break;
   }
   if (n.title[0] == 0) return false;

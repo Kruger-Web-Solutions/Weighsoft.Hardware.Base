@@ -120,6 +120,22 @@ void test_alarm_blocks_trade() {
   TEST_ASSERT_EQUAL(TRADE_ALARM, c);
 }
 
+// Rhyno, 14 Nov 2026: the bench junction box holds a permanent alarm, and the Waveshare said
+// "not stable" for a weight that was dead still. Still is still; the alarm is its own reason.
+void test_alarm_is_not_motion() {
+  TradeEngine e;
+  TradeCheck c = TRADE_MOTION;
+  for (uint32_t ms = 0; ms <= 2000; ms += 250) {
+    TradeReading r = reading(ms, 1520);
+    r.alarm = true;
+    TradeWeight w;
+    c = e.update(r, false, &w);
+    TEST_ASSERT_FALSE(w.valid);  // still no trade weight while it alarms
+  }
+  TEST_ASSERT_EQUAL(TRADE_ALARM, c);
+  TEST_ASSERT_TRUE(e.stable());  // unchanged for 2 s: still, alarm or not
+}
+
 // ---------- queue (High #2) ----------
 
 void test_two_quick_trade_weights_are_both_kept_until_acked() {
@@ -230,6 +246,7 @@ int main(int, char **) {
   RUN_TEST(test_approval_off_never_issues);
   RUN_TEST(test_unset_clock_blocks_trade);
   RUN_TEST(test_alarm_blocks_trade);
+  RUN_TEST(test_alarm_is_not_motion);
   RUN_TEST(test_two_quick_trade_weights_are_both_kept_until_acked);
   RUN_TEST(test_full_queue_stops_issuing_without_using_a_seq);
   RUN_TEST(test_ack_never_drops_unsent_entries);
