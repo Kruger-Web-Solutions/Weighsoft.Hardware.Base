@@ -208,6 +208,42 @@ void test_sampling_stays_a_raw_long() {
   TEST_ASSERT_EQUAL_UINT8(0, frame[10]);
 }
 
+
+// Rhyno, 14 Nov 2026: the supplier says the EEPROM bit is a factory flag, not a fault.
+void test_only_the_eeprom_alarm_is_allowed() {
+  WsoftDjbAlarmCheck c = wsoft_djb_alarm_check(0x80000000u);  // EEPROM only
+  TEST_ASSERT_FALSE(c.blocking);
+  TEST_ASSERT_TRUE(c.allowed);
+  c = wsoft_djb_alarm_check(0xC0000000u);  // EEPROM + over range: over range still blocks
+  TEST_ASSERT_TRUE(c.blocking);
+  TEST_ASSERT_TRUE(c.allowed);
+  c = wsoft_djb_alarm_check(0x20000000u);  // ADC failure / no load cell blocks
+  TEST_ASSERT_TRUE(c.blocking);
+  TEST_ASSERT_FALSE(c.allowed);
+  c = wsoft_djb_alarm_check(0x00030000u);  // parameter changed, software match: never blocked
+  TEST_ASSERT_FALSE(c.blocking);
+  TEST_ASSERT_FALSE(c.allowed);
+  c = wsoft_djb_alarm_check(0);
+  TEST_ASSERT_FALSE(c.blocking);
+  TEST_ASSERT_FALSE(c.allowed);
+}
+
+void test_alarm_watch_counts_changes_after_the_first_read() {
+  WsoftDjbAlarmWatch w;
+  TEST_ASSERT_FALSE(w.update(false, 0x12345678u));  // a failed poll is not a reading
+  TEST_ASSERT_FALSE(w.seen());
+  TEST_ASSERT_FALSE(w.update(true, 0x80000000u));  // baseline
+  TEST_ASSERT_TRUE(w.seen());
+  TEST_ASSERT_FALSE(w.update(true, 0x80000000u));
+  TEST_ASSERT_EQUAL_UINT32(0, w.changes());
+  TEST_ASSERT_TRUE(w.update(true, 0xC0000000u));  // a new bit: tell
+  TEST_ASSERT_TRUE(w.update(true, 0x80000000u));  // and back
+  TEST_ASSERT_FALSE(w.update(false, 0));
+  TEST_ASSERT_EQUAL_UINT32(2, w.changes());
+  TEST_ASSERT_EQUAL_HEX32(0x80000000u, w.first());
+  TEST_ASSERT_EQUAL_HEX32(0x80000000u, w.last());
+}
+
 int main(int argc, char **argv) {
   (void)argc;
   (void)argv;
@@ -222,5 +258,7 @@ int main(int argc, char **argv) {
   RUN_TEST(test_read_roundtrip_and_exception);
   RUN_TEST(test_alarm_bits_are_on_the_high_word);
   RUN_TEST(test_sampling_stays_a_raw_long);
+  RUN_TEST(test_only_the_eeprom_alarm_is_allowed);
+  RUN_TEST(test_alarm_watch_counts_changes_after_the_first_read);
   return UNITY_END();
 }
