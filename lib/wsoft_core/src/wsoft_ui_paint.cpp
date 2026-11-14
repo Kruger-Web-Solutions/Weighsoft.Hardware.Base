@@ -101,11 +101,18 @@ static void paint_top(WsoftCanvas &c, const WsoftUiModel &m, const Theme &T) {
     c.text(c.fit(m.slot_detail, SMALL, 296, cut, sizeof cut), 160, 53, SMALL, ink, WSOFT_CENTER);
     return;
   }
-  const char *chip = m.trade_ok ? "TRADE CHECKS ON" : "NOT FOR TRADE";
-  double w = c.width(chip, SMALL) + 14;
-  c.rect(8, 24, w, 17, m.trade_ok ? T.ok : T.bad, 4);
-  c.rect(9, 25, w - 2, 15, m.trade_ok ? T.chip_ok : T.chip_bad, 3);
-  c.text(chip, 8 + w / 2, 32.5, SMALL, m.trade_ok ? T.ok_ink : T.bad_ink, WSOFT_CENTER);
+  // Not for trade: a small six-pointed star instead of the words (Rhyno, 14 Nov 2026); a tap
+  // on it says NOT TRADE APPROVED (WSOFT_UI_BOX_STAR).
+  double w = WSOFT_UI_STAR_W;
+  if (m.trade_ok) {
+    const char *chip = "TRADE CHECKS ON";
+    w = c.width(chip, SMALL) + 14;
+    c.rect(8, 24, w, 17, T.ok, 4);
+    c.rect(9, 25, w - 2, 15, T.chip_ok, 3);
+    c.text(chip, 8 + w / 2, 32.5, SMALL, T.ok_ink, WSOFT_CENTER);
+  } else {
+    c.star6(8 + w / 2, 32.5, 9, T.bad);
+  }
   double sw = c.text(m.steady, 312, 32.5, SMALL, tone(T, m.steady_tone), WSOFT_RIGHT);
   c.disc(312 - sw - 8, 32.5, 4, dot(T, m.steady_tone));
   c.text(c.fit(m.reason, TINY, 312 - sw - 20 - (8 + w + 7), cut, sizeof cut), 8 + w + 7, 32.5, TINY,

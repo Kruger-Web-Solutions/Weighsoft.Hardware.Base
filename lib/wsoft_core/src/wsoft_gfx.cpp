@@ -105,6 +105,35 @@ void WsoftCanvas::disc(double cx, double cy, double r, uint16_t color) {
   }
 }
 
+
+// Inside the six-pointed star of radius R at the origin: either triangle.
+static bool in_star6(double x, double y, double R) {
+  double k = sqrt(3.0) * fabs(x);
+  return (y <= R / 2 && y + R >= k) || (y >= -R / 2 && R - y >= k);
+}
+
+void WsoftCanvas::star6(double cx, double cy, double r, uint16_t color) {
+  double X = cx * sx_, Y = cy * sy_, R = r * sy_;
+  long first = (long)floor(Y - R - 1), last = (long)floor(Y + R + 1);
+  long left = (long)floor(X - R - 1), right = (long)floor(X + R + 1);
+  if (first < top_) first = top_;
+  if (last > top_ + rows_ - 1) last = top_ + rows_ - 1;
+  if (left < 0) left = 0;
+  if (right > width_ - 1) right = width_ - 1;
+  for (long py = first; py <= last; py++) {
+    for (long px = left; px <= right; px++) {
+      int n = 0;
+      for (int j = 0; j < 4; j++) {
+        for (int i = 0; i < 4; i++) {
+          if (in_star6(px + (i + 0.5) / 4 - X, py + (j + 0.5) / 4 - Y, R)) n++;
+        }
+      }
+      if (n == 0) continue;
+      put((int)px, (int)py, color, n == 16 ? 255 : (int)rnd(n * 255.0 / 16));
+    }
+  }
+}
+
 int WsoftCanvas::dots(const char *text, int font) const {
   const WsoftFont &f = fonts_[font];
   int w = 0;

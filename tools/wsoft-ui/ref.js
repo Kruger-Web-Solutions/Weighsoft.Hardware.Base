@@ -167,6 +167,26 @@ const WsoftUi = (() => {
         }
       }
     }
+    // A six-pointed star (two triangles), r = centre to a point. Edges by 4 x 4 samples a dot.
+    star6(cx, cy, r, c) {
+      const X = cx * this.sx, Y = cy * this.sy, R = r * this.sy;
+      const inside = (x, y) => {
+        const k = Math.sqrt(3) * Math.abs(x);
+        return (y <= R / 2 && y + R >= k) || (y >= -R / 2 && R - y >= k);
+      };
+      for (let py = Math.max(Math.floor(Y - R - 1), 0); py <= Math.min(Math.floor(Y + R + 1), this.H - 1); py++) {
+        for (let px = Math.max(Math.floor(X - R - 1), 0); px <= Math.min(Math.floor(X + R + 1), this.W - 1); px++) {
+          let n = 0;
+          for (let j = 0; j < 4; j++) {
+            for (let i = 0; i < 4; i++) {
+              if (inside(px + (i + 0.5) / 4 - X, py + (j + 0.5) / 4 - Y)) n++;
+            }
+          }
+          if (n === 0) continue;
+          this.put(px, py, c, n === 16 ? 255 : rnd(n * 255 / 16));
+        }
+      }
+    }
     // Width in panel dots. Characters the font does not hold take no room.
     dots(str, role) {
       const f = this.fonts[role];
@@ -213,6 +233,7 @@ const WsoftUi = (() => {
   const PAGE_LIVE = 0, PAGE_MENU = 1, PAGE_PIN = 2, PAGE_NO_PIN = 3, PAGE_WIFI = 4;
   const TONE_SOFT = 0, TONE_OK = 1, TONE_WAIT = 2, TONE_BAD = 3;
   const SLOT_NONE = 0, SLOT_STOP = 1, SLOT_WAIT = 2, SLOT_WIFI = 3;
+  const STAR_W = 20;  // the not-for-trade star (WSOFT_UI_STAR_W)
   const ZONE_NONE = 0, ZONE_LOW = 1, ZONE_OK = 2, ZONE_HIGH = 3;
   const LOOK_BTN = 0, LOOK_ON = 1, LOOK_ACCENT = 2, LOOK_PLAIN = 3, LOOK_BAD = 4;
 
@@ -286,11 +307,17 @@ const WsoftUi = (() => {
       c.text(c.fit(m.slot_detail, SMALL, 296), 160, 53, SMALL, ink, CENTER);
       return;
     }
-    const chip = m.trade_ok ? 'TRADE CHECKS ON' : 'NOT FOR TRADE';
-    const w = c.width(chip, SMALL) + 14;
-    c.rect(8, 24, w, 17, m.trade_ok ? T.ok : T.bad, 4);
-    c.rect(9, 25, w - 2, 15, m.trade_ok ? T.chip_ok : T.chip_bad, 3);
-    c.text(chip, 8 + w / 2, 32.5, SMALL, m.trade_ok ? T.ok_ink : T.bad_ink, CENTER);
+    // Not for trade: a small six-pointed star instead of the words (Rhyno, 14 Nov 2026).
+    let w = STAR_W;
+    if (m.trade_ok) {
+      const chip = 'TRADE CHECKS ON';
+      w = c.width(chip, SMALL) + 14;
+      c.rect(8, 24, w, 17, T.ok, 4);
+      c.rect(9, 25, w - 2, 15, T.chip_ok, 3);
+      c.text(chip, 8 + w / 2, 32.5, SMALL, T.ok_ink, CENTER);
+    } else {
+      c.star6(8 + w / 2, 32.5, 9, T.bad);
+    }
     const sw = c.text(m.steady, 312, 32.5, SMALL, tone(T, m.steady_tone), RIGHT);
     c.disc(312 - sw - 8, 32.5, 4, dot(T, m.steady_tone));
     c.text(c.fit(m.reason, TINY, 312 - sw - 20 - (8 + w + 7)), 8 + w + 7, 32.5, TINY, tone(T, m.reason_tone), LEFT);
@@ -498,7 +525,7 @@ const WsoftUi = (() => {
     else if (!up && !S.wifi.dismissed) m.slot = SLOT_WIFI;
     else if (n) { m.slot = SLOT_WAIT; m.slot_title = n[1]; m.slot_detail = n[2]; }
     m.trade_ok = S.check === 'ok';
-    m.reason = !S.approval ? 'APPROVAL OFF' : m.trade_ok ? 'SEQ ' + S.seq : REASON[S.check] || 'CHECK';
+    m.reason = !S.approval ? '' : m.trade_ok ? 'SEQ ' + S.seq : REASON[S.check] || 'CHECK';
     m.reason_tone = !S.approval ? TONE_SOFT : m.trade_ok ? TONE_OK : TONE_WAIT;
     m.steady = !S.linked ? 'NO SIGNAL' : S.alarm ? 'ALARM' : S.stable ? 'STABLE' : 'UNSTABLE';
     m.steady_tone = !S.linked || S.alarm ? TONE_BAD : S.stable ? TONE_OK : TONE_WAIT;

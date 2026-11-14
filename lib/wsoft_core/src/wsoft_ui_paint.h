@@ -143,6 +143,9 @@ struct WsoftUiBox {
 };
 static const WsoftUiBox WSOFT_UI_BOX_WIFI_BAR = {0, 0, 150, 20};   // the Wi-Fi part of the status bar
 static const WsoftUiBox WSOFT_UI_BOX_SLOT = {6, 22, 308, 40};      // the notice band
+// The not-for-trade star, top left under the bar (a finger-sized box around it).
+static const double WSOFT_UI_STAR_W = 20;
+static const WsoftUiBox WSOFT_UI_BOX_STAR = {0, 20, 40, 26};
 static const WsoftUiBox WSOFT_UI_BOX_CONNECT = {160, 26, 100, 32}; // on the Wi-Fi alert
 static const WsoftUiBox WSOFT_UI_BOX_DISMISS = {266, 26, 42, 32};
 static const WsoftUiBox WSOFT_UI_BOX_MENU = {120, 190, 72, 46};

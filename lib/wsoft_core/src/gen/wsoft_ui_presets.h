@@ -23,7 +23,6 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       m->hub_tone = 1;
       WSOFT_UI_PRESET_SET(m->link, "RS232");
       m->link_tone = 1;
-      WSOFT_UI_PRESET_SET(m->reason, "APPROVAL OFF");
       WSOFT_UI_PRESET_SET(m->steady, "STABLE");
       m->steady_tone = 1;
       WSOFT_UI_PRESET_SET(m->audit, "AUDIT 0");
@@ -79,7 +78,6 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       m->slot = 2;
       WSOFT_UI_PRESET_SET(m->slot_title, "OUTSIDE HI-LO LIMITS");
       WSOFT_UI_PRESET_SET(m->slot_detail, "Tap SAVE twice to save anyway");
-      WSOFT_UI_PRESET_SET(m->reason, "APPROVAL OFF");
       WSOFT_UI_PRESET_SET(m->steady, "STABLE");
       m->steady_tone = 1;
       WSOFT_UI_PRESET_SET(m->audit, "AUDIT 0");
@@ -134,7 +132,6 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       m->slot = 2;
       WSOFT_UI_PRESET_SET(m->slot_title, "OUTSIDE HI-LO LIMITS");
       WSOFT_UI_PRESET_SET(m->slot_detail, "Tap SAVE twice to save anyway");
-      WSOFT_UI_PRESET_SET(m->reason, "APPROVAL OFF");
       WSOFT_UI_PRESET_SET(m->steady, "STABLE");
       m->steady_tone = 1;
       WSOFT_UI_PRESET_SET(m->audit, "AUDIT 0");
@@ -186,7 +183,6 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       m->hub_tone = 1;
       WSOFT_UI_PRESET_SET(m->link, "RS232");
       m->link_tone = 1;
-      WSOFT_UI_PRESET_SET(m->reason, "APPROVAL OFF");
       WSOFT_UI_PRESET_SET(m->steady, "STABLE");
       m->steady_tone = 1;
       WSOFT_UI_PRESET_SET(m->audit, "AUDIT 0");
@@ -239,7 +235,6 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       m->hub_tone = 1;
       WSOFT_UI_PRESET_SET(m->link, "RS232");
       m->link_tone = 1;
-      WSOFT_UI_PRESET_SET(m->reason, "APPROVAL OFF");
       WSOFT_UI_PRESET_SET(m->steady, "STABLE");
       m->steady_tone = 1;
       WSOFT_UI_PRESET_SET(m->audit, "AUDIT 0");
@@ -292,7 +287,6 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       m->hub_tone = 1;
       WSOFT_UI_PRESET_SET(m->link, "RS232");
       m->link_tone = 1;
-      WSOFT_UI_PRESET_SET(m->reason, "APPROVAL OFF");
       WSOFT_UI_PRESET_SET(m->steady, "STABLE");
       m->steady_tone = 1;
       WSOFT_UI_PRESET_SET(m->audit, "AUDIT 0");
@@ -341,7 +335,6 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->link, "RS232");
       m->link_tone = 1;
       m->slot = 3;
-      WSOFT_UI_PRESET_SET(m->reason, "APPROVAL OFF");
       WSOFT_UI_PRESET_SET(m->steady, "STABLE");
       m->steady_tone = 1;
       WSOFT_UI_PRESET_SET(m->audit, "AUDIT 0");
@@ -394,7 +387,6 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->link, "RS232");
       m->link_tone = 1;
       m->slot = 3;
-      WSOFT_UI_PRESET_SET(m->reason, "APPROVAL OFF");
       WSOFT_UI_PRESET_SET(m->steady, "STABLE");
       m->steady_tone = 1;
       WSOFT_UI_PRESET_SET(m->audit, "AUDIT 0");
@@ -451,7 +443,6 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       m->slot = 1;
       WSOFT_UI_PRESET_SET(m->slot_title, "NO SCALE SIGNAL");
       WSOFT_UI_PRESET_SET(m->slot_detail, "Check the scale cable and power");
-      WSOFT_UI_PRESET_SET(m->reason, "APPROVAL OFF");
       WSOFT_UI_PRESET_SET(m->steady, "NO SIGNAL");
       m->steady_tone = 3;
       WSOFT_UI_PRESET_SET(m->audit, "AUDIT 0");
@@ -566,7 +557,6 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       m->hub_tone = 1;
       WSOFT_UI_PRESET_SET(m->link, "RS232");
       m->link_tone = 1;
-      WSOFT_UI_PRESET_SET(m->reason, "APPROVAL OFF");
       WSOFT_UI_PRESET_SET(m->steady, "STABLE");
       m->steady_tone = 1;
       WSOFT_UI_PRESET_SET(m->audit, "AUDIT 0");
@@ -614,7 +604,6 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       m->hub_tone = 1;
       WSOFT_UI_PRESET_SET(m->link, "RS485");
       m->link_tone = 1;
-      WSOFT_UI_PRESET_SET(m->reason, "APPROVAL OFF");
       WSOFT_UI_PRESET_SET(m->steady, "STABLE");
       m->steady_tone = 1;
       WSOFT_UI_PRESET_SET(m->audit, "AUDIT 0");
@@ -678,7 +667,6 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       m->hub_tone = 1;
       WSOFT_UI_PRESET_SET(m->link, "RS232");
       m->link_tone = 1;
-      WSOFT_UI_PRESET_SET(m->reason, "APPROVAL OFF");
       WSOFT_UI_PRESET_SET(m->steady, "STABLE");
       m->steady_tone = 1;
       WSOFT_UI_PRESET_SET(m->audit, "AUDIT 0");
@@ -734,7 +722,6 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       m->hub_tone = 1;
       WSOFT_UI_PRESET_SET(m->link, "RS232");
       m->link_tone = 1;
-      WSOFT_UI_PRESET_SET(m->reason, "APPROVAL OFF");
       WSOFT_UI_PRESET_SET(m->steady, "STABLE");
       m->steady_tone = 1;
       WSOFT_UI_PRESET_SET(m->audit, "AUDIT 0");
@@ -790,7 +777,6 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       m->slot = 2;
       WSOFT_UI_PRESET_SET(m->slot_title, "OUTSIDE HI-LO LIMITS");
       WSOFT_UI_PRESET_SET(m->slot_detail, "Tap SAVE twice to save anyway");
-      WSOFT_UI_PRESET_SET(m->reason, "APPROVAL OFF");
       WSOFT_UI_PRESET_SET(m->steady, "STABLE");
       m->steady_tone = 1;
       WSOFT_UI_PRESET_SET(m->audit, "AUDIT 0");
@@ -843,7 +829,6 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       m->hub_tone = 1;
       WSOFT_UI_PRESET_SET(m->link, "RS232");
       m->link_tone = 1;
-      WSOFT_UI_PRESET_SET(m->reason, "APPROVAL OFF");
       WSOFT_UI_PRESET_SET(m->steady, "STABLE");
       m->steady_tone = 1;
       WSOFT_UI_PRESET_SET(m->audit, "AUDIT 0");
@@ -900,7 +885,6 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       m->slot = 2;
       WSOFT_UI_PRESET_SET(m->slot_title, "OUTSIDE HI-LO LIMITS");
       WSOFT_UI_PRESET_SET(m->slot_detail, "Tap SAVE twice to save anyway");
-      WSOFT_UI_PRESET_SET(m->reason, "APPROVAL OFF");
       WSOFT_UI_PRESET_SET(m->steady, "STABLE");
       m->steady_tone = 1;
       WSOFT_UI_PRESET_SET(m->audit, "AUDIT 0");
@@ -953,7 +937,6 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->link, "RS232");
       m->link_tone = 1;
       m->slot = 3;
-      WSOFT_UI_PRESET_SET(m->reason, "APPROVAL OFF");
       WSOFT_UI_PRESET_SET(m->steady, "STABLE");
       m->steady_tone = 1;
       WSOFT_UI_PRESET_SET(m->audit, "AUDIT 0");
@@ -1008,7 +991,6 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       m->hub_tone = 1;
       WSOFT_UI_PRESET_SET(m->link, "RS232");
       m->link_tone = 1;
-      WSOFT_UI_PRESET_SET(m->reason, "APPROVAL OFF");
       WSOFT_UI_PRESET_SET(m->steady, "STABLE");
       m->steady_tone = 1;
       WSOFT_UI_PRESET_SET(m->audit, "AUDIT 0");
@@ -1185,7 +1167,6 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       m->hub_tone = 1;
       WSOFT_UI_PRESET_SET(m->link, "RS232");
       m->link_tone = 1;
-      WSOFT_UI_PRESET_SET(m->reason, "APPROVAL OFF");
       WSOFT_UI_PRESET_SET(m->steady, "STABLE");
       m->steady_tone = 1;
       WSOFT_UI_PRESET_SET(m->audit, "AUDIT 0");
@@ -1239,7 +1220,6 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->link, "RS232");
       m->link_tone = 1;
       m->slot = 3;
-      WSOFT_UI_PRESET_SET(m->reason, "APPROVAL OFF");
       WSOFT_UI_PRESET_SET(m->steady, "STABLE");
       m->steady_tone = 1;
       WSOFT_UI_PRESET_SET(m->audit, "AUDIT 0");
@@ -1291,7 +1271,6 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->link, "RS232");
       m->link_tone = 1;
       m->slot = 3;
-      WSOFT_UI_PRESET_SET(m->reason, "APPROVAL OFF");
       WSOFT_UI_PRESET_SET(m->steady, "STABLE");
       m->steady_tone = 1;
       WSOFT_UI_PRESET_SET(m->audit, "AUDIT 0");
@@ -1343,7 +1322,6 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       m->hub_tone = 3;
       WSOFT_UI_PRESET_SET(m->link, "WRITER");
       m->link_tone = 1;
-      WSOFT_UI_PRESET_SET(m->reason, "APPROVAL OFF");
       WSOFT_UI_PRESET_SET(m->steady, "STABLE");
       m->steady_tone = 1;
       WSOFT_UI_PRESET_SET(m->audit, "AUDIT 0");
