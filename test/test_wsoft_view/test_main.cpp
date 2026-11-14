@@ -311,6 +311,30 @@ void test_feed_without_live_weight_sends_nothing() {
   TEST_ASSERT_TRUE(has(json, "\"stable\":false"));
 }
 
+// A tare on the weigh board: the Writer gets the net, as the screen shows it; the board's own
+// view keeps the gross in weight_g and weight_text.
+void test_feed_sends_net_when_tared() {
+  WSoftSnapshot s = live(12345);
+  s.stable = true;
+  s.updated_ms = 5;
+  s.tared = true;
+  s.net_value = 10345;  // 2 kg tare
+  char w[24];
+  TEST_ASSERT_TRUE(wsoft_feed_weight(s, w, sizeof w));
+  TEST_ASSERT_EQUAL_STRING("10.345", w);
+  TEST_ASSERT_EQUAL_STRING(
+      "{\"last_line\":\"10.345 kg\",\"weight\":\"10.345\",\"unit\":\"kg\",\"stable\":true,\"timestamp\":5}",
+      feed(s).c_str());
+  TEST_ASSERT_TRUE(has(view(s), "\"weight_text\":\"12.345 kg\""));
+  // Tare off: the gross, even if an old net is still in the snapshot.
+  s.tared = false;
+  TEST_ASSERT_TRUE(has(feed(s), "\"weight\":\"12.345\""));
+  // No live weight: still nothing, tare or not.
+  s.tared = true;
+  s.fresh = false;
+  TEST_ASSERT_TRUE(has(feed(s), "\"weight\":null"));
+}
+
 void test_role_is_weigh_or_writer() {
   WSoftSnapshot s = live(1520);
   TEST_ASSERT_TRUE(has(view(s), "\"role\":\"weigh\""));
@@ -344,6 +368,7 @@ int main(int, char **) {
   RUN_TEST(test_feed_weight_is_the_number_or_nothing);
   RUN_TEST(test_feed_has_line_weight_unit_stable_and_time);
   RUN_TEST(test_feed_without_live_weight_sends_nothing);
+  RUN_TEST(test_feed_sends_net_when_tared);
   RUN_TEST(test_role_is_weigh_or_writer);
   return UNITY_END();
 }

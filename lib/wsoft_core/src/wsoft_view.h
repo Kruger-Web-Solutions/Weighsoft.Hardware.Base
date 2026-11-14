@@ -38,6 +38,10 @@ struct WSoftSnapshot {
   uint32_t updated_ms = 0;     // millis() of the poll this snapshot came from
   bool rs232 = false;          // weight from an RS232 scale line, not the DJB junction box
   bool writer = false;         // Writer mode: weight from a weigh board over Wi-Fi, never saved
+  // A tare is on: net_value is the net (value minus tare), same decimals and unit. The feed to
+  // a Writer sends the net, as the screen shows it (Rhyno, 14 Nov 2026). value stays the gross.
+  bool tared = false;
+  int32_t net_value = 0;
   // What stops a save right now (WsoftWeighingSaver::waiting). The view writes it as the
   // notice_* fields: the big message over the weight, the same words as the board's screen.
   WsoftSaveResult save_waiting = WSOFT_SAVE_NONE;
@@ -69,12 +73,14 @@ bool wsoft_weight_grams(int32_t value, int decimals, int unit, int64_t *grams);
 bool wsoft_has_weight(const WSoftSnapshot &s);
 
 // The weight a Writer gets from this board: the number as shown ("12.345"), without the unit.
-// False when there is no live weight: then nothing is sent.
+// The net weight when a tare is on, else the gross (they are the same). False when there is
+// no live weight: then nothing is sent.
 bool wsoft_feed_weight(const WSoftSnapshot &s, char *weight, size_t size);
 
 // The weigh board's open weight feed for a Writer (/ws/wsoftFeed, /rest/wsoftFeed). The same
 // keys a Writer already reads from the Serial reader (last_line, weight, timestamp), plus
-// unit and stable. last_line is the weight with its unit ("12.345 kg"). No live weight:
+// unit and stable. last_line is the weight with its unit ("12.345 kg"), net when a tare is on.
+// No live weight:
 // last_line "" and weight null, so a Writer sends nothing.
 void wsoft_feed_write(const WSoftSnapshot &s, WSoftJsonSink &out);
 

@@ -133,9 +133,6 @@ reports a blocking alarm at -0.3 kg. Both are the boards' real inputs that night
 ## 8. Known gaps
 
 - No Wi-Fi setup on the screen itself: the phone steps only.
-- Writer mode with a tare on the weigh board: the feed to the Writer (`wsoft_feed_write`) carries
-  the gross weight, so the Writer shows and judges the gross while the weigh board shows and
-  judges the net. The feed needs the net weight too.
 - The saver's "the scale must show 0 first" rule looks at the gross weight; the screen's EMPTY
   and the relays look at the net. With a tared container left on, the screen says NET 0 and
   EMPTY while the red note says TAKE THE LOAD OFF.

@@ -309,8 +309,10 @@ bool wsoft_screen_djb(const WsoftDjbPlan *plan, WsoftDjbResult *out, uint32_t ti
 static portMUX_TYPE snapshot_lock = portMUX_INITIALIZER_UNLOCKED;
 static WSoftSnapshot snapshot;
 
-static void publish_snapshot(const Reading &r, bool fresh, TradeCheck check, HubState hub) {
+static void publish_snapshot(const Reading &r, bool fresh, TradeCheck check, HubState hub, bool tared, int32_t net) {
   WSoftSnapshot next;
+  next.tared = tared;
+  next.net_value = net;
   next.valid = true;
   next.display_ready = display_ready;
   next.linked = r.linked;
@@ -498,7 +500,7 @@ void wsoft_screen_loop() {
   strlcat(weight, " ", sizeof weight);
   strlcat(weight, weight_unit_text(next.unit), sizeof weight);
   hub_set_health(next.linked, next.linked ? weight : "", next.alarm);
-  publish_snapshot(next, fresh, check, hub_state());
+  publish_snapshot(next, fresh, check, hub_state(), tared, net);
   reading = next;
 
   // The screen paints only the rows whose words changed.

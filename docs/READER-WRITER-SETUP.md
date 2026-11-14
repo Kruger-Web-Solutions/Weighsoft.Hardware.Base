@@ -53,7 +53,7 @@ How to set it up:
 
 1. **Weigh board:** nothing new. It now also shares its weight, open and read-only, on
    `GET /rest/wsoftFeed` and the `/ws/wsoftFeed` socket (`last_line`, `weight`, `unit`, `stable`, `timestamp`,
-   every 0.5 s).
+   every 0.5 s). With a tare on, the feed carries the **net** weight, as the screen shows it (Rhyno, 14 Nov 2026).
 2. **Writer board:** **Serial** page, top switch, pick **Writer (follows a weigh board)**. The board restarts.
 3. **Serial > Settings, Step 1:** pick the weigh board from the list (or type its address), press **Save and Test Connection**.
 4. **Step 2, weight format:** leave `{line}` to send `12.345 kg` as it is, or shape it, for example
