@@ -460,9 +460,10 @@ const WsoftUi = (() => {
     BLANK: [SLOT_STOP, 'OUT OF RANGE', 'Weight is past the scale range'],
     BELOW_MIN: [SLOT_STOP, 'BELOW MIN', 'Too light while Approval is ON'],
     OUT_OF_LIMITS: [SLOT_WAIT, 'OUTSIDE HI-LO LIMITS', 'Tap SAVE twice to save anyway'],
+    ALARM: [SLOT_STOP, 'SCALE ALARM', 'The junction box shows an alarm'],
   };
   const RESULT = { ALREADY: 'ALREADY SAVED', NEED_ZERO: 'TAKE LOAD OFF', NOT_STABLE: 'WAIT: MOVING', EMPTY: 'SCALE IS EMPTY',
-    NO_SIGNAL: 'NO SCALE SIGNAL', OUT_OF_LIMITS: 'TAP AGAIN: SAVE', WRITER: 'WRITER: NO SAVE' };
+    NO_SIGNAL: 'NO SCALE SIGNAL', OUT_OF_LIMITS: 'TAP AGAIN: SAVE', WRITER: 'WRITER: NO SAVE', ALARM: 'SCALE ALARM' };
   const REASON = { motion: 'MOTION', empty: 'EMPTY', nosignal: 'NO SIGNAL', alarm: 'ALARM', noclock: 'NO CLOCK' };
   const HUB = { online: 'HUB', offline: 'HUB OFFLINE', nowifi: 'HUB', clock: 'HUB CLOCK', rejected: 'HUB REJECTED', setup: 'HUB SETUP' };
   const fmtW = (g, dec) => (g / 1000).toFixed(dec);

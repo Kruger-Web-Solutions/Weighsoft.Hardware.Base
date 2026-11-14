@@ -51,7 +51,7 @@ enum WsoftSaveResult {
   WSOFT_SAVE_SAVED,       // *issued holds the new weighing
   WSOFT_SAVE_ALREADY,     // Save tapped, but this load is already saved
   WSOFT_SAVE_NEED_ZERO,   // Save tapped, but the scale has not shown 0 since the last save or boot
-  WSOFT_SAVE_NOT_STABLE,  // Save tapped while the weight is moving (or the scale alarms)
+  WSOFT_SAVE_NOT_STABLE,  // Save tapped while the weight is moving
   WSOFT_SAVE_EMPTY,       // Save tapped with nothing on the scale
   WSOFT_SAVE_NO_SIGNAL,   // Save tapped with no live reading
   WSOFT_SAVE_NO_CLOCK,    // Save tapped before the clock was set (the Hub needs a time)
@@ -66,6 +66,9 @@ enum WsoftSaveResult {
   // of its port, but never saves: the weigh board saves, so the Hub counts each weighing once.
   // Passed as hold; nothing else is checked.
   WSOFT_SAVE_WRITER,
+  // The junction box reports a blocking alarm (Rhyno, 14 Nov 2026: it used to say NOT_STABLE,
+  // so a dead still load read "WEIGHT IS MOVING"). Nothing saves until the alarm clears.
+  WSOFT_SAVE_ALARM,
 };
 
 class WsoftWeighingSaver {

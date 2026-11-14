@@ -553,7 +553,8 @@ static void tare(bool preset) {
   if (preset) {
     error = scale_tare_preset(view.decimals, view.unit);
   } else {
-    bool stable = view.linked && approval_stable() && view.hold != WSOFT_HOLD_NOT_STABLE;
+    // Stable no longer includes the alarm: keep refusing a tare while the junction box alarms.
+    bool stable = view.linked && !view.alarm && approval_stable() && view.hold != WSOFT_HOLD_NOT_STABLE;
     error = scale_tare_toggle(stable, view.gross, view.decimals, view.unit);
   }
   say(error == WSOFT_TARE_OK ? (!preset && was_on ? "TARE CLEARED" : "TARE ON") : wsoft_tare_error_code(error));
