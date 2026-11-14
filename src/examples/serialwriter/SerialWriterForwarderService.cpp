@@ -86,8 +86,9 @@ void SerialWriterForwarderService::loop() {
 
   if (_activeConnectionMethod == SERIALW_FWD_METHOD_WS) {
     _wsClient.loop();
+    // millis(), not `now`: the loop above may have just stamped _lastWsDataMs after `now`.
     if (_wsoftFeed && _wsClient.isConnected() &&
-        (unsigned long)(now - _lastWsDataMs) > (unsigned long)SERIALW_FWD_WSOFT_STALE_MS) {
+        (unsigned long)(millis() - _lastWsDataMs) > (unsigned long)SERIALW_FWD_WSOFT_STALE_MS) {
       Serial.println(F("[SerialWriterForwarder] weigh board feed quiet for 3 s: reconnecting"));
       disconnectWs();
       _backoffMs = 1000;
@@ -116,7 +117,7 @@ void SerialWriterForwarderService::loop() {
     if (_wsoftFeed) {
       // Judge the socket by its own messages: a REST poll that works must not hide a dead socket.
       const bool wsLive = _wsClient.isConnected() && _lastWsDataMs > 0 &&
-                          (unsigned long)(now - _lastWsDataMs) < (unsigned long)SERIALW_FWD_WSOFT_STALE_MS;
+                          (unsigned long)(millis() - _lastWsDataMs) < (unsigned long)SERIALW_FWD_WSOFT_STALE_MS;
       shouldPollRest = _serialRestUrl.length() > 0 && !wsLive;
       pollInterval = SERIALW_FWD_WSOFT_POLL_MS;
     }
