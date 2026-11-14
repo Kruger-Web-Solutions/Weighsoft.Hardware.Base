@@ -8,6 +8,47 @@ other devices here.
 > Nothing on this device is legal for trade. That needs NRCS approval and on-site verification.
 > Approval stays OFF until Rhyno switches it on, with a USB cable.
 
+## 0. Rules for every W-Soft board (read first)
+
+This guide is the shared W-Soft guide. The board guides ([WSOFT-CYD28.md](WSOFT-CYD28.md) for the
+yellow board, this file for the Waveshare) add only what is different on that board.
+
+W-Soft runs on three PlatformIO envs. Every other env in `platformio.ini` is a different product
+(`FT_WSOFT=0`) and does not run W-Soft.
+
+| Env | Board | Scale input |
+|---|---|---|
+| `wsoft_waveshare43` | Waveshare ESP32-S3 4.3 inch touch | RS485 junction box only |
+| `wsoft_cyd28` | Yellow board (CYD 2.8 inch) | RS485 junction box or RS232 scale |
+| `wsoft_s3_headless` | ESP32-S3 dev board, no screen | RS485 junction box or RS232 scale |
+
+Any of them can also be a **Writer** (it shows a weigh board's weight and never saves).
+
+Rules (Rhyno, 14 Nov 2026, after three Waveshare features were lost in a rebuild):
+
+1. **One code for all boards.** A W-Soft feature goes in the shared code (`lib/wsoft_core`,
+   `lib/wsoft_esp`, `src/examples/wsoft`, `interface/src/project/wsoft`), so every board gets it.
+   Only hardware stays board-only (screen drawing, relay pins, the RS485 pins).
+2. **Every W-Soft PR builds all three envs** (`pio run -e wsoft_waveshare43 -e wsoft_cyd28 -e
+   wsoft_s3_headless`) and runs `pio test -e native`. A green build on one board is not enough.
+3. **If a board cannot do a feature honestly, the page says so in plain words** and offers what
+   is possible. Never fake it. (Example: Calibrate on an RS232 scale or a Writer, section 4c.)
+4. **Never invent registers, pinouts or calibration steps.** Take them from the manual
+   (`weighsoft.wsoft/hardware/manuals/supmeter/`, `hardware/contracts/djb-m1x-rs485.md`) or
+   from code that already ran on the bench, and say which in the commit.
+5. **Test switches are OFF by default, do nothing while Approval is ON, and mark every weighing
+   they touch** so the Hub can tell (section 4c, alarm test switch).
+6. **Before a board moves to a newer build, list what its old build had.** Compare the old
+   branch with the main line (`git log --oneline <main line>..<old branch>` and the web tabs) and
+   carry every feature across, or tell Rhyno which one is dropped and why.
+7. **The W-Soft main line is `claude/project-thread-9f4l7x`.** Task branches start from it and
+   merge back into it. After merging a *stacked* PR (one whose base is another task branch),
+   check its commits reached the main line: `git log --oneline origin/claude/project-thread-9f4l7x..origin/<branch>`
+   must be empty. If not, open a catch-up PR at once (14 Nov 2026: PRs #48 and #49 landed on a
+   side branch; PR #50 brought them across).
+8. **Flash a board only with Rhyno's typed OK in the thread.** Merged is not flashed: write down
+   which commit each board runs.
+
 ## 1. What is where
 
 | Part | Path | Notes |
@@ -16,7 +57,7 @@ other devices here.
 | ESP firmware | `lib/wsoft_esp/` | `approval.h`, `hub.h` identical; `approval.cpp` and `hub.cpp` guarded; `wsoft_screen.cpp` = the weigh loop of the old `main.cpp`; new: `switches.*`, `pin.*`, `scale.*`, `approval_base.h`, `wsoft_ui.*` (the screen, [WSOFT-SCREEN.md](WSOFT-SCREEN.md); the old `fonts.h` and `screen_rle.h` are gone) |
 | Services | `src/examples/wsoft/` | `WSoftStatusService` (live), `WSoftSettingsService` (options), `WSoftSwitchesService` (switches, PIN, scale setup) |
 | Wiring | `src/main.cpp` | under `FT_WSOFT` only |
-| Web pages | `interface/src/project/wsoft/` | menu **W-Soft**: Live, Settings (admin), Information |
+| Web pages | `interface/src/project/wsoft/` | menu **W-Soft**: Live, Products, Scale setup, Calibrate (admin), Settings (admin), Information; menu **Hub** |
 | Build | `platformio.ini` | `[env:wsoft_waveshare43]`, `[env:native]` |
 
 Check that the copied files still match the source:
@@ -103,7 +144,9 @@ BLE write path.
 Live JSON fields: `ready`, `display_ready`, `link` (`starting` / `no_signal` / `no_reply` /
 `alarm` / `live`), `linked`, `weight_g` (whole grams, **null** when not linked or the last poll
 failed), `weight_text`, `unit`, `decimals`, `stable`, `alarm`, `approval_on`, `for_trade`,
-`trade_check`, `audit_counter`, `last_trade_seq`, `trade_queue`, `hub`, `hub_online`, `polls`.
+`trade_check`, `audit_counter`, `last_trade_seq`, `trade_queue`, `hub`, `hub_online`, `polls`,
+`alarm_allowed`, `alarm_note`, `alarm_word_hex`, `alarm_changes`, `alarm_test` (the alarm test
+switch is on, section 4c), `source`, `role`, `notice_*`.
 
 `POST /rest/djb` body: `{"op":"read","channel":1,"field":"weight"}`,
 `{"op":"write","channel":1,"field":"ad","value":0}`, or `{"op":"read","field":"unit"}`.
@@ -131,6 +174,7 @@ Options:
 | `mqtt_base_path` | `weighsoft/wsoft/#{unique_id}` | ≤ 96 chars, no spaces or `+`, `#` only as `#{...}` |
 | `mqtt_name` | `wsoft-#{unique_id}` | ≤ 48 chars. Home Assistant entity name |
 | `mqtt_unique_id` | `wsoft-#{unique_id}` | ≤ 48 chars, no spaces. Home Assistant unique id |
+| `alarm_test_save` | false | TEST ONLY. Section 4c. A page that does not send it switches it off |
 
 MQTT topic: `<mqtt_base_path>/status`, retained, same JSON as the Live view.
 
@@ -244,6 +288,65 @@ line, right above the weight) says what to do and why, the same words as the yel
 **Update note.** Auto save moved from W-Soft > Settings to the switches (NVS `weigh`). At
 the first boot after the update the board reads the old `auto_save` once from
 `/config/wsoftSettings.json` and keeps it.
+
+## 4c. Calibrate, backup Hub addresses and the alarm test switch (all W-Soft boards)
+
+Brought back on 14 Nov 2026 (Rhyno) from the 2 Nov Waveshare branch (`wsoft-waveshare43`),
+which had them and the newer main line did not. They are shared code, so every W-Soft board
+has them.
+
+| | Waveshare | Yellow board | S3 headless | RS232 scale | Writer |
+|---|---|---|---|---|---|
+| Calibrate tab | ✅ | ✅ on RS485 | ✅ on RS485 | ❌ note: calibrate the scale's own indicator | ❌ note: calibrate on the weigh board |
+| Backup Hub addresses | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Alarm test switch | ✅ | ✅ on RS485 | ✅ on RS485 | has no alarm to skip | never saves |
+
+### Calibrate (W-Soft > Calibrate, admin)
+
+- What it does: zero, then span with a known test weight, then a check. Three steps on the page,
+  each write asks "Yes, calibrate" first.
+- Where the rule comes from: DJB-W/M1-16 Communication Protocol V2.0, LC1 AD Value register
+  41003, command 10. Write 0 = zero calibration with the scale empty. Write the calibrating
+  weight CW (> 0) = load calibration with that weight on. CW is the weight as the box shows it,
+  without the decimal point (2.000 kg at 3 decimals = 2000), as the 2 Nov tab sent it.
+- It goes through `POST /rest/djb` (`{"op":"write","field":"ad","value":...}`), which already
+  refuses it with Approval ON (`approval_on`), on RS232 (`NO_CARD`) and with no link
+  (`not_linked`), and adds 1 to the audit counter for every write that goes through.
+- RS232 scale or Writer: the tab shows a plain note instead of the steps. An RS232 scale is
+  calibrated on its own indicator; the board only reads what it sends.
+- Bench check still open: the span step has not been run on a real test weight on the main line.
+  Do zero, span and check once on the Waveshare and write the result here.
+
+### Backup Hub addresses (menu Hub)
+
+- It is the **same Hub on its other addresses** (for example its Wi-Fi and its cable address),
+  not a second Hub. One pairing key belongs to one Hub.
+- A Hub with 2+ addresses puts them all in the pairing key (`hub_urls`; Hub
+  `registry/advertise.ts`, env `HUB_ADVERTISE_URLS`). The board keeps up to 4 LAN ones, the Hub's
+  main address first. Tailscale (100.64.0.0/10) and localhost are skipped: the board is not on
+  Tailscale. A key with one address works as before.
+- When the Hub gives **no answer at all** (refused, timed out, no route), the board tries the
+  next address on its next call. Any answer, even an error, keeps the address. The log says
+  `HUB no answer from <a>, trying backup address <b>`.
+- The Hub page shows the address in use and the backups. No backups shown? Make a new key on
+  the Hub (it must know its addresses) and connect again.
+- Code: `wsoft_hub_code.*` (parser and failover, host-tested), `hub.cpp` (`hub_base`,
+  `record_hub_answer`).
+
+### Alarm test switch (W-Soft > Settings, admin)
+
+- **TEST ONLY, OFF by default.** When ON and Approval is OFF, a junction box alarm that would
+  block a save (load cell fault, over range) no longer stops Save or Auto save.
+- With Approval ON it does nothing. Those weighings are never for trade (the trade check still
+  sees the alarm).
+- Every weighing saved through an alarm is kept with a mark and reaches the Hub with
+  `"alarm_test_override": true` in its payload. The board log says
+  `saved THROUGH A JUNCTION BOX ALARM`. The Live tab shows a yellow TEST MODE note while it is on.
+- How it plays with the **allowed-alarm list** (PR #49): the EEPROM factory flag is allowed
+  always, with or without this switch, and is still shown as "allowed, monitoring". The switch is
+  only for the other alarms, on a bench, for a short test. Switch it off after.
+- RS232 scales send no junction box alarm, so the switch changes nothing there.
+- Code: `wsoft_alarm_test_gate` (`wsoft_weighing.*`, host-tested), `weighings.cpp`.
 
 ## 5. How it runs
 
