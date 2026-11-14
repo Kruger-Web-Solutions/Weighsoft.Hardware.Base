@@ -14,7 +14,12 @@
 struct HubWebInfo {
   bool paired;                   // a valid pairing key is saved
   HubState state;                // live state since boot (HUB_SETUP when not paired at boot)
-  char hub_url[WSOFT_HUB_URL_MAX];
+  char hub_url[WSOFT_HUB_URL_MAX];   // the Hub's main address
+  // Every address this board may use for the Hub, the main one first; the rest are backups,
+  // tried in turn when the Hub gives no answer at all. active = the one in use now.
+  char hub_urls[WSOFT_HUB_URLS_MAX][WSOFT_HUB_URL_MAX];
+  uint8_t url_count;
+  uint8_t active;
   char key_id[WSOFT_HUB_ID_MAX];
   char device_id[WSOFT_HUB_ID_MAX];
   int last_status;               // HTTP status of the last heartbeat, 0 when none was sent

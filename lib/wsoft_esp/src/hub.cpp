@@ -55,6 +55,16 @@ static const time_t CLOCK_VALID_AFTER = 1700000000;
 static Preferences prefs;
 static String wifi_ssid, wifi_pass, hub_url, key_id, ota_pass;
 static uint8_t signing_key[32];
+#ifdef WSOFT_ON_BASE
+// Backup Hub addresses (Rhyno, 14 Nov 2026; first built 31 Oct on the Waveshare branch). The
+// pairing code of a Hub with 2+ addresses lists them all (e.g. Wi-Fi and cable); the LAN ones are
+// kept here, fixed until a restart. Same Hub, same key: only the address changes. The hub task
+// moves to the next address when the Hub gives no answer at all (wsoft_hub_failover_result).
+// Only the one-byte index changes at runtime, so the web task reads it safely.
+static char hub_urls[WSOFT_HUB_URLS_MAX][WSOFT_HUB_URL_MAX];
+static WsoftHubFailover failover;          // hub task only
+static volatile uint8_t active_url = 0;    // copy of failover.active for the web task
+#endif
 static bool configured = false;
 static volatile HubState state = HUB_SETUP;
 static volatile bool ota_busy = false;
@@ -118,7 +128,44 @@ static bool load_pairing(const String &code) {
   memset(secret, 0, sizeof secret);
   hub_url = url;
   key_id = id;
+#ifdef WSOFT_ON_BASE
+  // The address list, read by the same host-tested parser the web page uses. Static: the parse
+  // result is over 1 KB. Called once from hub_begin(), before the hub task exists.
+  static WsoftHubCode parsed;
+  if (wsoft_hub_code_parse(code.c_str(), &parsed) == WSOFT_HUB_CODE_OK) {
+    memcpy(hub_urls, parsed.hub_urls, sizeof hub_urls);
+    wsoft_hub_failover_begin(&failover, parsed.hub_url_count);
+  } else {
+    strlcpy(hub_urls[0], url.c_str(), sizeof hub_urls[0]);
+    wsoft_hub_failover_begin(&failover, 1);
+  }
+  memset(parsed.secret, 0, sizeof parsed.secret);
+  active_url = failover.active;
+#endif
   return true;
+}
+
+// The Hub address in use now.
+static String hub_base() {
+#ifdef WSOFT_ON_BASE
+  return String(hub_urls[failover.active]);
+#else
+  return hub_url;
+#endif
+}
+
+// Every request to the Hub reports here. No answer at all (status <= 0) moves to the next
+// backup address; any HTTP answer, even an error, means this address works.
+static void record_hub_answer(int status) {
+#ifdef WSOFT_ON_BASE
+  uint8_t before = failover.active;
+  if (wsoft_hub_failover_result(&failover, status)) {
+    active_url = failover.active;
+    WSOFT_LOG.printf("HUB no answer from %s, trying backup address %s\n", hub_urls[before], hub_urls[failover.active]);
+  }
+#else
+  (void)status;
+#endif
 }
 
 static void load_config() {
@@ -290,7 +337,10 @@ static int post_signed(const char *path, const String &body, String *reply) {
   String timestamp = String((unsigned long)now);
   HTTPClient http;
   http.setTimeout(8000);
-  if (!http.begin(hub_url + path)) return -1;
+  if (!http.begin(hub_base() + path)) {
+    record_hub_answer(0);
+    return -1;
+  }
   http.addHeader("Content-Type", "application/json");
   http.addHeader("X-ScaleModels-Key-Id", key_id);
   http.addHeader("X-ScaleModels-Timestamp", timestamp);
@@ -299,6 +349,7 @@ static int post_signed(const char *path, const String &body, String *reply) {
   int status = http.POST(body);
   if (reply) *reply = status > 0 ? http.getString() : http.errorToString(status);
   http.end();
+  record_hub_answer(status);
   return status;
 }
 
@@ -389,7 +440,10 @@ static bool pull_signed(const char *path, const char *request, const char *prefi
 
   HTTPClient http;
   http.setTimeout(8000);
-  if (!http.begin(hub_url + path)) return false;
+  if (!http.begin(hub_base() + path)) {
+    record_hub_answer(0);
+    return false;
+  }
   const char *answer_headers[] = {"X-ScaleModels-Key-Id", "X-ScaleModels-Timestamp", "X-ScaleModels-Nonce",
                                   "X-ScaleModels-Signature"};
   http.collectHeaders(answer_headers, 4);
@@ -399,6 +453,7 @@ static bool pull_signed(const char *path, const char *request, const char *prefi
   http.addHeader("X-ScaleModels-Nonce", nonce);
   http.addHeader("X-ScaleModels-Signature", sign(timestamp, nonce, body));
   int status = http.POST(body);
+  record_hub_answer(status);
   *reply = status > 0 ? http.getString() : "";
   String answer_key = http.header("X-ScaleModels-Key-Id");
   String answer_time = http.header("X-ScaleModels-Timestamp");
@@ -495,8 +550,9 @@ static void send_heartbeat() {
 
   HTTPClient http;
   http.setTimeout(8000);
-  if (!http.begin(hub_url + "/api/v1/ingest/heartbeats")) {
+  if (!http.begin(hub_base() + "/api/v1/ingest/heartbeats")) {
     state = HUB_UNREACHABLE;
+    record_hub_answer(0);
     return;
   }
   http.addHeader("Content-Type", "application/json");
@@ -507,6 +563,7 @@ static void send_heartbeat() {
   int status = http.POST(body);
   String reply = status > 0 ? http.getString() : http.errorToString(status);
   http.end();
+  record_hub_answer(status);
 
 #ifdef WSOFT_ON_BASE
   last_status = status;
@@ -655,7 +712,12 @@ void hub_begin() {
 #endif
     return;
   }
+#ifdef WSOFT_ON_BASE
+  WSOFT_LOG.printf("HUB configured for %s (%u address%s) key %s\n", hub_urls[0], (unsigned)failover.count,
+                   failover.count == 1 ? "" : "es", key_id.c_str());
+#else
   WSOFT_LOG.printf("HUB configured for %s key %s\n", hub_url.c_str(), key_id.c_str());
+#endif
   xTaskCreatePinnedToCore(hub_task, "hub", 8192, nullptr, 1, nullptr, 0);
 }
 
@@ -687,7 +749,7 @@ const char *hub_state_text(HubState s) {
 // A local Preferences handle: the web server runs in its own task, apart from the USB lines.
 
 WsoftHubCodeError hub_web_save(const char *code) {
-  WsoftHubCode parsed;
+  static WsoftHubCode parsed;  // over 1 KB: off the web task's stack (only that task calls this)
   WsoftHubCodeError error = wsoft_hub_code_parse(code, &parsed);
   memset(parsed.secret, 0, sizeof parsed.secret);
   if (error != WSOFT_HUB_CODE_OK) return error;
@@ -717,10 +779,18 @@ void hub_web_info(HubWebInfo *out) {
   store.begin("hub", true);
   String code = store.getString("pair", "");
   store.end();
-  WsoftHubCode parsed;
+  static WsoftHubCode parsed;  // over 1 KB: off the web task's stack (only that task calls this)
   if (!code.isEmpty() && wsoft_hub_code_parse(code.c_str(), &parsed) == WSOFT_HUB_CODE_OK) {
     out->paired = true;
     strlcpy(out->hub_url, parsed.hub_url, sizeof out->hub_url);
+    out->url_count = parsed.hub_url_count;
+    for (uint8_t i = 0; i < parsed.hub_url_count && i < WSOFT_HUB_URLS_MAX; i++) {
+      strlcpy(out->hub_urls[i], parsed.hub_urls[i], sizeof out->hub_urls[i]);
+    }
+    // The address in use, when the saved code is the one the Hub task runs on (it is, until a
+    // restart after a new code).
+    uint8_t in_use = active_url;
+    out->active = in_use < out->url_count ? in_use : 0;
     strlcpy(out->key_id, parsed.key_id, sizeof out->key_id);
     strlcpy(out->device_id, parsed.device_id, sizeof out->device_id);
     memset(parsed.secret, 0, sizeof parsed.secret);

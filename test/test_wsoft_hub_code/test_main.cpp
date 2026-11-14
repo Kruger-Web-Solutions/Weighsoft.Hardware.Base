@@ -27,6 +27,24 @@ static const char *SHORT_SECRET =
     "eyJ2IjoxLCJodWJfdXJsIjoiaHR0cDovL3giLCJrZXlfaWQiOiJrIiwic2VjcmV0IjoiQUFBQUFBQUFBQUFBQUFBQUFBQUFBQT09In0";
 static const char *NOT_JSON = "aGVsbG8gd29ybGQ";
 
+// Backup addresses (14 Nov 2026). A newer Hub adds "hub_urls": every address it listens on.
+static const char *TWO_LAN =
+    "eyJ2IjoxLCJodWJfdXJsIjoiaHR0cDovLzE5Mi4xNjguMC4xMjo4MDk1IiwiaHViX3VybHMiOlsiaHR0cDovLzE5Mi4xNjguMC4xMjo4MDk1Iiwi"
+    "aHR0cDovLzE5Mi4xNjguMS4yOjgwOTUiLCJodHRwOi8vMTAwLjEyMC4xMzkuNDk6ODA5NSJdLCJvcmdhbmlzYXRpb25faWQiOiJvcmdfMSIsImRl"
+    "dmljZV9pZCI6ImRldl8xIiwia2V5X2lkIjoiaHVia190ZXN0Iiwic2VjcmV0IjoiQUFFQ0F3UUZCZ2NJQ1FvTERBME9EeEFSRWhNVUZSWVhHQmth"
+    "R3h3ZEhoOD0ifQ";
+static const char *TAILSCALE_FIRST =
+    "eyJ2IjoxLCJodWJfdXJsIjoiaHR0cDovLzEwMC4xMjAuMTM5LjQ5OjgwOTUiLCJodWJfdXJscyI6WyJodHRwOi8vMTAwLjEyMC4xMzkuNDk6ODA5"
+    "NSIsImh0dHA6Ly8xOTIuMTY4LjEuMjo4MDk1LyJdLCJvcmdhbmlzYXRpb25faWQiOiJvcmdfMSIsImRldmljZV9pZCI6ImRldl8xIiwia2V5X2lk"
+    "IjoiaHVia190ZXN0Iiwic2VjcmV0IjoiQUFFQ0F3UUZCZ2NJQ1FvTERBME9EeEFSRWhNVUZSWVhHQmthR3h3ZEhoOD0ifQ";
+static const char *TAILSCALE_ONLY =
+    "eyJ2IjoxLCJodWJfdXJsIjoiaHR0cDovLzEwMC4xMjAuMTM5LjQ5OjgwOTUiLCJvcmdhbmlzYXRpb25faWQiOiJvcmdfMSIsImRldmljZV9pZCI6"
+    "ImRldl8xIiwia2V5X2lkIjoiaHVia190ZXN0Iiwic2VjcmV0IjoiQUFFQ0F3UUZCZ2NJQ1FvTERBME9EeEFSRWhNVUZSWVhHQmthR3h3ZEhoOD0ifQ";
+static const char *MANY =
+    "eyJ2IjoxLCJodWJfdXJsIjoiaHR0cDovLzEwLjAuMC4xIiwiaHViX3VybHMiOlsiaHR0cDovLzEwLjAuMC4xIiwiaHR0cDovLzEwLjAuMC4yIiwi"
+    "aHR0cDovLzEwLjAuMC4yIiwiaHR0cDovLzEwLjAuMC4zIiwiZnRwOi8veCIsImh0dHA6Ly8xMC4wLjAuNCIsImh0dHA6Ly8xMC4wLjAuNSJdLCJr"
+    "ZXlfaWQiOiJrIiwic2VjcmV0IjoiQUFFQ0F3UUZCZ2NJQ1FvTERBME9EeEFSRWhNVUZSWVhHQmthR3h3ZEhoOD0ifQ";
+
 void setUp() {}
 void tearDown() {}
 
@@ -94,6 +112,82 @@ void test_every_error_has_text() {
   }
 }
 
+void test_old_single_address_code_lists_just_that_address() {
+  WsoftHubCode c;
+  TEST_ASSERT_EQUAL(WSOFT_HUB_CODE_OK, wsoft_hub_code_parse(VALID, &c));
+  TEST_ASSERT_EQUAL_UINT8(1, c.hub_url_count);
+  TEST_ASSERT_EQUAL_STRING("http://192.168.0.12:8095", c.hub_urls[0]);
+}
+
+void test_lan_addresses_become_backups_tailscale_is_skipped() {
+  WsoftHubCode c;
+  TEST_ASSERT_EQUAL(WSOFT_HUB_CODE_OK, wsoft_hub_code_parse(TWO_LAN, &c));
+  TEST_ASSERT_EQUAL_UINT8(2, c.hub_url_count);
+  TEST_ASSERT_EQUAL_STRING("http://192.168.0.12:8095", c.hub_url);
+  TEST_ASSERT_EQUAL_STRING("http://192.168.0.12:8095", c.hub_urls[0]);
+  TEST_ASSERT_EQUAL_STRING("http://192.168.1.2:8095", c.hub_urls[1]);
+}
+
+void test_tailscale_main_address_gives_way_to_a_lan_one() {
+  WsoftHubCode c;
+  TEST_ASSERT_EQUAL(WSOFT_HUB_CODE_OK, wsoft_hub_code_parse(TAILSCALE_FIRST, &c));
+  TEST_ASSERT_EQUAL_UINT8(1, c.hub_url_count);
+  TEST_ASSERT_EQUAL_STRING("http://192.168.1.2:8095", c.hub_url);  // trailing '/' dropped
+  TEST_ASSERT_EQUAL_STRING("http://192.168.1.2:8095", c.hub_urls[0]);
+}
+
+void test_no_lan_address_keeps_the_main_one_as_before() {
+  WsoftHubCode c;
+  TEST_ASSERT_EQUAL(WSOFT_HUB_CODE_OK, wsoft_hub_code_parse(TAILSCALE_ONLY, &c));
+  TEST_ASSERT_EQUAL_UINT8(1, c.hub_url_count);
+  TEST_ASSERT_EQUAL_STRING("http://100.120.139.49:8095", c.hub_urls[0]);
+}
+
+void test_list_drops_doubles_and_bad_entries_and_stops_at_four() {
+  WsoftHubCode c;
+  TEST_ASSERT_EQUAL(WSOFT_HUB_CODE_OK, wsoft_hub_code_parse(MANY, &c));
+  TEST_ASSERT_EQUAL_UINT8(WSOFT_HUB_URLS_MAX, c.hub_url_count);
+  TEST_ASSERT_EQUAL_STRING("http://10.0.0.1", c.hub_urls[0]);
+  TEST_ASSERT_EQUAL_STRING("http://10.0.0.2", c.hub_urls[1]);
+  TEST_ASSERT_EQUAL_STRING("http://10.0.0.3", c.hub_urls[2]);
+  TEST_ASSERT_EQUAL_STRING("http://10.0.0.4", c.hub_urls[3]);
+}
+
+void test_lan_check() {
+  TEST_ASSERT_TRUE(wsoft_hub_url_is_lan("http://192.168.1.13:8090"));
+  TEST_ASSERT_TRUE(wsoft_hub_url_is_lan("http://100.10.0.1"));    // 100.x outside 100.64/10
+  TEST_ASSERT_TRUE(wsoft_hub_url_is_lan("https://hub.example"));
+  TEST_ASSERT_FALSE(wsoft_hub_url_is_lan("http://100.64.0.1"));
+  TEST_ASSERT_FALSE(wsoft_hub_url_is_lan("http://100.127.255.1:8090"));
+  TEST_ASSERT_FALSE(wsoft_hub_url_is_lan("http://localhost:8095"));
+  TEST_ASSERT_FALSE(wsoft_hub_url_is_lan("http://127.0.0.1"));
+  TEST_ASSERT_FALSE(wsoft_hub_url_is_lan(nullptr));
+}
+
+void test_failover_moves_only_on_no_answer_and_wraps() {
+  WsoftHubFailover f;
+  wsoft_hub_failover_begin(&f, 3);
+  TEST_ASSERT_EQUAL_UINT8(0, f.active);
+  TEST_ASSERT_FALSE(wsoft_hub_failover_result(&f, 202));
+  TEST_ASSERT_FALSE(wsoft_hub_failover_result(&f, 401));  // an answer, even a refusal: the address works
+  TEST_ASSERT_FALSE(wsoft_hub_failover_result(&f, 503));
+  TEST_ASSERT_EQUAL_UINT8(0, f.active);
+  TEST_ASSERT_TRUE(wsoft_hub_failover_result(&f, -1));    // refused / timed out
+  TEST_ASSERT_EQUAL_UINT8(1, f.active);
+  TEST_ASSERT_TRUE(wsoft_hub_failover_result(&f, 0));
+  TEST_ASSERT_EQUAL_UINT8(2, f.active);
+  TEST_ASSERT_TRUE(wsoft_hub_failover_result(&f, -11));
+  TEST_ASSERT_EQUAL_UINT8(0, f.active);                    // wraps around
+}
+
+void test_failover_with_one_address_never_moves() {
+  WsoftHubFailover f;
+  wsoft_hub_failover_begin(&f, 0);
+  TEST_ASSERT_EQUAL_UINT8(1, f.count);
+  TEST_ASSERT_FALSE(wsoft_hub_failover_result(&f, -1));
+  TEST_ASSERT_EQUAL_UINT8(0, f.active);
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_valid_code_gives_url_key_device_and_secret);
@@ -105,5 +199,13 @@ int main(int, char **) {
   RUN_TEST(test_missing_or_bad_parts);
   RUN_TEST(test_refused_code_leaves_output_untouched);
   RUN_TEST(test_every_error_has_text);
+  RUN_TEST(test_old_single_address_code_lists_just_that_address);
+  RUN_TEST(test_lan_addresses_become_backups_tailscale_is_skipped);
+  RUN_TEST(test_tailscale_main_address_gives_way_to_a_lan_one);
+  RUN_TEST(test_no_lan_address_keeps_the_main_one_as_before);
+  RUN_TEST(test_list_drops_doubles_and_bad_entries_and_stops_at_four);
+  RUN_TEST(test_lan_check);
+  RUN_TEST(test_failover_moves_only_on_no_answer_and_wraps);
+  RUN_TEST(test_failover_with_one_address_never_moves);
   return UNITY_END();
 }

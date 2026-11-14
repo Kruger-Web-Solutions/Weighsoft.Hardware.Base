@@ -84,6 +84,10 @@ export interface WSoftHub {
   state: string;
   online: boolean;
   hub_url: string;
+  /** Every address of the same Hub this board may use, main one first; the rest are backups. */
+  hub_urls?: string[];
+  /** The address the board sends to now (moves to a backup when the Hub gives no answer). */
+  hub_url_in_use?: string;
   key_id: string;
   device_id: string;
   /** HTTP status of the last heartbeat; 0 when none was sent since boot. */

@@ -12,6 +12,12 @@ import { WSoftHub } from './types';
 
 const REFRESH_MS = 5000;
 
+/** The Hub's other addresses (from the pairing key), without the one in use. */
+const backupAddresses = (hub: WSoftHub) => {
+  const inUse = hub.hub_url_in_use || hub.hub_url;
+  return (hub.hub_urls ?? []).filter((url) => url !== inUse);
+};
+
 const stateColor = (hub: WSoftHub): 'success' | 'warning' | 'error' | 'default' => {
   if (!hub.paired) return 'default';
   if (hub.online) return 'success';
@@ -77,7 +83,18 @@ const WSoftHubForm: FC = () => {
         )}
         {hub.paired && (
           <Box mb={2}>
-            <Typography variant="body2">Hub address: <b>{hub.hub_url}</b></Typography>
+            <Typography variant="body2">Hub address in use: <b>{hub.hub_url_in_use || hub.hub_url}</b></Typography>
+            {backupAddresses(hub).length > 0 && (
+              <Typography variant="body2" color="text.secondary">
+                Backup addresses of the same Hub: {backupAddresses(hub).join(', ')}. If the Hub gives no answer,
+                the board tries the next one by itself.
+              </Typography>
+            )}
+            {backupAddresses(hub).length === 0 && (
+              <Typography variant="body2" color="text.secondary">
+                No backup address. A Hub on Wi-Fi and a cable gives two: make a new key on the Hub to get them.
+              </Typography>
+            )}
             {hub.device_id && <Typography variant="body2">Device: {hub.device_id}</Typography>}
             <Typography variant="body2" color="text.secondary">
               {hub.last_status
