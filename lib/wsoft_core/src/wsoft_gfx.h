@@ -53,6 +53,8 @@ class WsoftCanvas {
   // r: corner radius in layout units; below 0 rounds the short side fully (a pill).
   void rect(double x, double y, double w, double h, uint16_t color, double r = 0);
   void disc(double cx, double cy, double r, uint16_t color);
+  // A six-pointed star (two triangles), r = centre to a point. Edges by 4 x 4 samples a dot.
+  void star6(double cx, double cy, double r, uint16_t color);
 
   // Width of text in panel dots. Characters the font does not hold take no room.
   int dots(const char *text, int font) const;

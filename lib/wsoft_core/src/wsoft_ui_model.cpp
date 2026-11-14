@@ -62,7 +62,7 @@ static const char *trade_reason(const WsoftUiInput &in, char *line, size_t size,
       return line;
     case TRADE_OFF:
       *tone = WSOFT_UI_TONE_SOFT;
-      return "APPROVAL OFF";
+      return "";  // the star says it (Rhyno, 14 Nov 2026: the words were too much)
     case TRADE_NO_SIGNAL: return "NO SIGNAL";
     case TRADE_STALE: return "NO REPLY";
     case TRADE_QUEUE_FULL: return "QUEUE FULL";

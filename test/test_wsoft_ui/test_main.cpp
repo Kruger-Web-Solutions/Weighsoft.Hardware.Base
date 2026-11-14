@@ -273,7 +273,7 @@ void test_model_trade_row() {
   in.audit = 7;
   wsoft_ui_model(in, &model);
   TEST_ASSERT_FALSE(model.trade_ok);
-  TEST_ASSERT_EQUAL_STRING("APPROVAL OFF", model.reason);
+  TEST_ASSERT_EQUAL_STRING("", model.reason);  // approval off: the star says it, no words
   TEST_ASSERT_EQUAL(WSOFT_UI_TONE_SOFT, model.reason_tone);
   TEST_ASSERT_EQUAL_STRING("AUDIT 7", model.audit);
   TEST_ASSERT_EQUAL_STRING("STABLE", model.steady);
