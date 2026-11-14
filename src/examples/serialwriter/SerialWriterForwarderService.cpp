@@ -18,6 +18,19 @@
 #define SERIALW_FWD_WS_STALE_MS 20000
 #endif
 
+// A W-Soft weigh board's /ws/wsoftFeed sends every 0.5 s. No message for this long = the
+// socket is dead (it can die without a close): drop it and connect again, and poll the REST
+// twin every SERIALW_FWD_WSOFT_POLL_MS meanwhile so the weight keeps moving.
+#ifndef SERIALW_FWD_WSOFT_STALE_MS
+#define SERIALW_FWD_WSOFT_STALE_MS 3000
+#endif
+#ifndef SERIALW_FWD_WSOFT_POLL_MS
+#define SERIALW_FWD_WSOFT_POLL_MS 1000
+#endif
+#ifndef SERIALW_FWD_WSOFT_MAX_BACKOFF_MS
+#define SERIALW_FWD_WSOFT_MAX_BACKOFF_MS 4000
+#endif
+
 SerialWriterForwarderService::SerialWriterForwarderService(AsyncWebServer* server,
                                                            FS* fs,
                                                            SecurityManager* securityManager,
@@ -73,6 +86,13 @@ void SerialWriterForwarderService::loop() {
 
   if (_activeConnectionMethod == SERIALW_FWD_METHOD_WS) {
     _wsClient.loop();
+    if (_wsoftFeed && _wsClient.isConnected() &&
+        (unsigned long)(now - _lastWsDataMs) > (unsigned long)SERIALW_FWD_WSOFT_STALE_MS) {
+      Serial.println(F("[SerialWriterForwarder] weigh board feed quiet for 3 s: reconnecting"));
+      disconnectWs();
+      _backoffMs = 1000;
+      _nextRetryMs = now;
+    }
     if (!_wsClient.isConnected() && now >= _nextRetryMs) {
       yield();
       connectReader();
@@ -93,6 +113,13 @@ void SerialWriterForwarderService::loop() {
         _lastReaderOkMs > 0 && (unsigned long)(now - _lastReaderOkMs) < (unsigned long)SERIALW_FWD_WS_STALE_MS;
     shouldPollRest = shouldPollRest && (!_wsClient.isConnected() || !wsRecentlyOk);
     pollInterval = SERIALW_FWD_WS_BACKUP_POLL_INTERVAL_MS;
+    if (_wsoftFeed) {
+      // Judge the socket by its own messages: a REST poll that works must not hide a dead socket.
+      const bool wsLive = _wsClient.isConnected() && _lastWsDataMs > 0 &&
+                          (unsigned long)(now - _lastWsDataMs) < (unsigned long)SERIALW_FWD_WSOFT_STALE_MS;
+      shouldPollRest = _serialRestUrl.length() > 0 && !wsLive;
+      pollInterval = SERIALW_FWD_WSOFT_POLL_MS;
+    }
   }
   if (shouldPollRest && (unsigned long)(now - _lastPollMs) > pollInterval) {
     pollReaderRest();
@@ -255,7 +282,9 @@ void SerialWriterForwarderService::connectReader() {
 
   String fullPath = path + "?role=writer&id=" + SettingValue::getUniqueId();
   // A W-Soft weigh board keeps no Writers list, so there is nothing to announce to.
-  _announceUrl = path.startsWith("/ws/wsoftFeed") ? String() : String("http://") + host + ":" + String(port) + "/rest/writers";
+  _wsoftFeed = path.startsWith("/ws/wsoftFeed");
+  _lastWsDataMs = 0;
+  _announceUrl = _wsoftFeed ? String() : String("http://") + host + ":" + String(port) + "/rest/writers";
   // The REST twin of the socket: /ws/serial -> /rest/serial, /ws/wsoftFeed -> /rest/wsoftFeed.
   String restPath = path.startsWith("/ws/") ? String("/rest/") + path.substring(4) : String("/rest/serial");
   _serialRestUrl = String("http://") + host + ":" + String(port) + restPath;
@@ -299,6 +328,7 @@ void SerialWriterForwarderService::onWsEvent(WStype_t type, uint8_t* payload, si
   switch (type) {
     case WStype_CONNECTED:
       markReaderOk();
+      _lastWsDataMs = millis();
       update([](SerialWriterForwarderState& s) {
         s.connected = true;
         s.lastError = "";
@@ -331,6 +361,7 @@ void SerialWriterForwarderService::onWsEvent(WStype_t type, uint8_t* payload, si
       StaticJsonDocument<1024> doc;
       if (deserializeJson(doc, payload, length) == DeserializationError::Ok) {
         markReaderOk();
+        _lastWsDataMs = millis();
         onReaderData(doc["payload"].is<JsonObject>() ? doc["payload"].as<JsonObject>() : doc.as<JsonObject>());
       }
       break;
@@ -345,7 +376,8 @@ void SerialWriterForwarderService::scheduleRetry() {
   unsigned long retryDelay = _backoffMs;
   _nextRetryMs = millis() + retryDelay;
   _wsClient.setReconnectInterval(retryDelay);
-  _backoffMs = _backoffMs >= 30000 ? 30000 : _backoffMs * 2;
+  const uint16_t maxBackoff = _wsoftFeed ? SERIALW_FWD_WSOFT_MAX_BACKOFF_MS : 30000;
+  _backoffMs = _backoffMs >= maxBackoff ? maxBackoff : _backoffMs * 2;
   update([](SerialWriterForwarderState& s) {
     s.reconnectAttempts++;
     return StateUpdateResult::CHANGED;

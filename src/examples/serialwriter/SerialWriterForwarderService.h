@@ -52,6 +52,11 @@ class SerialWriterForwarderService : public StatefulService<SerialWriterForwarde
   String        _serialRestUrl;
   uint8_t       _readerPollFailures = 0;
   unsigned long _lastReaderOkMs = 0;
+  // A W-Soft weigh board's /ws/wsoftFeed pushes every 0.5 s, so a quiet socket is a dead one:
+  // _lastWsDataMs is the last socket message (REST backup polls do not count), _wsoftFeed
+  // says the source is such a feed.
+  unsigned long _lastWsDataMs = 0;
+  bool          _wsoftFeed = false;
 
   void onConfigChanged();
   void connectReader();
