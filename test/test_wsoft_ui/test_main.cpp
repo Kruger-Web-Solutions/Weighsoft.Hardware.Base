@@ -468,13 +468,25 @@ void test_model_save_button() {
   wsoft_ui_model(in, &model);
   TEST_ASSERT_EQUAL_STRING("TAKE LOAD OFF", model.save_line);
   TEST_ASSERT_EQUAL(WSOFT_UI_LOOK_BTN, model.save_look);
-  // A Writer never saves: the button says so, greyed.
+  // A Writer's SAVE is saved by the weigh board: a plain TAP TO SAVE (no queue, no Auto save
+  // of its own), and the weigh board's answer, SAVED without a number.
   in.recent = WSOFT_SAVE_NONE;
   in.writer = true;
-  in.waiting = WSOFT_SAVE_WRITER;
+  in.waiting = WSOFT_SAVE_NONE;
+  in.pending = 2;
+  in.auto_save = true;
   wsoft_ui_model(in, &model);
-  TEST_ASSERT_EQUAL_STRING("WRITER: NO SAVE", model.save_line);
-  TEST_ASSERT_EQUAL(WSOFT_UI_LOOK_BTN, model.save_look);
+  TEST_ASSERT_EQUAL_STRING("TAP TO SAVE", model.save_line);
+  TEST_ASSERT_EQUAL(WSOFT_UI_LOOK_ON, model.save_look);
+  in.recent = WSOFT_SAVE_SAVED;
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL_STRING("SAVED", model.save_line);
+  TEST_ASSERT_EQUAL(WSOFT_UI_LOOK_ON, model.save_look);
+  in.recent = WSOFT_SAVE_NOT_STABLE;
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL(WSOFT_UI_LOOK_BAD, model.save_look);
+  in.pending = 0;
+  in.auto_save = false;
 }
 
 void test_model_menu_tiles() {

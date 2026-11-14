@@ -1339,7 +1339,8 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->high, "51");
       m->pointer = 527;
       WSOFT_UI_PRESET_SET(m->gross, "50.120 kg");
-      WSOFT_UI_PRESET_SET(m->save_line, "WRITER: NO SAVE");
+      WSOFT_UI_PRESET_SET(m->save_line, "TAP TO SAVE");
+      m->save_look = 1;
       m->tiles[0].id = WSOFT_UI_TILE_APPROVAL;
       m->tiles[0].look = 0;
       WSOFT_UI_PRESET_SET(m->tiles[0].caption, "APPROVAL");

@@ -87,6 +87,18 @@ WSoftStatusService::WSoftStatusService(AsyncWebServer* server,
     _feedSocket(WSOFT_FEED_SOCKET_PATH) {
   // The weight feed for a Writer board: open and read-only, like /ws/serial.
   server->addHandler(&_feedSocket);
+  // A Writer's SAVE tap arrives here as {"cmd":"save"} and is saved like a tap on this board,
+  // with all of this board's checks (Rhyno, 14 Nov 2026: the Writer saves through the weigh
+  // board, so each load is counted once). Nothing else is accepted on this socket.
+  _feedSocket.onEvent([this](AsyncWebSocket*, AsyncWebSocketClient*, AwsEventType type, void* arg, uint8_t* data,
+                         size_t len) {
+    if (type != WS_EVT_DATA || _settingsService->writerMode()) return;
+    AwsFrameInfo* info = static_cast<AwsFrameInfo*>(arg);
+    if (!info->final || info->index != 0 || info->len != len || info->opcode != WS_TEXT) return;
+    StaticJsonDocument<64> doc;
+    if (deserializeJson(doc, data, len) != DeserializationError::Ok) return;
+    if (strcmp(doc["cmd"] | "", "save") == 0) weighings_request_save();
+  });
   server->on(WSOFT_FEED_ENDPOINT_PATH, HTTP_GET, [](AsyncWebServerRequest* request) {
     request->send(200, "application/json", feedJson());
   });
@@ -335,6 +347,13 @@ String WSoftStatusService::feedJson() {
   // The product in use, so a Writer can follow it ("" = none).
   WsoftHiloProduct product;
   root["product"] = hilo_current(&product) ? String(product.code) : String();
+  // For a Writer's screen: what stops a save here, and the newest Save result (save_n counts
+  // them, so a Writer shows each one once). Numbers are WsoftSaveResult values.
+  WeighingsInfo weigh;
+  weighings_info(&weigh);
+  root["save_waiting"] = (int)weigh.waiting;
+  root["save_n"] = weighings_result_count();
+  root["save_result"] = (int)weigh.last_result;
   String json;
   serializeJson(doc, json);
   return json;

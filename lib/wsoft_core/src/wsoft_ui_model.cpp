@@ -204,9 +204,10 @@ static void hilo(const WsoftUiInput &in, WsoftUiModel *m) {
 // queue, then whether a tap or Auto save does the saving. Capitals, like the rest.
 static void save(const WsoftUiInput &in, WsoftUiModel *m) {
   m->save_look = WSOFT_UI_LOOK_ON;
-  if (in.writer) {
-    put(m->save_line, "WRITER: NO SAVE");
-    m->save_look = WSOFT_UI_LOOK_BTN;
+  // A Writer's SAVE is saved by the weigh board (Rhyno, 14 Nov 2026): its results show here,
+  // the weighing number and the queue stay on the weigh board.
+  if (in.writer && in.recent == WSOFT_SAVE_SAVED) {
+    put(m->save_line, "SAVED");
   } else if (in.recent == WSOFT_SAVE_SAVED) {
     snprintf(m->save_line, sizeof m->save_line, "SAVED #%lu", (unsigned long)in.saved_seq);
   } else if (in.recent != WSOFT_SAVE_NONE) {
@@ -215,10 +216,10 @@ static void save(const WsoftUiInput &in, WsoftUiModel *m) {
   } else if (in.waiting == WSOFT_SAVE_ALREADY) {
     put(m->save_line, "TAKE LOAD OFF");
     m->save_look = WSOFT_UI_LOOK_BTN;
-  } else if (in.pending > 0) {
+  } else if (!in.writer && in.pending > 0) {
     snprintf(m->save_line, sizeof m->save_line, "%u TO SEND", (unsigned)in.pending);
   } else {
-    put(m->save_line, in.auto_save ? "AUTO SAVE ON" : "TAP TO SAVE");
+    put(m->save_line, !in.writer && in.auto_save ? "AUTO SAVE ON" : "TAP TO SAVE");
   }
 }
 

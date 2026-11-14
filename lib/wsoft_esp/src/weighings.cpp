@@ -21,6 +21,9 @@ static WsoftSaveResult last_result = WSOFT_SAVE_NONE;
 static uint32_t last_result_ms = 0;
 static TradeWeight last_saved;
 static WsoftSaveResult waiting = WSOFT_SAVE_NONE;  // under lock
+static uint32_t result_count = 0;                   // under lock: Save results since boot
+static void (*remote_save)() = nullptr;             // Writer role: Save taps go to the weigh board
+static WsoftSaveResult remote_waiting = WSOFT_SAVE_NO_SIGNAL;  // under lock
 
 // Screen task only.
 static WsoftWeighingSaver saver;
@@ -266,9 +269,10 @@ WsoftSaveResult weighings_update(bool linked, bool fresh, bool alarm, int32_t va
   if (result == WSOFT_SAVE_SAVED) store_saved(saved, for_trade, tare_value, hilo);
 
   portENTER_CRITICAL(&lock);
-  waiting = saver.waiting();
+  waiting = remote_save != nullptr ? remote_waiting : saver.waiting();
   if (tapped) save_answered = requests;
   if (result != WSOFT_SAVE_NONE) {
+    result_count++;
     last_result = result;
     last_result_ms = millis();
   }
@@ -291,9 +295,37 @@ WsoftSaveResult weighings_update(bool linked, bool fresh, bool alarm, int32_t va
 }
 
 void weighings_request_save() {
+  if (remote_save != nullptr) {
+    remote_save();
+    return;
+  }
   portENTER_CRITICAL(&lock);
   save_requests++;
   portEXIT_CRITICAL(&lock);
+}
+
+void weighings_set_remote_save(void (*fn)()) { remote_save = fn; }
+
+void weighings_remote_status(WsoftSaveResult status) {
+  portENTER_CRITICAL(&lock);
+  remote_waiting = status;
+  portEXIT_CRITICAL(&lock);
+}
+
+void weighings_remote_result(WsoftSaveResult result) {
+  if (result == WSOFT_SAVE_NONE) return;
+  portENTER_CRITICAL(&lock);
+  last_result = result;
+  last_result_ms = millis();
+  portEXIT_CRITICAL(&lock);
+  WSOFT_LOG.printf("WEIGH weigh board answered the Save: %s\n", wsoft_save_result_text(result));
+}
+
+uint32_t weighings_result_count() {
+  portENTER_CRITICAL(&lock);
+  uint32_t n = result_count;
+  portEXIT_CRITICAL(&lock);
+  return n;
 }
 
 WsoftSaveResult weighings_save(uint32_t timeout_ms, TradeWeight *saved) {
