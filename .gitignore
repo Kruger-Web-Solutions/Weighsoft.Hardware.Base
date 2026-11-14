@@ -16,3 +16,6 @@
 compile_commands.json
 # W-Soft OTA password header: never committed. Copy lib/wsoft_esp/src/ota_secret.h.example.
 ota_secret.h
+
+# W-Soft screen tools: build output
+tools/wsoft-ui/out/

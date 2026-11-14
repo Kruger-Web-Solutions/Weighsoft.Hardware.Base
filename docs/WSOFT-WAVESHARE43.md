@@ -12,8 +12,8 @@ other devices here.
 
 | Part | Path | Notes |
 |---|---|---|
-| Pure logic (host-tested) | `lib/wsoft_core/` | `trade_logic.*` (identical), `wsoft_view.*`, `wsoft_settings.*`, `wsoft_switch.*`, `wsoft_pin.*`, `wsoft_sha256.*`, `wsoft_scale_setup.*`, `wsoft_hub_commands.*` |
-| ESP firmware | `lib/wsoft_esp/` | `approval.h`, `hub.h`, `fonts.h`, `screen_rle.h` identical; `approval.cpp` and `hub.cpp` guarded; `wsoft_screen.cpp` = old `main.cpp`; new: `switches.*`, `pin.*`, `scale.*`, `approval_base.h` |
+| Pure logic (host-tested) | `lib/wsoft_core/` | `trade_logic.*` (identical), `wsoft_view.*`, `wsoft_settings.*`, `wsoft_switch.*`, `wsoft_pin.*`, `wsoft_sha256.*`, `wsoft_scale_setup.*`, `wsoft_hub_commands.*`, the screen: `wsoft_gfx.*`, `wsoft_ui_paint.*`, `wsoft_ui_model.*`, `gen/` |
+| ESP firmware | `lib/wsoft_esp/` | `approval.h`, `hub.h` identical; `approval.cpp` and `hub.cpp` guarded; `wsoft_screen.cpp` = the weigh loop of the old `main.cpp`; new: `switches.*`, `pin.*`, `scale.*`, `approval_base.h`, `wsoft_ui.*` (the screen, [WSOFT-SCREEN.md](WSOFT-SCREEN.md); the old `fonts.h` and `screen_rle.h` are gone) |
 | Services | `src/examples/wsoft/` | `WSoftStatusService` (live), `WSoftSettingsService` (options), `WSoftSwitchesService` (switches, PIN, scale setup) |
 | Wiring | `src/main.cpp` | under `FT_WSOFT` only |
 | Web pages | `interface/src/project/wsoft/` | menu **W-Soft**: Live, Settings (admin), Information |
@@ -22,7 +22,7 @@ other devices here.
 Check that the copied files still match the source:
 
 ```bash
-for f in approval.h hub.h fonts.h screen_rle.h; do
+for f in approval.h hub.h; do
   git -C ../weighsoft.wsoft show cfcd012:esp/src/$f | diff -q - lib/wsoft_esp/src/$f; done
 for f in trade_logic.cpp trade_logic.h; do
   git -C ../weighsoft.wsoft show cfcd012:esp/src/$f | diff -q - lib/wsoft_core/src/$f; done
@@ -171,10 +171,11 @@ count is kept across a restart, so 5 stored wrong tries lock the pad again for 3
 restart, until the right PIN. The USB log says `PIN wrong try n of 5`, never the digits.
 Setting the PIN answers 409 `BUSY` if a try on the screen holds it for more than 0.5 s.
 
-**Screen MENU.** Tap the bottom left (GROSS) box. The switches page has Approval, Auto save,
-TARE and PRESET TARE (RS485 only), and BACK. Approval opens a number pad (DEL, OK, CANCEL);
-the page title shows one mark per digit. After 30 s with no tap the screen goes back to the
-live weight. Taps log `TOUCH screen=x,y` on USB.
+**Screen MENU.** Tap **MENU** on the live page. The tiles show what each switch is set to:
+APPROVAL, AUTO SAVE, TARE and PRESET TARE (RS485 only), PRODUCT, SCREEN (dark or light), WI-FI,
+and BACK. Approval opens a phone-style number pad (DEL, BACK, OK); dots show how many digits are
+typed. After 30 s with no tap the screen goes back to the live weight. Taps log
+`TOUCH screen=x,y` on USB. The whole screen: [WSOFT-SCREEN.md](WSOFT-SCREEN.md).
 
 **RS485 scale setup** (NVS `scale`). Board keys:
 

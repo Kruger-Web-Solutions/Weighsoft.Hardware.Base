@@ -1,6 +1,7 @@
 #include "wsoft_log.h"
 #include "hub.h"
 #include "approval.h"
+#include "wsoft_ui.h"
 #ifdef WSOFT_ON_BASE
 #include "hilo.h"
 #include "hub_web.h"
@@ -190,6 +191,9 @@ void hub_handle_serial(Stream &port) {
       ESP.restart();
     } else if (command.startsWith("APPROVAL")) {
       approval_handle_command(command, port);
+    } else if (command.startsWith("SCREEN")) {
+      // SCREEN CRC / SHOT / TAP: checking the screen without standing at the board.
+      ui_handle_command(command, port);
     } else if (command == "HUB CLEAR") {
       prefs.begin("hub", false);
       prefs.clear();
