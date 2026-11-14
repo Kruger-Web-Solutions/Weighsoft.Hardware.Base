@@ -1,7 +1,8 @@
 import { FC, useContext, useEffect, useState } from 'react';
 import { ValidateFieldsError } from 'async-validator';
 
-import { Avatar, Button, Checkbox, IconButton, List, ListItem, ListItemAvatar, ListItemSecondaryAction, ListItemText } from '@mui/material';
+import { Alert, Avatar, Button, Checkbox, IconButton, List, ListItem, ListItemAvatar, ListItemSecondaryAction, ListItemText } from '@mui/material';
+import { useSnackbar } from 'notistack';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
 import DeleteIcon from '@mui/icons-material/Delete';
 import SaveIcon from '@mui/icons-material/Save';
@@ -18,6 +19,9 @@ import { WiFiConnectionContext } from './WiFiConnectionContext';
 
 const WiFiSettingsForm: FC = () => {
   const { selectedNetwork, deselectNetwork } = useContext(WiFiConnectionContext);
+  const { enqueueSnackbar } = useSnackbar();
+  // Opened from the board's own hotspot (first-time setup).
+  const onHotspot = window.location.hostname === '192.168.4.1';
 
   const [fieldErrors, setFieldErrors] = useState<ValidateFieldsError>();
   const [initialized, setInitialized] = useState(false);
@@ -55,6 +59,8 @@ const WiFiSettingsForm: FC = () => {
         saveData();
       } catch (errors: any) {
         setFieldErrors(errors);
+        // A rule broken in a field lower down the page used to look like "Save does nothing".
+        enqueueSnackbar("Not saved: check the fields marked in red", { variant: "error" });
       }
     };
 
@@ -179,6 +185,13 @@ const WiFiSettingsForm: FC = () => {
               margin="normal"
             />
           </>
+        }
+        {onHotspot &&
+          <Alert severity="info" sx={{ mt: 2 }}>
+            After Save the board joins this Wi-Fi. Your phone will likely drop off the hotspot then, and
+            the hotspot turns off. That is normal: the settings are saved. A board with a screen shows its new
+            address on it. If the hotspot stays on, the board could not join: check the name and password.
+          </Alert>
         }
         <ButtonRow mt={1}>
           <Button startIcon={<SaveIcon />} disabled={saving} variant="contained" color="primary" type="submit" onClick={validateAndSubmit}>
