@@ -1,5 +1,6 @@
 #include "wsoft_log.h"
 #include "weighings.h"
+#include "approval.h"
 
 #include <LittleFS.h>
 #include <Preferences.h>
@@ -13,6 +14,9 @@ static TradeQueue queue;
 static bool for_trade_by_seq[TradeQueue::CAPACITY];  // seq % CAPACITY; seqs in the queue are consecutive
 static int32_t tare_by_seq[TradeQueue::CAPACITY];   // same index; 0 = no tare
 static WsoftHiloStamp hilo_by_seq[TradeQueue::CAPACITY];  // same index; on = false when no product
+static bool alarm_override_by_seq[TradeQueue::CAPACITY];    // same index; saved through an alarm (test switch)
+// The alarm test switch (WSoftSettingsData.alarm_test_save), set by the settings service.
+static volatile bool alarm_test = false;
 static uint32_t delivered_seq = 0;
 static bool auto_save = false;
 static uint32_t save_requests = 0;   // bumped by a tap
@@ -69,7 +73,8 @@ struct StoredWeighing {
   int32_t high_g;
   char code[WSOFT_HILO_CODE_MAX + 1];
   char overridden;  // 1 = outside the limits, saved by the operator's second tap (was spare: 0)
-  char spare[6];
+  char alarm_override;  // 1 = saved through a junction box alarm with the test switch on (was spare: 0)
+  char spare[5];
 };
 static_assert(sizeof(StoredWeighing) != sizeof(StoredWeighingV1) && sizeof(StoredWeighing) != sizeof(StoredWeighingV2) &&
                   sizeof(StoredWeighingV1) != sizeof(StoredWeighingV2),
@@ -159,6 +164,7 @@ void weighings_begin(bool rs232) {
     for_trade_by_seq[s.seq % TradeQueue::CAPACITY] = s.for_trade != 0;
     tare_by_seq[s.seq % TradeQueue::CAPACITY] = s.tare;
     hilo_by_seq[s.seq % TradeQueue::CAPACITY] = stamp_of(s);
+    alarm_override_by_seq[s.seq % TradeQueue::CAPACITY] = s.alarm_override == 1;
   }
   prefs.end();
   if (stored_auto == 2) {
@@ -197,9 +203,11 @@ static void apply_delivered() {
 }
 
 // The entry goes to flash before the counters that make it visible.
-static void store_saved(const TradeWeight &w, bool for_trade, int32_t tare_value, const WsoftHiloStamp &hilo) {
+static void store_saved(const TradeWeight &w, bool for_trade, int32_t tare_value, const WsoftHiloStamp &hilo,
+                        bool alarm_override) {
   portENTER_CRITICAL(&lock);
   queue.push(w);
+  alarm_override_by_seq[w.seq % TradeQueue::CAPACITY] = alarm_override;
   for_trade_by_seq[w.seq % TradeQueue::CAPACITY] = for_trade;
   tare_by_seq[w.seq % TradeQueue::CAPACITY] = tare_value;
   hilo_by_seq[w.seq % TradeQueue::CAPACITY] = hilo;
@@ -216,6 +224,7 @@ static void store_saved(const TradeWeight &w, bool for_trade, int32_t tare_value
   s.at = w.at;
   s.for_trade = for_trade ? 1 : 0;
   s.tare = tare_value;
+  s.alarm_override = alarm_override ? 1 : 0;
   if (hilo.on) {
     s.hilo_on = 1;
     s.hilo_state = hilo.state;
@@ -248,7 +257,9 @@ WsoftSaveResult weighings_update(bool linked, bool fresh, bool alarm, int32_t va
   bool tapped = requests != save_answered;
   portEXIT_CRITICAL(&lock);
 
-  TradeReading r = {true, linked, fresh, alarm, value, decimals, unit, millis(), (int64_t)time(nullptr)};
+  // The alarm test switch lets a save through a blocking alarm, only with Approval OFF.
+  WsoftAlarmGate gate = wsoft_alarm_test_gate(alarm, alarm_test, approval_on());
+  TradeReading r = {true, linked, fresh, gate.alarm, value, decimals, unit, millis(), (int64_t)time(nullptr)};
   // Hi-Lo is judged on the net weight (gross - tare), in the reading's own decimals and unit.
   // Outside the limits auto save waits and a tap needs a second tap (WSOFT_SAVE_OUT_OF_LIMITS).
   WsoftHiloState state = WSOFT_HILO_NONE;
@@ -266,7 +277,7 @@ WsoftSaveResult weighings_update(bool linked, bool fresh, bool alarm, int32_t va
     hilo.high_g = product->high_g;
     hilo.auto_saved = !tapped;
   }
-  if (result == WSOFT_SAVE_SAVED) store_saved(saved, for_trade, tare_value, hilo);
+  if (result == WSOFT_SAVE_SAVED) store_saved(saved, for_trade, tare_value, hilo, gate.overridden);
 
   portENTER_CRITICAL(&lock);
   waiting = remote_save != nullptr ? remote_waiting : saver.waiting();
@@ -288,6 +299,8 @@ WsoftSaveResult weighings_update(bool linked, bool fresh, bool alarm, int32_t va
                    weight, weight_unit_text(saved.unit), tare_text, tapped ? "tap" : "auto", for_trade ? 1 : 0,
                    hilo.on ? hilo.code : "-", hilo.on ? wsoft_hilo_state_wire(hilo.state) : "",
                    hilo.overridden ? " OVERRIDE" : "");
+    if (gate.overridden) WSOFT_LOG.printf("WEIGH seq=%lu saved THROUGH A JUNCTION BOX ALARM (alarm test switch on)\n",
+                                          (unsigned long)saved.seq);
   } else if (tapped) {
     WSOFT_LOG.printf("WEIGH save refused: %s\n", wsoft_save_result_text(result));
   }
@@ -368,7 +381,8 @@ void weighings_info(WeighingsInfo *out) {
   portEXIT_CRITICAL(&lock);
 }
 
-bool weighings_oldest(TradeWeight *w, bool *for_trade, int32_t *tare_value, WsoftHiloStamp *hilo) {
+bool weighings_oldest(TradeWeight *w, bool *for_trade, int32_t *tare_value, WsoftHiloStamp *hilo,
+                      bool *alarm_override) {
   portENTER_CRITICAL(&lock);
   // Skip what was acked but not yet removed by the screen task.
   bool found = false;
@@ -379,6 +393,7 @@ bool weighings_oldest(TradeWeight *w, bool *for_trade, int32_t *tare_value, Wsof
       *for_trade = for_trade_by_seq[item.seq % TradeQueue::CAPACITY];
       *tare_value = tare_by_seq[item.seq % TradeQueue::CAPACITY];
       if (hilo) *hilo = hilo_by_seq[item.seq % TradeQueue::CAPACITY];
+      if (alarm_override) *alarm_override = alarm_override_by_seq[item.seq % TradeQueue::CAPACITY];
       found = true;
       break;
     }
@@ -386,6 +401,13 @@ bool weighings_oldest(TradeWeight *w, bool *for_trade, int32_t *tare_value, Wsof
   portEXIT_CRITICAL(&lock);
   return found;
 }
+
+void weighings_set_alarm_test(bool on) {
+  if (on != alarm_test) WSOFT_LOG.printf("WEIGH alarm test switch %s\n", on ? "ON (saves go through a junction box alarm while Approval is OFF)" : "off");
+  alarm_test = on;
+}
+
+bool weighings_alarm_test() { return alarm_test; }
 
 void weighings_delivered(uint32_t seq) {
   portENTER_CRITICAL(&lock);

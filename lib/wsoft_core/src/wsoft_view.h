@@ -51,6 +51,9 @@ struct WSoftSnapshot {
   // What stops a save right now (WsoftWeighingSaver::waiting). The view writes it as the
   // notice_* fields: the big message over the weight, the same words as the board's screen.
   WsoftSaveResult save_waiting = WSOFT_SAVE_NONE;
+  // The alarm test switch is on (WSoftSettingsData.alarm_test_save). It only acts while
+  // Approval is OFF; the web page warns about it either way.
+  bool alarm_test = false;
 };
 
 // Parses the weight text an RS232 scale sends (after the Serial reader's pattern):

@@ -52,6 +52,7 @@ bool sameView(const WSoftSnapshot& a, const WSoftSnapshot& b) {
          a.approval_on == b.approval_on && a.stable == b.stable && a.trade_check == b.trade_check &&
          a.audit_counter == b.audit_counter && a.last_trade_seq == b.last_trade_seq &&
          a.trade_queue == b.trade_queue && a.hub_online == b.hub_online && a.save_waiting == b.save_waiting &&
+         a.alarm_test == b.alarm_test &&
          strncmp(a.hub_text, b.hub_text, sizeof a.hub_text) == 0;
 }
 

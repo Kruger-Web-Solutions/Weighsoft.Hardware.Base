@@ -20,6 +20,8 @@ export interface WSoftStatus {
   alarm_word_hex: string | null;
   /** How often the alarm state changed since the board started. */
   alarm_changes: number;
+  /** The alarm test switch is on (Settings). It only acts while Approval is OFF. */
+  alarm_test?: boolean;
   /** Read-only here. Switch it with POST /rest/wsoftSwitches (WSoftSwitches). */
   approval_on: boolean;
   for_trade: boolean;
@@ -63,6 +65,8 @@ export interface WSoftSettings {
   relay_high: number;
   /** Writer mode only: the relays follow the weigh board's weight. Off by default (relays stay off). */
   relay_writer_follow?: boolean;
+  /** TEST SWITCH, off by default: save even when the junction box alarms (never with Approval ON). */
+  alarm_test_save?: boolean;
   /** Read-only: true on boards built with relay outputs (the yellow board). */
   relay_available?: boolean;
   /** Read-only: false on boards without RS232 wiring (the Waveshare). */

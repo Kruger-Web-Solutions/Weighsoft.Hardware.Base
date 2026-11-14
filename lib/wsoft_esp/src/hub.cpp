@@ -362,7 +362,9 @@ static void send_weighings() {
     bool for_trade = false;
     int32_t tare_value = 0;
     WsoftHiloStamp hilo;
-    if (!weighings_oldest(&w, &for_trade, &tare_value, &hilo)) return;
+    bool alarm_override = false;
+    if (!weighings_oldest(&w, &for_trade, &tare_value, &hilo, &alarm_override)) return;
+    meta.alarm_test_override = alarm_override;
     meta.for_trade = for_trade;
     meta.tared = tare_value > 0;
     meta.tare_value = tare_value;

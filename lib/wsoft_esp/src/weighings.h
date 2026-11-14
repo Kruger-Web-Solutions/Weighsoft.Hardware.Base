@@ -59,6 +59,14 @@ void weighings_info(WeighingsInfo *out);
 
 // Hub task: the oldest unsent weighing, its tare (0 = none) and its Hi-Lo result (hilo may be
 // nullptr). False when none wait.
-bool weighings_oldest(TradeWeight *w, bool *for_trade, int32_t *tare_value, WsoftHiloStamp *hilo);
+// alarm_override (may be nullptr): saved through a junction box alarm with the test switch on.
+bool weighings_oldest(TradeWeight *w, bool *for_trade, int32_t *tare_value, WsoftHiloStamp *hilo,
+                      bool *alarm_override = nullptr);
+
+// The alarm test switch (WSoftSettingsData.alarm_test_save, OFF by default; any task). While ON
+// and Approval is OFF, a blocking junction box alarm no longer stops a save; each such weighing
+// is marked "alarm_test_override" for the Hub (wsoft_alarm_test_gate).
+void weighings_set_alarm_test(bool on);
+bool weighings_alarm_test();
 // Hub task: the Hub accepted (or permanently refused) everything up to seq.
 void weighings_delivered(uint32_t seq);

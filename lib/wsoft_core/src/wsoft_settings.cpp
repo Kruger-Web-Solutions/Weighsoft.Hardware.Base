@@ -19,6 +19,7 @@ void wsoft_settings_defaults(WSoftSettingsData *s) {
   s->relay_ok = WSOFT_RELAY_DEFAULT_OK;
   s->relay_high = WSOFT_RELAY_DEFAULT_HIGH;
   s->relay_writer_follow = false;
+  s->alarm_test_save = false;
 }
 
 const char *wsoft_source_text(WSoftSource source) {
@@ -103,6 +104,7 @@ WSoftSettingsResult wsoft_settings_update(const WSoftSettingsInput &in, WSoftSet
   if (in.source != nullptr && !wsoft_source_parse(in.source, &next.source)) return WSOFT_SETTINGS_ERROR;
   if (in.has_relay_enabled) next.relay_enabled = in.relay_enabled;
   if (in.has_relay_writer_follow) next.relay_writer_follow = in.relay_writer_follow;
+  if (in.has_alarm_test_save) next.alarm_test_save = in.alarm_test_save;
   // A relay number has no safe value to clamp to: a wrong one could switch the wrong output.
   if (in.has_relay_low && !relay_number(in.relay_low, &next.relay_low)) return WSOFT_SETTINGS_ERROR;
   if (in.has_relay_ok && !relay_number(in.relay_ok, &next.relay_ok)) return WSOFT_SETTINGS_ERROR;
@@ -114,7 +116,7 @@ WSoftSettingsResult wsoft_settings_update(const WSoftSettingsInput &in, WSoftSet
                  strcmp(next.mqtt_unique_id, s->mqtt_unique_id) != 0 || next.source != s->source ||
                  next.relay_enabled != s->relay_enabled || next.relay_low != s->relay_low ||
                  next.relay_ok != s->relay_ok || next.relay_high != s->relay_high ||
-                 next.relay_writer_follow != s->relay_writer_follow;
+                 next.relay_writer_follow != s->relay_writer_follow || next.alarm_test_save != s->alarm_test_save;
   *s = next;
   return changed ? WSOFT_SETTINGS_CHANGED : WSOFT_SETTINGS_UNCHANGED;
 }

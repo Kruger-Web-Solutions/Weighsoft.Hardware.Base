@@ -331,6 +331,7 @@ static void publish_snapshot(const Reading &r, bool fresh, TradeCheck check, Hub
   next.decimals = r.decimals;
   next.unit = r.unit;
   next.approval_on = approval_on();
+  next.alarm_test = weighings_alarm_test();
   next.stable = approval_stable();
   next.trade_check = check;
   next.audit_counter = approval_audit_counter();
