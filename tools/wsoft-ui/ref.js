@@ -525,12 +525,13 @@ const WsoftUi = (() => {
     m.pointer = pr && S.linked && !S.alarm && S.hold !== 'blank' ? pointerOf(net, pr.low, pr.high) : -1;
     m.gross = S.linked ? fmtW(S.gross, S.decimals) + ' ' + S.unit : '----';
     const r = S.save.recent;
-    if (S.source === 'WRITER') { m.save_line = 'WRITER: NO SAVE'; m.save_look = LOOK_BTN; }
+    const writer = S.source === 'WRITER';
+    if (writer && r && r.result === 'SAVED') { m.save_line = 'SAVED'; m.save_look = LOOK_ON; }
     else if (r && r.result === 'SAVED') { m.save_line = 'SAVED #' + r.seq; m.save_look = LOOK_ON; }
     else if (r) { m.save_line = RESULT[r.result]; m.save_look = r.result === 'ALREADY' || r.result === 'NEED_ZERO' ? LOOK_BTN : LOOK_BAD; }
     else if (S.waiting === 'ALREADY') { m.save_line = 'TAKE LOAD OFF'; m.save_look = LOOK_BTN; }
-    else if (S.save.pending > 0) { m.save_line = S.save.pending + ' TO SEND'; m.save_look = LOOK_ON; }
-    else { m.save_line = S.save.auto ? 'AUTO SAVE ON' : 'TAP TO SAVE'; m.save_look = LOOK_ON; }
+    else if (!writer && S.save.pending > 0) { m.save_line = S.save.pending + ' TO SEND'; m.save_look = LOOK_ON; }
+    else { m.save_line = !writer && S.save.auto ? 'AUTO SAVE ON' : 'TAP TO SAVE'; m.save_look = LOOK_ON; }
     m.title = ['', 'MENU', 'ENTER PIN', 'APPROVAL', 'WI-FI'][m.page];
     m.message = S.message;
     m.tiles = [];

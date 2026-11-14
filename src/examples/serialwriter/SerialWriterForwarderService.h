@@ -34,6 +34,12 @@ class SerialWriterForwarderService : public StatefulService<SerialWriterForwarde
   bool latestWeight(char* weight, size_t size, uint32_t* receivedMs, int* unit);
   // The weigh board's product code ("" = none). False when the source sends no product.
   bool latestProduct(String* code);
+  // A W-Soft Writer's SAVE tap: safe from any task (it only sets a flag); loop() sends
+  // {"cmd":"save"} to the weigh board on the open socket.
+  static void requestSave();
+  // The weigh board's save status from its feed: what stops a save (save_waiting), and its Save
+  // result count (save_n) with the newest result. False until a feed carried them.
+  bool latestSaveStatus(int* waiting, uint32_t* count, int* result);
 
  private:
   HttpEndpoint<SerialWriterForwarderState>  _httpEndpoint;
@@ -52,6 +58,16 @@ class SerialWriterForwarderService : public StatefulService<SerialWriterForwarde
   String        _serialRestUrl;
   uint8_t       _readerPollFailures = 0;
   unsigned long _lastReaderOkMs = 0;
+  // A W-Soft weigh board's /ws/wsoftFeed pushes every 0.5 s, so a quiet socket is a dead one:
+  // _lastWsDataMs is the last socket message (REST backup polls do not count), _wsoftFeed
+  // says the source is such a feed.
+  unsigned long _lastWsDataMs = 0;
+  bool          _wsoftFeed = false;
+  static volatile bool _saveRequested;
+  bool     _hasSaveStatus = false;
+  int      _saveWaiting = 0;
+  uint32_t _saveCount = 0;
+  int      _saveResult = 0;
 
   void onConfigChanged();
   void connectReader();
