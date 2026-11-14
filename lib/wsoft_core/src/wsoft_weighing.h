@@ -33,12 +33,24 @@ struct WsoftWeighingMeta {
   // The Hi-Lo result for this load (Hub ADR 0008), or nullptr. When on, the weighing gets a
   // top-level "hi_lo" block judged on the net weight.
   const WsoftHiloStamp *hilo;
+  // Saved through a junction box alarm with the alarm test switch on (wsoft_alarm_test_gate).
+  // Adds "alarm_test_override": true to the payload; the payload is unchanged when false.
+  bool alarm_test_override;
 };
 
 // weighing_id = "<device_tag>-<unix time>-<seq>", unique even if the counter is reset.
 // False when the weight cannot be sent (see wsoft_weight_kg_text), the time is unset, or
 // out is too small.
 bool wsoft_weighing_json(const TradeWeight &w, const WsoftWeighingMeta &meta, char *out, size_t size);
+
+// The alarm test switch (WSoftSettingsData.alarm_test_save, OFF by default). alarm = the
+// junction box reports a blocking alarm (allowed alarms are already left out). The switch lets
+// a save through that alarm only while Approval is OFF; with Approval ON it does nothing.
+struct WsoftAlarmGate {
+  bool alarm;       // pass this to the saver as the reading's alarm
+  bool overridden;  // the alarm is set and the test switch lets saves through it
+};
+WsoftAlarmGate wsoft_alarm_test_gate(bool alarm, bool test_on, bool approval_on);
 
 // How long a first Save tap outside the Hi-Lo limits waits for the second (override) tap.
 static const uint32_t WSOFT_OVERRIDE_MS = 5000;

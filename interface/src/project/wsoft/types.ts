@@ -20,6 +20,8 @@ export interface WSoftStatus {
   alarm_word_hex: string | null;
   /** How often the alarm state changed since the board started. */
   alarm_changes: number;
+  /** The alarm test switch is on (Settings). It only acts while Approval is OFF. */
+  alarm_test?: boolean;
   /** Read-only here. Switch it with POST /rest/wsoftSwitches (WSoftSwitches). */
   approval_on: boolean;
   for_trade: boolean;
@@ -32,6 +34,8 @@ export interface WSoftStatus {
   polls: number;
   /** rs485 = DJB junction box over Modbus; rs232 = a scale line read by the Serial reader. */
   source: WSoftSource;
+  /** weigh = this board reads the scale and saves; writer = it shows a weigh board's weight and never saves. */
+  role?: 'weigh' | 'writer';
   /** What stops a save right now (wsoft_save_notice). All null when nothing does. */
   notice_code: string | null;
   /** What to do, in capitals, e.g. TAKE THE LOAD OFF. */
@@ -63,6 +67,8 @@ export interface WSoftSettings {
   relay_high: number;
   /** Writer mode only: the relays follow the weigh board's weight. Off by default (relays stay off). */
   relay_writer_follow?: boolean;
+  /** TEST SWITCH, off by default: save even when the junction box alarms (never with Approval ON). */
+  alarm_test_save?: boolean;
   /** Read-only: true on boards built with relay outputs (the yellow board). */
   relay_available?: boolean;
   /** Read-only: false on boards without RS232 wiring (the Waveshare). */
@@ -84,6 +90,10 @@ export interface WSoftHub {
   state: string;
   online: boolean;
   hub_url: string;
+  /** Every address of the same Hub this board may use, main one first; the rest are backups. */
+  hub_urls?: string[];
+  /** The address the board sends to now (moves to a backup when the Hub gives no answer). */
+  hub_url_in_use?: string;
   key_id: string;
   device_id: string;
   /** HTTP status of the last heartbeat; 0 when none was sent since boot. */
@@ -205,8 +215,19 @@ export interface WSoftScaleSetupRequest {
 export type WSoftCardField =
   'division' | 'decimal' | 'unit' | 'zero_track_limit' | 'zero_track_time' | 'stability_range' | 'stability_time';
 
+// 'ad' is the calibration register (DJB Communication Protocol V2.0, LC1 AD 41003): write 0 = zero
+// calibration, write CW > 0 = load calibration with the test weight on. 'alarm' is read-only.
 export type WSoftDjbRequest =
-  { op: 'read'; field: WSoftCardField } | { op: 'write'; field: WSoftCardField; value: number };
+  | { op: 'read'; field: WSoftCardField | 'alarm'; channel?: number }
+  | { op: 'write'; field: WSoftCardField | 'ad'; value: number; channel?: number };
+
+export interface WSoftDjbAlarmBits {
+  parameter_changed: boolean;
+  software_match: boolean;
+  adc_failure: boolean;
+  over_range: boolean;
+  eeprom: boolean;
+}
 
 export interface WSoftDjbReply {
   ok: boolean;
@@ -214,6 +235,11 @@ export interface WSoftDjbReply {
   /** Lower-case code, e.g. not_linked, approval_on, range, busy. */
   error?: string;
   value?: number;
+  /** The Modbus frames, for a bench check. */
+  request_hex?: string;
+  reply_hex?: string;
+  /** Only on an alarm read. */
+  alarm_bits?: WSoftDjbAlarmBits;
 }
 
 // Mirrors src/examples/relay/RelayBoardService.h (RelayBoardState).

@@ -145,6 +145,7 @@ void wsoft_view_write(const WSoftSnapshot &s, WSoftJsonSink &out) {
     out.put_null("alarm_word_hex");
   }
   out.put_int("alarm_changes", s.alarm_changes);
+  out.put_bool("alarm_test", s.alarm_test);
   out.put_bool("approval_on", s.approval_on);
   out.put_bool("for_trade", s.trade_check == TRADE_OK);
   out.put_str("trade_check", trade_check_text(s.trade_check));

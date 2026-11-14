@@ -3,6 +3,8 @@
 
 #include <examples/wsoft/WSoftSettingsService.h>
 
+#include <weighings.h>
+
 // Settings are admin-only, read and write, like the framework's own settings pages.
 WSoftSettingsService::WSoftSettingsService(AsyncWebServer* server, FS* fs, SecurityManager* securityManager) :
     _httpEndpoint(WSoftSettings::read,
@@ -24,6 +26,9 @@ WSoftSettingsService::WSoftSettingsService(AsyncWebServer* server, FS* fs, Secur
 
 void WSoftSettingsService::begin() {
   _fsPersistence.readFromFS();
+  // The alarm test switch goes to the weighing rules now and after every change on the page.
+  pushAlarmTest();
+  addUpdateHandler([this](const String&) { pushAlarmTest(); }, false);
   Serial.printf("[WSoft] Settings loaded: source=%s publish=%lums mqtt=%s topic=%s\n",
                 wsoft_source_text(source()),
                 (unsigned long)publishIntervalMs(),
@@ -61,6 +66,12 @@ String WSoftSettingsService::mqttUniqueId() {
   String uid;
   read([&](const WSoftSettings& s) { uid = SettingValue::format(String(s.data.mqtt_unique_id)); });
   return uid;
+}
+
+void WSoftSettingsService::pushAlarmTest() {
+  bool on = false;
+  read([&](const WSoftSettings& s) { on = s.data.alarm_test_save; });
+  weighings_set_alarm_test(on);
 }
 
 void WSoftSettingsService::relayConfig(bool* enabled, uint8_t* low, uint8_t* ok, uint8_t* high) {

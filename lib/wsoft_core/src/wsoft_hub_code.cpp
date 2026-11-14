@@ -61,7 +61,101 @@ bool json_string(const char *json, const char *key, char *out, size_t size) {
 
 bool is_space(char c) { return c == ' ' || c == '\t' || c == '\r' || c == '\n'; }
 
+// Strips trailing slashes. False unless it is an http(s):// address with something after the scheme.
+bool clean_url(char *url) {
+  size_t length = strlen(url);
+  while (length > 0 && url[length - 1] == '/') url[--length] = 0;
+  bool http = strncmp(url, "http://", 7) == 0 && length > 7;
+  bool https = strncmp(url, "https://", 8) == 0 && length > 8;
+  return http || https;
+}
+
+// Adds url to the list unless it is not a LAN address, already listed, or the list is full.
+void keep_lan_address(WsoftHubCode *c, const char *url) {
+  if (!wsoft_hub_url_is_lan(url) || c->hub_url_count >= WSOFT_HUB_URLS_MAX) return;
+  for (uint8_t i = 0; i < c->hub_url_count; i++) {
+    if (strcmp(c->hub_urls[i], url) == 0) return;
+  }
+  strncpy(c->hub_urls[c->hub_url_count], url, WSOFT_HUB_URL_MAX - 1);
+  c->hub_urls[c->hub_url_count][WSOFT_HUB_URL_MAX - 1] = 0;
+  c->hub_url_count++;
+}
+
+// Reads "hub_urls":["...","..."] (plain strings, what the Hub emits). Entries that are not
+// usable (too long, escaped, not http(s)) are skipped; a broken list just ends early.
+void read_hub_urls(const char *json, WsoftHubCode *c) {
+  static const char NEEDLE[] = "\"hub_urls\":[";
+  const char *cursor = strstr(json, NEEDLE);
+  if (cursor == nullptr) return;
+  cursor += sizeof NEEDLE - 1;
+  char url[WSOFT_HUB_URL_MAX];
+  for (;;) {
+    while (is_space(*cursor)) cursor++;
+    if (*cursor != '"') return;
+    const char *start = cursor + 1;
+    const char *end = strchr(start, '"');
+    if (end == nullptr) return;
+    size_t length = (size_t)(end - start);
+    if (length < sizeof url && memchr(start, '\\', length) == nullptr) {
+      memcpy(url, start, length);
+      url[length] = 0;
+      if (clean_url(url)) keep_lan_address(c, url);
+    }
+    cursor = end + 1;
+    while (is_space(*cursor)) cursor++;
+    if (*cursor != ',') return;
+    cursor++;
+  }
+}
+
+// hub_urls = the LAN addresses this board can use. The Hub's own first choice (hub_url) leads
+// when it is a LAN address; no LAN address at all keeps the list at just hub_url, as before.
+void read_addresses(const char *json, WsoftHubCode *c) {
+  c->hub_url_count = 0;
+  keep_lan_address(c, c->hub_url);
+  read_hub_urls(json, c);
+  if (c->hub_url_count == 0) {
+    memcpy(c->hub_urls[0], c->hub_url, sizeof c->hub_url);
+    c->hub_url_count = 1;
+    return;
+  }
+  memcpy(c->hub_url, c->hub_urls[0], sizeof c->hub_url);
+}
+
 }  // namespace
+
+bool wsoft_hub_url_is_lan(const char *url) {
+  if (url == nullptr) return false;
+  const char *host = strstr(url, "://");
+  host = host ? host + 3 : url;
+  if (strncmp(host, "localhost", 9) == 0 || strncmp(host, "127.", 4) == 0 || strncmp(host, "[::1]", 5) == 0) {
+    return false;
+  }
+  // 100.64.0.0/10 (Tailscale): first part 100, second 64..127.
+  if (strncmp(host, "100.", 4) == 0) {
+    int second = 0;
+    const char *p = host + 4;
+    int digits = 0;
+    while (*p >= '0' && *p <= '9' && digits < 4) {
+      second = second * 10 + (*p - '0');
+      p++;
+      digits++;
+    }
+    if (digits > 0 && *p == '.' && second >= 64 && second <= 127) return false;
+  }
+  return true;
+}
+
+void wsoft_hub_failover_begin(WsoftHubFailover *failover, uint8_t count) {
+  failover->count = count > 0 ? count : 1;
+  failover->active = 0;
+}
+
+bool wsoft_hub_failover_result(WsoftHubFailover *failover, int http_status) {
+  if (http_status > 0 || failover->count <= 1) return false;
+  failover->active = (uint8_t)((failover->active + 1) % failover->count);
+  return true;
+}
 
 WsoftHubCodeError wsoft_hub_code_parse(const char *code, WsoftHubCode *out) {
   if (code == nullptr) return WSOFT_HUB_CODE_EMPTY;
@@ -80,11 +174,8 @@ WsoftHubCodeError wsoft_hub_code_parse(const char *code, WsoftHubCode *out) {
   WsoftHubCode code_out;
   memset(&code_out, 0, sizeof code_out);
   if (!json_string(json, "hub_url", code_out.hub_url, sizeof code_out.hub_url)) return WSOFT_HUB_CODE_NO_URL;
-  size_t url_length = strlen(code_out.hub_url);
-  while (url_length > 0 && code_out.hub_url[url_length - 1] == '/') code_out.hub_url[--url_length] = 0;
-  bool http = strncmp(code_out.hub_url, "http://", 7) == 0 && url_length > 7;
-  bool https = strncmp(code_out.hub_url, "https://", 8) == 0 && url_length > 8;
-  if (!http && !https) return WSOFT_HUB_CODE_NO_URL;
+  if (!clean_url(code_out.hub_url)) return WSOFT_HUB_CODE_NO_URL;
+  read_addresses(json, &code_out);
 
   if (!json_string(json, "key_id", code_out.key_id, sizeof code_out.key_id) || code_out.key_id[0] == 0) {
     return WSOFT_HUB_CODE_NO_KEY_ID;

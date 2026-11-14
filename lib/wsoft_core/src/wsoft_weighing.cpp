@@ -76,11 +76,19 @@ bool wsoft_weighing_json(const TradeWeight &w, const WsoftWeighingMeta &meta, ch
                    "{\"weighing_id\":\"%s-%lld-%lu\",\"committed_at\":\"%s\","
                    "\"gross_kg\":%s,\"tare_kg\":%s,\"net_kg\":%s,\"basis\":\"%s\","
                    "\"payload\":{\"seq\":%lu,\"reading\":\"%s\",\"unit\":\"%s\",\"source\":\"%s\","
-                   "\"station_model\":\"%s\",\"for_trade\":%s}%s}",
+                   "\"station_model\":\"%s\",\"for_trade\":%s%s}%s}",
                    meta.device_tag, (long long)w.at, (unsigned long)w.seq, when, kg, tare, net, meta.tared ? "NT" : "GS",
                    (unsigned long)w.seq, reading,
-                   weight_unit_text(w.unit), meta.source, meta.station_model, meta.for_trade ? "true" : "false", hilo);
+                   weight_unit_text(w.unit), meta.source, meta.station_model, meta.for_trade ? "true" : "false",
+                   meta.alarm_test_override ? ",\"alarm_test_override\":true" : "", hilo);
   return n > 0 && (size_t)n < size;
+}
+
+WsoftAlarmGate wsoft_alarm_test_gate(bool alarm, bool test_on, bool approval_on) {
+  WsoftAlarmGate gate;
+  gate.overridden = alarm && test_on && !approval_on;
+  gate.alarm = alarm && !gate.overridden;
+  return gate;
 }
 
 WsoftSaveResult WsoftWeighingSaver::update(const TradeReading &r, bool auto_save, bool save_requested,

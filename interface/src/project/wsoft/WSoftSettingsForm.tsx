@@ -122,6 +122,23 @@ const WSoftSettingsForm: FC = () => {
             />
           </>
         )}
+        <BlockFormControlLabel
+          control={
+            <Checkbox name="alarm_test_save" checked={!!data.alarm_test_save} onChange={updateFormValue} />
+          }
+          label="TEST ONLY: save even when the junction box shows an alarm?"
+        />
+        {data.alarm_test_save && (
+          <MessageBox
+            level="warning"
+            message={
+              'Test switch is ON. While Approval is OFF, an alarm (load cell fault, over range) no longer stops a save. ' +
+              'Every weighing saved like that is marked "alarm_test_override" on the Hub and is never for trade. ' +
+              'With Approval ON this switch does nothing. Switch it off when the test is done.'
+            }
+            my={1}
+          />
+        )}
         <ValidatedTextField
           fieldErrors={fieldErrors}
           name="publish_interval_ms"

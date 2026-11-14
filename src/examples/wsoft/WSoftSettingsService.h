@@ -46,6 +46,7 @@ class WSoftSettings {
     root["relay_ok"] = settings.data.relay_ok;
     root["relay_high"] = settings.data.relay_high;
     root["relay_writer_follow"] = settings.data.relay_writer_follow;
+    root["alarm_test_save"] = settings.data.alarm_test_save;
   }
 
   // Stored fields plus the resolved status topic, for the settings page.
@@ -84,6 +85,10 @@ class WSoftSettings {
     if (root["relay_enabled"].is<bool>()) {
       in.has_relay_enabled = true;
       in.relay_enabled = root["relay_enabled"].as<bool>();
+    }
+    if (root["alarm_test_save"].is<bool>()) {
+      in.has_alarm_test_save = true;
+      in.alarm_test_save = root["alarm_test_save"].as<bool>();
     }
     if (root["relay_writer_follow"].is<bool>()) {
       in.has_relay_writer_follow = true;
@@ -146,6 +151,8 @@ class WSoftSettingsService : public StatefulService<WSoftSettings> {
   bool writerMode() const { return _writerMode; }
 
  private:
+  // Hands the alarm test switch to the weighing rules (weighings_set_alarm_test).
+  void pushAlarmTest();
   bool _writerMode = false;
   HttpEndpoint<WSoftSettings> _httpEndpoint;
   FSPersistence<WSoftSettings> _fsPersistence;

@@ -110,7 +110,9 @@ not; the payload carries `for_trade`.
 ## 2c. Switches, PIN and scale setup
 
 Same as the Waveshare guide, section 4b (`docs/WSOFT-WAVESHARE43.md`): the endpoints, the
-PIN rules, the RS485 setup keys and the Hub commands are shared code.
+PIN rules, the RS485 setup keys and the Hub commands are shared code. Calibrate, backup Hub
+addresses and the alarm test switch are there too (section 4c). The rules for every W-Soft
+board are in section 0 of that guide.
 
 ## 2d. Hi-Lo relays (LOW / OK / HIGH)
 

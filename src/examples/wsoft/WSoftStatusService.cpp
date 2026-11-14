@@ -52,6 +52,7 @@ bool sameView(const WSoftSnapshot& a, const WSoftSnapshot& b) {
          a.approval_on == b.approval_on && a.stable == b.stable && a.trade_check == b.trade_check &&
          a.audit_counter == b.audit_counter && a.last_trade_seq == b.last_trade_seq &&
          a.trade_queue == b.trade_queue && a.hub_online == b.hub_online && a.save_waiting == b.save_waiting &&
+         a.alarm_test == b.alarm_test &&
          strncmp(a.hub_text, b.hub_text, sizeof a.hub_text) == 0;
 }
 
@@ -141,9 +142,9 @@ namespace {
 
 // Hub link as JSON. Only the address and ids: the pairing key itself never leaves the board.
 void sendHub(AsyncWebServerRequest* request, int code, bool restarting, const char* error) {
-  HubWebInfo info;
+  static HubWebInfo info;  // holds the backup address list (over 600 bytes): off the web task's stack
   hub_web_info(&info);
-  AsyncJsonResponse* response = new AsyncJsonResponse(false, 512);
+  AsyncJsonResponse* response = new AsyncJsonResponse(false, 1024);
   JsonObject root = response->getRoot().to<JsonObject>();
   root["ok"] = error == nullptr;
   if (error != nullptr) root["error"] = error;
@@ -151,6 +152,10 @@ void sendHub(AsyncWebServerRequest* request, int code, bool restarting, const ch
   root["state"] = hub_state_text(info.state);
   root["online"] = info.state == HUB_ONLINE;
   root["hub_url"] = const_cast<char*>(info.hub_url);
+  // Backup addresses of the same Hub (from the pairing code), and the one in use now.
+  JsonArray urls = root.createNestedArray("hub_urls");
+  for (uint8_t i = 0; i < info.url_count; i++) urls.add(const_cast<char*>(info.hub_urls[i]));
+  root["hub_url_in_use"] = info.url_count > 0 ? const_cast<char*>(info.hub_urls[info.active]) : const_cast<char*>(info.hub_url);
   root["key_id"] = const_cast<char*>(info.key_id);
   root["device_id"] = const_cast<char*>(info.device_id);
   root["last_status"] = info.last_status;

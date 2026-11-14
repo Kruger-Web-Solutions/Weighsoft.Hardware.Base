@@ -201,7 +201,7 @@ void test_full_view_field_order_is_stable() {
       "{\"ready\":true,\"display_ready\":true,\"link\":\"live\",\"linked\":true,\"weight_g\":1520,"
       "\"weight_text\":\"1.520 kg\",\"unit\":\"kg\",\"decimals\":3,\"stable\":false,\"alarm\":false,"
       "\"alarm_allowed\":false,\"alarm_note\":null,\"alarm_word_hex\":null,\"alarm_changes\":0,"
-      "\"approval_on\":false,\"for_trade\":false,\"trade_check\":\"approval_off\",\"audit_counter\":0,"
+      "\"alarm_test\":false,\"approval_on\":false,\"for_trade\":false,\"trade_check\":\"approval_off\",\"audit_counter\":0,"
       "\"last_trade_seq\":0,\"trade_queue\":0,\"hub\":\"HUB ONLINE\",\"hub_online\":true,\"polls\":9,"
       "\"source\":\"rs485\",\"role\":\"weigh\",\"notice_code\":null,\"notice_title\":null,\"notice_detail\":null,"
       "\"notice_level\":null}",
@@ -360,8 +360,17 @@ void test_allowed_alarm_is_flagged_not_blocking() {
   TEST_ASSERT_TRUE(has(j, "\"alarm_changes\":2"));
 }
 
+// Rhyno, 14 Nov 2026: the alarm test switch shows on the live page while it is on.
+void test_alarm_test_switch_shows_on_the_page() {
+  WSoftSnapshot s = live(1520);
+  TEST_ASSERT_TRUE(has(view(s), "\"alarm_test\":false"));
+  s.alarm_test = true;
+  TEST_ASSERT_TRUE(has(view(s), "\"alarm_test\":true"));
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
+  RUN_TEST(test_alarm_test_switch_shows_on_the_page);
   RUN_TEST(test_allowed_alarm_is_flagged_not_blocking);
   RUN_TEST(test_grams_from_kg_with_three_decimals);
   RUN_TEST(test_grams_from_kg_with_no_decimals);

@@ -433,6 +433,45 @@ void test_alarm_says_alarm_not_moving() {
   TEST_ASSERT_EQUAL(1, b.feed(3120, 1, true));
 }
 
+// Alarm test switch (Rhyno, 14 Nov 2026): OFF by default, never with Approval ON, and every
+// weighing it lets through is marked for the Hub.
+void test_alarm_test_gate_only_with_the_switch_on_and_approval_off() {
+  WsoftAlarmGate g = wsoft_alarm_test_gate(true, false, false);  // switch off: the alarm blocks
+  TEST_ASSERT_TRUE(g.alarm);
+  TEST_ASSERT_FALSE(g.overridden);
+  g = wsoft_alarm_test_gate(true, true, true);  // Approval ON: the switch does nothing
+  TEST_ASSERT_TRUE(g.alarm);
+  TEST_ASSERT_FALSE(g.overridden);
+  g = wsoft_alarm_test_gate(true, true, false);  // switch on, Approval off: saves go through, marked
+  TEST_ASSERT_FALSE(g.alarm);
+  TEST_ASSERT_TRUE(g.overridden);
+  g = wsoft_alarm_test_gate(false, true, false);  // no alarm: nothing to mark
+  TEST_ASSERT_FALSE(g.alarm);
+  TEST_ASSERT_FALSE(g.overridden);
+}
+
+void test_alarm_test_switch_lets_a_save_through_the_alarm() {
+  Bench b;
+  b.feed(0, 4, false);
+  WsoftAlarmGate g = wsoft_alarm_test_gate(true, true, false);
+  for (int i = 0; i < 8; i++, b.t += 250) {
+    b.saver.update({true, true, true, g.alarm, 3120, 0, 1, b.t, b.now}, false, false, false, &b.issued);
+  }
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_SAVED, b.saver.update({true, true, true, g.alarm, 3120, 0, 1, b.t, b.now}, false, true,
+                                                      false, &b.issued));
+}
+
+void test_json_marks_a_weighing_saved_through_an_alarm() {
+  char out[512];
+  WsoftWeighingMeta meta = META;
+  meta.alarm_test_override = true;
+  TEST_ASSERT_TRUE(wsoft_weighing_json(weight(7, 3120, 0, 1, 1762520400), meta, out, sizeof out));
+  TEST_ASSERT_TRUE(strstr(out, "\"for_trade\":false,\"alarm_test_override\":true}}") != nullptr);
+  // Off: the payload is byte for byte what it was before the switch existed.
+  TEST_ASSERT_TRUE(wsoft_weighing_json(weight(7, 3120, 0, 1, 1762520400), META, out, sizeof out));
+  TEST_ASSERT_TRUE(strstr(out, "alarm_test_override") == nullptr);
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_kg_text_for_each_unit);
@@ -459,5 +498,8 @@ int main(int, char **) {
   RUN_TEST(test_every_notice_fits_the_screens);
   RUN_TEST(test_writer_mode_never_saves);
   RUN_TEST(test_alarm_says_alarm_not_moving);
+  RUN_TEST(test_alarm_test_gate_only_with_the_switch_on_and_approval_off);
+  RUN_TEST(test_alarm_test_switch_lets_a_save_through_the_alarm);
+  RUN_TEST(test_json_marks_a_weighing_saved_through_an_alarm);
   return UNITY_END();
 }

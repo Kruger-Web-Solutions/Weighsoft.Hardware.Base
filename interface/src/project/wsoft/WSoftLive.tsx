@@ -53,6 +53,17 @@ const WSoftLive: FC = () => {
   const content = (status: WSoftStatus) => (
     <>
       <SaveNotice status={status} />
+      {status.alarm_test && (
+        <MessageBox
+          level="warning"
+          message={
+            status.approval_on
+              ? 'Alarm test switch is ON but does nothing while Approval is ON. Switch it off in Settings.'
+              : 'TEST MODE: saves go through a junction box alarm. Those weighings are marked on the Hub. Switch it off in Settings.'
+          }
+          my={2}
+        />
+      )}
       <Paper variant="outlined" sx={{ p: 3, mb: 2, textAlign: 'center' }}>
         <Typography variant="h2" component="div" sx={{ fontVariantNumeric: 'tabular-nums' }}>
           {status.weight_text ?? '----'}

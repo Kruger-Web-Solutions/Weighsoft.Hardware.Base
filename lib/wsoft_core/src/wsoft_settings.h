@@ -47,6 +47,13 @@ struct WSoftSettingsData {
   // Writer mode only (Rhyno, 12 Nov 2026): the relays follow the weigh board's weight.
   // OFF by default: a Writer's relays stay off.
   bool relay_writer_follow;
+  // TEST SWITCH (Rhyno, 14 Nov 2026; first built on the 2 Nov Waveshare branch as
+  // save_ignore_alarm). OFF by default. When ON, a junction box alarm that would block a save
+  // (ADC failure, over range) no longer stops Save or Auto save, so a bench with a faulty box can
+  // still be tested. Never with Approval ON (wsoft_alarm_test_gate), never for trade, and every
+  // weighing saved through an alarm is marked "alarm_test_override": true for the Hub.
+  // The allowed-alarm list (wsoft_djb_alarm_check: the EEPROM factory flag) needs no switch.
+  bool alarm_test_save;
 };
 
 // One field per option. A missing field (has_* false or a null string) takes its default:
@@ -72,6 +79,8 @@ struct WSoftSettingsInput {
   int64_t relay_high = 0;
   bool has_relay_writer_follow = false;
   bool relay_writer_follow = false;
+  bool has_alarm_test_save = false;
+  bool alarm_test_save = false;
 };
 
 enum WSoftSettingsResult { WSOFT_SETTINGS_UNCHANGED, WSOFT_SETTINGS_CHANGED, WSOFT_SETTINGS_ERROR };

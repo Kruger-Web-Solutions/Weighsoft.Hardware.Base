@@ -11,6 +11,10 @@ Current integration branches:
 - `weighingboard` - load-cell / weighing integration baseline
 - `display35` - 3.5 inch display integration baseline
 
+W-Soft (the weigh screen boards) is its own line: `claude/project-thread-9f4l7x`. Its rules,
+including the check that stacked PRs reached that line, are in
+[WSOFT-WAVESHARE43.md section 0](WSOFT-WAVESHARE43.md).
+
 The older `serial` branch may still exist as historical reference, but new serial implementation work should start from `serial2`.
 
 ## Working Rules

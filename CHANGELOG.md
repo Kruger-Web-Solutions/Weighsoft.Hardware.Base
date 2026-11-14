@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **W-Soft: Calibrate, backup Hub addresses and an alarm test switch on every W-Soft board**
+  (`wsoft_waveshare43`, `wsoft_cyd28`, `wsoft_s3_headless`; Rhyno, 14 Nov 2026). Brought back
+  from the 2 Nov Waveshare branch. Calibrate tab (admin): zero, span, check, through the junction
+  box's AD register; a plain note on RS232 scales and Writers. Backup Hub addresses: the same
+  Hub's other LAN addresses from the pairing key, tried when the Hub gives no answer. Alarm test
+  switch (Settings): OFF by default, nothing with Approval ON, every weighing it lets through
+  marked `alarm_test_override` for the Hub. Rules for every W-Soft board and the how-to:
+  `docs/WSOFT-WAVESHARE43.md` sections 0 and 4c.
 - **W-Soft Hi-Lo relays on the yellow board** (`wsoft_cyd28`, firmware 0.7.0): three relay
   outputs on the RGB LED pads follow the Hi-Lo check (LOW / OK / HIGH). Off by default; all
   OFF with no signal, an alarm, no product or an empty scale. Settings and a relay test on

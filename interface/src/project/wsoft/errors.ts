@@ -40,6 +40,9 @@ const PLAIN: Record<string, string> = {
   busy: 'The board is busy. Try again in a moment.',
   timeout: 'The weighing card did not answer in time.',
   bad_value: 'Type a whole number.',
+  ad_range: 'That test weight is out of range for the junction box (1 to 1000000 in display digits).',
+  no_reply: 'The junction box did not answer. Check the RS485 cable and try again.',
+  line_mode: 'This board reads an RS232 scale: there is no junction box to calibrate.',
   read_only: 'This value can only be read.',
   json: 'The board could not read the request.'
 };
