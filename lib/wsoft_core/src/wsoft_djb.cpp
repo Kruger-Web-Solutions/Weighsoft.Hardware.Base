@@ -239,3 +239,23 @@ void wsoft_djb_alarm_bits(int32_t raw, WsoftDjbAlarmBits *bits) {
   bits->over_range = (u & 0x40000000u) != 0;
   bits->eeprom = (u & 0x80000000u) != 0;
 }
+
+WsoftDjbAlarmCheck wsoft_djb_alarm_check(uint32_t alarm_word) {
+  WsoftDjbAlarmCheck c;
+  c.blocking = (alarm_word & WSOFT_DJB_ALARM_BLOCKING & ~WSOFT_DJB_ALARM_ALLOWED) != 0;
+  c.allowed = (alarm_word & WSOFT_DJB_ALARM_ALLOWED) != 0;
+  return c;
+}
+
+bool WsoftDjbAlarmWatch::update(bool fresh, uint32_t alarm_word) {
+  if (!fresh) return false;
+  if (!seen_) {
+    seen_ = true;
+    first_ = last_ = alarm_word;
+    return false;
+  }
+  if (alarm_word == last_) return false;
+  last_ = alarm_word;
+  changes_++;
+  return true;
+}

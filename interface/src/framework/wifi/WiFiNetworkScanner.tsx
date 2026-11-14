@@ -39,14 +39,20 @@ const WiFiNetworkScanner: FC = () => {
   }, [enqueueSnackbar]);
 
   const pollNetworkList = useCallback(async () => {
+    // Each poll uses one of NUM_POLLS. Returns true while there is time to try again.
+    const pollAgain = () => {
+      const completedPollCount = pollCount.current + 1;
+      if (completedPollCount >= NUM_POLLS) {
+        return false;
+      }
+      pollCount.current = completedPollCount;
+      setTimeout(pollNetworkList, POLLING_FREQUENCY);
+      return true;
+    };
     try {
       const response = await WiFiApi.listNetworks();
       if (response.status === 202) {
-        const completedPollCount = pollCount.current + 1;
-        if (completedPollCount < NUM_POLLS) {
-          pollCount.current = completedPollCount;
-          setTimeout(pollNetworkList, POLLING_FREQUENCY);
-        } else {
+        if (!pollAgain()) {
           finishedWithError("Device did not return network list in timely manner");
         }
       } else {
@@ -55,7 +61,14 @@ const WiFiNetworkScanner: FC = () => {
         setNetworkList(newNetworkList);
       }
     } catch (error: any) {
-      finishedWithError(extractErrorMessage(error, 'Problem listing WiFi networks'));
+      // While the board scans, its radio leaves the hotspot's channel, so a phone on the
+      // hotspot loses some requests. One lost poll used to end the whole scan with an
+      // error (14 Nov 2026: "it doesn't always pick up the Wi-Fi"). Keep polling instead;
+      // a 401/403 is a real answer and still ends it.
+      const status = error?.response?.status;
+      if ((status === 401 || status === 403) || !pollAgain()) {
+        finishedWithError(extractErrorMessage(error, 'Problem listing WiFi networks'));
+      }
     }
   }, [finishedWithError]);
 

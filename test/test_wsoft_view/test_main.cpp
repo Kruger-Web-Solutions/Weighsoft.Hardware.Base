@@ -200,6 +200,7 @@ void test_full_view_field_order_is_stable() {
   TEST_ASSERT_EQUAL_STRING(
       "{\"ready\":true,\"display_ready\":true,\"link\":\"live\",\"linked\":true,\"weight_g\":1520,"
       "\"weight_text\":\"1.520 kg\",\"unit\":\"kg\",\"decimals\":3,\"stable\":false,\"alarm\":false,"
+      "\"alarm_allowed\":false,\"alarm_note\":null,\"alarm_word_hex\":null,\"alarm_changes\":0,"
       "\"approval_on\":false,\"for_trade\":false,\"trade_check\":\"approval_off\",\"audit_counter\":0,"
       "\"last_trade_seq\":0,\"trade_queue\":0,\"hub\":\"HUB ONLINE\",\"hub_online\":true,\"polls\":9,"
       "\"source\":\"rs485\",\"role\":\"weigh\",\"notice_code\":null,\"notice_title\":null,\"notice_detail\":null,"
@@ -342,8 +343,26 @@ void test_role_is_weigh_or_writer() {
   TEST_ASSERT_TRUE(has(view(s), "\"role\":\"writer\""));
 }
 
+
+// Rhyno, 14 Nov 2026: the EEPROM alarm is allowed but still shown on the status page.
+void test_allowed_alarm_is_flagged_not_blocking() {
+  WSoftSnapshot s = live(1520);
+  s.alarm_allowed = true;
+  s.alarm_word_valid = true;
+  s.alarm_word = 0x80000000u;
+  s.alarm_changes = 2;
+  std::string j = view(s);
+  TEST_ASSERT_TRUE(has(j, "\"link\":\"live\""));
+  TEST_ASSERT_TRUE(has(j, "\"alarm\":false"));
+  TEST_ASSERT_TRUE(has(j, "\"alarm_allowed\":true"));
+  TEST_ASSERT_TRUE(has(j, "\"alarm_note\":\"EEPROM alarm allowed (supplier: factory flag), monitoring\""));
+  TEST_ASSERT_TRUE(has(j, "\"alarm_word_hex\":\"80000000\""));
+  TEST_ASSERT_TRUE(has(j, "\"alarm_changes\":2"));
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
+  RUN_TEST(test_allowed_alarm_is_flagged_not_blocking);
   RUN_TEST(test_grams_from_kg_with_three_decimals);
   RUN_TEST(test_grams_from_kg_with_no_decimals);
   RUN_TEST(test_grams_from_tonnes);
