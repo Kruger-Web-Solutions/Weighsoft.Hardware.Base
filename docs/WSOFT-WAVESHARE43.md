@@ -48,6 +48,83 @@ Rules (Rhyno, 14 Nov 2026, after three Waveshare features were lost in a rebuild
    side branch; PR #50 brought them across).
 8. **Flash a board only with Rhyno's typed OK in the thread.** Merged is not flashed: write down
    which commit each board runs.
+9. **Updates over Wi-Fi follow section 0b on every board, make and model.** Off by default, the
+   board's own password, never while Approval is ON, every update on the audit counter. A board
+   with room for one copy of the software only (the yellow board) updates by cable. No W-Soft
+   build may switch on the framework's own OTA service or its firmware upload page.
+
+## 0b. Wi-Fi update (all W-Soft boards)
+
+New software can go onto a board over Wi-Fi, so the board does not have to be plugged into a
+laptop (Rhyno, 14 Nov 2026). Rules in code: `lib/wsoft_core/src/wsoft_wifi_update.h` (host tests
+in `test/test_wsoft_wifi_update`). Board side: `lib/wsoft_esp/src/wifi_update.cpp`.
+
+### Which board can do it
+
+| Board | Env | Wi-Fi update | Why |
+|---|---|---|---|
+| Waveshare 4.3 inch | `wsoft_waveshare43` | Yes | 16 MB flash, two app slots (`default_16MB.csv`) |
+| S3, no screen | `wsoft_s3_headless` | Yes | 16 MB flash, two app slots (`default_16MB.csv`) |
+| Yellow board | `wsoft_cyd28` | **No, cable only** | 4 MB flash, one 3.25 MB app slot (`partitions_wsoft_cyd.csv`); two copies of a ~2.3 MB build do not fit |
+
+The board asks its own flash at boot (`esp_ota_get_next_update_partition`), so the answer is true
+for any future board too: **a board with one app slot is cable only**, and its Settings page says
+so in plain words. A new make or model gets Wi-Fi update only by having a partition table with
+two app slots that the build fits in. Never shrink the app slot of a 4 MB board to fake it.
+
+### The rules
+
+1. **OFF by default.** A board that was never set up cannot be updated over Wi-Fi.
+2. **Each board has its own password**, set on that board (W-Soft > Settings > Wi-Fi update,
+   admin). 12 to 64 characters, no spaces. There is no factory or shared password: without its
+   own password the switch cannot go ON, and a well-known factory password is refused.
+3. **The password is never shown again**, never sent back by the board, never logged, and never
+   written in a chat, a commit or a document. Keep it where the other board logins are kept.
+4. **Blocked while Approval is ON**, like Calibrate and the scale setup: the switch and the
+   password cannot change and the board does not listen for an update. Switching the switch OFF
+   is always allowed. To update an approved board: Approval OFF (logged), update, check, Approval ON.
+5. **Everything is counted.** Each change of the switch or the password, and each update that
+   was installed, adds 1 to the Approval audit counter and writes a line in the Approval log
+   (Live tab), for example `9 2026-11-14T18:00:00Z WIFI-UPDATE INSTALLED by=wifi was=0.7.0`.
+   A failed or refused update installs nothing and is not counted; it is in the USB log.
+6. **This is the only way in over Wi-Fi.** The framework's OTA service (`FT_OTA=0`) and its
+   firmware upload page (`FT_UPLOAD_FIRMWARE=0`) are not built into any W-Soft env: the factory
+   OTA password (`esp-react`) is public, that page shows the password, and it ignores Approval.
+
+### First time on each board
+
+The switch itself has to get onto the board first, and that needs **one last cable flash per
+board** of a build that has it. After that, Waveshare and S3 boards update over Wi-Fi.
+
+1. Open the board's web page, sign in as admin, W-Soft > Settings, scroll to **Wi-Fi update**.
+2. Type the board's own password twice, **Set password**.
+3. Switch **Allow updates over Wi-Fi?** on. The chip shows "ON, ready for an update" when the
+   board is on Wi-Fi and Approval is OFF.
+
+### Sending an update (laptop on the same network as the board)
+
+```
+pio run -e wsoft_waveshare43 -t upload --upload-protocol espota --upload-port <board address> --upload-flags=--port=3232 --upload-flags=--auth=$env:WSOFT_UPDATE_PASSWORD
+```
+
+Use `-e wsoft_s3_headless` for the S3 board. The board restarts on the new software by itself.
+
+- `WSOFT_UPDATE_PASSWORD` is an environment variable of that one PowerShell window, filled in
+  from a hidden prompt or from the file the other board logins are kept in. The password is
+  never typed into the command itself, a script, a log or the chat, and never committed.
+  (espota still receives it as an argument on the laptop; close the window afterwards.)
+- The board connects back to the laptop to fetch the software. If Windows Firewall asks, allow
+  it for private networks.
+- During the update the weight stands still, the relays drop to OFF and the Hub link pauses.
+  Do not update while someone is weighing.
+- Wrong password: nothing is installed, the USB log says `WIFI-UPDATE error ... (wrong password)`.
+- **After a Wi-Fi update the board runs from its second app slot.** A later cable flash must be
+  a full PlatformIO upload (it also writes `boot_app0.bin` at 0xE000, which points the board back
+  at the first slot). An app-only `esptool write_flash 0x10000` would be ignored until then.
+- Settings, the PIN, the Hub pairing and Wi-Fi are kept: a Wi-Fi update writes only the app.
+
+Not bench-tested yet (15 Nov 2026): built and host-tested in the cloud only. The first update
+over Wi-Fi on a real board is the bench test.
 
 ## 1. What is where
 
@@ -119,7 +196,7 @@ for f in approval.cpp hub.cpp; do
 | `HUB PAIR <code>` | Checks a Hub pairing code and holds it |
 | `HUB SAVE` | Saves the held pairing code to flash and restarts |
 | `HUB CLEAR` | Forgets the Hub settings and restarts |
-| `HUB WIFI` / `HUB PASS` / `HUB OTA` | **No-op here.** Replies `HUB_ERR not used on this build`. Use the web pages |
+| `HUB WIFI` / `HUB PASS` / `HUB OTA` | **No-op here.** Replies `HUB_ERR not used on this build`. Use the web pages (Wi-Fi update: section 0b) |
 
 Approval can be switched from the screen, the browser, the Hub and this USB line; Auto save
 from the first three. All go through `switches.h` and the same rules (section 4b). There is still no MQTT or
@@ -136,6 +213,8 @@ BLE write path.
 | `GET /rest/wsoftSwitches` | logged-in user | Approval and Auto save state, whether Approval can go ON, PIN state, the last 8 approval log lines |
 | `POST /rest/wsoftSwitches` | admin | `{"switch":"approval"\|"auto_save","on":true\|false,"reason":"text"}` (section 4b) |
 | `POST /rest/wsoftPin` | admin | `{"pin":"1234"}`: sets the screen PIN. Never sent back or logged |
+| `GET /rest/wsoftWifiUpdate` | admin | The Wi-Fi update switch: `possible`, `on`, `password_set`, `approval_on`, `listening`, `blocked`. Never the password (section 0b) |
+| `POST /rest/wsoftWifiUpdate` | admin | `{"on":true\|false}` and/or `{"password":"text"}`. 409 `APPROVAL_ON`, `ONE_COPY`, `PASSWORD_REQUIRED`, `BUSY`; 400 `PASSWORD_FORMAT`, `PASSWORD_FACTORY` |
 | `GET /rest/wsoftScaleSetup` | logged-in user | The board's part of the RS485 setup, what is missing, and the card's e as last read |
 | `POST /rest/wsoftScaleSetup` | admin | `{"board":{...},"reason":"text"}`; a key that is not sent keeps its value |
 | WebSocket `/ws/wsoftSettings` | admin | Same options |
@@ -355,7 +434,8 @@ has them.
   server, MQTT and the framework moving.
 - After every poll the screen task writes a snapshot under a spinlock. `WSoftStatusService::loop()`
   copies it and publishes only when something changed, at most once per publish interval.
-- The framework owns Wi-Fi, NTP and OTA (`-D WSOFT_ON_BASE`). Approval, the Hub queue, the
+- The framework owns Wi-Fi and NTP (`-D WSOFT_ON_BASE`). Updates over Wi-Fi are W-Soft's own
+  switch (section 0b, NVS namespace `wifiupd`); the framework's OTA service is not built. Approval, the Hub queue, the
   weighings, the PIN and the scale setup use NVS (`Preferences`, namespaces `approval`, `hub`,
   `weigh`, `pin` and `scale`) beside the framework's LittleFS.
 - RS485 is `Serial1` RX15/TX16 and belongs to W-Soft. The Serial1 services of this branch are
@@ -370,10 +450,12 @@ has them.
   `WiFi.mode(WIFI_MODE_MAX)`, which core 3 rejects. After that: 0 reboots in 105 s.
 - The board's COM10 port is the ESP32-S3 USB-Serial-JTAG (boot ROM and `ESP_LOG` only). The
   app's `Serial` log goes to UART0, the board's other USB-C port.
-- Framework OTA is off (`FACTORY_OTA_ENABLED=false`). If it is switched on later, the screen
-  keeps polling during an upload: `hub_ota_busy()` only knows W-Soft's own OTA.
+- Framework OTA is not built (`FT_OTA=0`). Updates over Wi-Fi use the Wi-Fi update switch
+  (section 0b). The update runs inside the screen task, so the screen and the weight stand
+  still until the board restarts. Not bench-tested yet.
 - `default_16MB.csv` is not a project file, so `scripts/clear_otadata.py` skips the otadata
-  erase. After an OTA update, a USB flash may boot the older slot; erase flash if that happens.
+  erase. After a Wi-Fi update, flash by cable with a full PlatformIO upload (section 0b); never
+  erase the whole flash for this, it wipes the PIN, the Hub pairing and Wi-Fi.
 - The W-Soft menu shows on every board (like the other device menus); on other boards its
   pages get 404. The reverse is also true: on the W-Soft board the Serial, Diagnostics and
   Weight Forwarder menus show, and their pages get 404 (those services own Serial1 and are

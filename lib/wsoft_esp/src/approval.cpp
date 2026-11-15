@@ -150,6 +150,31 @@ void approval_set(bool to, const char *who, WsoftSwitchWhere where, const char *
   write_change(to, String(who), String(reason), WSOFT_LOG, where);
 }
 
+void approval_audit_event(ApprovalEventLine make, void *context) {
+  char when[32];
+  format_time(time(nullptr), when, sizeof when);
+
+  prefs.begin("approval", false);
+  uint32_t counter = prefs.getUInt("audit", 0) + 1;
+  uint32_t slot = prefs.getUInt("logn", 0);
+  char entry[WSOFT_SWITCH_LOG_MAX];
+  if (!make(counter, when, entry, sizeof entry, context)) {
+    prefs.end();
+    return;
+  }
+  char key[8];
+  snprintf(key, sizeof key, "log%lu", (unsigned long)(slot % LOG_SLOTS));
+  prefs.putString(key, entry);
+  prefs.putUInt("logn", slot + 1);
+  prefs.putUInt("audit", counter);
+  prefs.end();
+
+  portENTER_CRITICAL(&lock);
+  audit_counter = counter;
+  portEXIT_CRITICAL(&lock);
+  WSOFT_LOG.printf("AUDIT %s\n", entry);
+}
+
 int approval_log_lines(char lines[][WSOFT_SWITCH_LOG_MAX], int max) {
   // A local handle: the web server reads this in its own task.
   Preferences store;

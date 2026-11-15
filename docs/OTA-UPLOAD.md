@@ -1,5 +1,10 @@
 # OTA (Over-The-Air) Firmware Upload
 
+> **W-Soft boards (`wsoft_waveshare43`, `wsoft_cyd28`, `wsoft_s3_headless`) do not use this page.**
+> They have no OTA Settings tab and no factory OTA password. Their rule is the Wi-Fi update
+> switch: [WSOFT-WAVESHARE43.md](WSOFT-WAVESHARE43.md) section 0b (off by default, the board's own
+> password, never with Approval ON, the yellow board stays on the cable).
+
 OTA updates **are supported** and have been used successfully on this project. Use this guide when uploading firmware wirelessly to ESP32-S3 (or other OTA-capable envs).
 
 ## When OTA Is Available
