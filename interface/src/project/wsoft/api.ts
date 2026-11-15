@@ -4,7 +4,8 @@ import { AXIOS, WEB_SOCKET_ROOT } from '../../api/endpoints';
 
 import {
   WSoftDjbReply, WSoftDjbRequest, WSoftHub, WSoftHubAction, WSoftPinReply, WSoftPinRequest, WSoftSave,
-  WSoftProductAction, WSoftProducts, WSoftRelayBoard, WSoftRelayStatus, WSoftScaleSetup, WSoftScaleSetupRequest, WSoftSettings, WSoftStatus, WSoftSwitches, WSoftSwitchRequest
+  WSoftProductAction, WSoftProducts, WSoftRelayBoard, WSoftRelayStatus, WSoftScaleSetup, WSoftScaleSetupRequest, WSoftSettings, WSoftStatus, WSoftSwitches, WSoftSwitchRequest,
+  WSoftWifiUpdate, WSoftWifiUpdateRequest
 } from './types';
 
 export const WSOFT_STATUS_WEBSOCKET_URL = WEB_SOCKET_ROOT + 'wsoftStatus';
@@ -39,6 +40,13 @@ export const updateWSoftSwitch = (request: WSoftSwitchRequest): AxiosPromise<WSo
 
 /** Admin only. Sets the screen Approval PIN (4 to 6 digits). The board never sends it back. */
 export const updateWSoftPin = (request: WSoftPinRequest): AxiosPromise<WSoftPinReply> => AXIOS.post('/wsoftPin', request);
+
+/** Admin only. The Wi-Fi update switch. Never the password. */
+export const readWSoftWifiUpdate = (): AxiosPromise<WSoftWifiUpdate> => AXIOS.get('/wsoftWifiUpdate');
+
+/** Admin only. Switches Wi-Fi update or sets the board's own update password. 400/409 with a code when it cannot. */
+export const updateWSoftWifiUpdate = (request: WSoftWifiUpdateRequest): AxiosPromise<WSoftWifiUpdate> =>
+  AXIOS.post('/wsoftWifiUpdate', request);
 
 /** Logged-in users. The RS485 scale setup kept on the board and the last card values read. */
 export const readWSoftScaleSetup = (): AxiosPromise<WSoftScaleSetup> => AXIOS.get('/wsoftScaleSetup');

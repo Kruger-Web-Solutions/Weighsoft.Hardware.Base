@@ -12,6 +12,7 @@ import { numberValue, updateValue, useRest } from '../../utils';
 
 import WSoftPinForm from './WSoftPinForm';
 import WSoftRelayTest from './WSoftRelayTest';
+import WSoftWifiUpdateForm from './WSoftWifiUpdateForm';
 import * as WSoftApi from './api';
 import { WSoftSettings } from './types';
 import { WSOFT_SETTINGS_VALIDATOR } from './validators';
@@ -50,7 +51,7 @@ const WSoftSettingsForm: FC = () => {
         <MessageBox
           level="info"
           message={
-            'Wi-Fi, MQTT broker, NTP and OTA are on the framework pages. ' +
+            'Wi-Fi, MQTT broker and NTP are on the framework pages. Wi-Fi update is at the bottom of this page. ' +
             'Hub pairing is on the Hub item in the menu. Approval and Auto save are switched on the Live tab.'
           }
           my={2}
@@ -220,6 +221,7 @@ const WSoftSettingsForm: FC = () => {
       </SectionContent>
       {data?.relay_available && <WSoftRelayTest hiloOn={data.relay_enabled} />}
       <WSoftPinForm />
+      <WSoftWifiUpdateForm />
     </>
   );
 };

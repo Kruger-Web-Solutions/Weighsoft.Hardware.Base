@@ -7,6 +7,7 @@
 #include "hub_web.h"
 #include "switches.h"
 #include "weighings.h"
+#include "wifi_update.h"
 
 #include <wsoft_hub_commands.h>
 #endif
@@ -694,6 +695,10 @@ void hub_ota_poll() {
     WSOFT_LOG.printf("HUB ota ready ip=%s\n", WiFi.localIP().toString().c_str());
   }
   ArduinoOTA.handle();
+#else
+  // Hardware.Base: the Wi-Fi update switch (wifi_update.h) owns the update service.
+  wifi_update_poll();
+  ota_busy = wifi_update_busy();
 #endif
 }
 

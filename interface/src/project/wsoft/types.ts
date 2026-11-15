@@ -171,6 +171,30 @@ export interface WSoftPinReply {
   pin_set: boolean;
 }
 
+// GET /rest/wsoftWifiUpdate (admin). The board never sends the password, only whether it has one.
+export interface WSoftWifiUpdate {
+  // false: this board holds one copy of the software only (the yellow board). Cable only.
+  possible: boolean;
+  on: boolean;
+  password_set: boolean;
+  approval_on: boolean;
+  // The board is waiting for an update right now.
+  listening: boolean;
+  // Why it is not listening although switched on: ONE_COPY, APPROVAL_ON, PASSWORD_REQUIRED.
+  blocked: string | null;
+  blocked_message?: string;
+  port: number;
+  password_min: number;
+  password_max: number;
+  version: string;
+}
+
+// POST /rest/wsoftWifiUpdate (admin). A field that is not sent keeps its value.
+export interface WSoftWifiUpdateRequest {
+  on?: boolean;
+  password?: string;
+}
+
 // A4. GET /rest/wsoftScaleSetup (logged-in users). kg values are decimal text, "" = not set.
 export interface WSoftScaleBoard {
   sa_number: string;

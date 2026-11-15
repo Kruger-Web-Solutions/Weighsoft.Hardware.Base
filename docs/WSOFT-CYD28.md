@@ -210,4 +210,4 @@ board drives them itself.
 - GPIO2 is the screen's DC line, so the LED example drives the blue RGB LED (GPIO17) here.
 - Host tests ran in the cloud with a stand-in Unity (the PlatformIO registry was not
   reachable there); run `pio test -e native` on the laptop for the real runner.
-- 4 MB flash: single-app `partitions_ble.csv` (3.25 MB app, no OTA). The ~2.0 MB build does not fit the 1.75 MB slots of `partitions_4mb_ota.csv`. Update over USB.
+- 4 MB flash: one app slot (`partitions_wsoft_cyd.csv`, 3.25 MB). Two copies of the ~2.3 MB build do not fit, so **this board cannot update over Wi-Fi: cable only.** Its Settings page says so (W-Soft > Settings > Wi-Fi update shows "Cable only"). The rule for all boards: [WSOFT-WAVESHARE43.md](WSOFT-WAVESHARE43.md) section 0b.
