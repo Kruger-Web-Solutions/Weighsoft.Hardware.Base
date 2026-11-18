@@ -24,6 +24,7 @@ struct HubWebInfo {
   char device_id[WSOFT_HUB_ID_MAX];
   int last_status;               // HTTP status of the last heartbeat, 0 when none was sent
   uint32_t last_age_s;           // seconds since that heartbeat
+  bool clock_from_hub;           // the clock came from the Hub (this network has no internet time)
 };
 
 // Checks the key and saves it. The caller restarts the board so the Hub task picks it up.

@@ -71,7 +71,7 @@ flowchart LR
 
 ## Known gaps
 
-1. ~~**Two W-Soft lines.**~~ Merged into `wsoft-esp32s3` on 18 Nov 2026 (one feature, clock from the Hub, left out on purpose).
+1. ~~**Two W-Soft lines.**~~ Merged into `wsoft-esp32s3` on 18 Nov 2026, with the clock from the Hub (see `docs/WSOFT-SCREEN.md`, section 2).
 2. **W-Soft sits on the all-in-one serial line**, so W-Soft firmware also builds serial
    reader/writer, relay and display code.
 3. **The ESP32 relay board firmware lives in a separate repo**:

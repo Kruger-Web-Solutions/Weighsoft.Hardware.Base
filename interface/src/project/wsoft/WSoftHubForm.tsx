@@ -101,6 +101,11 @@ const WSoftHubForm: FC = () => {
                 ? `Last check-in: ${hub.last_age_s} s ago (answer ${hub.last_status})`
                 : 'No check-in yet since the last restart.'}
             </Typography>
+            {hub.clock_from_hub && (
+              <Typography variant="body2" color="text.secondary">
+                Clock set from the Hub: this network has no internet time.
+              </Typography>
+            )}
           </Box>
         )}
         {hub.paired && hub.state === 'HUB OFFLINE' && (
