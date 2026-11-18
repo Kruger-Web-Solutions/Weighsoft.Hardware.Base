@@ -4,18 +4,15 @@
 
 This repository uses `master` as the shared framework baseline and keeps major hardware integrations on their own long-lived branches.
 
-Current integration branches:
+Current integration branches: see **[BRANCH-MAP.md](BRANCH-MAP.md)** for every branch, the device it
+targets, its build env, its web menu and its state (updated 31 October 2026).
 
-- `serial2` - serial integration baseline
-- `display` - display integration baseline
-- `weighingboard` - load-cell / weighing integration baseline
-- `display35` - 3.5 inch display integration baseline
+The branches `serial2` and `display35` named in earlier versions of this file do not exist.
 
-W-Soft (the weigh screen boards) is its own line: `claude/project-thread-9f4l7x`. Its rules,
-including the check that stacked PRs reached that line, are in
+W-Soft (the weigh screen boards) is its own line: `wsoft-esp32s3` (it was
+`claude/project-thread-9f4l7x`; the 2 Nov Waveshare line `wsoft-waveshare43` is merged into it).
+Its rules, including the check that stacked PRs reached that line, are in
 [WSOFT-WAVESHARE43.md section 0](WSOFT-WAVESHARE43.md).
-
-The older `serial` branch may still exist as historical reference, but new serial implementation work should start from `serial2`.
 
 ## Working Rules
 

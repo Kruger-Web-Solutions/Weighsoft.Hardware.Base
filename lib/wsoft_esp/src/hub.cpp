@@ -26,6 +26,7 @@
 #include <mbedtls/md.h>
 #include <mbedtls/sha256.h>
 #include <time.h>
+#include <wsoft_hub_code.h>
 
 // Must match server/src/signing/codec.ts in Weighsoft.Indicator.Hub.
 static const char *SIGNING_PREFIX = "scale-models-hub-v1";
@@ -197,7 +198,9 @@ void hub_handle_serial(Stream &port) {
     char ch = port.read();
     if (ch == '\r') continue;
     if (ch != '\n') {
-      if (line.length() < 600) line += ch;
+      // Room for the longest command word ("HUB PAIR ") plus a full WSOFT_HUB_CODE_MAX pairing
+      // code; at 600 a maximum-length code lost its end (wsoft-waveshare43 5a1515d).
+      if (line.length() < WSOFT_HUB_CODE_MAX + 16) line += ch;
       continue;
     }
     String command = line;
