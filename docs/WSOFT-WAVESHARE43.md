@@ -41,9 +41,9 @@ Rules (Rhyno, 14 Nov 2026, after three Waveshare features were lost in a rebuild
 6. **Before a board moves to a newer build, list what its old build had.** Compare the old
    branch with the main line (`git log --oneline <main line>..<old branch>` and the web tabs) and
    carry every feature across, or tell Rhyno which one is dropped and why.
-7. **The W-Soft main line is `claude/project-thread-9f4l7x`.** Task branches start from it and
+7. **The W-Soft main line is `wsoft-esp32s3`** (renamed from `claude/project-thread-9f4l7x` on 18 Nov 2026). Task branches start from it and
    merge back into it. After merging a *stacked* PR (one whose base is another task branch),
-   check its commits reached the main line: `git log --oneline origin/claude/project-thread-9f4l7x..origin/<branch>`
+   check its commits reached the main line: `git log --oneline origin/wsoft-esp32s3..origin/<branch>`
    must be empty. If not, open a catch-up PR at once (14 Nov 2026: PRs #48 and #49 landed on a
    side branch; PR #50 brought them across).
 8. **Flash a board only with Rhyno's typed OK in the thread.** Merged is not flashed: write down
