@@ -46,9 +46,9 @@ If these are needed again, port them to Node.js with the passwords taken from a 
 
 ## What this PR changes
 
-1. `factory_settings.ini`: the factory Wi-Fi name and password are now **empty**, like on
-   `master`, `SerialReaderWriter` and `wsoft-esp32s3`. A real password had been committed
-   here since 25 Mar 2026 (`3dfbeb3`). A board built from this branch now starts its own
+1. `factory_settings.ini`: the factory Wi-Fi name and password are now **empty**, the repo
+   default (same as `master`, `SerialReaderWriter` and `wsoft-esp32s3`). A Wi-Fi password had
+   been committed here since 25 Mar 2026 (`3dfbeb3`). A board built from this branch now starts its own
    hotspot until Wi-Fi is set on its web page. Put a site's Wi-Fi in locally for a build and
    never commit it.
 2. `.gitignore`: device runtime config with secrets (`wifiSettings.json`,
@@ -56,5 +56,6 @@ If these are needed again, port them to Node.js with the passwords taken from a 
    `idf_component.yml` leftovers.
 3. This file.
 
-Blanking the value does **not** remove it from git history. See [SECURITY.md](SECURITY.md):
-the password must be changed on the network itself.
+Blanking the value does **not** remove it from git history. Benjamin (18 Nov 2026): that
+network is local only, so the password stays as it is and other branches are left alone.
+General rules: [SECURITY.md](SECURITY.md).
