@@ -32,15 +32,15 @@ flowchart LR
 | Branch | Device / purpose | Build envs | Last commit |
 |---|---|---|---|
 | `master` | Framework baseline. Start new device branches here. | `node32s` (also `esp12e`, `esp32dev`) | 4 Nov 2026 |
-| `wsoft-esp32s3` | **W-Soft** (the main W-Soft line). Screenless ESP32-S3 N16R8 with web page, CYD 2.8" and Waveshare 4.3 screens, RS485 or RS232 scale, Hub pairing, Hi-Lo, Weigh/Writer roles. Carries every all-in-one serial feature. Was `claude/project-thread-9f4l7x` (renamed 18 Nov 2026). Docs: `docs/WSOFT-SCREEN.md`, `WSOFT-CYD28.md`, `WSOFT-WAVESHARE43.md` on that branch. | `wsoft_s3_headless`, `wsoft_cyd28`, `wsoft_waveshare43`, `native` tests (+ all-in-one envs) | 15 Nov 2026 |
-| `wsoft-waveshare43` | W-Soft on the Waveshare 4.3 screen, 31 Oct work (PR #30). Has **40 changes not in `wsoft-esp32s3`** (e.g. sending saved weighings to the active Hub address). The two W-Soft lines need bringing together. | `wsoft_waveshare43` (+ all-in-one envs) | 2 Nov 2026 |
+| `wsoft-esp32s3` | **W-Soft** (the main W-Soft line). Screenless ESP32-S3 N16R8 with web page, CYD 2.8" and Waveshare 4.3 screens, RS485 or RS232 scale, Hub pairing, Hi-Lo, Weigh/Writer roles. Carries every all-in-one serial feature. Was `claude/project-thread-9f4l7x` (renamed 18 Nov 2026). Docs: `docs/WSOFT-SCREEN.md`, `WSOFT-CYD28.md`, `WSOFT-WAVESHARE43.md` on that branch. | `wsoft_s3_headless`, `wsoft_cyd28`, `wsoft_waveshare43`, `native` tests (+ all-in-one envs) | 18 Nov 2026 (PR #56) |
+| `wsoft-waveshare43` | W-Soft on the Waveshare 4.3 screen, 31 Oct work (PR #30). **Merged into `wsoft-esp32s3`** (18 Nov 2026); see `docs/WSOFT-WAVESHARE43.md` section 7 for where each feature went. Kept for history. | `wsoft_waveshare43` (+ all-in-one envs) | 2 Nov 2026 |
 | `SerialReaderWriter` | All-in-one serial device: read a scale, forward weight, TFT or character-LCD screen per board. | `nodemcu_esp32` (+ firebeetle32, esp32s3, CYD, TFT, LCD envs) | 16 Jul 2026 |
 | `pi-usb-reader-and-dashboard` | `SerialReaderWriter` + an archived Raspberry Pi USB scale reader and Node-RED dashboard (`pi-usb-reader-dashboard/`, Python, archive only). | as above | 15 Jul 2026 |
 | `RelayBoardEspBuildIn` | **ESP8266 relay board** (ESP12F_Relay_X4): Live Weight, under/ok/over relays, ticket printer, products, weigh log, LAN discovery, 3D twin. See `docs/RELAY-BOARD-ESP-BUILT-IN.md` on that branch. | `esp12e` (+ `esp12e_ota`) | 10 Aug 2026 |
 | `weighingboard` | Load-cell weighing board, OIML type-approval logic, zero/calibrate, PCB docs. | `node32s` | 29 Apr 2026 |
 | `growbox` | Grow-box monitor: sensors + relays, Home Assistant MQTT. | `esp32s3` | 31 Mar 2026 |
 | `display` | I2C character LCD, Wi-Fi auto-reconnect. | `node32s` | 29 Apr 2026 |
-| `serialReader` | Read a scale over serial, forward weight. Base of the all-in-one line. | `esp32s3` | 29 Apr 2026 |
+| `serialReader` | Read a scale over serial, forward weight. Base of the all-in-one line. | `esp32s3` | 18 Nov 2026 (PR #55: Wi-Fi default blank, July Pi hotspot write-up) |
 | `serialWriter` | Write weight out over serial; serial Wi-Fi bridge. | `esp32s3` | 29 Apr 2026 |
 | `espReadWriteRHYNO` | Early serial + TFT work plus Rhyno's bench boards (FireBeetle, CYD 2.8", DevKit V1) and OTA targets. Holds the old `serial` branch. | `firebeetle32` | 2 May 2026 |
 
@@ -71,8 +71,7 @@ flowchart LR
 
 ## Known gaps
 
-1. **Two W-Soft lines.** `wsoft-waveshare43` and `wsoft-esp32s3` have drifted apart (40
-   changes). Bring them together in one PR before more W-Soft work.
+1. ~~**Two W-Soft lines.**~~ Merged into `wsoft-esp32s3` on 18 Nov 2026, with the clock from the Hub (see `docs/WSOFT-SCREEN.md`, section 2).
 2. **W-Soft sits on the all-in-one serial line**, so W-Soft firmware also builds serial
    reader/writer, relay and display code.
 3. **The ESP32 relay board firmware lives in a separate repo**:
