@@ -34,6 +34,22 @@ on the net weight, like the saved weighing.
 - A red `CLOCK NOT SET` notice opens the same page while Wi-Fi is down.
 - The screen never shows a password.
 
+### Clock from the Hub (no internet time)
+
+Many site networks have no internet, so internet time (NTP) never arrives. While the board has
+no clock, it asks its Hub (`GET <hub>/api/v1/health`) every 5 s and sets the clock from the
+reply's `Date` header. Internet time still wins whenever it works. The web page (W-Soft > Hub)
+then says "Clock set from the Hub". The log shows `HUB clock set from hub: ...`.
+
+- The Hub checks every signature against its own clock (300 s window), so the Hub's clock is
+  the one that has to match.
+- The `Date` header is **not signed**. Whatever answers on the Hub's address sets the clock,
+  and weighings and trade weights saved meanwhile carry that time. Approval stays OFF.
+- No answer at all moves to a backup Hub address, as for a heartbeat.
+- Code: `lib/wsoft_core/src/wsoft_http_date.*` (host tests `test/test_wsoft_http_date`) and
+  `set_clock_from_hub()` in `lib/wsoft_esp/src/hub.cpp`. Ported from the Waveshare branch
+  (`c49a592`) on 18 Nov 2026.
+
 ## 3. MENU
 
 Each tile shows what it is set to now; green is on. APPROVAL (asks for the screen PIN on a

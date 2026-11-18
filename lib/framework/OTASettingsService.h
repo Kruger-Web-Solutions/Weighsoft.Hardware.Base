@@ -32,6 +32,8 @@
 #define OTA_SETTINGS_FILE "/config/otaSettings.json"
 #define OTA_SETTINGS_SERVICE_PATH "/rest/otaSettings"
 
+extern volatile bool framework_ota_busy;
+
 class OTASettings {
  public:
   bool enabled;

@@ -41,9 +41,9 @@ Rules (Rhyno, 14 Nov 2026, after three Waveshare features were lost in a rebuild
 6. **Before a board moves to a newer build, list what its old build had.** Compare the old
    branch with the main line (`git log --oneline <main line>..<old branch>` and the web tabs) and
    carry every feature across, or tell Rhyno which one is dropped and why.
-7. **The W-Soft main line is `claude/project-thread-9f4l7x`.** Task branches start from it and
+7. **The W-Soft main line is `wsoft-esp32s3`** (renamed from `claude/project-thread-9f4l7x` on 18 Nov 2026). Task branches start from it and
    merge back into it. After merging a *stacked* PR (one whose base is another task branch),
-   check its commits reached the main line: `git log --oneline origin/claude/project-thread-9f4l7x..origin/<branch>`
+   check its commits reached the main line: `git log --oneline origin/wsoft-esp32s3..origin/<branch>`
    must be empty. If not, open a catch-up PR at once (14 Nov 2026: PRs #48 and #49 landed on a
    side branch; PR #50 brought them across).
 8. **Flash a board only with Rhyno's typed OK in the thread.** Merged is not flashed: write down
@@ -155,9 +155,17 @@ for f in approval.cpp hub.cpp; do
    RAM 16.6 %, flash 35.0 %; ESPAsyncWebServer 3.12.1, AsyncTCP 3.5.0, AsyncMqttClient 0.9.0,
    ArduinoJson 6.21.6, WebSockets 2.7.3, ESP32_Display_Panel 1.0.5). The framework needed small
    core-3 fixes (handler casts, WiFi.h / esp_mac.h includes, readIP, mDNS rename), all also
-   valid on core 2. The first build downloads toolchains (~45 min); rebuilds take 3–7 min. Also build two other envs to prove nothing else broke:
+   valid on core 2. The first build downloads toolchains (~45 min). Also build two other envs to prove nothing else broke:
    `pio run -e nodemcu_esp32 -e esp32s3` (`wsoft_esp` is in `lib_ignore` for every env but
    this one).
+   **Before you build (bench laptop, measured 31 Oct 2026):** a build is either about 2 min
+   or about 30 min, and which one is known before it starts. PlatformIO deletes the env's
+   build folder, so every one of about 320 files recompiles, when a `.c/.cpp/.h` file was
+   added or removed under `include/`, `src/` or `lib/`, when `platformio.ini` changed, or on
+   a new env. Otherwise only the changed files recompile. Run **one build per folder at a
+   time**: a second `pio run` in the same folder collides with the first. A build that is
+   killed before it ends loses its record of finished files and the next run is nearly
+   full again. See `docs/aar/aar-2026-10-31-wsoft-two-hour-build.md`.
 3. Plug the board's **UART** USB port (CH343, `COM11` on the bench) and flash:
    `pio run -e wsoft_waveshare43 -t upload`. (The `upload_port` in the env says `COM11`.)
    Flashing is an ASKED gate: only with Rhyno's go.
@@ -176,8 +184,9 @@ for f in approval.cpp hub.cpp; do
    | DJB alarm | `DJB ALARM` | `DJB alarm` chip |
    | Approval OFF (default) | `NOT FOR TRADE`, `APPROVAL OFF` | `Not for trade`, Approval OFF |
 
-   If the page stays on `Starting` forever, the panel failed to start (the screen loop stops
-   before its first poll). Check the serial log for `display_ready` / panel errors.
+   If the panel stays dark while the Live page shows a weight, the panel failed to start: the
+   scale is still read, saved and sent to the Hub (since the 18 Nov 2026 merge; before it the
+   page stayed on `Starting`). Check the serial log for `display failed` / panel errors.
 
 7. Hub pairing (if needed): web page **Hub** menu item (admin): paste the key from the Hub
    (Devices > the device > New pairing code > Copy code), press **Connect**. The board
@@ -443,6 +452,25 @@ has them.
 
 ## 6. Known gaps
 
+- **The ESP's Wi-Fi link is slow and the cause is NOT yet known (bench, 31 Oct 2026).** Most
+  of the time the ESP answers ping in 222-307 ms on average (up to 1.4 s) and serves its web page
+  at 2.8-15 KB/s, while other hosts on the same LAN answer in 1-3 ms. Effect: a Wi-Fi firmware
+  update stalls ("premature end", 1-24 %) and the web pages load slowly. Measurements so far,
+  not yet explained together:
+  - 20:1x, a build that never started the panel: ping 5 ms, 745 KB/s, and a Wi-Fi update to it
+    completed.
+  - 21:09, panel deleted at the start of an update: the upload ran in bursts and stalled (11 %).
+  - 21:27, a boot that never started the panel ("update mode", not committed): ping 307 ms,
+    15 KB/s, and updates still failed.
+  So the panel alone does not explain it; the Wi-Fi network "W-Soft" (the access point, its
+  channel, other traffic) is an equal suspect. Wi-Fi power saving is already off
+  (`WiFiSettingsService`). Next: an independent check of the access point and a test of the
+  same board on a different access point. Until then flash over USB.
+- **After a successful Wi-Fi update the board boots from `app1`.** A plain
+  `esptool write_flash 0x10000` then writes `app0`, which the bootloader ignores. Use
+  `pio run -e wsoft_waveshare43 -t upload` (it rewrites the boot selection), or erase `otadata`
+  first: `esptool.py --chip esp32s3 --port COMx erase_region 0xe000 0x2000`.
+
 - Flashed on the bench board (26 Oct 2026, COM10, no backup of the old firmware). The first
   flash boot-looped: on core 3 `sntp_stop()` asserts without the lwIP core lock, and the
   framework calls it at boot when there is no Wi-Fi. `NTPSettingsService` now takes the lock
@@ -470,3 +498,34 @@ has them.
   flash 68.1 %.
 - No CI job runs `pio test -e native` yet; `verify_build.yml` only runs for PRs into `master`
   (and on GitHub-hosted runners, a pre-existing gap). Run the host tests by hand.
+- **No CI job builds the firmware either.** PR #30 (on `wsoft-waveshare43`) merged a Hub
+  failover change that did not compile and every check stayed green. Build all three W-Soft envs
+  on the laptop before merging (section 0, rule 2).
+- **Open from the PR #30 review (2 Nov 2026), still to check on this line:**
+  - An unreadable trade-queue slot in flash comes back as `seq=0`. If it is the last one in a
+    heartbeat batch, the ack covers nothing and the trade queue never drains.
+  - The live poll in `wsoft_screen.cpp` has its own Modbus CRC and frame code instead of the
+    tested `wsoft_djb_*`, with no exception-frame handling.
+  - `handleDjb` waits for the screen task inside the async web server (up to about 3 s with a
+    1.5 s write window), so other requests and WebSocket pushes stall meanwhile.
+
+## 7. What came across from `wsoft-waveshare43` (merged 18 Nov 2026)
+
+The 2 Nov Waveshare line had 44 commits this line did not. Rule 6 of section 0: every feature is
+carried across or named here as dropped.
+
+| Waveshare feature | On this line now |
+|---|---|
+| Multi-address Hub pairing and failover (`b9e2ab1`, `b2695c0`, `c39c6c8`) | Already here as backup Hub addresses (section 4c, `wsoft_hub_code.*`). Theirs (`hub_pairing.*`) not taken: one parser only |
+| Saved weighings sent to the active Hub address (`cc83b3b`) | Already here: every Hub request goes through `hub_base()` |
+| Save weighings: touch SAVE, web Save, auto-save, flash queue (`b556145`, `0cc24d3`, `713ca8e`) | This line's own (sections 4 and 4b, `weighings.*`, the Auto save switch). Theirs (`save_logic.*`, `save_queue.*`, settings `auto_save` / `auto_save_stable_s`) not taken: two queues would send one load twice |
+| Calibrate tab (`41d345a`) | Already here (section 4c) |
+| Bench test mode, save through an alarm (`3de1648`) | Already here as the alarm test switch (section 4c) |
+| Hub tab on the web page (`c49a592`) | Already here (menu **Hub**, `hub_web.h`). Theirs (`WSoftHubService`, `WSoftHub.tsx`) not taken |
+| DJB write answer window 1.5 s (`0b05eb7`) | **Taken** (`wsoft_screen.cpp` `run_job`): SET ZERO came back short at 200 ms on the bench |
+| Review fixes (`5a1515d`) | **Taken:** a failed panel only stops the drawing; the heartbeat sends a weight only from a fresh poll; the trade seq moves past every queued slot after a power cut; the USB line fits a full pairing code |
+| Framework OTA fixes (`9d2199c`, `c007afc`, `688149a`) | **Taken** in `lib/framework/OTASettingsService.cpp` (10 s per chunk, radio awake, task watchdog off for the upload). W-Soft boards do not build that service (`FT_OTA=0`); their Wi-Fi update (section 0b) already waits 10 s per chunk and runs on the screen task, which the task watchdog does not watch |
+| Windows host tests (`2b82d0d`) | **Taken:** `-D__MINGW_USE_VC2005_COMPAT` in `[env:native]` |
+| `[env:wsoft_waveshare43_ota]` (framework OTA, port 8266) | **Not taken:** that service is not built on W-Soft boards and the env carried the public factory password. Use section 0b |
+| Clock from the Hub when there is no internet time (`c49a592`) | **Not taken, needs Rhyno.** It sets the board clock from the unsigned `Date` header of `GET /api/v1/health`. That clock stamps weighings and trade weights. Without it a site with no internet time stays on `HUB CLOCK` |
+| List of the last 10 saved weighings on the Live page (`713ca8e`) | **Not taken:** built on theirs' save queue. The Live page shows the last weighing and how many wait; the Hub has the full list |

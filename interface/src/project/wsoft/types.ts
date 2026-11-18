@@ -99,6 +99,8 @@ export interface WSoftHub {
   /** HTTP status of the last heartbeat; 0 when none was sent since boot. */
   last_status: number;
   last_age_s: number;
+  /** The board's clock came from the Hub because this network has no internet time. */
+  clock_from_hub?: boolean;
   /** True right after connect/disconnect: the board is restarting. */
   restarting: boolean;
 }

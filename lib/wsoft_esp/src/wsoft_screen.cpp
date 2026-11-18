@@ -197,7 +197,9 @@ static void run_job(const WsoftDjbPlan *plan, WsoftDjbResult *out) {
   size_t expected = plan->write ? 8 : 9;
   uint8_t reply[32];
   size_t got = 0;
-  uint32_t deadline = millis() + 200;
+  // A write (a calibration above all) is answered only after the DJB has saved it, later than a
+  // read: SET ZERO on the bench came back short with 200 ms (wsoft-waveshare43 0b05eb7, 31 Oct 2026).
+  uint32_t deadline = millis() + (plan->write ? 1500 : 200);
   while (got < expected && (int32_t)(deadline - millis()) > 0) {
     if (Serial1.available()) {
       if (got < sizeof reply) reply[got] = (uint8_t)Serial1.read();
@@ -461,8 +463,10 @@ void wsoft_screen_loop() {
   service_job();
   switches_poll();
   ui_loop();
-  // The headless board has no panel and polls anyway.
-  if (hub_ota_busy() || (!display_ready && !WSOFT_BOARD_HEADLESS) || millis() - last_poll < POLL_MS) return;
+  // No panel (headless board) or a panel that failed to start only stops the drawing: the scale
+  // is still read, saved and sent to the Hub (wsoft-waveshare43 5a1515d). ui_show() draws nothing
+  // without a panel.
+  if (hub_ota_busy() || millis() - last_poll < POLL_MS) return;
   last_poll = millis();
 
   Reading next = reading;
@@ -526,7 +530,9 @@ void wsoft_screen_loop() {
   format_weight(next.value, next.decimals, weight, sizeof weight);
   strlcat(weight, " ", sizeof weight);
   strlcat(weight, weight_unit_text(next.unit), sizeof weight);
-  hub_set_health(next.linked, next.linked ? weight : "", next.alarm);
+  // Only a weight read on this poll goes to the Hub: a failed poll is never a weight. linked
+  // stays true for a few failed polls (wsoft-waveshare43 5a1515d).
+  hub_set_health(next.linked, fresh ? weight : "", next.alarm);
   publish_snapshot(next, fresh, check, hub_state(), tared, net);
   reading = next;
 

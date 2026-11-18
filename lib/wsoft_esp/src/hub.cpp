@@ -25,7 +25,10 @@
 #include <mbedtls/base64.h>
 #include <mbedtls/md.h>
 #include <mbedtls/sha256.h>
+#include <sys/time.h>
 #include <time.h>
+#include <wsoft_hub_code.h>
+#include <wsoft_http_date.h>
 
 // Must match server/src/signing/codec.ts in Weighsoft.Indicator.Hub.
 static const char *SIGNING_PREFIX = "scale-models-hub-v1";
@@ -69,6 +72,8 @@ static volatile uint8_t active_url = 0;    // copy of failover.active for the we
 static bool configured = false;
 static volatile HubState state = HUB_SETUP;
 static volatile bool ota_busy = false;
+// The clock was set from the Hub's Date header (no internet time on this network).
+static volatile bool clock_from_hub = false;
 
 #ifdef WSOFT_ON_BASE
 static volatile int last_status = 0;
@@ -197,7 +202,9 @@ void hub_handle_serial(Stream &port) {
     char ch = port.read();
     if (ch == '\r') continue;
     if (ch != '\n') {
-      if (line.length() < 600) line += ch;
+      // Room for the longest command word ("HUB PAIR ") plus a full WSOFT_HUB_CODE_MAX pairing
+      // code; at 600 a maximum-length code lost its end (wsoft-waveshare43 5a1515d).
+      if (line.length() < WSOFT_HUB_CODE_MAX + 16) line += ch;
       continue;
     }
     String command = line;
@@ -583,6 +590,41 @@ static void send_heartbeat() {
   WSOFT_LOG.printf("HUB heartbeat status=%d %s\n", status, reply.substring(0, 120).c_str());
 }
 
+// ---------- clock from the Hub ----------
+// Ported from the 31 Oct 2026 Waveshare branch (c49a592), Benjamin 18 Nov 2026.
+// The Hub checks each signature against its own clock (300 s window), so the Hub's clock is the
+// one that matters. Its health route is public and every reply carries a Date header.
+// Used only while the board has no valid time; internet time (NTP) still wins whenever it works.
+// The Date header is not signed: whatever answers on the Hub's address sets this clock, and
+// weighings and trade weights saved meanwhile carry that time.
+
+static const uint32_t CLOCK_RETRY_MS = 5000;
+
+static void set_clock_from_hub() {
+  HTTPClient http;
+  http.setTimeout(5000);
+  if (!http.begin(hub_base() + "/api/v1/health")) return;
+  const char *wanted[] = {"Date"};
+  http.collectHeaders(wanted, 1);
+  int status = http.GET();
+  String date = status > 0 ? http.header("Date") : String();
+  http.end();
+  // No answer at all moves to a backup address, as for a heartbeat (none is sent without a clock).
+  record_hub_answer(status);
+
+  time_t now = 0;
+  if (!wsoft_parse_http_date(date.c_str(), &now) || now < CLOCK_VALID_AFTER) {
+    WSOFT_LOG.printf("HUB clock from hub failed status=%d\n", status);
+    return;
+  }
+  if (time(nullptr) >= CLOCK_VALID_AFTER) return;  // internet time got there first
+  // Whole seconds; the 300 s window leaves plenty of room.
+  struct timeval tv = {now, 0};
+  settimeofday(&tv, nullptr);
+  clock_from_hub = true;
+  WSOFT_LOG.printf("HUB clock set from hub: %s\n", date.c_str());
+}
+
 static void hub_task(void *) {
 #ifndef WSOFT_ON_BASE
   WiFi.onEvent(
@@ -598,6 +640,7 @@ static void hub_task(void *) {
 
   uint32_t next = 0;
   uint32_t next_report = 0;
+  uint32_t next_clock_try = 0;
 #ifdef WSOFT_ON_BASE
   commands_applied = load_commands_applied();
   uint32_t seen_switch_changes = switches_change_count();
@@ -632,6 +675,11 @@ static void hub_task(void *) {
     }
     if (time(nullptr) < CLOCK_VALID_AFTER) {
       state = HUB_NO_CLOCK;
+      // A bench or site network often has no internet time. Ask the Hub instead.
+      if (!ota_busy && (int32_t)(millis() - next_clock_try) >= 0) {
+        next_clock_try = millis() + CLOCK_RETRY_MS;
+        set_clock_from_hub();
+      }
       vTaskDelay(pdMS_TO_TICKS(1000));
       continue;
     }
@@ -805,5 +853,6 @@ void hub_web_info(HubWebInfo *out) {
   out->state = state;
   out->last_status = last_status;
   out->last_age_s = last_heartbeat_ms == 0 ? 0 : (millis() - last_heartbeat_ms) / 1000;
+  out->clock_from_hub = clock_from_hub;
 }
 #endif

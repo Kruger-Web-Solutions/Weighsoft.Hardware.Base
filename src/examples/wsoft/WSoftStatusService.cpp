@@ -160,6 +160,7 @@ void sendHub(AsyncWebServerRequest* request, int code, bool restarting, const ch
   root["device_id"] = const_cast<char*>(info.device_id);
   root["last_status"] = info.last_status;
   root["last_age_s"] = info.last_age_s;
+  root["clock_from_hub"] = info.clock_from_hub;
   root["restarting"] = restarting;
   response->setCode(code);
   response->setLength();
