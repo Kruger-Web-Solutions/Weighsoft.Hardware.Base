@@ -8,3 +8,14 @@
 /interface/node_modules
 /interface/.eslintcache
 .vscode
+
+# Device runtime config - NEVER commit. Written by the board or pre-seeded for a
+# filesystem image, and holds live credentials (Wi-Fi password, JWT secret, user,
+# AP, OTA and MQTT passwords). apSettings.json and uartMode.json stay tracked.
+/data/config/wifiSettings.json
+/data/config/securitySettings.json
+/data/config/otaSettings.json
+/data/config/mqttSettings.json
+# Left behind by an ESP-IDF / PlatformIO component-manager build attempt
+/src/idf_component.yml
+/src/idf_component.yml.orig
