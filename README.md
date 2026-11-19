@@ -189,7 +189,7 @@ When building using the "node32s" profile, the project uses the custom [partitio
 ```ini
 [env:node32s]
 board_build.partitions = partitions_ble.csv
-platform = espressif32
+platform = espressif32@6.13.0
 board = node32s
 ```
 
@@ -350,7 +350,7 @@ board = esp12e
 board_build.f_cpu = 160000000L
 
 [env:node32s]
-platform = espressif32
+platform = espressif32@6.13.0
 board = node32s
 ```
 
