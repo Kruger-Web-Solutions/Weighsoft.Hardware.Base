@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - CI: install `intelhex` so the `node32s` (ESP32) build can finish.
+- Build: pin the ESP32 platform to `espressif32@6.13.0` (same as the device branches). Unpinned, it moved to 8.0.0 (Arduino core 3.x) and `node32s` stopped compiling.
 - Docs: branch lists now name branches that exist (there is no `serial2` or `display35`).
 - Docs: `node32s` partition and OTA notes now match `platformio.ini` and `partitions_ble.csv`.
 
