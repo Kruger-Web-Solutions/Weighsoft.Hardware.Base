@@ -123,9 +123,15 @@ const WSoftSettingsForm: FC = () => {
             />
           </>
         )}
+        {data.esp_led_available && (
+          <BlockFormControlLabel
+            control={<Checkbox name="esp_led" checked={!!data.esp_led} onChange={updateFormValue} />}
+            label="ESP LED: show Hi-Lo on the board's light (orange under, green correct, red over)?"
+          />
+        )}
         <BlockFormControlLabel
           control={
-            <Checkbox name="alarm_test_save" checked={!!data.alarm_test_save} onChange={updateFormValue} />
+            <Checkbox name="alarm_test_save"checked={!!data.alarm_test_save} onChange={updateFormValue} />
           }
           label="TEST ONLY: save even when the junction box shows an alarm?"
         />

@@ -58,13 +58,14 @@ void test_password_rules() {
   TEST_ASSERT_EQUAL(WSOFT_WIFI_UPDATE_OK, wsoft_wifi_update_password_check(GOOD));
   TEST_ASSERT_EQUAL(WSOFT_WIFI_UPDATE_PASSWORD_FORMAT, wsoft_wifi_update_password_check(nullptr));
   TEST_ASSERT_EQUAL(WSOFT_WIFI_UPDATE_PASSWORD_FORMAT, wsoft_wifi_update_password_check(""));
-  // The framework's factory password is too short on its own...
-  TEST_ASSERT_EQUAL(WSOFT_WIFI_UPDATE_PASSWORD_FORMAT, wsoft_wifi_update_password_check("esp-react"));
-  // ...and refused by name when it is padded to length.
+  // The framework's factory password is refused by name, alone or inside a longer one.
+  TEST_ASSERT_EQUAL(WSOFT_WIFI_UPDATE_PASSWORD_FACTORY, wsoft_wifi_update_password_check("esp-react"));
   TEST_ASSERT_EQUAL(WSOFT_WIFI_UPDATE_PASSWORD_FACTORY, wsoft_wifi_update_password_check("esp-react-esp-react"));
   TEST_ASSERT_EQUAL(WSOFT_WIFI_UPDATE_PASSWORD_FACTORY,
                     wsoft_wifi_update_password_check("change-me-at-least-8-chars"));
-  TEST_ASSERT_EQUAL(WSOFT_WIFI_UPDATE_PASSWORD_FORMAT, wsoft_wifi_update_password_check("elevenchars"));
+  // 4 or more (Rhyno, 21 Nov 2026: "4 + is good for us"; it was 12).
+  TEST_ASSERT_EQUAL(WSOFT_WIFI_UPDATE_PASSWORD_FORMAT, wsoft_wifi_update_password_check("abc"));
+  TEST_ASSERT_EQUAL(WSOFT_WIFI_UPDATE_OK, wsoft_wifi_update_password_check("abcd"));
   TEST_ASSERT_EQUAL(WSOFT_WIFI_UPDATE_OK, wsoft_wifi_update_password_check("twelvechars!"));
   TEST_ASSERT_EQUAL(WSOFT_WIFI_UPDATE_PASSWORD_FORMAT, wsoft_wifi_update_password_check("has a space in it"));
   TEST_ASSERT_EQUAL(WSOFT_WIFI_UPDATE_PASSWORD_FORMAT, wsoft_wifi_update_password_check("tab\tinside-here"));
@@ -94,7 +95,7 @@ void test_on_needs_the_boards_own_password() {
   TEST_ASSERT_FALSE(c.password_changed);
   // A bad password with ON: nothing goes ON.
   TEST_ASSERT_EQUAL(WSOFT_WIFI_UPDATE_PASSWORD_FORMAT,
-                    wsoft_wifi_update_check(request(1, "short"), state(true, false, false, true), &c));
+                    wsoft_wifi_update_check(request(1, "abc"), state(true, false, false, true), &c));
   TEST_ASSERT_EQUAL(WSOFT_WIFI_UPDATE_PASSWORD_FACTORY,
                     wsoft_wifi_update_check(request(1, "esp-react-esp-react"), state(true, false, false, false), &c));
 }

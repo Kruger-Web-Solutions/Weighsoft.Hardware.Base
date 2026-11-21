@@ -21,6 +21,10 @@
 #include <wsoft_screen.h>
 #include <hilo.h>
 #include <weighings.h>
+#ifdef WSOFT_RGB_LED_PIN
+#include <relay.h>
+#include <wsoft_led.h>
+#endif
 #endif
 #include "VersionService.h"
 #include "UartModeService.h"
@@ -239,6 +243,11 @@ void setup() {
   // so the example is not created: nothing but the relay service may drive those pins.
   ledExampleService = nullptr;
   Serial.println(F("[6/10] LED example off (its pin is a relay output on this board)"));
+#ifdef WSOFT_RGB_LED_PIN
+  // The board's own RGB LED (WS2812): its data line floats at power-up and the LED then shows
+  // a random colour, so tell it to go dark now. The loop sets the Hi-Lo colour ("ESP LED").
+  rgbLedWrite(WSOFT_RGB_LED_PIN, 0, 0, 0);
+#endif
 #else
   Serial.println(F("[6/10] Initializing LED example service..."));
   ledExampleService = new LedExampleService(
@@ -601,6 +610,26 @@ void loop() {
   if (wsoftStatusService) wsoftStatusService->loop();
 #if FT_ENABLED(FT_WSOFT_RELAY)
   if (relayBoardService) relayBoardService->loop();
+#endif
+#ifdef WSOFT_RGB_LED_PIN
+  // "ESP LED": the board's RGB LED shows the Hi-Lo zone (orange under, green correct, red
+  // over), from the same zone as the relays and the screen. Checked four times a second and
+  // written again once a second, so a glitch on the LED's data line cannot stick.
+  {
+    static unsigned long ledCheckedMs = 0;
+    static unsigned long ledWrittenMs = 0;
+    static WsoftLedColour ledShown = {0, 0, 0};
+    unsigned long nowMs = millis();
+    if (wsoftSettingsService && nowMs - ledCheckedMs >= 250) {
+      ledCheckedMs = nowMs;
+      WsoftLedColour want = wsoft_led_colour(wsoftSettingsService->espLed(), relay_zone());
+      if (!wsoft_led_same(want, ledShown) || nowMs - ledWrittenMs >= 1000) {
+        rgbLedWrite(WSOFT_RGB_LED_PIN, want.red, want.green, want.blue);
+        ledShown = want;
+        ledWrittenMs = nowMs;
+      }
+    }
+  }
 #endif
   // RS485, RS232 and the Writer share Serial1, so a new source or role starts cleanly after a restart.
   {

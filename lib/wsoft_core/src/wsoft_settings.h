@@ -54,6 +54,9 @@ struct WSoftSettingsData {
   // weighing saved through an alarm is marked "alarm_test_override": true for the Hub.
   // The allowed-alarm list (wsoft_djb_alarm_check: the EEPROM factory flag) needs no switch.
   bool alarm_test_save;
+  // "ESP LED" (Rhyno, 21 Nov 2026): the board's own RGB LED shows the Hi-Lo zone (wsoft_led.h).
+  // ON by default; OFF keeps the LED dark. Only does something on a board built with the LED.
+  bool esp_led;
 };
 
 // One field per option. A missing field (has_* false or a null string) takes its default:
@@ -81,6 +84,8 @@ struct WSoftSettingsInput {
   bool relay_writer_follow = false;
   bool has_alarm_test_save = false;
   bool alarm_test_save = false;
+  bool has_esp_led = false;
+  bool esp_led = false;
 };
 
 enum WSoftSettingsResult { WSOFT_SETTINGS_UNCHANGED, WSOFT_SETTINGS_CHANGED, WSOFT_SETTINGS_ERROR };

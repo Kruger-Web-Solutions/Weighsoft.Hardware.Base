@@ -182,6 +182,21 @@ void test_relay_writer_follow_applies_and_an_old_page_turns_it_off() {
   TEST_ASSERT_FALSE(s.relay_writer_follow);
 }
 
+void test_esp_led_is_on_by_default_and_can_be_switched_off() {
+  WSoftSettingsData s = defaults();
+  TEST_ASSERT_TRUE(s.esp_led);
+  WSoftSettingsInput in;
+  in.has_esp_led = true;
+  in.esp_led = false;
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_CHANGED, wsoft_settings_update(in, &s));
+  TEST_ASSERT_FALSE(s.esp_led);
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_UNCHANGED, wsoft_settings_update(in, &s));
+  // A page that does not send the field: back to the default (ON).
+  WSoftSettingsInput old_page;
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_CHANGED, wsoft_settings_update(old_page, &s));
+  TEST_ASSERT_TRUE(s.esp_led);
+}
+
 void test_alarm_test_switch_is_off_by_default_and_an_old_page_turns_it_off() {
   WSoftSettingsData s = defaults();
   TEST_ASSERT_FALSE(s.alarm_test_save);
@@ -259,6 +274,7 @@ int main(int, char **) {
   RUN_TEST(test_relay_is_off_by_default_on_relays_1_2_3);
   RUN_TEST(test_relay_settings_apply_and_report_changed);
   RUN_TEST(test_relay_writer_follow_applies_and_an_old_page_turns_it_off);
+  RUN_TEST(test_esp_led_is_on_by_default_and_can_be_switched_off);
   RUN_TEST(test_alarm_test_switch_is_off_by_default_and_an_old_page_turns_it_off);
   RUN_TEST(test_bad_relay_numbers_are_rejected_without_change);
   return UNITY_END();

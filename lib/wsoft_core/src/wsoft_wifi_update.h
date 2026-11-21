@@ -9,7 +9,8 @@
 // - OFF by default. A board that was never set up cannot be updated over Wi-Fi.
 // - Each board has its own password, set on that board. There is no factory or shared
 //   password: with no password of its own the switch cannot go ON.
-// - The password is 12 to 64 printable characters, no spaces. It is never sent back, shown or
+// - The password is 4 to 64 printable characters, no spaces (4 since 21 Nov 2026, Rhyno's
+//   call: "4 + is good for us"; it was 12). It is never sent back, shown or
 //   logged. It may not be a well-known factory password (the framework's "esp-react").
 // - Blocked while Approval is ON, like Calibrate and the scale setup: the switch and the
 //   password cannot change, and the update service does not listen. Switch Approval OFF first
@@ -22,7 +23,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-static const size_t WSOFT_WIFI_UPDATE_PASSWORD_MIN = 12;
+static const size_t WSOFT_WIFI_UPDATE_PASSWORD_MIN = 4;
 static const size_t WSOFT_WIFI_UPDATE_PASSWORD_MAX = 64;
 static const int WSOFT_WIFI_UPDATE_WHO_MAX = 64;
 
@@ -30,7 +31,7 @@ enum WsoftWifiUpdateError {
   WSOFT_WIFI_UPDATE_OK = 0,
   WSOFT_WIFI_UPDATE_ONE_COPY,          // no second app slot: cable only (yellow board)
   WSOFT_WIFI_UPDATE_APPROVAL_ON,       // locked while Approval is ON
-  WSOFT_WIFI_UPDATE_PASSWORD_FORMAT,   // not 12 to 64 printable characters without spaces
+  WSOFT_WIFI_UPDATE_PASSWORD_FORMAT,   // not 4 to 64 printable characters without spaces
   WSOFT_WIFI_UPDATE_PASSWORD_FACTORY,  // a well-known factory password
   WSOFT_WIFI_UPDATE_PASSWORD_REQUIRED, // ON asked for, and the board has no password of its own
   WSOFT_WIFI_UPDATE_NOTHING,           // the request changes nothing (no switch, no password)

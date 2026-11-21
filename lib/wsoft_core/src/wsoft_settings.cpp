@@ -20,6 +20,7 @@ void wsoft_settings_defaults(WSoftSettingsData *s) {
   s->relay_high = WSOFT_RELAY_DEFAULT_HIGH;
   s->relay_writer_follow = false;
   s->alarm_test_save = false;
+  s->esp_led = true;
 }
 
 const char *wsoft_source_text(WSoftSource source) {
@@ -105,6 +106,7 @@ WSoftSettingsResult wsoft_settings_update(const WSoftSettingsInput &in, WSoftSet
   if (in.has_relay_enabled) next.relay_enabled = in.relay_enabled;
   if (in.has_relay_writer_follow) next.relay_writer_follow = in.relay_writer_follow;
   if (in.has_alarm_test_save) next.alarm_test_save = in.alarm_test_save;
+  if (in.has_esp_led) next.esp_led = in.esp_led;
   // A relay number has no safe value to clamp to: a wrong one could switch the wrong output.
   if (in.has_relay_low && !relay_number(in.relay_low, &next.relay_low)) return WSOFT_SETTINGS_ERROR;
   if (in.has_relay_ok && !relay_number(in.relay_ok, &next.relay_ok)) return WSOFT_SETTINGS_ERROR;
@@ -116,7 +118,8 @@ WSoftSettingsResult wsoft_settings_update(const WSoftSettingsInput &in, WSoftSet
                  strcmp(next.mqtt_unique_id, s->mqtt_unique_id) != 0 || next.source != s->source ||
                  next.relay_enabled != s->relay_enabled || next.relay_low != s->relay_low ||
                  next.relay_ok != s->relay_ok || next.relay_high != s->relay_high ||
-                 next.relay_writer_follow != s->relay_writer_follow || next.alarm_test_save != s->alarm_test_save;
+                 next.relay_writer_follow != s->relay_writer_follow || next.alarm_test_save != s->alarm_test_save ||
+                 next.esp_led != s->esp_led;
   *s = next;
   return changed ? WSOFT_SETTINGS_CHANGED : WSOFT_SETTINGS_UNCHANGED;
 }

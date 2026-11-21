@@ -27,6 +27,13 @@
 #define WSOFT_HAS_RS232 0
 #endif
 
+// Boards whose env names the pin of an on-board RGB LED (WS2812) for the "ESP LED" switch.
+#ifdef WSOFT_RGB_LED_PIN
+#define WSOFT_HAS_ESP_LED 1
+#else
+#define WSOFT_HAS_ESP_LED 0
+#endif
+
 class WSoftSettings {
  public:
   WSoftSettingsData data;
@@ -47,6 +54,7 @@ class WSoftSettings {
     root["relay_high"] = settings.data.relay_high;
     root["relay_writer_follow"] = settings.data.relay_writer_follow;
     root["alarm_test_save"] = settings.data.alarm_test_save;
+    root["esp_led"] = settings.data.esp_led;
   }
 
   // Stored fields plus the resolved status topic, for the settings page.
@@ -57,6 +65,7 @@ class WSoftSettings {
     root["publish_interval_max_ms"] = WSOFT_PUBLISH_MAX_MS;
     root["rs232_available"] = WSOFT_HAS_RS232 != 0;
     root["relay_available"] = FT_ENABLED(FT_WSOFT_RELAY) != 0;
+    root["esp_led_available"] = WSOFT_HAS_ESP_LED != 0;
   }
 
   static StateUpdateResult update(JsonObject& root, WSoftSettings& settings) {
@@ -89,6 +98,10 @@ class WSoftSettings {
     if (root["alarm_test_save"].is<bool>()) {
       in.has_alarm_test_save = true;
       in.alarm_test_save = root["alarm_test_save"].as<bool>();
+    }
+    if (root["esp_led"].is<bool>()) {
+      in.has_esp_led = true;
+      in.esp_led = root["esp_led"].as<bool>();
     }
     if (root["relay_writer_follow"].is<bool>()) {
       in.has_relay_writer_follow = true;
@@ -146,6 +159,8 @@ class WSoftSettingsService : public StatefulService<WSoftSettings> {
   // Hi-Lo relay output: the switch and the relay (1..4, 0 = none) for each zone.
   // In Writer mode the output is on only when "relays follow the weigh board" is on too.
   void relayConfig(bool* enabled, uint8_t* low, uint8_t* ok, uint8_t* high);
+  // The "ESP LED" switch (the board's RGB LED shows the Hi-Lo zone).
+  bool espLed();
   // Set once at boot from the board's role (UartModeService): true = Writer mode.
   void setWriterMode(bool writer) { _writerMode = writer; }
   bool writerMode() const { return _writerMode; }
