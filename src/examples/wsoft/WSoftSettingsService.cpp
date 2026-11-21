@@ -83,4 +83,10 @@ void WSoftSettingsService::relayConfig(bool* enabled, uint8_t* low, uint8_t* ok,
   });
 }
 
+bool WSoftSettingsService::espLed() {
+  bool on = false;
+  read([&](const WSoftSettings& s) { on = s.data.esp_led; });
+  return on;
+}
+
 #endif  // FT_WSOFT

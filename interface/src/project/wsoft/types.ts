@@ -69,6 +69,10 @@ export interface WSoftSettings {
   relay_writer_follow?: boolean;
   /** TEST SWITCH, off by default: save even when the junction box alarms (never with Approval ON). */
   alarm_test_save?: boolean;
+  /** "ESP LED": the board's own light shows the Hi-Lo zone (orange / green / red). On by default. */
+  esp_led?: boolean;
+  /** Read-only: true on boards built with the on-board RGB LED (the S3 without a screen). */
+  esp_led_available?: boolean;
   /** Read-only: true on boards built with relay outputs (the yellow board). */
   relay_available?: boolean;
   /** Read-only: false on boards without RS232 wiring (the Waveshare). */

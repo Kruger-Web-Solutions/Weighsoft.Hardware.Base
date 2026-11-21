@@ -23,7 +23,7 @@ const char *wsoft_wifi_update_error_text(WsoftWifiUpdateError error) {
     case WSOFT_WIFI_UPDATE_APPROVAL_ON:
       return "Locked while Approval is ON. Switch Approval OFF first.";
     case WSOFT_WIFI_UPDATE_PASSWORD_FORMAT:
-      return "The password is 12 to 64 letters, digits or signs, with no spaces.";
+      return "The password is 4 to 64 letters, digits or signs, with no spaces.";
     case WSOFT_WIFI_UPDATE_PASSWORD_FACTORY:
       return "That is a factory password. Choose this board's own password.";
     case WSOFT_WIFI_UPDATE_PASSWORD_REQUIRED:

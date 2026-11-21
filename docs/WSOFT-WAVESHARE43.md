@@ -76,7 +76,7 @@ two app slots that the build fits in. Never shrink the app slot of a 4 MB board 
 
 1. **OFF by default.** A board that was never set up cannot be updated over Wi-Fi.
 2. **Each board has its own password**, set on that board (W-Soft > Settings > Wi-Fi update,
-   admin). 12 to 64 characters, no spaces. There is no factory or shared password: without its
+   admin). 4 to 64 characters, no spaces. There is no factory or shared password: without its
    own password the switch cannot go ON, and a well-known factory password is refused.
 3. **The password is never shown again**, never sent back by the board, never logged, and never
    written in a chat, a commit or a document. Keep it where the other board logins are kept.
