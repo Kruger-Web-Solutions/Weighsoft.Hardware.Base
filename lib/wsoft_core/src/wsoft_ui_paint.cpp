@@ -429,16 +429,16 @@ static void paint_weight_colour(WsoftCanvas &c, const WsoftUiModel &m, const The
   // Aurora's card: the weight sits inside it with room to spare.
   if (m.zone != WSOFT_UI_ZONE_NONE && colour_set(m, T).card) {
     c.text(m.label, 302, 73, TINY, soft, WSOFT_RIGHT);
-    // A soft glow of the zone colour round the numbers (Rhyno, 22 Nov 2026).
-    const int role = c.width(m.weight, HERO) <= 236 ? HERO : BIG;
+    // Big numbers with a thick outline in the full zone colour (Rhyno, 22 Nov 2026: "as big as
+    // under range", outline "thicker", "brighter").
     const ColourSet P = colour_set(m, T);
-    const uint16_t halo = wsoft_blend565(P.w_bg, P.strip, 55), core = wsoft_blend565(P.w_bg, P.strip, 120);
-    static const int8_t outer[4][2] = {{-3, 0}, {3, 0}, {0, -3}, {0, 3}};
-    static const int8_t inner[4][2] = {{-1, -1}, {1, -1}, {-1, 1}, {1, 1}};
-    for (const auto &o : outer) c.text(m.weight, 264 + o[0], 94 + o[1], role, halo, WSOFT_RIGHT);
-    for (const auto &o : inner) c.text(m.weight, 264 + o[0], 94 + o[1], role, core, WSOFT_RIGHT);
-    c.text(m.weight, 264, 94, role, ink, WSOFT_RIGHT);
-    c.text(m.unit, 270, 106, MID, soft);
+    const bool huge = c.width(m.weight, HUGE_) <= 256;
+    const int role = huge ? HUGE_ : c.width(m.weight, HERO) <= 236 ? HERO : BIG;
+    const double x = huge ? 280 : 264, y = huge ? 92 : 94;
+    static const int8_t outline[8][2] = {{-3, 0}, {3, 0}, {0, -3}, {0, 3}, {-2, -2}, {2, -2}, {-2, 2}, {2, 2}};
+    for (const auto &o : outline) c.text(m.weight, x + o[0], y + o[1], role, P.strip, WSOFT_RIGHT);
+    c.text(m.weight, x, y, role, ink, WSOFT_RIGHT);
+    c.text(m.unit, x + 6, huge ? 109 : 106, MID, soft);
     return;
   }
   if (c.width(m.label, TINY) <= 24 && c.width(m.weight, HUGE_) <= 270) {
