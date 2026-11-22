@@ -17,6 +17,7 @@
 
 struct WsoftUiInput {
   bool dark = true;
+  int style = WSOFT_UI_STYLE_CLASSIC;  // WSOFT_UI_STYLE_*
   int page = WSOFT_UI_PAGE_LIVE;
 
   // Wi-Fi and Hub

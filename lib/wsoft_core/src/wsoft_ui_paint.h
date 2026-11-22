@@ -23,9 +23,17 @@
 #include "wsoft_gfx.h"
 
 // Font numbers for WsoftCanvas, in the order of the generated WSOFT_UI_FONTS_1X / _2X.
-enum { WSOFT_UI_TINY, WSOFT_UI_SMALL, WSOFT_UI_MID, WSOFT_UI_BIG, WSOFT_UI_HERO, WSOFT_UI_FONT_COUNT };
+// HUGE (the weight) and XL (the Hi-Lo word) are the Full Colour screen's bigger letters.
+enum { WSOFT_UI_TINY, WSOFT_UI_SMALL, WSOFT_UI_MID, WSOFT_UI_BIG, WSOFT_UI_HERO, WSOFT_UI_HUGE, WSOFT_UI_XL, WSOFT_UI_FONT_COUNT };
 
 enum { WSOFT_UI_PAGE_LIVE, WSOFT_UI_PAGE_MENU, WSOFT_UI_PAGE_PIN, WSOFT_UI_PAGE_NO_PIN, WSOFT_UI_PAGE_WIFI };
+// The style of the live page (MENU > SCREEN steps through them; Rhyno, 22 Nov 2026):
+//   classic  the five rows below, dark or light
+//   colour   Full Colour: the whole screen takes the colour of the Hi-Lo zone, a bigger weight
+//   dial     the Hi-Lo bar bent into a gauge over the weight
+// Every style has the same rows and the same tap boxes; only what a row draws differs. Colour
+// and dial are dark screens. The menu pages look the same in every style.
+enum { WSOFT_UI_STYLE_CLASSIC, WSOFT_UI_STYLE_COLOUR, WSOFT_UI_STYLE_DIAL, WSOFT_UI_STYLE_COUNT };
 // How a word is coloured: plain, good (green), wait (yellow) or bad (red).
 enum { WSOFT_UI_TONE_SOFT, WSOFT_UI_TONE_OK, WSOFT_UI_TONE_WAIT, WSOFT_UI_TONE_BAD };
 // What the band above the weight shows instead of the trade row.
@@ -61,6 +69,7 @@ struct WsoftUiTile {
 struct WsoftUiModel {
   bool dark;
   uint8_t page;
+  uint8_t style;
   // status bar
   bool wifi_up;
   uint8_t wifi_bars;  // 0..4

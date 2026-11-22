@@ -12,7 +12,8 @@
 // font engine (Manrope and Sora from Google Fonts, so it needs the internet).
 //   node tools/wsoft-ui/gen.mjs
 // With WSOFT_UI_KEEP_FONTS=1 the letters are not drawn again: the ones in fonts.json are used
-// and the letter files are left alone. That needs no internet and gives the same result on any
+// and the letter files are left alone (a letter size they do not hold yet is drawn and added,
+// which needs the internet that once). That needs no internet and gives the same result on any
 // computer, so use it when only the screens changed (ref.js), not the letters.
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -131,8 +132,10 @@ function screenModule() {
 const KEEP_FONTS = process.env.WSOFT_UI_KEEP_FONTS === '1';
 
 function finish(data) {
+  // In keep mode the letter files are written only when a new letter size was added to them.
+  const letters = !KEEP_FONTS || data.added;
   const one = fontsHeader('1X', data.roles, data.fonts.yellow), two = fontsHeader('2X', data.roles, data.fonts.wave);
-  if (!KEEP_FONTS) {
+  if (letters) {
     write(join(root, 'lib/wsoft_core/src/gen/wsoft_ui_fonts_1x.h'), one.text);
     write(join(root, 'lib/wsoft_core/src/gen/wsoft_ui_fonts_2x.h'), two.text);
   }
@@ -140,7 +143,7 @@ function finish(data) {
   write(join(root, 'lib/wsoft_core/src/gen/wsoft_ui_presets.h'), presetsHeader(data.models));
   write(join(root, 'test/test_wsoft_ui/golden.h'), goldenHeader(data.crc));
   const b64 = (f) => ({ first: f.first, count: f.count, cap: f.cap, track: f.track, glyphs: f.glyphs, b64: Buffer.from(f.bytes).toString('base64') });
-  if (!KEEP_FONTS) write(join(here, 'fonts.json'), JSON.stringify({ yellow: data.fonts.yellow.map(b64), wave: data.fonts.wave.map(b64) }));
+  if (letters) write(join(here, 'fonts.json'), JSON.stringify({ yellow: data.fonts.yellow.map(b64), wave: data.fonts.wave.map(b64) }));
   write(join(root, 'interface/src/project/wsoft/gen/wsoftScreen.js'), screenModule());
   for (const id of ['yellow', 'wave']) {
     data.png[id].forEach((url, n) => {

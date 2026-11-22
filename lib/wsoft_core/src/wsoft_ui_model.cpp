@@ -258,7 +258,8 @@ static void menu(const WsoftUiInput &in, WsoftUiModel *m) {
   } else {
     tile(m, WSOFT_UI_TILE_PRODUCT, "PRODUCT", m->product, true);
   }
-  tile(m, WSOFT_UI_TILE_THEME, "SCREEN", in.dark ? "DARK" : "LIGHT", false);
+  tile(m, WSOFT_UI_TILE_THEME, "SCREEN",
+       in.style == WSOFT_UI_STYLE_COLOUR ? "COLOUR" : in.style == WSOFT_UI_STYLE_DIAL ? "DIAL" : in.dark ? "DARK" : "LIGHT", false);
   // The menu holds 7 tiles. When ZERO and PRESET TARE are both there, WI-FI gives way: a tap
   // on the Wi-Fi bars at the top of the screen opens the same page.
   tile(m, WSOFT_UI_TILE_WIFI, "WI-FI", in.wifi_up ? in.ip : "OFF", false);
@@ -268,6 +269,7 @@ void wsoft_ui_model(const WsoftUiInput &in, WsoftUiModel *m) {
   static const char *const TITLES[] = {"", "MENU", "ENTER PIN", "APPROVAL", "WI-FI"};
   memset(m, 0, sizeof *m);
   m->dark = in.dark;
+  m->style = (uint8_t)(in.style > WSOFT_UI_STYLE_CLASSIC && in.style < WSOFT_UI_STYLE_COUNT ? in.style : WSOFT_UI_STYLE_CLASSIC);
   m->page = (uint8_t)(in.page >= WSOFT_UI_PAGE_LIVE && in.page <= WSOFT_UI_PAGE_WIFI ? in.page : WSOFT_UI_PAGE_LIVE);
   bar(in, m);
   slot(in, m);
@@ -346,6 +348,7 @@ size_t wsoft_ui_model_json(const WsoftUiModel &m, char *out, size_t size) {
   j.ch('{');
   j.flag("dark", m.dark);
   j.number("page", m.page);
+  j.number("style", m.style);
   j.flag("wifi_up", m.wifi_up);
   j.number("wifi_bars", m.wifi_bars);
   j.text("ip", m.ip);

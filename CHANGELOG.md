@@ -16,6 +16,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   round it quietly. RS485 span with a real test weight is still **not bench-proven**.
 
 ### Added
+- **W-Soft: two more looks for the board screen, Full Colour and Dial** (Rhyno, 22 Nov 2026).
+  MENU > SCREEN now steps DARK, LIGHT, COLOUR, DIAL. Full Colour turns the whole screen the
+  colour of the Hi-Lo zone with a bigger weight; Dial bends the Hi-Lo bar into a gauge over the
+  weight. Same rows, taps and words; the browser's Live tab follows the board. Classic dark
+  stays the default. Host-tested dot for dot on both panels; **not flashed, not seen on a
+  board yet**. See docs/WSOFT-SCREEN.md section 3a.
 - **W-Soft: Drift Guard for the load cell** (Rhyno, 22 Nov 2026: the zero floats in a slow
   wave of about 12 g, the same empty and loaded). Scale setup → *Drift Guard* (off by default,
   1 to 5 divisions). Once a weight has been still for 2 seconds, slow movement is held back so

@@ -35,6 +35,8 @@ void WsoftCanvas::begin(int width, int height, double sx, double sy, const Wsoft
   fonts_ = fonts;
   pixels_ = nullptr;
   top_ = rows_ = 0;
+  clip0_ = 0;
+  clip1_ = height;
 }
 
 void WsoftCanvas::window(uint16_t *pixels, int top, int rows) {
@@ -43,12 +45,19 @@ void WsoftCanvas::window(uint16_t *pixels, int top, int rows) {
   rows_ = rows;
 }
 
+void WsoftCanvas::clip(double y0, double y1) {
+  clip0_ = rnd(y0 * sy_);
+  clip1_ = rnd(y1 * sy_);
+  if (clip0_ < 0) clip0_ = 0;
+  if (clip1_ > height_) clip1_ = height_;
+}
+
 void WsoftCanvas::rect(double x, double y, double w, double h, uint16_t color, double r) {
   long X0 = rnd(x * sx_), Y0 = rnd(y * sy_), X1 = rnd((x + w) * sx_), Y1 = rnd((y + h) * sy_);
   double R = r < 0 ? (X1 - X0 < Y1 - Y0 ? X1 - X0 : Y1 - Y0) / 2.0 : r * sy_;
   if (R > (X1 - X0) / 2.0) R = (X1 - X0) / 2.0;
   if (R > (Y1 - Y0) / 2.0) R = (Y1 - Y0) / 2.0;
-  long first = Y0 > top_ ? Y0 : top_, last = Y1 < top_ + rows_ ? Y1 : top_ + rows_;
+  long first = Y0 > lo() ? Y0 : lo(), last = Y1 < hi() ? Y1 : hi();
   long left = X0 > 0 ? X0 : 0, right = X1 < width_ ? X1 : width_;
   for (long py = first; py < last; py++) {
     bool corner_row = false;
@@ -91,8 +100,8 @@ void WsoftCanvas::disc(double cx, double cy, double r, uint16_t color) {
   double X = cx * sx_, Y = cy * sy_, R = r * sy_;
   long first = (long)floor(Y - R - 1), last = (long)floor(Y + R + 1);
   long left = (long)floor(X - R - 1), right = (long)floor(X + R + 1);
-  if (first < top_) first = top_;
-  if (last > top_ + rows_ - 1) last = top_ + rows_ - 1;
+  if (first < lo()) first = lo();
+  if (last > hi() - 1) last = hi() - 1;
   if (left < 0) left = 0;
   if (right > width_ - 1) right = width_ - 1;
   for (long py = first; py <= last; py++) {
@@ -105,6 +114,54 @@ void WsoftCanvas::disc(double cx, double cy, double r, uint16_t color) {
   }
 }
 
+void WsoftCanvas::line(double x1, double y1, double x2, double y2, double w, uint16_t color) {
+  double AX = x1 * sx_, AY = y1 * sy_, BX = x2 * sx_, BY = y2 * sy_, Hw = w * sy_ / 2;
+  double ex = BX - AX, ey = BY - AY, len2 = ex * ex + ey * ey;
+  long first = (long)floor((AY < BY ? AY : BY) - Hw - 1), last = (long)floor((AY > BY ? AY : BY) + Hw + 1);
+  long left = (long)floor((AX < BX ? AX : BX) - Hw - 1), right = (long)floor((AX > BX ? AX : BX) + Hw + 1);
+  if (first < lo()) first = lo();
+  if (last > hi() - 1) last = hi() - 1;
+  if (left < 0) left = 0;
+  if (right > width_ - 1) right = width_ - 1;
+  for (long py = first; py <= last; py++) {
+    for (long px = left; px <= right; px++) {
+      double qx = px + 0.5 - AX, qy = py + 0.5 - AY;
+      double t = len2 > 0 ? (qx * ex + qy * ey) / len2 : 0;
+      if (t < 0) t = 0;
+      else if (t > 1) t = 1;
+      double dx = qx - t * ex, dy = qy - t * ey;
+      double cover = Hw - sqrt(dx * dx + dy * dy) + 0.5;
+      if (cover <= 0) continue;
+      put((int)px, (int)py, color, cover < 1 ? (int)rnd(cover * 255) : 255);
+    }
+  }
+}
+
+void WsoftCanvas::ring(double cx, double cy, double r, double w, double ax, double ay, double bx, double by, uint16_t color) {
+  double X = cx * sx_, Y = cy * sy_, R = r * sy_, I = R - w * sy_;
+  double outer2 = (R + 1) * (R + 1), inner2 = I > 1 ? (I - 1) * (I - 1) : 0;
+  long first = (long)floor(Y - R - 1), last = (long)floor(Y + R + 1);
+  long left = (long)floor(X - R - 1), right = (long)floor(X + R + 1);
+  if (first < lo()) first = lo();
+  if (last > hi() - 1) last = hi() - 1;
+  if (left < 0) left = 0;
+  if (right > width_ - 1) right = width_ - 1;
+  for (long py = first; py <= last; py++) {
+    for (long px = left; px <= right; px++) {
+      double dx = px + 0.5 - X, dy = py + 0.5 - Y, d2 = dx * dx + dy * dy;
+      // Most dots are off the ring: they cost no square root.
+      if (d2 > outer2 || d2 < inner2) continue;
+      double d = sqrt(d2);
+      double cover = R - d + 0.5;
+      double inner = d - I + 0.5, from = ax * dy - ay * dx + 0.5, to = dx * by - dy * bx + 0.5;
+      if (inner < cover) cover = inner;
+      if (from < cover) cover = from;
+      if (to < cover) cover = to;
+      if (cover <= 0) continue;
+      put((int)px, (int)py, color, cover < 1 ? (int)rnd(cover * 255) : 255);
+    }
+  }
+}
 
 // Inside the six-pointed star of radius R at the origin: either triangle.
 static bool in_star6(double x, double y, double R) {
@@ -116,8 +173,8 @@ void WsoftCanvas::star6(double cx, double cy, double r, uint16_t color) {
   double X = cx * sx_, Y = cy * sy_, R = r * sy_;
   long first = (long)floor(Y - R - 1), last = (long)floor(Y + R + 1);
   long left = (long)floor(X - R - 1), right = (long)floor(X + R + 1);
-  if (first < top_) first = top_;
-  if (last > top_ + rows_ - 1) last = top_ + rows_ - 1;
+  if (first < lo()) first = lo();
+  if (last > hi() - 1) last = hi() - 1;
   if (left < 0) left = 0;
   if (right > width_ - 1) right = width_ - 1;
   for (long py = first; py <= last; py++) {
@@ -176,7 +233,7 @@ double WsoftCanvas::text(const char *text, double x, double y, int font, uint16_
     int row_bytes = (g.w + 1) >> 1;
     for (int yy = 0; yy < g.h; yy++) {
       long py = baseline + g.dy + yy;
-      if (py < top_ || py >= top_ + rows_) continue;
+      if (py < lo() || py >= hi()) continue;
       const uint8_t *row = rows + yy * row_bytes;
       for (int xx = 0; xx < g.w; xx++) {
         long px = pen + g.dx + xx;
