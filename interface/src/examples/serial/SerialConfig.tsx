@@ -159,7 +159,10 @@ const SerialConfig: FC = () => {
           }}
           disabled={saving}
           inputProps={{ min: 0, max: 60000, step: 100 }}
-          helperText="Throttle how often weight readings are pushed to WebSocket, REST, and Writers. 0 = publish every line as it arrives. e.g. 1000 = at most one update per second."
+          helperText={
+            'Throttle how often weight readings are pushed to WebSocket, REST, and Writers. ' +
+            '0 = publish every line as it arrives. e.g. 1000 = at most one update per second.'
+          }
         />
 
         <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>

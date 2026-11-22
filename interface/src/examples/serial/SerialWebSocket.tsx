@@ -25,7 +25,7 @@ const SerialWebSocket: FC = () => {
         timestamp: data.timestamp,
         weight: data.weight ?? ''
       }].slice(-100));
-      
+
       // Auto-scroll to bottom
       if (scrollRef.current) {
         scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -38,18 +38,18 @@ const SerialWebSocket: FC = () => {
       <Typography variant="body2" paragraph>
         Real-time serial data streaming via WebSocket. Shows last 100 lines.
       </Typography>
-      
+
       <Button onClick={() => setLines([])} sx={{ mb: 2 }}>
         Clear
       </Button>
-      
-      <Box 
+
+      <Box
         ref={scrollRef}
-        sx={{ 
+        sx={{
           fontFamily: 'monospace',
           fontSize: '0.85rem',
-          bgcolor: 'background.paper', 
-          p: 2, 
+          bgcolor: 'background.paper',
+          p: 2,
           borderRadius: 1,
           height: 400,
           overflow: 'auto'

@@ -2,8 +2,6 @@
 #define SerialWriterForwarderService_h
 
 #include <WebSocketsClient.h>
-#include <HTTPClient.h>
-#include <WiFi.h>
 
 #include <HttpEndpoint.h>
 #include <FSPersistence.h>
@@ -13,7 +11,7 @@
 class SerialWriterService;
 
 #define SERIALW_FWD_ENDPOINT_PATH "/rest/serialWriterSource"
-#define SERIALW_FWD_CONFIG_FILE   "/config/serialWriterSource.json"
+#define SERIALW_FWD_CONFIG_FILE "/config/serialWriterSource.json"
 
 class SerialWriterForwarderService : public StatefulService<SerialWriterForwarderState> {
  public:
@@ -42,32 +40,32 @@ class SerialWriterForwarderService : public StatefulService<SerialWriterForwarde
   bool latestSaveStatus(int* waiting, uint32_t* count, int* result);
 
  private:
-  HttpEndpoint<SerialWriterForwarderState>  _httpEndpoint;
+  HttpEndpoint<SerialWriterForwarderState> _httpEndpoint;
   FSPersistence<SerialWriterForwarderState> _fsPersistence;
 
   SerialWriterService* _writerService;
-  WebSocketsClient     _wsClient;
+  WebSocketsClient _wsClient;
 
-  bool          _running = false;
+  bool _running = false;
   unsigned long _nextRetryMs = 0;
-  uint16_t      _backoffMs   = 1000;  // 1s, 2s, 4s, ..., capped at 30s
+  uint16_t _backoffMs = 1000;  // 1s, 2s, 4s, ..., capped at 30s
 
   unsigned long _lastAnnounceMs = 0;
-  String        _announceUrl;   // e.g. "http://192.168.2.50/rest/writers/announce"
+  String _announceUrl;  // e.g. "http://192.168.2.50/rest/writers/announce"
   unsigned long _lastPollMs = 0;
-  String        _serialRestUrl;
-  uint8_t       _readerPollFailures = 0;
+  String _serialRestUrl;
+  uint8_t _readerPollFailures = 0;
   unsigned long _lastReaderOkMs = 0;
   // A W-Soft weigh board's /ws/wsoftFeed pushes every 0.5 s, so a quiet socket is a dead one:
   // _lastWsDataMs is the last socket message (REST backup polls do not count), _wsoftFeed
   // says the source is such a feed.
   unsigned long _lastWsDataMs = 0;
-  bool          _wsoftFeed = false;
+  bool _wsoftFeed = false;
   static volatile bool _saveRequested;
-  bool     _hasSaveStatus = false;
-  int      _saveWaiting = 0;
+  bool _hasSaveStatus = false;
+  int _saveWaiting = 0;
   uint32_t _saveCount = 0;
-  int      _saveResult = 0;
+  int _saveResult = 0;
 
   void onConfigChanged();
   void connectReader();

@@ -32,12 +32,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   its own field: `esp_led` (the S3's light) is ON by default and is not used on these pins.
   **Not flashed, not bench-tested.**
 - **W-Soft: two more looks for the board screen, Full Colour and Dial** (Rhyno, 22 Nov 2026).
-  MENU > SCREEN now steps DARK, LIGHT, COLOUR, DIAL. Full Colour turns the whole screen the
-  colour of the Hi-Lo zone with a bigger weight; Dial bends the Hi-Lo bar into a gauge over the
-  weight. Both say what to do: TOO LOW ADD MORE (arrow up), TOO HIGH REMOVE PRODUCT (arrow
-  down), SAVING, DONE. Same rows and taps; the browser's Live tab follows the board. Classic dark
-  stays the default. Host-tested dot for dot on both panels; **not flashed, not seen on a
-  board yet**. See docs/WSOFT-SCREEN.md section 3a.
+  MENU > SCREEN now steps DARK, LIGHT, COLOUR, DIAL. Full Colour is the mini Edge look: a navy
+  deck, a teal line on the status bar, the weight floating with a thick zone-colour outline,
+  black words on a zone-colour pill, glass buttons with a cyan edge and a blue SAVE. Dial bends
+  the Hi-Lo bar into a gauge over the weight. Both say what to do: TOO LOW ADD MORE (arrow up),
+  TOO HIGH REMOVE PRODUCT (arrow down), SAVING, DONE. Same rows and taps; the browser's Live
+  tab follows the board. Classic dark stays the default. Host-tested dot for dot on both panels;
+  **not flashed, not seen on a board yet**. See docs/WSOFT-SCREEN.md section 3a.
 - **W-Soft: Drift Guard for the load cell** (Rhyno, 22 Nov 2026: the zero floats in a slow
   wave of about 12 g, the same empty and loaded). Scale setup → *Drift Guard* (off by default,
   1 to 20 divisions). Once a weight has been still for 2 seconds, slow movement is held back so
@@ -101,6 +102,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   W-Soft > Settings. Guide: `docs/WSOFT-CYD28.md` section 2d. Not bench-tested yet.
 
 ### Fixed
+- Build: shared sources compile for `esp12e` again (no BLE library, ESP8266 Wi-Fi and HTTP client, Serial1 `begin`, Wi-Fi scan). The sketch still does not link: it is about 2.6MB and the ESP8266 app slot is about 1MB. CI builds `node32s`.
 - CI: install `intelhex` so the `node32s` (ESP32) build can finish.
 - Build: pin the ESP32 platform to `espressif32@6.13.0` (same as the device branches). Unpinned, it moved to 8.0.0 (Arduino core 3.x) and `node32s` stopped compiling.
 - Docs: branch lists now name branches that exist (there is no `serial2` or `display35`).
