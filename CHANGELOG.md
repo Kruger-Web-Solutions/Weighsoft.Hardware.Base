@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **W-Soft: one Calibrate page for the junction box and the load cell** (Rhyno, 22 Nov 2026).
+  Same look and the same two steps (Zero, Test weight) on RS485 and on an HX711 board; only the
+  last step differs (sent to the junction box, or kept on the board). Both ask "Yes, calibrate"
+  first and warn when the weight is still moving. The typed test weight is read one way: a
+  weight finer than the scale shows (2.0005 on 3 decimals) is refused, where RS485 used to
+  round it quietly. RS485 span with a real test weight is still **not bench-proven**.
+
 ### Added
 - **W-Soft: the board's screen in the browser** (Rhyno, 22 Nov 2026: one screen, two places).
   The Live tab shows the board's own screen and a click is a tap on the board: the board sends

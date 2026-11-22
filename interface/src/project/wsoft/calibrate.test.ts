@@ -1,8 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 
 import {
-  adWriteRequest, alarmReadRequest, calibrateBlock, calibratesLoadcell, digitsText, loadcellDivisions, loadcellTestWeight,
-  parseTestWeight, spanDigits,
+  adWriteRequest, alarmReadRequest, calibrateBlock, calibratesLoadcell, digitsText, loadcellDivisions, parseTestWeight,
   LOADCELL_AUTO_ZERO, LOADCELL_FILTERS, noiseHint, noiseText
 } from './calibrate';
 import { WSoftStatus } from './types';
@@ -11,21 +10,31 @@ const status = (overrides: Partial<WSoftStatus>): WSoftStatus =>
   ({ linked: true, approval_on: false, source: 'rs485', role: 'weigh', decimals: 3, ...overrides } as WSoftStatus);
 
 describe('test weight', () => {
-  it('goes to the junction box in display digits', () => {
-    expect(spanDigits(2, 3)).toBe(2000);
-    expect(spanDigits(20.5, 1)).toBe(205);
-    expect(spanDigits(1500, 0)).toBe(1500);
-    expect(spanDigits(0.1, 3)).toBe(100);
+  it('is read one way for the junction box and the load cell', () => {
+    // text goes to the load cell board, digits to the junction box.
+    expect(parseTestWeight('20', 3)).toEqual({ text: '20', digits: 20000 });
+    expect(parseTestWeight(' 20.5 ', 1)).toEqual({ text: '20.5', digits: 205 });
+    expect(parseTestWeight('20,5', 3)).toEqual({ text: '20.5', digits: 20500 });
+    expect(parseTestWeight('2.000', 3)).toEqual({ text: '2.000', digits: 2000 });
+    expect(parseTestWeight('1500', 0)).toEqual({ text: '1500', digits: 1500 });
+    expect(parseTestWeight('0.1', 3)).toEqual({ text: '0.1', digits: 100 });
+    // Exact: 0.29 * 100 is 28.999... as a float.
+    expect(parseTestWeight('0.29', 2)).toEqual({ text: '0.29', digits: 29 });
   });
 
-  it('reads 20, 20.5 and 20,5; refuses 0, empty and text', () => {
-    expect(parseTestWeight('20')).toBe(20);
-    expect(parseTestWeight(' 20.5 ')).toBe(20.5);
-    expect(parseTestWeight('20,5')).toBe(20.5);
-    expect(parseTestWeight('0')).toBeUndefined();
-    expect(parseTestWeight('')).toBeUndefined();
-    expect(parseTestWeight('-5')).toBeUndefined();
-    expect(parseTestWeight('20kg')).toBeUndefined();
+  it('refuses 0, empty, text and a negative', () => {
+    expect(parseTestWeight('0', 3)).toBeUndefined();
+    expect(parseTestWeight('0.000', 3)).toBeUndefined();
+    expect(parseTestWeight('', 3)).toBeUndefined();
+    expect(parseTestWeight('-5', 3)).toBeUndefined();
+    expect(parseTestWeight('20kg', 3)).toBeUndefined();
+    expect(parseTestWeight('12345678', 3)).toBeUndefined();
+  });
+
+  it('refuses a weight finer than the scale shows, never rounds it', () => {
+    expect(parseTestWeight('2.0005', 3)).toBeUndefined();
+    expect(parseTestWeight('2.5', 0)).toBeUndefined();
+    expect(parseTestWeight('2.0005', 4)).toEqual({ text: '2.0005', digits: 20005 });
   });
 });
 
@@ -39,6 +48,15 @@ describe('who can calibrate here', () => {
     expect(calibrateBlock(status({ source: 'rs232' }))).toBe('rs232');
     expect(calibrateBlock(status({ approval_on: true }))).toBe('approval');
     expect(calibrateBlock(status({ linked: false }))).toBe('not_linked');
+  });
+
+  it('a load cell board whenever the HX711 answers, also before it shows a weight', () => {
+    // Not calibrated yet means no weight and no link.
+    expect(calibrateBlock(status({ source: 'loadcell', linked: false }), true)).toBeUndefined();
+    expect(calibrateBlock(status({ source: 'loadcell', linked: false }))).toBeUndefined();
+    expect(calibrateBlock(status({ source: 'loadcell' }), false)).toBe('no_cell');
+    expect(calibrateBlock(status({ source: 'loadcell', approval_on: true }), true)).toBe('approval');
+    expect(calibrateBlock(status({ source: 'loadcell', role: 'writer' }), true)).toBe('writer');
   });
 });
 
@@ -70,18 +88,6 @@ describe('load cell on an HX711 board', () => {
     expect(digitsText(-15, 2)).toBe('-0.15');
     expect(digitsText(250, 0)).toBe('250');
     expect(digitsText(0, 1)).toBe('0.0');
-  });
-
-  it('sends the test weight as typed, keeping its decimals', () => {
-    expect(loadcellTestWeight('2.000')).toBe('2.000');
-    expect(loadcellTestWeight(' 2,5 ')).toBe('2.5');
-    expect(loadcellTestWeight('500')).toBe('500');
-    expect(loadcellTestWeight('0')).toBeUndefined();
-    expect(loadcellTestWeight('0.000')).toBeUndefined();
-    expect(loadcellTestWeight('1.23456')).toBeUndefined();
-    expect(loadcellTestWeight('-2')).toBeUndefined();
-    expect(loadcellTestWeight('2kg')).toBeUndefined();
-    expect(loadcellTestWeight('')).toBeUndefined();
   });
 });
 

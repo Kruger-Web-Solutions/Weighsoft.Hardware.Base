@@ -1,4 +1,5 @@
-// Calibrate tab rules (WSoftCalibrate.tsx), kept apart so host tests can pin them.
+// Calibrate tab rules (WSoftCalibrate.tsx), kept apart so host tests can pin them. One page for
+// the junction box (RS485) and the board's own load cell (HX711); only the last step differs.
 //
 // The DJB junction box calibrates with its AD register (DJB-W/M1-16 Communication Protocol V2.0,
 // LC1 AD Value 41003, command 10): write 0 = zero calibration with the scale empty; write the
@@ -9,19 +10,30 @@
 
 import { WSoftDjbRequest, WSoftStatus } from './types';
 
-/** The test weight in the box's display digits, e.g. 2.000 kg with 3 decimals = 2000. */
-export const spanDigits = (weight: number, decimals: number) => Math.round(weight * Math.pow(10, decimals));
+/** A typed test weight the scale can take. */
+export interface TestWeight {
+  /** As typed, with a point: "2.5". The load cell board takes this. */
+  text: string;
+  /** In the scale's display digits, e.g. 2.000 kg with 3 decimals = 2000. The junction box takes this. */
+  digits: number;
+}
 
-/** "20", "20.5" or "20,5" as a number above 0; undefined for anything else. */
-export const parseTestWeight = (text: string) => {
+/**
+ * The typed test weight, one rule for every source: "20", "20.5" or "20,5", above 0, up to 7
+ * digits before the point and no more digits after it than the scale shows. A finer weight
+ * (2.0005 on a 3 decimal scale) is refused, never quietly rounded. Undefined for anything else.
+ */
+export const parseTestWeight = (text: string, decimals: number): TestWeight | undefined => {
   const clean = text.trim().replace(',', '.');
-  if (!/^[0-9]+(\.[0-9]+)?$/.test(clean)) return undefined;
-  const value = Number(clean);
-  return value > 0 ? value : undefined;
+  const match = /^([0-9]{1,7})(?:\.([0-9]+))?$/.exec(clean);
+  if (!match) return undefined;
+  const fraction = match[2] ?? '';
+  if (fraction.length > decimals) return undefined;
+  const digits = Number(match[1] + fraction.padEnd(decimals, '0'));
+  return digits > 0 ? { text: clean, digits } : undefined;
 };
 
-/** Why this board can not calibrate from its web page right now, or undefined when it can. */
-/** True when the Calibrate tab shows the load cell steps (WSoftLoadcellCalibrate) instead of the junction box ones. */
+/** True when the Calibrate tab calibrates the board's own load cell (HX711), not the junction box. */
 export const calibratesLoadcell = (status: WSoftStatus) => status.source === 'loadcell' && status.role !== 'writer';
 
 /** Digits without the point back to text: 2000 at 3 decimals = "2.000". */
@@ -29,13 +41,6 @@ export const digitsText = (digits: number, decimals: number) => {
   const sign = digits < 0 ? '-' : '';
   const text = String(Math.abs(Math.trunc(digits))).padStart(decimals + 1, '0');
   return decimals > 0 ? `${sign}${text.slice(0, -decimals)}.${text.slice(-decimals)}` : `${sign}${text}`;
-};
-
-/** The test weight as the board takes it: "2", "2.000" or "2,5" (up to 4 decimals), above 0. Else undefined. */
-export const loadcellTestWeight = (text: string) => {
-  const clean = text.trim().replace(',', '.');
-  if (!/^[0-9]{1,7}(\.[0-9]{1,4})?$/.test(clean)) return undefined;
-  return Number(clean) > 0 ? clean : undefined;
 };
 
 // ---- Load cell: the unit and division choices on the Scale setup tab ----
@@ -102,12 +107,17 @@ export const loadcellDivisions = (unit: LoadcellUnit): LoadcellDivision[] => {
   return list;
 };
 
-export type CalibrateBlock = 'writer' | 'rs232' | 'approval' | 'not_linked';
+export type CalibrateBlock = 'writer' | 'rs232' | 'approval' | 'not_linked' | 'no_cell';
 
-export const calibrateBlock = (status: WSoftStatus): CalibrateBlock | undefined => {
+/**
+ * Why this board can not calibrate from its web page right now, or undefined when it can.
+ * cellPresent: on a load cell board, whether the HX711 answers (undefined while not yet read).
+ */
+export const calibrateBlock = (status: WSoftStatus, cellPresent?: boolean): CalibrateBlock | undefined => {
   if (status.role === 'writer') return 'writer';
   if (status.source === 'rs232') return 'rs232';
   if (status.approval_on) return 'approval';
+  if (calibratesLoadcell(status)) return cellPresent === false ? 'no_cell' : undefined;
   if (!status.linked) return 'not_linked';
   return undefined;
 };
@@ -120,7 +130,10 @@ export const CALIBRATE_BLOCK_TEXT: Record<CalibrateBlock, string> = {
     'This board reads an RS232 scale. That scale is calibrated on its own indicator (its keypad or its ' +
     'technician menu), not from here. The board only reads the weight it sends.',
   approval: 'Approval is ON. Switch Approval off on the Live tab before calibrating.',
-  not_linked: 'The board can not see the junction box. Check the RS485 cable.'
+  not_linked: 'The board can not see the junction box. Check the RS485 cable.',
+  no_cell:
+    'No reading from the load cell board. Check the four wires on the CN1 plug: ' +
+    'VCC to 3.3V, GND to GND, DT to IO22, SCK to IO27.'
 };
 
 // The junction box's first load cell (LC1). Its AD value is register 41003 in
