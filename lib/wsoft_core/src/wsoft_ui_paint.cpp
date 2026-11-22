@@ -290,18 +290,21 @@ static const uint16_t NIGHT = 0x1066;       // #120D36
 // Full Colour is "Aurora" (Rhyno, 22 Nov 2026): a night-blue screen that fades down to Bunting,
 // the weight in a banner filled with the zone's colour, and the word in black on a pill of the
 // same colour.
-static const uint16_t AUR_TOP = 0x0824;     // #0B0726
-static const uint16_t AUR_LOW = 0x18A8;     // #1B1446
-static const uint16_t AUR_SOFT = 0x9D9B;    // #9FB3D9
-static const uint16_t AUR_BTN = 0x20EA;     // #221C55
-static const uint16_t AUR_LINE = 0x39AF;    // #3A3478
-static const uint16_t AUR_BAR = 0x0023;     // #07051A
+// "Mini Edge" (Rhyno, 22 Nov 2026): the Edge Touch colours.
+static const uint16_t AUR_TOP = 0x08C5;     // #0d1b2a
+static const uint16_t AUR_LOW = 0x08A4;     // #0b1420
+static const uint16_t AUR_SOFT = 0xAE3A;    // #a9c4d4
+static const uint16_t AUR_BTN = 0x1105;     // #13212f
+static const uint16_t AUR_LINE = 0x3BF3;    // #3f7f98
+static const uint16_t AUR_BAR = 0x08E6;     // #0f1e33
+static const uint16_t EDGE_ON = 0x24B7;     // #2596be
+static const uint16_t EDGE_TEAL = 0x0C4F;   // #0e8a7d
 static const uint16_t INK0 = 0x0862;        // #0B0D10
 
 struct ColourSet {
   uint16_t bg, ink, soft, shade, btn, btn_ink, btn_soft, bar, on, on_ink;
   bool grad, band, card, border;
-  uint16_t btn_line;
+  uint16_t btn_line, bar_line;
   uint16_t w_bg, w_ink, w_soft, strip, pill, pill_ink, out, mid, over, dot, mark, m_dot;
 };
 
@@ -319,6 +322,7 @@ static ColourSet colour_set(const WsoftUiModel &m, const Theme &) {
     P.btn_soft = SLATE;
     P.bar = SKY;
     P.on = NAVY;
+    P.bar_line = SKY;
     P.on_ink = WHITE;
     P.grad = false;
     P.band = false;
@@ -349,7 +353,8 @@ static ColourSet colour_set(const WsoftUiModel &m, const Theme &) {
   P.btn_ink = WHITE;
   P.btn_soft = AUR_SOFT;
   P.bar = AUR_BAR;
-  P.on = SKY;
+  P.bar_line = EDGE_TEAL;
+  P.on = EDGE_ON;
   P.on_ink = WHITE;
   P.band = false;
   P.card = true;
@@ -442,18 +447,14 @@ static void paint_weight_colour(WsoftCanvas &c, const WsoftUiModel &m, const The
   if (m.zone != WSOFT_UI_ZONE_NONE) {
     ColourSet P = colour_set(m, T);
     ground(c, P, 62, 60);
-    if (P.card) {
-      // Aurora glass card (Rhyno picked A, 22 Nov 2026): a thin line round it and a zone-coloured bar on the left.
-      c.rect(6, 62, 308, 60, P.btn_line, 10);
-      c.rect(7, 63, 306, 58, P.w_bg, 9);
-      c.rect(11, 69, 5, 46, P.strip, 2);
-    } else if (!P.band) c.rect(0, 64, 4, 56, P.strip);
+    // Mini Edge: the weight floats on the ground, no box (Rhyno, 22 Nov 2026).
+    if (!P.card && !P.band) c.rect(0, 64, 4, 56, P.strip);
     ink = P.w_ink;
     soft = P.w_soft;
   } else {
     c.rect(0, 62, 320, 60, bg);
   }
-  // Aurora's card: the weight sits inside it with room to spare.
+  // Mini Edge: big numbers floating on the ground.
   if (m.zone != WSOFT_UI_ZONE_NONE && colour_set(m, T).card) {
     c.text(m.label, 302, 73, TINY, soft, WSOFT_RIGHT);
     // Big numbers with a thick outline in the full zone colour (Rhyno, 22 Nov 2026: "as big as
@@ -828,8 +829,8 @@ void wsoft_ui_paint_row(WsoftCanvas &c, const WsoftUiModel &m, int row) {
   switch (row) {
     case WSOFT_UI_ROW_BAR:
       if (colour && m.zone != WSOFT_UI_ZONE_NONE) {
-        uint16_t bg = colour_set(m, T).bar;
-        paint_bar(c, m, bg, bg);
+        ColourSet P = colour_set(m, T);
+        paint_bar(c, m, P.bar, P.bar_line);
       } else {
         paint_bar(c, m, T.bar, T.bar_line);
       }
