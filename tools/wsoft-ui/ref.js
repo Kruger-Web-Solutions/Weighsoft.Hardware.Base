@@ -105,17 +105,17 @@ const WsoftUi = (() => {
       accent: '#2596be', btn: '#1e3654', btn_ink: '#f5f8fa', stop: '#c94545', pointer: '#f5f8fa',
       z_low: '#e2b84a', z_low_ink: '#1a2a33', z_ok: '#23965f', z_ok_ink: '#ffffff', z_high: '#c94545', z_high_ink: '#ffffff',
       bar: '#0f1e33', bar_line: '#24354d' },
-    // Light mode follows the Weighsoft brand palette (Rhyno, 22 Nov 2026; repo-review brand.md):
-    // Paper ground, white cards, Bunting ink, Slate second ink, Line dividers, Sky-200 buttons,
-    // Curious Deep accent, and the reserved status colours with their tints.
-    light: { bg: '#F7F8FC', panel: '#FFFFFF', line: '#DCDAE8', ink: '#1B1446', soft: '#4A4568',
+    // Light mode follows the Weighsoft faceplate and brand (Rhyno, 22 Nov 2026): plate grey ground,
+    // white cards and buttons, Bunting ink, slate second ink, the brand blue status bar, Curious
+    // Deep accent, and the reserved status colours with their tints.
+    light: { bg: '#E9EEF2', panel: '#FFFFFF', line: '#C9D2DA', ink: '#1B1446', soft: '#5A6270',
       ok: '#15803D', ok_ink: '#14532d', wait: '#B45309', wait_ink: '#7a3c06', bad: '#B60205', bad_ink: '#7f1d1d',
       chip_ok: '#DCFCE7', chip_bad: '#FEE2E2',
-      accent: '#1174A8', btn: '#BCE2F5', btn_ink: '#1B1446', stop: '#B60205', pointer: '#1B1446',
+      accent: '#1174A8', btn: '#FFFFFF', btn_ink: '#1B1446', stop: '#B60205', pointer: '#1B1446',
       z_low: '#B45309', z_low_ink: '#ffffff', z_ok: '#15803D', z_ok_ink: '#ffffff', z_high: '#B60205', z_high_ink: '#ffffff',
-      bar: '#1B1446', bar_line: '#27246B' },
+      bar: '#1699D6', bar_line: '#1174A8' },
   };
-  // The status bar is dark in both modes (navy, or the brand's Bunting on the light screen): its inks are these.
+  // The status bar is navy in dark mode and the brand blue in light mode: its inks are these.
   const BAR_HEX = { bg: '#0f1e33', line: '#24354d', ink: '#f5f8fa', mute: '#8fb8c8', dim: '#3a506b', ok: '#3dbe78', bad: '#ff8a8a', warn: '#f2c879' };
   const to565 = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, c565(v)]));
   const THEME = { dark: to565(THEME_HEX.dark), light: to565(THEME_HEX.light) };
@@ -501,20 +501,32 @@ const WsoftUi = (() => {
   // The plate and the audit counter belong on the screen when there is a plate or the trade checks are on.
   const plateOn = (m) => m.trade_ok || m.plate_sa.length > 0 || m.plate_limits.length > 0;
 
-  // ---------- Full Colour: the Hi-Lo zone shown in colour on the brand night blue ----------
-  // With no zone (no product, empty scale, no signal) it is the classic dark screen with the
-  // bigger weight.
-  // Made to sit in the Weighsoft faceplate (Rhyno, 22 Nov 2026: the flat bright colours looked
-  // like an old TV game; the box's plate is light grey-white with a red swoosh). A light plate
-  // grey screen, the brand's blue bar, navy letters, a thin red strip by the weight, and the
-  // word in a pill of the zone's own colour.
+  // ---------- Two looks share one layout: the word in a pill, a slim limits bar ----------
+  // Light mode is the faceplate look (Rhyno, 22 Nov 2026: the box's plate is light grey-white
+  // with a red swoosh): plate grey, the brand's blue bar, navy letters, a thin red strip by the
+  // weight, the word in a pill of the zone's colour. Full Colour is the bright look (Rhyno, same
+  // day: "make the colours brighter"): the whole screen in a vivid zone colour, the word in a
+  // white (or navy) pill. With no zone (no product, empty scale, no signal) both fall back to
+  // the classic screen of their theme.
   const PLATE = c565('#E9EEF2'), NAVY = c565('#1B1446'), SLATE = c565('#5A6270');
   const PLATE_LINE = c565('#C9D2DA'), SKY = c565('#1699D6'), SWOOSH = c565('#E4243B');
+  const VIVID_LOW = c565('#F5B400'), VIVID_OK = c565('#16A34A'), VIVID_HIGH = c565('#E4243B');
   function colourSet(m, T) {
-    const z = m.zone === ZONE_LOW ? T.z_low : m.zone === ZONE_OK ? T.z_ok : T.z_high;
-    const z_ink = m.zone === ZONE_LOW ? T.z_low_ink : m.zone === ZONE_OK ? T.z_ok_ink : T.z_high_ink;
-    return { bg: PLATE, ink: NAVY, soft: SLATE, shade: PLATE_LINE, btn: WHITE, bar: SKY, on: NAVY, on_ink: WHITE, strip: SWOOSH, z, z_ink };
+    const D = THEME.dark;
+    const low = m.zone === ZONE_LOW, ok = m.zone === ZONE_OK;
+    if (m.style !== STYLE_COLOUR) {
+      const z = low ? D.z_low : ok ? D.z_ok : D.z_high;
+      const z_ink = low ? D.z_low_ink : ok ? D.z_ok_ink : D.z_high_ink;
+      return { bg: PLATE, ink: NAVY, soft: SLATE, shade: PLATE_LINE, btn: WHITE, bar: SKY, on: NAVY, on_ink: WHITE, strip: SWOOSH,
+        pill: z, pill_ink: z_ink, out: blend(PLATE, D.z_low, 150), mid: blend(PLATE, D.z_ok, 150), over: blend(PLATE, D.z_high, 150), dot: z, m_dot: z };
+    }
+    const bg = low ? VIVID_LOW : ok ? VIVID_OK : VIVID_HIGH;
+    const ink = low ? NAVY : WHITE;
+    return { bg, ink, soft: blend(bg, ink, 200), shade: blend(bg, 0, 50), btn: blend(bg, 0, 45), bar: blend(bg, 0, 90), on: ink, on_ink: bg, strip: ink,
+      pill: ink, pill_ink: bg, out: blend(bg, ink, 80), mid: blend(bg, ink, 170), over: blend(bg, ink, 80), dot: ink, m_dot: bg };
   }
+  // Light mode on the live page draws with these looks too.
+  const plateLook = (m, style) => style === STYLE_CLASSIC && !m.dark;
 
   function paintTopColour(c, m, T) {
     if (m.zone === ZONE_NONE) return paintTop(c, m, T);
@@ -548,7 +560,7 @@ const WsoftUi = (() => {
       c.star6(8 + w / 2, 32.5, 9, P.soft);
     }
     const sw = c.text(m.steady, 312, 32.5, SMALL, P.soft, RIGHT);
-    c.disc(312 - sw - 8, 32.5, 4, P.z);
+    c.disc(312 - sw - 8, 32.5, 4, P.dot);
     c.text(c.fit(m.reason, TINY, 312 - sw - 20 - (8 + w + 7)), 8 + w + 7, 32.5, TINY, P.soft, LEFT);
     if (plateOn(m)) {
       const aw = c.text(m.audit, 312, 52, TINY, P.soft, RIGHT);
@@ -589,17 +601,17 @@ const WsoftUi = (() => {
     if (role === MID && c.width(words, MID) + 52 > 304) role = SMALL;
     const wy = plateOn(m) ? 139 : 143;
     const pw = c.width(words, role) + 52, px = 160 - pw / 2;
-    c.rect(px, wy - 14, pw, 28, P.z, -1);
-    paintSign(c, m.zone, px + 23, wy, P.z_ink);
-    c.text(words, px + 38, wy, role, P.z_ink, LEFT);
+    c.rect(px, wy - 14, pw, 28, P.pill, -1);
+    paintSign(c, m.zone, px + 23, wy, P.pill_ink);
+    c.text(words, px + 38, wy, role, P.pill_ink, LEFT);
     if (plateOn(m)) c.text(c.fit(m.product + '   ' + m.target, SMALL, 300), 160, 160, SMALL, P.soft, CENTER);
-    // The limits as three soft bands, the marker white.
+    // The limits as three soft bands, and the marker.
     const bx = 14, bw = 292, by = 168, bh = 6;
     const lo = bx + bw * 6 / 22, hi = bx + bw * 16 / 22;
     c.rect(bx, by, bw, bh, P.shade, -1);
-    c.rect(bx, by, lo - bx, bh, blend(P.bg, T.z_low, 150), -1);
-    c.rect(lo, by, hi - lo, bh, blend(P.bg, T.z_ok, 150), 0);
-    c.rect(hi, by, bx + bw - hi, bh, blend(P.bg, T.z_high, 150), -1);
+    c.rect(bx, by, lo - bx, bh, P.out, -1);
+    c.rect(lo, by, hi - lo, bh, P.mid, 0);
+    c.rect(hi, by, bx + bw - hi, bh, P.over, -1);
     c.text(m.low, lo, 182, TINY, P.soft, CENTER);
     c.text(m.high, hi, 182, TINY, P.soft, CENTER);
     if (m.pointer < 0) return;
@@ -608,7 +620,7 @@ const WsoftUi = (() => {
     if (mx > bx + bw - 7) mx = bx + bw - 7;
     c.disc(mx, by + bh / 2, 8, P.bg);
     c.disc(mx, by + bh / 2, 6.5, P.ink);
-    c.disc(mx, by + bh / 2, 3, P.z);
+    c.disc(mx, by + bh / 2, 3, P.m_dot);
   }
 
   function paintBottomColour(c, m, T) {
@@ -804,18 +816,19 @@ const WsoftUi = (() => {
     // Full Colour and Dial are dark screens. A menu page looks the same in every style.
     const style = m.page === PAGE_LIVE ? m.style : STYLE_CLASSIC;
     const T = m.dark || m.style !== STYLE_CLASSIC ? THEME.dark : THEME.light;
+    const look = style === STYLE_COLOUR || plateLook(m, style);
     c.clip(ROWS[row][0], ROWS[row][1]);
     if (row === ROW_BAR) {
-      if (style === STYLE_COLOUR && m.zone !== ZONE_NONE) { const bg = colourSet(m, T).bar; paintBar(c, m, bg, bg); }
+      if (look && m.zone !== ZONE_NONE) { const bg = colourSet(m, T).bar; paintBar(c, m, bg, bg); }
       else paintBar(c, m, T.bar, T.bar_line);
     } else if (row === ROW_TOP) {
-      if (style === STYLE_COLOUR) paintTopColour(c, m, T); else if (style === STYLE_DIAL) paintTopDial(c, m, T); else paintTop(c, m, T);
+      if (look) paintTopColour(c, m, T); else if (style === STYLE_DIAL) paintTopDial(c, m, T); else paintTop(c, m, T);
     } else if (row === ROW_WEIGHT) {
-      if (style === STYLE_COLOUR) paintWeightColour(c, m, T); else if (style === STYLE_DIAL) paintWeightDial(c, m, T); else paintWeight(c, m, T);
+      if (look) paintWeightColour(c, m, T); else if (style === STYLE_DIAL) paintWeightDial(c, m, T); else paintWeight(c, m, T);
     } else if (row === ROW_HILO) {
-      if (style === STYLE_COLOUR) paintHiloColour(c, m, T); else if (style === STYLE_DIAL) paintHiloDial(c, m, T); else paintHilo(c, m, T);
+      if (look) paintHiloColour(c, m, T); else if (style === STYLE_DIAL) paintHiloDial(c, m, T); else paintHilo(c, m, T);
     } else if (row === ROW_BOTTOM) {
-      if (style === STYLE_COLOUR) paintBottomColour(c, m, T); else paintBottom(c, m, T);
+      if (look) paintBottomColour(c, m, T); else paintBottom(c, m, T);
     } else paintPage(c, m, T);
     c.clip(0, 240);
   }

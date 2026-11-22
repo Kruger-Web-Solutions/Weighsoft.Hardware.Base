@@ -242,39 +242,73 @@ static const char *product_line(const WsoftUiModel &m, char *out, size_t size) {
   return out;
 }
 
-// ---------- Full Colour: the Hi-Lo zone shown in colour on the brand night blue ----------
-// With no zone (no product, empty scale, no signal) it is the classic dark screen with the
-// bigger weight.
-
-// Made to sit in the Weighsoft faceplate (Rhyno, 22 Nov 2026: the flat bright colours looked
-// like an old TV game; the box's plate is light grey-white with a red swoosh). A light plate
-// grey screen, the brand's blue bar, navy letters, a thin red strip by the weight, and the
-// word in a pill of the zone's own colour.
+// ---------- Two looks share one layout: the word in a pill, a slim limits bar ----------
+// Light mode is the faceplate look (Rhyno, 22 Nov 2026: the box's plate is light grey-white
+// with a red swoosh): plate grey, the brand's blue bar, navy letters, a thin red strip by the
+// weight, the word in a pill of the zone's colour. Full Colour is the bright look (Rhyno, same
+// day: "make the colours brighter"): the whole screen in a vivid zone colour, the word in a
+// white (or navy) pill. With no zone (no product, empty scale, no signal) both fall back to
+// the classic screen of their theme.
 static const uint16_t PLATE = 0xEF7E;       // #E9EEF2
 static const uint16_t NAVY = 0x18A8;        // #1B1446
 static const uint16_t SLATE = 0x5B0E;       // #5A6270
 static const uint16_t PLATE_LINE = 0xCE9B;  // #C9D2DA
 static const uint16_t SKY = 0x14DA;         // #1699D6
 static const uint16_t SWOOSH = 0xE127;      // #E4243B
+static const uint16_t VIVID_LOW = 0xF5A0;   // #F5B400
+static const uint16_t VIVID_OK = 0x1509;    // #16A34A
+static const uint16_t VIVID_HIGH = 0xE127;  // #E4243B
 
 struct ColourSet {
-  uint16_t bg, ink, soft, shade, btn, bar, on, on_ink, strip, z, z_ink;
+  uint16_t bg, ink, soft, shade, btn, bar, on, on_ink, strip, pill, pill_ink, out, mid, over, dot, m_dot;
 };
 
-static ColourSet colour_set(const WsoftUiModel &m, const Theme &T) {
+static ColourSet colour_set(const WsoftUiModel &m, const Theme &) {
+  const Theme &D = WSOFT_UI_DARK;
+  const bool low = m.zone == WSOFT_UI_ZONE_LOW, ok = m.zone == WSOFT_UI_ZONE_OK;
   ColourSet P;
-  P.z = m.zone == WSOFT_UI_ZONE_LOW ? T.z_low : m.zone == WSOFT_UI_ZONE_OK ? T.z_ok : T.z_high;
-  P.z_ink = m.zone == WSOFT_UI_ZONE_LOW ? T.z_low_ink : m.zone == WSOFT_UI_ZONE_OK ? T.z_ok_ink : T.z_high_ink;
-  P.bg = PLATE;
-  P.ink = NAVY;
-  P.soft = SLATE;
-  P.shade = PLATE_LINE;
-  P.btn = WHITE;
-  P.bar = SKY;
-  P.on = NAVY;
-  P.on_ink = WHITE;
-  P.strip = SWOOSH;
+  if (m.style != WSOFT_UI_STYLE_COLOUR) {
+    uint16_t z = low ? D.z_low : ok ? D.z_ok : D.z_high;
+    P.bg = PLATE;
+    P.ink = NAVY;
+    P.soft = SLATE;
+    P.shade = PLATE_LINE;
+    P.btn = WHITE;
+    P.bar = SKY;
+    P.on = NAVY;
+    P.on_ink = WHITE;
+    P.strip = SWOOSH;
+    P.pill = z;
+    P.pill_ink = low ? D.z_low_ink : ok ? D.z_ok_ink : D.z_high_ink;
+    P.out = wsoft_blend565(PLATE, D.z_low, 150);
+    P.mid = wsoft_blend565(PLATE, D.z_ok, 150);
+    P.over = wsoft_blend565(PLATE, D.z_high, 150);
+    P.dot = z;
+    P.m_dot = z;
+    return P;
+  }
+  P.bg = low ? VIVID_LOW : ok ? VIVID_OK : VIVID_HIGH;
+  P.ink = low ? NAVY : WHITE;
+  P.soft = wsoft_blend565(P.bg, P.ink, 200);
+  P.shade = wsoft_blend565(P.bg, 0, 50);
+  P.btn = wsoft_blend565(P.bg, 0, 45);
+  P.bar = wsoft_blend565(P.bg, 0, 90);
+  P.on = P.ink;
+  P.on_ink = P.bg;
+  P.strip = P.ink;
+  P.pill = P.ink;
+  P.pill_ink = P.bg;
+  P.out = wsoft_blend565(P.bg, P.ink, 80);
+  P.mid = wsoft_blend565(P.bg, P.ink, 170);
+  P.over = wsoft_blend565(P.bg, P.ink, 80);
+  P.dot = P.ink;
+  P.m_dot = P.bg;
   return P;
+}
+
+// Light mode on the live page draws with these looks too.
+static bool look_style(const WsoftUiModel &m, int style) {
+  return style == WSOFT_UI_STYLE_COLOUR || (style == WSOFT_UI_STYLE_CLASSIC && !m.dark);
 }
 
 static void paint_top(WsoftCanvas &c, const WsoftUiModel &m, const Theme &T);
@@ -315,7 +349,7 @@ static void paint_top_colour(WsoftCanvas &c, const WsoftUiModel &m, const Theme 
     c.star6(8 + w / 2, 32.5, 9, P.soft);
   }
   double sw = c.text(m.steady, 312, 32.5, SMALL, P.soft, WSOFT_RIGHT);
-  c.disc(312 - sw - 8, 32.5, 4, P.z);
+  c.disc(312 - sw - 8, 32.5, 4, P.dot);
   c.text(c.fit(m.reason, TINY, 312 - sw - 20 - (8 + w + 7), cut, sizeof cut), 8 + w + 7, 32.5, TINY, P.soft);
   if (plate_on(m)) {
     double aw = c.text(m.audit, 312, 52, TINY, P.soft, WSOFT_RIGHT);
@@ -361,17 +395,17 @@ static void paint_hilo_colour(WsoftCanvas &c, const WsoftUiModel &m, const Theme
   if (role == MID && c.width(words, MID) + 52 > 304) role = SMALL;
   double wy = plate_on(m) ? 139 : 143;
   double pw = c.width(words, role) + 52, px = 160 - pw / 2;
-  c.rect(px, wy - 14, pw, 28, P.z, -1);
-  paint_sign(c, m.zone, px + 23, wy, P.z_ink);
-  c.text(words, px + 38, wy, role, P.z_ink);
+  c.rect(px, wy - 14, pw, 28, P.pill, -1);
+  paint_sign(c, m.zone, px + 23, wy, P.pill_ink);
+  c.text(words, px + 38, wy, role, P.pill_ink);
   if (plate_on(m)) c.text(c.fit(product_line(m, line, sizeof line), SMALL, 300, cut, sizeof cut), 160, 160, SMALL, P.soft, WSOFT_CENTER);
-  // The limits as three soft bands, the marker white.
+  // The limits as three soft bands, and the marker.
   const double bx = 14, bw = 292, by = 168, bh = 6;
   double lo = bx + bw * 6 / 22, hi = bx + bw * 16 / 22;
   c.rect(bx, by, bw, bh, P.shade, -1);
-  c.rect(bx, by, lo - bx, bh, wsoft_blend565(P.bg, T.z_low, 150), -1);
-  c.rect(lo, by, hi - lo, bh, wsoft_blend565(P.bg, T.z_ok, 150));
-  c.rect(hi, by, bx + bw - hi, bh, wsoft_blend565(P.bg, T.z_high, 150), -1);
+  c.rect(bx, by, lo - bx, bh, P.out, -1);
+  c.rect(lo, by, hi - lo, bh, P.mid);
+  c.rect(hi, by, bx + bw - hi, bh, P.over, -1);
   c.text(m.low, lo, 182, TINY, P.soft, WSOFT_CENTER);
   c.text(m.high, hi, 182, TINY, P.soft, WSOFT_CENTER);
   if (m.pointer < 0) return;
@@ -380,7 +414,7 @@ static void paint_hilo_colour(WsoftCanvas &c, const WsoftUiModel &m, const Theme
   if (mx > bx + bw - 7) mx = bx + bw - 7;
   c.disc(mx, by + bh / 2, 8, P.bg);
   c.disc(mx, by + bh / 2, 6.5, P.ink);
-  c.disc(mx, by + bh / 2, 3, P.z);
+  c.disc(mx, by + bh / 2, 3, P.m_dot);
 }
 
 static void paint_bottom_colour(WsoftCanvas &c, const WsoftUiModel &m, const Theme &T) {
@@ -642,31 +676,33 @@ uint32_t wsoft_ui_row_key(const WsoftUiModel &m, int row) {
   const size_t weight = offsetof(WsoftUiModel, label), hilo = offsetof(WsoftUiModel, word);
   const size_t bottom = offsetof(WsoftUiModel, gross), page = offsetof(WsoftUiModel, title);
   uint32_t key = stretch(0, m, 0, bar);  // dark, page, style
+  const bool look = look_style(m, style);
   switch (row) {
     case WSOFT_UI_ROW_BAR:
       key = stretch(key, m, bar, top);
-      // Full Colour: the bar is tinted with the zone.
-      return style == WSOFT_UI_STYLE_COLOUR ? FIELD(key, zone) : key;
+      // Full Colour and light mode: the bar takes the look's colour once there is a zone.
+      return look ? FIELD(key, zone) : key;
     case WSOFT_UI_ROW_TOP:
       key = stretch(key, m, top, weight);
-      // Full Colour: the zone's colour, and the product and target sit here.
-      if (style == WSOFT_UI_STYLE_COLOUR) key = FIELD(FIELD(FIELD(key, zone), product), target);
+      // Full Colour and light mode: the zone's colour, and the product and target sit here.
+      if (look) key = FIELD(FIELD(FIELD(key, zone), product), target);
       // Dial: the top of the arc, the limits and the marker.
       if (style == WSOFT_UI_STYLE_DIAL) key = FIELD(stretch(key, m, hilo, bottom), zone);
       return key;
     case WSOFT_UI_ROW_WEIGHT:
       key = stretch(key, m, weight, hilo);
+      if (look) key = FIELD(key, zone);
       return style == WSOFT_UI_STYLE_DIAL ? stretch(key, m, hilo, bottom) : key;
     case WSOFT_UI_ROW_HILO:
       key = stretch(key, m, hilo, bottom);
-      // Both new styles: the zone's colour, and the plate line or what it pushes aside.
-      if (style != WSOFT_UI_STYLE_CLASSIC) key = FIELD(FIELD(FIELD(FIELD(FIELD(key, zone), trade_ok), plate_sa), plate_limits), audit);
+      // The pill looks and Dial: the zone's colour, and the plate line or what it pushes aside.
+      if (look || style == WSOFT_UI_STYLE_DIAL) key = FIELD(FIELD(FIELD(FIELD(FIELD(key, zone), trade_ok), plate_sa), plate_limits), audit);
       return key;
     case WSOFT_UI_ROW_BOTTOM:
       // GROSS is greyed when no weight arrives.
       key = stretch(key, m, bottom, page);
       key = FIELD(key, live);
-      return style == WSOFT_UI_STYLE_COLOUR ? FIELD(key, zone) : key;
+      return look ? FIELD(key, zone) : key;
     case WSOFT_UI_ROW_PAGE:
       // The Wi-Fi page shows whether Wi-Fi is up and the address. Not the whole status bar:
       // a signal bar that flickers must not paint the page again.
@@ -680,7 +716,7 @@ uint32_t wsoft_ui_row_key(const WsoftUiModel &m, int row) {
 void wsoft_ui_paint_row(WsoftCanvas &c, const WsoftUiModel &m, int row) {
   // Full Colour and Dial are dark screens. A menu page looks the same in every style.
   const int style = m.page == WSOFT_UI_PAGE_LIVE ? m.style : WSOFT_UI_STYLE_CLASSIC;
-  const bool colour = style == WSOFT_UI_STYLE_COLOUR, dial = style == WSOFT_UI_STYLE_DIAL;
+  const bool colour = look_style(m, style), dial = style == WSOFT_UI_STYLE_DIAL;
   const Theme &T = m.dark || m.style != WSOFT_UI_STYLE_CLASSIC ? WSOFT_UI_DARK : WSOFT_UI_LIGHT;
   WsoftUiSpan span = wsoft_ui_row_span(row);
   c.clip(span.y0, span.y1);
