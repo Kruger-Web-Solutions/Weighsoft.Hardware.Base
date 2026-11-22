@@ -63,6 +63,8 @@ export interface WSoftLoadcell {
   present: boolean;
   /** The averaged raw count, or null when the HX711 is silent. It moves when the load cell is pressed. */
   raw: number | null;
+  /** The count stored as zero; null before zero is set. */
+  zero_raw: number | null;
   calibrated: boolean;
   zero_set: boolean;
   span_set: boolean;

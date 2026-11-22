@@ -36,9 +36,11 @@ const Step: FC<{ number: string; title: string; children: ReactNode }> = ({ numb
   </Paper>
 );
 
+const COUNT_REFRESH_MS = 250;
+
 // Calibrate tab for a load cell on an HX711 board (Rhyno, 22 Nov 2026). The board keeps the
-// calibration itself: zero with the scale empty, then a known test weight. The raw count is
-// shown so the wiring can be checked before anything is calibrated: it moves when the load
+// calibration itself: zero with the scale empty, then a known test weight. The internal (raw) count is
+// shown live so the wiring can be checked before anything is calibrated: it moves when the load
 // cell is pressed. What the scale is (unit, division, Max, Min ...) is on the Scale setup
 // tab, the one place for it on every source.
 const WSoftLoadcellCalibrate: FC<{ status: WSoftStatus }> = ({ status }) => {
@@ -57,11 +59,21 @@ const WSoftLoadcellCalibrate: FC<{ status: WSoftStatus }> = ({ status }) => {
     }
   }, []);
 
-  // The raw count is not in the live status, so ask for it once a second.
+  // The internal count is not in the live status, so ask for it about four times a second
+  // (Rhyno, 22 Nov 2026: show it in real time). The next ask starts only when the last one is
+  // back, so a slow board is never asked twice at once.
   useEffect(() => {
-    load();
-    const timer = setInterval(load, 1000);
-    return () => clearInterval(timer);
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const tick = async () => {
+      await load();
+      if (!stopped) timer = setTimeout(tick, COUNT_REFRESH_MS);
+    };
+    tick();
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+    };
   }, [load]);
 
   const send = async (request: WSoftLoadcellRequest, doneText: string) => {
@@ -89,6 +101,14 @@ const WSoftLoadcellCalibrate: FC<{ status: WSoftStatus }> = ({ status }) => {
         <Typography variant="h2" component="div" sx={{ fontVariantNumeric: 'tabular-nums', fontWeight: 500 }}>
           {cell && cell.weight_digits !== null ? `${digitsText(cell.weight_digits, cell.decimals)} ${cell.unit}` : '----'}
         </Typography>
+        <Typography variant="h5" component="div" color="text.secondary" sx={{ fontVariantNumeric: 'tabular-nums', mt: 0.5 }}>
+          Internal count: {!cell ? '...' : cell.raw !== null ? cell.raw : 'none'}
+          {cell && cell.raw !== null && cell.zero_raw !== null && (
+            <Typography component="span" variant="body1" sx={{ ml: 1.5 }}>
+              ({cell.raw - cell.zero_raw >= 0 ? '+' : ''}{cell.raw - cell.zero_raw} from zero)
+            </Typography>
+          )}
+        </Typography>
         <Box display="flex" gap={1} justifyContent="center" flexWrap="wrap" mt={1}>
           {cell && (
             <Chip
@@ -100,7 +120,6 @@ const WSoftLoadcellCalibrate: FC<{ status: WSoftStatus }> = ({ status }) => {
           {cell && (
             <Chip size="small" variant="outlined" label={`Division ${digitsText(cell.step, cell.decimals)} ${cell.unit}`} />
           )}
-          <Chip size="small" variant="outlined" label={!cell ? 'Reading...' : `Raw count ${cell.raw !== null ? cell.raw : 'none'}`} />
           {cell && cell.noise_tenths !== null && (
             <Chip
               size="small"
@@ -125,7 +144,7 @@ const WSoftLoadcellCalibrate: FC<{ status: WSoftStatus }> = ({ status }) => {
       {cell && cell.present && !cell.calibrated && (
         <MessageBox
           level="info"
-          message="Press on the load cell: the raw count should move. If it does, the wiring is good. Then do steps 1 and 2."
+          message="Press on the load cell: the internal count should move. If it does, the wiring is good. Then do steps 1 and 2."
           my={2}
         />
       )}

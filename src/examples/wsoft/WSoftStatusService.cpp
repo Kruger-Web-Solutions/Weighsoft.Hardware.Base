@@ -344,6 +344,8 @@ void WSoftStatusService::sendLoadcell(AsyncWebServerRequest* request, int code, 
   else root["raw"] = nullptr;
   root["calibrated"] = info.calibrated;
   root["zero_set"] = info.cal.zero_set;
+  if (info.cal.zero_set) root["zero_raw"] = (long)info.cal.zero_raw;
+  else root["zero_raw"] = nullptr;
   root["span_set"] = info.cal.span_set;
   root["decimals"] = info.cal.decimals;
   root["unit"] = info.cal.unit == 3 ? "g" : "kg";

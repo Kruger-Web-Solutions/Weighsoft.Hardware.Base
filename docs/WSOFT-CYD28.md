@@ -130,7 +130,9 @@ way (a tap on the Wi-Fi bars at the top opens the same page). Not tried on a boa
    are refused. Changing the division later keeps the calibration when the test weight still
    fits the new last digit, and is refused (`format_span`) when it does not.
 
-The page shows the **raw count** before any calibration: press on the load cell and it moves.
+The page shows the **internal count** (the raw count from the chip, through the filter) under
+the weight, asked for about four times a second, and how far it is from the stored zero. It is
+there before any calibration: press on the load cell and it moves.
 That checks the wiring. Once calibrated it also shows **Noise**: how far the last counts (up to
 32) are apart, in divisions. Until zero and a test weight are set the board shows no weight at all.
 The calibration is kept on the board (NVS `loadcell`) and each change is one `LOADCELL ...`
