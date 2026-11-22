@@ -9,7 +9,9 @@ import { AuthenticationContext } from '../../contexts/authentication';
 
 import WSoftCardSetup from './WSoftCardSetup';
 import * as WSoftApi from './api';
-import { divisionKey, LOADCELL_AUTO_ZERO, LOADCELL_DRIFT_GUARD, LOADCELL_FILTERS, loadcellDivisions, LoadcellUnit, noiseHint } from './calibrate';
+import {
+  divisionKey, LOADCELL_AUTO_ZERO, LOADCELL_DRIFT_GUARD, LOADCELL_FILTERS, loadcellDivisions, LoadcellUnit, loadcellUnit, noiseHint
+} from './calibrate';
 import { boardErrorText } from './errors';
 import { WSoftLoadcell, WSoftScaleBoard, WSoftScaleCard, WSoftScaleSetup as WSoftScaleSetupState } from './types';
 import { REASON_MAX, reasonProblem } from './validators';
@@ -126,7 +128,7 @@ const WSoftScaleSetup: FC = () => {
       setCardForm(toCardForm(setup.card));
       if (setup.card) {
         setCellForm({
-          unit: setup.card.unit === 3 ? 'g' : 'kg',
+          unit: loadcellUnit(setup.card.unit),
           division: divisionKey(setup.card.decimal, setup.card.division),
           filter: cell ? cell.filter : 2,
           zeroTrack: cell ? cell.zero_track : 0,
@@ -162,7 +164,7 @@ const WSoftScaleSetup: FC = () => {
       setDirty(true);
     };
     const cellDiffers = loadcell && !!division && (!setup.card || setup.card.decimal !== division.decimals
-      || setup.card.division !== division.step || (setup.card.unit === 3 ? 'g' : 'kg') !== cellForm.unit
+      || setup.card.division !== division.step || loadcellUnit(setup.card.unit) !== cellForm.unit
       || (!!cell && (cell.filter !== cellForm.filter || cell.zero_track !== cellForm.zeroTrack
         || cell.drift_guard !== cellForm.driftGuard)));
 

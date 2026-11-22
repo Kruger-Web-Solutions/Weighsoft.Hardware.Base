@@ -24,6 +24,7 @@ const WSoftLive: FC = () => {
     let timer: ReturnType<typeof setTimeout>;
     let misses = 0;
     let last = '';
+    let picture: ImageData | undefined;  // made once, painted over on every new frame
     const poll = async () => {
       try {
         const model = (await WSoftApi.readWSoftScreen()).data;
@@ -34,8 +35,8 @@ const WSoftLive: FC = () => {
         const words = JSON.stringify(model);
         const context = canvas.current?.getContext('2d');
         if (context && words !== last) {
-          const picture = context.createImageData(PICTURE_W, PICTURE_H);
-          picture.data.set(toRgba(paintPicture(model)));
+          if (!picture) picture = context.createImageData(PICTURE_W, PICTURE_H);
+          toRgba(paintPicture(model), picture.data);
           context.putImageData(picture, 0, 0);
           last = words;
         }
