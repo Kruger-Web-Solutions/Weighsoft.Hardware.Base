@@ -172,8 +172,9 @@ void loadcell_begin(int dt_pin, int sck_pin) {
   digitalWrite(pin_sck, LOW);
   started = true;
   xTaskCreate(reader_task, "wsoftLoadcell", 3072, nullptr, 1, nullptr);
-  WSOFT_LOG.printf("LOADCELL HX711 dt=GPIO%d sck=GPIO%d %s\n", dt_pin, sck_pin,
-                   wsoft_loadcell_calibrated(loaded) ? "calibrated" : "NOT calibrated yet");
+  WSOFT_LOG.printf("LOADCELL HX711 dt=GPIO%d sck=GPIO%d %s dec=%d step=%d filter=%d auto_zero=%d drift_guard=%d\n", dt_pin,
+                   sck_pin, wsoft_loadcell_calibrated(loaded) ? "calibrated" : "NOT calibrated yet", loaded.decimals,
+                   loaded.step, loaded.filter, loaded.zero_track, loaded.drift_guard);
 }
 
 // Under the lock: the averaged count, when the chip answered within the live window.
@@ -220,6 +221,9 @@ void loadcell_info(LoadcellInfo *out) {
   out->zero_offset = track.offset();
   out->drift_offset = guard.offset();
   out->drift_holding = guard.holding();
+  out->drift_holds = guard.holds();
+  out->drift_jumps = guard.jump_releases();
+  out->drift_limits = guard.limit_releases();
   int32_t spread = 0;
   bool have_spread = out->have_raw && filter.spread(&spread);
   portEXIT_CRITICAL(&lock);
@@ -285,4 +289,71 @@ WsoftLoadcellError loadcell_set_format(int decimals, int unit, int step, int fil
         return error != WSOFT_LOADCELL_OK ? error : wsoft_loadcell_set_drift_guard(c, drift_guard);
       },
       "SETUP", who);
+}
+
+// ----- USB technician commands -----
+
+static void print_info(Stream &port) {
+  LoadcellInfo info;
+  loadcell_info(&info);
+  port.printf(
+      "LOADCELL_INFO started=%d present=%d calibrated=%d count=%ld zero=%ld span_counts=%ld span_value=%ld dec=%d "
+      "step=%d unit=%s filter=%d auto_zero=%d zero_offset=%ld drift_guard=%d drift_allowed=%d holding=%d "
+      "drift_offset=%ld holds=%lu let_go_jump=%lu let_go_limit=%lu rate=%lu noise_tenths=%ld have_weight=%d weight_digits=%ld\n",
+      info.started ? 1 : 0, info.present ? 1 : 0, info.calibrated ? 1 : 0, (long)info.raw, (long)info.cal.zero_raw,
+      (long)info.cal.span_counts, (long)info.cal.span_value, info.cal.decimals, info.cal.step,
+      info.cal.unit == 3 ? "g" : "kg", info.cal.filter, info.cal.zero_track, (long)info.zero_offset,
+      info.cal.drift_guard, guard_allowed ? 1 : 0, info.drift_holding ? 1 : 0, (long)info.drift_offset,
+      (unsigned long)info.drift_holds, (unsigned long)info.drift_jumps, (unsigned long)info.drift_limits,
+      (unsigned long)info.rate, info.have_noise ? (long)info.noise_tenths : -1L, info.have_weight ? 1 : 0,
+      (long)info.value);
+}
+
+// "key=" in the command: its whole number. False when the key is not there or not a number.
+static bool command_number(const String &command, const char *key, int *out) {
+  String find = String(" ") + key + "=";
+  int at = command.indexOf(find);
+  if (at < 0) return false;
+  const char *text = command.c_str() + at + find.length();
+  char *end = nullptr;
+  long value = strtol(text, &end, 10);
+  if (end == text || (*end != 0 && *end != ' ')) return false;
+  *out = (int)value;
+  return true;
+}
+
+void loadcell_handle_command(const String &command, Stream &port, bool approval_on) {
+  if (command == "LOADCELL INFO") {
+    print_info(port);
+    return;
+  }
+  if (!command.startsWith("LOADCELL SET ")) {
+    port.println("LOADCELL_ERR use LOADCELL INFO or LOADCELL SET dec= step= filter= auto_zero= drift_guard=");
+    return;
+  }
+  if (approval_on) {
+    port.println("LOADCELL_ERR approval_on: switch Approval off first");
+    return;
+  }
+  LoadcellInfo info;
+  loadcell_info(&info);
+  int decimals = info.cal.decimals, step = info.cal.step, filter_level = info.cal.filter;
+  int zero_track = info.cal.zero_track, drift_guard = info.cal.drift_guard;
+  bool any = command_number(command, "dec", &decimals);
+  any = command_number(command, "step", &step) || any;
+  any = command_number(command, "filter", &filter_level) || any;
+  any = command_number(command, "auto_zero", &zero_track) || any;
+  any = command_number(command, "drift_guard", &drift_guard) || any;
+  if (!any) {
+    port.println("LOADCELL_ERR nothing to set: dec= step= filter= auto_zero= drift_guard=");
+    return;
+  }
+  WsoftLoadcellError error =
+      loadcell_set_format(decimals, info.cal.unit, step, filter_level, zero_track, drift_guard, "usb");
+  if (error != WSOFT_LOADCELL_OK) {
+    port.printf("LOADCELL_ERR %s: %s\n", wsoft_loadcell_error_code(error), wsoft_loadcell_error_text(error));
+    return;
+  }
+  port.println("LOADCELL_OK saved");
+  print_info(port);
 }

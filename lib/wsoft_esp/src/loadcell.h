@@ -38,6 +38,7 @@ struct LoadcellInfo {
   int32_t zero_offset;   // counts auto zero has moved the zero by, since the last restart or zero
   int32_t drift_offset;  // counts Drift Guard holds back right now
   bool drift_holding;    // Drift Guard is holding the weight shown
+  uint32_t drift_holds, drift_jumps, drift_limits;  // WsoftLoadcellDriftGuard counters
   bool have_noise;
   int32_t noise_tenths;  // how far the last counts are apart, in tenths of a division (10 = one division)
   WsoftLoadcellCal cal;
@@ -51,9 +52,18 @@ WsoftLoadcellError loadcell_set_zero(const char *who);
 WsoftLoadcellError loadcell_set_span(int32_t value, int decimals, int unit, const char *who);
 // The scale setup: digits after the point, unit (1 kg, 3 g), the division in the last digit,
 // the filter (WSOFT_LOADCELL_FILTER_OFF .. _HIGH), auto zero (0 off, 1..3 divisions) and
-// Drift Guard (0 off, 1..5 divisions). All of it or none of it.
+// Drift Guard (0 off, 1..20 divisions). All of it or none of it.
 WsoftLoadcellError loadcell_set_format(int decimals, int unit, int step, int filter, int zero_track,
                                        int drift_guard, const char *who);
+// USB technician commands (the cable, like SCREEN and APPROVAL):
+//   LOADCELL INFO                 one line: the setup and what the filter, auto zero and Drift
+//                                 Guard are doing right now
+//   LOADCELL SET key=value ...    changes the setup like the Scale setup tab does. Keys: dec
+//                                 (0..4), step (1 2 5 10 20 50), filter (0..3), auto_zero (0..3),
+//                                 drift_guard (0..20). Keys left out stay as they are. Refused
+//                                 while Approval is ON (approval_on), like the web page.
+void loadcell_handle_command(const String &command, Stream &port, bool approval_on);
+
 // Screen task, every poll: false while Approval is ON. Drift Guard rests then, whatever the
 // setup says, because it hides slow changes.
 void loadcell_allow_drift_guard(bool allowed);

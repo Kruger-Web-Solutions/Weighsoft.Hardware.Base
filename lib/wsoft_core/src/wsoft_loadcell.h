@@ -171,7 +171,9 @@ class WsoftLoadcellZeroTrack {
 // is kept in memory only and starts from 0 at every release, so it can never pile up.
 // The price, by design: a slow change smaller than the limit stays hidden until the next
 // release. Our own choices, not from a standard.
-static const int WSOFT_LOADCELL_DRIFT_GUARD_MAX = 5;
+// The limit went from 5 to 20 divisions after the first bench run (22 Nov): on a 0.002 kg
+// division the 12 g wave is 6 divisions, more than 5 could hold.
+static const int WSOFT_LOADCELL_DRIFT_GUARD_MAX = 20;
 static const int WSOFT_LOADCELL_DRIFT_GUARD_STILL = 20;
 
 class WsoftLoadcellDriftGuard {
@@ -183,9 +185,17 @@ class WsoftLoadcellDriftGuard {
   bool holding() const { return _still >= WSOFT_LOADCELL_DRIFT_GUARD_STILL; }
   // One filtered count (10 a second). zero_offset: what auto zero has moved the zero by.
   void update(const WsoftLoadcellCal &cal, int32_t average, int32_t zero_offset);
+  // Since the last reset, for checking it on a bench (LOADCELL INFO on the cable): how often it
+  // began to hold, and how often it let go of a held weight for a jump or for the limit.
+  uint32_t holds() const { return _holds; }
+  uint32_t jump_releases() const { return _jumps; }
+  uint32_t limit_releases() const { return _limits; }
 
  private:
   void release(int32_t average);
+  uint32_t _holds = 0;
+  uint32_t _jumps = 0;
+  uint32_t _limits = 0;
   int32_t _offset = 0;
   int32_t _last = 0;
   int32_t _ref = 0;

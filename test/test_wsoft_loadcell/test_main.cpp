@@ -531,7 +531,7 @@ void test_drift_guard_holds_a_slow_wander_and_lets_a_real_change_through() {
   for (int i = 0; i < 100; i++) guard.update(cal, 6000 + i, 0);
   TEST_ASSERT_EQUAL_INT32(0, guard.offset());
   TEST_ASSERT_FALSE(guard.holding());
-  TEST_ASSERT_EQUAL(WSOFT_LOADCELL_BAD_DRIFT_GUARD, wsoft_loadcell_set_drift_guard(&cal, 6));
+  TEST_ASSERT_EQUAL(WSOFT_LOADCELL_BAD_DRIFT_GUARD, wsoft_loadcell_set_drift_guard(&cal, 21));
   TEST_ASSERT_EQUAL(WSOFT_LOADCELL_BAD_DRIFT_GUARD, wsoft_loadcell_set_drift_guard(&cal, -1));
   TEST_ASSERT_EQUAL(WSOFT_LOADCELL_OK, wsoft_loadcell_set_drift_guard(&cal, 3));
   // A load of 50 divisions, still for 2 seconds: now it holds.
@@ -548,6 +548,8 @@ void test_drift_guard_holds_a_slow_wander_and_lets_a_real_change_through() {
     TEST_ASSERT_EQUAL_INT32(5000, guarded(guard, average));
   }
   TEST_ASSERT_EQUAL_INT32(-200, guard.offset());
+  TEST_ASSERT_EQUAL_UINT32(1, guard.holds());
+  TEST_ASSERT_EQUAL_UINT32(0, guard.jump_releases());
   // Something is put on (1 division in one count): it lets go at once and shows all of it.
   guard.update(cal, average += 100, 0);
   TEST_ASSERT_EQUAL_INT32(0, guard.offset());
@@ -586,6 +588,8 @@ void test_drift_guard_never_hides_a_slow_top_up_past_its_limit() {
     was_holding = guard.holding();
   }
   TEST_ASSERT_TRUE(releases >= 20);
+  TEST_ASSERT_EQUAL_UINT32((uint32_t)releases, guard.limit_releases());
+  TEST_ASSERT_EQUAL_UINT32(0, guard.jump_releases());
   // A faster top-up (more than half a division a count) is never held at all.
   for (int i = 0; i < 100; i++) {
     guard.update(cal, average += 60, 0);
