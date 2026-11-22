@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **W-Soft: light mode in the Weighsoft brand colours** (Rhyno, 22 Nov 2026). Paper ground, white
+  cards, Bunting ink and status bar, Sky buttons, brand green, amber and red. Dark mode is unchanged.
 - **W-Soft: one Calibrate page for the junction box and the load cell** (Rhyno, 22 Nov 2026).
   Same look and the same two steps (Zero, Test weight) on RS485 and on an HX711 board; only the
   last step differs (sent to the junction box, or kept on the board). Both ask "Yes, calibrate"

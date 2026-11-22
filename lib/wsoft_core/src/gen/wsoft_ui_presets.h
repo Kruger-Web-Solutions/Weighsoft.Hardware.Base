@@ -8,7 +8,7 @@
 
 #define WSOFT_UI_PRESET_SET(field, text) strncpy(field, text, sizeof(field) - 1)
 
-static const int WSOFT_UI_PRESET_COUNT = 51;
+static const int WSOFT_UI_PRESET_COUNT = 53;
 
 // Fills *m with test screen n. False when there is no such screen.
 inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
@@ -2808,7 +2808,112 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->address, "192.168.4.1");
       WSOFT_UI_PRESET_SET(m->ap_name, "Weighsoft-Esp-NEW");
       return true;
-    case 50:  // Dial, six figures
+    case 50:  // Light mode, too low with a notice
+      m->wifi_up = true;
+      m->wifi_bars = 3;
+      WSOFT_UI_PRESET_SET(m->ip, "192.168.0.142");
+      WSOFT_UI_PRESET_SET(m->hub, "HUB");
+      m->hub_tone = 1;
+      WSOFT_UI_PRESET_SET(m->link, "RS232");
+      m->link_tone = 1;
+      m->slot = 2;
+      WSOFT_UI_PRESET_SET(m->slot_title, "OUTSIDE HI-LO LIMITS");
+      WSOFT_UI_PRESET_SET(m->slot_detail, "Tap SAVE twice to save anyway");
+      WSOFT_UI_PRESET_SET(m->steady, "STABLE");
+      m->steady_tone = 1;
+      WSOFT_UI_PRESET_SET(m->audit, "AUDIT 0");
+      WSOFT_UI_PRESET_SET(m->label, "NET");
+      m->live = true;
+      WSOFT_UI_PRESET_SET(m->weight, "47.350");
+      WSOFT_UI_PRESET_SET(m->unit, "kg");
+      m->zone = 1;
+      m->product_on = true;
+      WSOFT_UI_PRESET_SET(m->word, "TOO LOW");
+      m->word_tone = 2;
+      WSOFT_UI_PRESET_SET(m->product, "MAIZE");
+      WSOFT_UI_PRESET_SET(m->target, "TARGET 50 KG");
+      WSOFT_UI_PRESET_SET(m->low, "49");
+      WSOFT_UI_PRESET_SET(m->high, "51");
+      WSOFT_UI_PRESET_SET(m->gross, "47.350 kg");
+      WSOFT_UI_PRESET_SET(m->save_line, "AUTO SAVE ON");
+      m->save_look = 1;
+      WSOFT_UI_PRESET_SET(m->hint, "ADD MORE");
+      m->tiles[0].id = WSOFT_UI_TILE_APPROVAL;
+      m->tiles[0].look = 0;
+      WSOFT_UI_PRESET_SET(m->tiles[0].caption, "APPROVAL");
+      WSOFT_UI_PRESET_SET(m->tiles[0].value, "OFF");
+      m->tiles[1].id = WSOFT_UI_TILE_AUTO;
+      m->tiles[1].look = 1;
+      WSOFT_UI_PRESET_SET(m->tiles[1].caption, "AUTO SAVE");
+      WSOFT_UI_PRESET_SET(m->tiles[1].value, "ON");
+      m->tiles[2].id = WSOFT_UI_TILE_PRODUCT;
+      m->tiles[2].look = 1;
+      WSOFT_UI_PRESET_SET(m->tiles[2].caption, "PRODUCT");
+      WSOFT_UI_PRESET_SET(m->tiles[2].value, "MAIZE");
+      m->tiles[3].id = WSOFT_UI_TILE_THEME;
+      m->tiles[3].look = 0;
+      WSOFT_UI_PRESET_SET(m->tiles[3].caption, "SCREEN");
+      WSOFT_UI_PRESET_SET(m->tiles[3].value, "LIGHT");
+      m->tiles[4].id = WSOFT_UI_TILE_WIFI;
+      m->tiles[4].look = 0;
+      WSOFT_UI_PRESET_SET(m->tiles[4].caption, "WI-FI");
+      WSOFT_UI_PRESET_SET(m->tiles[4].value, "192.168.0.142");
+      m->tile_count = 5;
+      WSOFT_UI_PRESET_SET(m->address, "192.168.4.1");
+      WSOFT_UI_PRESET_SET(m->ap_name, "Weighsoft-Esp-NEW");
+      return true;
+    case 51:  // Light mode, Wi-Fi drops
+      WSOFT_UI_PRESET_SET(m->ip, "NO WI-FI");
+      WSOFT_UI_PRESET_SET(m->hub, "HUB");
+      m->hub_tone = 3;
+      WSOFT_UI_PRESET_SET(m->link, "RS232");
+      m->link_tone = 1;
+      m->slot = 3;
+      WSOFT_UI_PRESET_SET(m->steady, "STABLE");
+      m->steady_tone = 1;
+      WSOFT_UI_PRESET_SET(m->audit, "AUDIT 0");
+      WSOFT_UI_PRESET_SET(m->label, "NET");
+      m->live = true;
+      WSOFT_UI_PRESET_SET(m->weight, "50.120");
+      WSOFT_UI_PRESET_SET(m->unit, "kg");
+      m->zone = 2;
+      m->product_on = true;
+      WSOFT_UI_PRESET_SET(m->word, "OK");
+      m->word_tone = 1;
+      WSOFT_UI_PRESET_SET(m->product, "MAIZE");
+      WSOFT_UI_PRESET_SET(m->target, "TARGET 50 KG");
+      WSOFT_UI_PRESET_SET(m->low, "49");
+      WSOFT_UI_PRESET_SET(m->high, "51");
+      m->pointer = 527;
+      WSOFT_UI_PRESET_SET(m->gross, "50.120 kg");
+      WSOFT_UI_PRESET_SET(m->save_line, "AUTO SAVE ON");
+      m->save_look = 1;
+      WSOFT_UI_PRESET_SET(m->hint, "HOLD STILL");
+      m->tiles[0].id = WSOFT_UI_TILE_APPROVAL;
+      m->tiles[0].look = 0;
+      WSOFT_UI_PRESET_SET(m->tiles[0].caption, "APPROVAL");
+      WSOFT_UI_PRESET_SET(m->tiles[0].value, "OFF");
+      m->tiles[1].id = WSOFT_UI_TILE_AUTO;
+      m->tiles[1].look = 1;
+      WSOFT_UI_PRESET_SET(m->tiles[1].caption, "AUTO SAVE");
+      WSOFT_UI_PRESET_SET(m->tiles[1].value, "ON");
+      m->tiles[2].id = WSOFT_UI_TILE_PRODUCT;
+      m->tiles[2].look = 1;
+      WSOFT_UI_PRESET_SET(m->tiles[2].caption, "PRODUCT");
+      WSOFT_UI_PRESET_SET(m->tiles[2].value, "MAIZE");
+      m->tiles[3].id = WSOFT_UI_TILE_THEME;
+      m->tiles[3].look = 0;
+      WSOFT_UI_PRESET_SET(m->tiles[3].caption, "SCREEN");
+      WSOFT_UI_PRESET_SET(m->tiles[3].value, "LIGHT");
+      m->tiles[4].id = WSOFT_UI_TILE_WIFI;
+      m->tiles[4].look = 0;
+      WSOFT_UI_PRESET_SET(m->tiles[4].caption, "WI-FI");
+      WSOFT_UI_PRESET_SET(m->tiles[4].value, "OFF");
+      m->tile_count = 5;
+      WSOFT_UI_PRESET_SET(m->address, "192.168.4.1");
+      WSOFT_UI_PRESET_SET(m->ap_name, "Weighsoft-Esp-NEW");
+      return true;
+    case 52:  // Dial, six figures
       m->dark = true;
       m->style = 2;
       m->wifi_up = true;

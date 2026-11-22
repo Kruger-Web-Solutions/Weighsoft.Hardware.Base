@@ -68,7 +68,7 @@ three; only what a row draws differs. The menu pages look the same in every look
 |---|---|---|
 | DARK / LIGHT | Classic: the five rows of section 1. The default | `yellow-00` to `yellow-27` |
 | COLOUR | Full Colour: the whole screen takes the colour of the Hi-Lo zone (yellow low, green OK, red high), with a bigger weight and one big line | `yellow-28` to `yellow-37`, `yellow-47` |
-| DIAL | The Hi-Lo bar bent into a gauge over the weight, with a marker that moves along it | `yellow-38` to `yellow-46`, `yellow-48` to `yellow-50` |
+| DIAL | The Hi-Lo bar bent into a gauge over the weight, with a marker that moves along it | `yellow-38` to `yellow-46`, `yellow-48`, `yellow-49`, `yellow-52` |
 
 ![Full Colour](img/wsoft-screen/yellow-29.png) ![Dial](img/wsoft-screen/yellow-39.png)
 
@@ -84,6 +84,10 @@ Both say what to do next to the word (Rhyno, 22 Nov 2026), with an arrow the way
 
 The classic screen keeps its words (TOO LOW, OK, TOO HIGH). The words come from the model's
 `word` and `hint`.
+
+On the Dial the weight takes a soft tint of its zone (yellow, green, red).
+
+Light mode follows the Weighsoft brand palette (Rhyno, 22 Nov 2026; `brand.md` of the repo-review kit): Paper `#F7F8FC` ground, white cards, Bunting `#1B1446` ink and status bar, Slate second ink, Sky-200 buttons, and the brand status colours (success `#15803D`, warning `#B45309`, danger `#B60205`).
 
 Colour and Dial are dark screens. With no Hi-Lo product picked they show a plain dark screen
 with the weight. Two letter sizes were added for them (HUGE: the weight's digits, XL: the

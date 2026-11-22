@@ -105,14 +105,19 @@ const WsoftUi = (() => {
       ok: '#2fa46c', ok_ink: '#b7f0cd', wait: '#e2b84a', wait_ink: '#f3d48a', bad: '#dc5a5a', bad_ink: '#ffb4b4',
       chip_ok: mixHex('#0b1620', '#2fa46c', 0.18), chip_bad: mixHex('#0b1620', '#dc5a5a', 0.18),
       accent: '#2596be', btn: '#1e3654', btn_ink: '#f5f8fa', stop: '#c94545', pointer: '#f5f8fa',
-      z_low: '#e2b84a', z_low_ink: '#1a2a33', z_ok: '#23965f', z_ok_ink: '#ffffff', z_high: '#c94545', z_high_ink: '#ffffff' },
-    light: { bg: '#eef2f5', panel: '#ffffff', line: '#b4c0c8', ink: '#1a2a33', soft: '#4a6570',
-      ok: '#15a34a', ok_ink: '#14532d', wait: '#e0a021', wait_ink: '#7a4d00', bad: '#dc2626', bad_ink: '#7f1d1d',
-      chip_ok: mixHex('#eef2f5', '#15a34a', 0.18), chip_bad: mixHex('#eef2f5', '#dc2626', 0.18),
-      accent: '#176685', btn: '#d3dce3', btn_ink: '#1a2a33', stop: '#dc2626', pointer: '#0f1e33',
-      z_low: '#e9b227', z_low_ink: '#1a2a33', z_ok: '#15a34a', z_ok_ink: '#ffffff', z_high: '#dc2626', z_high_ink: '#ffffff' },
+      z_low: '#e2b84a', z_low_ink: '#1a2a33', z_ok: '#23965f', z_ok_ink: '#ffffff', z_high: '#c94545', z_high_ink: '#ffffff',
+      bar: '#0f1e33', bar_line: '#24354d' },
+    // Light mode follows the Weighsoft brand palette (Rhyno, 22 Nov 2026; repo-review brand.md):
+    // Paper ground, white cards, Bunting ink, Slate second ink, Line dividers, Sky-200 buttons,
+    // Curious Deep accent, and the reserved status colours with their tints.
+    light: { bg: '#F7F8FC', panel: '#FFFFFF', line: '#DCDAE8', ink: '#1B1446', soft: '#4A4568',
+      ok: '#15803D', ok_ink: '#14532d', wait: '#B45309', wait_ink: '#7a3c06', bad: '#B60205', bad_ink: '#7f1d1d',
+      chip_ok: '#DCFCE7', chip_bad: '#FEE2E2',
+      accent: '#1174A8', btn: '#BCE2F5', btn_ink: '#1B1446', stop: '#B60205', pointer: '#1B1446',
+      z_low: '#B45309', z_low_ink: '#ffffff', z_ok: '#15803D', z_ok_ink: '#ffffff', z_high: '#B60205', z_high_ink: '#ffffff',
+      bar: '#1B1446', bar_line: '#27246B' },
   };
-  // The status bar is navy in both modes.
+  // The status bar is dark in both modes (navy, or the brand's Bunting on the light screen): its inks are these.
   const BAR_HEX = { bg: '#0f1e33', line: '#24354d', ink: '#f5f8fa', mute: '#8fb8c8', dim: '#3a506b', ok: '#3dbe78', bad: '#ff8a8a', warn: '#f2c879' };
   const to565 = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, c565(v)]));
   const THEME = { dark: to565(THEME_HEX.dark), light: to565(THEME_HEX.light) };
@@ -340,18 +345,18 @@ const WsoftUi = (() => {
   // The band over the trade row: the Wi-Fi alert or a save notice. False when there is none.
   function paintSlot(c, m, T) {
     if (m.slot === SLOT_WIFI) {
-      c.rect(6, 22, 308, 40, T.wait, 8);
-      c.text('WI-FI IS OFF', 18, 42, MID, DARK, LEFT);
+      c.rect(6, 22, 308, 40, T.z_low, 8);
+      c.text('WI-FI IS OFF', 18, 42, MID, T.z_low_ink, LEFT);
       c.rect(160, 26, 100, 32, DARK, 6);
       c.text('CONNECT', 210, 42, SMALL, WHITE, CENTER);
       c.rect(266, 26, 42, 32, DARK, 6);
-      c.rect(267.5, 27.5, 39, 29, T.wait, 5);
-      c.text('X', 287, 42, MID, DARK, CENTER);
+      c.rect(267.5, 27.5, 39, 29, T.z_low, 5);
+      c.text('X', 287, 42, MID, T.z_low_ink, CENTER);
       return true;
     }
     if (m.slot !== SLOT_NONE) {
-      const stop = m.slot === SLOT_STOP, ink = stop ? WHITE : DARK;
-      c.rect(6, 22, 308, 40, stop ? T.stop : T.wait, 8);
+      const stop = m.slot === SLOT_STOP, ink = stop ? WHITE : T.z_low_ink;
+      c.rect(6, 22, 308, 40, stop ? T.stop : T.z_low, 8);
       if (c.width(m.slot_title, BIG) <= 292) c.text(m.slot_title, 160, 34, BIG, ink, CENTER);
       else c.text(c.fit(m.slot_title, MID, 296), 160, 34, MID, ink, CENTER);
       c.text(c.fit(m.slot_detail, SMALL, 296), 160, 53, SMALL, ink, CENTER);
@@ -647,7 +652,9 @@ const WsoftUi = (() => {
     c.rect(0, 62, 320, 60, T.bg, 0);
     paintDial(c, m, T);
     c.text(m.label + '  ' + m.unit, 160, 71, TINY, T.soft, CENTER);
-    c.text(m.weight, 160, 100, c.width(m.weight, HERO) <= 200 ? HERO : BIG, m.live ? T.ink : T.soft, CENTER);
+    // The number takes a soft tint of its zone (Rhyno, 22 Nov 2026).
+    const ink = !m.live ? T.soft : m.zone === ZONE_LOW ? T.wait_ink : m.zone === ZONE_OK ? T.ok_ink : m.zone === ZONE_HIGH ? T.bad_ink : T.ink;
+    c.text(m.weight, 160, 100, c.width(m.weight, HERO) <= 200 ? HERO : BIG, ink, CENTER);
   }
 
   function paintHiloDial(c, m, T) {
@@ -759,7 +766,7 @@ const WsoftUi = (() => {
     c.clip(ROWS[row][0], ROWS[row][1]);
     if (row === ROW_BAR) {
       if (style === STYLE_COLOUR && m.zone !== ZONE_NONE) { const bg = colourSet(m, T).bar; paintBar(c, m, bg, bg); }
-      else paintBar(c, m, BAR.bg, BAR.line);
+      else paintBar(c, m, T.bar, T.bar_line);
     } else if (row === ROW_TOP) {
       if (style === STYLE_COLOUR) paintTopColour(c, m, T); else if (style === STYLE_DIAL) paintTopDial(c, m, T); else paintTop(c, m, T);
     } else if (row === ROW_WEIGHT) {
@@ -967,6 +974,8 @@ const WsoftUi = (() => {
     ['Full Colour, saved', 'DONE, and take it off.', state({ style: STYLE_COLOUR, save: { recent: { result: 'SAVED', seq: 8 } }, waiting: 'ALREADY' })],
     ['Dial, saved', 'DONE, and take it off.', state({ style: STYLE_DIAL, save: { recent: { result: 'SAVED', seq: 8 } }, waiting: 'ALREADY' })],
     ['Dial, Auto save off', 'GOOD, and tap SAVE.', state({ style: STYLE_DIAL, save: { auto: false } })],
+    ['Light mode, too low with a notice', 'The brand colours: the amber band and panel carry white letters.', state({ dark: false, gross: 47350, waiting: 'OUT_OF_LIMITS' })],
+    ['Light mode, Wi-Fi drops', 'The alert in the brand amber.', state({ dark: false, wifi: { up: false } })],
     ['Dial, six figures', 'A long weight drops to the smaller letters.', state({ style: STYLE_DIAL, gross: 982760, decimals: 0, product: { name: 'Maize', low: 980000, target: 982000, high: 984000 } })],
   ];
 

@@ -92,19 +92,19 @@ const char *wsoft_ui_plate_line(const WsoftCanvas &c, const WsoftUiModel &m, dou
 static bool paint_slot(WsoftCanvas &c, const WsoftUiModel &m, const Theme &T) {
   char cut[CUT_SIZE];
   if (m.slot == WSOFT_UI_SLOT_WIFI) {
-    c.rect(6, 22, 308, 40, T.wait, 8);
-    c.text("WI-FI IS OFF", 18, 42, MID, DARK);
+    c.rect(6, 22, 308, 40, T.z_low, 8);
+    c.text("WI-FI IS OFF", 18, 42, MID, T.z_low_ink);
     c.rect(160, 26, 100, 32, DARK, 6);
     c.text("CONNECT", 210, 42, SMALL, WHITE, WSOFT_CENTER);
     c.rect(266, 26, 42, 32, DARK, 6);
-    c.rect(267.5, 27.5, 39, 29, T.wait, 5);
-    c.text("X", 287, 42, MID, DARK, WSOFT_CENTER);
+    c.rect(267.5, 27.5, 39, 29, T.z_low, 5);
+    c.text("X", 287, 42, MID, T.z_low_ink, WSOFT_CENTER);
     return true;
   }
   if (m.slot != WSOFT_UI_SLOT_NONE) {
     bool stop = m.slot == WSOFT_UI_SLOT_STOP;
-    uint16_t ink = stop ? WHITE : DARK;
-    c.rect(6, 22, 308, 40, stop ? T.stop : T.wait, 8);
+    uint16_t ink = stop ? WHITE : T.z_low_ink;
+    c.rect(6, 22, 308, 40, stop ? T.stop : T.z_low, 8);
     if (c.width(m.slot_title, BIG) <= 292) c.text(m.slot_title, 160, 34, BIG, ink, WSOFT_CENTER);
     else c.text(c.fit(m.slot_title, MID, 296, cut, sizeof cut), 160, 34, MID, ink, WSOFT_CENTER);
     c.text(c.fit(m.slot_detail, SMALL, 296, cut, sizeof cut), 160, 53, SMALL, ink, WSOFT_CENTER);
@@ -463,7 +463,13 @@ static void paint_weight_dial(WsoftCanvas &c, const WsoftUiModel &m, const Theme
   paint_dial(c, m, T);
   snprintf(line, sizeof line, "%s  %s", m.label, m.unit);
   c.text(line, 160, 71, TINY, T.soft, WSOFT_CENTER);
-  c.text(m.weight, 160, 100, c.width(m.weight, HERO) <= 200 ? HERO : BIG, m.live ? T.ink : T.soft, WSOFT_CENTER);
+  // The number takes a soft tint of its zone (Rhyno, 22 Nov 2026).
+  uint16_t ink = !m.live                        ? T.soft
+                 : m.zone == WSOFT_UI_ZONE_LOW  ? T.wait_ink
+                 : m.zone == WSOFT_UI_ZONE_OK   ? T.ok_ink
+                 : m.zone == WSOFT_UI_ZONE_HIGH ? T.bad_ink
+                                                : T.ink;
+  c.text(m.weight, 160, 100, c.width(m.weight, HERO) <= 200 ? HERO : BIG, ink, WSOFT_CENTER);
 }
 
 static void paint_hilo_dial(WsoftCanvas &c, const WsoftUiModel &m, const Theme &T) {
@@ -662,7 +668,7 @@ void wsoft_ui_paint_row(WsoftCanvas &c, const WsoftUiModel &m, int row) {
         uint16_t bg = colour_set(m, T).bar;
         paint_bar(c, m, bg, bg);
       } else {
-        paint_bar(c, m, BAR.bg, BAR.line);
+        paint_bar(c, m, T.bar, T.bar_line);
       }
       break;
     case WSOFT_UI_ROW_TOP: colour ? paint_top_colour(c, m, T) : dial ? paint_top_dial(c, m, T) : paint_top(c, m, T); break;
