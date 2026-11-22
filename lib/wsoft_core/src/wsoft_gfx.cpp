@@ -35,6 +35,8 @@ void WsoftCanvas::begin(int width, int height, double sx, double sy, const Wsoft
   fonts_ = fonts;
   pixels_ = nullptr;
   top_ = rows_ = 0;
+  clip0_ = 0;
+  clip1_ = height;
 }
 
 void WsoftCanvas::window(uint16_t *pixels, int top, int rows) {
@@ -43,12 +45,19 @@ void WsoftCanvas::window(uint16_t *pixels, int top, int rows) {
   rows_ = rows;
 }
 
+void WsoftCanvas::clip(double y0, double y1) {
+  clip0_ = rnd(y0 * sy_);
+  clip1_ = rnd(y1 * sy_);
+  if (clip0_ < 0) clip0_ = 0;
+  if (clip1_ > height_) clip1_ = height_;
+}
+
 void WsoftCanvas::rect(double x, double y, double w, double h, uint16_t color, double r) {
   long X0 = rnd(x * sx_), Y0 = rnd(y * sy_), X1 = rnd((x + w) * sx_), Y1 = rnd((y + h) * sy_);
   double R = r < 0 ? (X1 - X0 < Y1 - Y0 ? X1 - X0 : Y1 - Y0) / 2.0 : r * sy_;
   if (R > (X1 - X0) / 2.0) R = (X1 - X0) / 2.0;
   if (R > (Y1 - Y0) / 2.0) R = (Y1 - Y0) / 2.0;
-  long first = Y0 > top_ ? Y0 : top_, last = Y1 < top_ + rows_ ? Y1 : top_ + rows_;
+  long first = Y0 > lo() ? Y0 : lo(), last = Y1 < hi() ? Y1 : hi();
   long left = X0 > 0 ? X0 : 0, right = X1 < width_ ? X1 : width_;
   for (long py = first; py < last; py++) {
     bool corner_row = false;
@@ -91,8 +100,8 @@ void WsoftCanvas::disc(double cx, double cy, double r, uint16_t color) {
   double X = cx * sx_, Y = cy * sy_, R = r * sy_;
   long first = (long)floor(Y - R - 1), last = (long)floor(Y + R + 1);
   long left = (long)floor(X - R - 1), right = (long)floor(X + R + 1);
-  if (first < top_) first = top_;
-  if (last > top_ + rows_ - 1) last = top_ + rows_ - 1;
+  if (first < lo()) first = lo();
+  if (last > hi() - 1) last = hi() - 1;
   if (left < 0) left = 0;
   if (right > width_ - 1) right = width_ - 1;
   for (long py = first; py <= last; py++) {
@@ -105,6 +114,100 @@ void WsoftCanvas::disc(double cx, double cy, double r, uint16_t color) {
   }
 }
 
+void WsoftCanvas::line(double x1, double y1, double x2, double y2, double w, uint16_t color) {
+  double AX = x1 * sx_, AY = y1 * sy_, BX = x2 * sx_, BY = y2 * sy_, Hw = w * sy_ / 2;
+  double ex = BX - AX, ey = BY - AY, len2 = ex * ex + ey * ey;
+  long first = (long)floor((AY < BY ? AY : BY) - Hw - 1), last = (long)floor((AY > BY ? AY : BY) + Hw + 1);
+  long left = (long)floor((AX < BX ? AX : BX) - Hw - 1), right = (long)floor((AX > BX ? AX : BX) + Hw + 1);
+  if (first < lo()) first = lo();
+  if (last > hi() - 1) last = hi() - 1;
+  if (left < 0) left = 0;
+  if (right > width_ - 1) right = width_ - 1;
+  for (long py = first; py <= last; py++) {
+    for (long px = left; px <= right; px++) {
+      double qx = px + 0.5 - AX, qy = py + 0.5 - AY;
+      double t = len2 > 0 ? (qx * ex + qy * ey) / len2 : 0;
+      if (t < 0) t = 0;
+      else if (t > 1) t = 1;
+      double dx = qx - t * ex, dy = qy - t * ey;
+      double cover = Hw - sqrt(dx * dx + dy * dy) + 0.5;
+      if (cover <= 0) continue;
+      put((int)px, (int)py, color, cover < 1 ? (int)rnd(cover * 255) : 255);
+    }
+  }
+}
+
+// The box of a ring piece around its centre: the ends of the piece on both edges, and each of
+// the four extremes (right, down, left, up) the piece passes. y down.
+struct RingBox {
+  double x0 = 1e300, y0 = 1e300, x1 = -1e300, y1 = -1e300;
+  void add(double x, double y) {
+    if (x < x0) x0 = x;
+    if (x > x1) x1 = x;
+    if (y < y0) y0 = y;
+    if (y > y1) y1 = y;
+  }
+};
+
+static RingBox ring_box(double R, double I, double ax, double ay, double bx, double by) {
+  static const double SIDES[4][2] = {{1, 0}, {0, 1}, {-1, 0}, {0, -1}};
+  RingBox box;
+  double r = R + 1, i = I > 1 ? I - 1 : 0;
+  box.add(ax * r, ay * r);
+  box.add(bx * r, by * r);
+  box.add(ax * i, ay * i);
+  box.add(bx * i, by * i);
+  for (const auto &d : SIDES) {
+    if (ax * d[1] - ay * d[0] >= 0 && d[0] * by - d[1] * bx >= 0) box.add(d[0] * r, d[1] * r);
+  }
+  return box;
+}
+
+void WsoftCanvas::ring(double cx, double cy, double r, double w, double ax, double ay, double bx, double by, uint16_t color) {
+  double X = cx * sx_, Y = cy * sy_, R = r * sy_, I = R - w * sy_;
+  double outer2 = (R + 1) * (R + 1), inner2 = I > 1 ? (I - 1) * (I - 1) : 0;
+  // Only the dots that can be on the piece are looked at (the dial was sticky on the yellow
+  // board, 22 Nov 2026): the box of the piece, and on each line only the ring's own two short
+  // stretches. Each limit has a dot to spare and every dot still passes the same test, so the
+  // picture is the same dot for dot.
+  RingBox box = ring_box(R, I, ax, ay, bx, by);
+  long first = (long)floor(Y + box.y0) - 2, last = (long)floor(Y + box.y1) + 2;
+  long left = (long)floor(X + box.x0) - 2, right = (long)floor(X + box.x1) + 2;
+  if (first < lo()) first = lo();
+  if (last > hi() - 1) last = hi() - 1;
+  if (left < 0) left = 0;
+  if (right > width_ - 1) right = width_ - 1;
+  for (long py = first; py <= last; py++) {
+    double ey = py + 0.5 - Y, ey2 = ey * ey;
+    if (ey2 > outer2) continue;
+    double out = sqrt(outer2 - ey2);
+    long x0 = (long)floor(X - out) - 1, x1 = (long)floor(X + out) + 1;
+    if (x0 < left) x0 = left;
+    if (x1 > right) x1 = right;
+    long gap0 = x1 + 1, gap1 = x1;  // the dots inside the hole, skipped
+    if (ey2 < inner2) {
+      double hole = sqrt(inner2 - ey2);
+      gap0 = (long)ceil(X - hole + 0.5);
+      gap1 = (long)floor(X + hole - 1.5);
+    }
+    for (long px = x0; px <= x1; px++) {
+      if (px >= gap0 && px <= gap1) {
+        px = gap1;
+        continue;
+      }
+      double dx = px + 0.5 - X, dy = py + 0.5 - Y, d2 = dx * dx + dy * dy;
+      if (d2 > outer2 || d2 < inner2) continue;
+      double d = sqrt(d2);
+      double cover = R - d + 0.5;
+      double inner = d - I + 0.5, from = ax * dy - ay * dx + 0.5, to = dx * by - dy * bx + 0.5;
+      if (inner < cover) cover = inner;
+      if (from < cover) cover = from;
+      if (to < cover) cover = to;
+      if (cover <= 0) continue;
+      put((int)px, (int)py, color, cover < 1 ? (int)rnd(cover * 255) : 255);
+    }
+  }
+}
 
 // Inside the six-pointed star of radius R at the origin: either triangle.
 static bool in_star6(double x, double y, double R) {
@@ -116,8 +219,8 @@ void WsoftCanvas::star6(double cx, double cy, double r, uint16_t color) {
   double X = cx * sx_, Y = cy * sy_, R = r * sy_;
   long first = (long)floor(Y - R - 1), last = (long)floor(Y + R + 1);
   long left = (long)floor(X - R - 1), right = (long)floor(X + R + 1);
-  if (first < top_) first = top_;
-  if (last > top_ + rows_ - 1) last = top_ + rows_ - 1;
+  if (first < lo()) first = lo();
+  if (last > hi() - 1) last = hi() - 1;
   if (left < 0) left = 0;
   if (right > width_ - 1) right = width_ - 1;
   for (long py = first; py <= last; py++) {
@@ -176,7 +279,7 @@ double WsoftCanvas::text(const char *text, double x, double y, int font, uint16_
     int row_bytes = (g.w + 1) >> 1;
     for (int yy = 0; yy < g.h; yy++) {
       long py = baseline + g.dy + yy;
-      if (py < top_ || py >= top_ + rows_) continue;
+      if (py < lo() || py >= hi()) continue;
       const uint8_t *row = rows + yy * row_bytes;
       for (int xx = 0; xx < g.w; xx++) {
         long px = pen + g.dx + xx;

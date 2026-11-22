@@ -7,7 +7,72 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **W-Soft: the browser's Live screen is sharp** (Rhyno, 22 Nov 2026). The page paints the
+  board's screen with the Waveshare's letters at 800 x 480 instead of blowing up the 320 x 240
+  picture, with round corners and a soft shadow. About 29 KB more firmware.
+- **W-Soft: auto save counts down 3, 2, 1** (Rhyno, 22 Nov 2026). Auto save now waits for 3
+  still seconds (it was 1) and the screen and the browser copy show SAVING IN 3, 2, 1. A tap on
+  SAVE saves as before.
+- **W-Soft: light mode in the Weighsoft brand colours** (Rhyno, 22 Nov 2026). Paper ground, white
+  cards, Bunting ink and status bar, Sky buttons, brand green, amber and red. Dark mode is unchanged.
+- **W-Soft: one Calibrate page for the junction box and the load cell** (Rhyno, 22 Nov 2026).
+  Same look and the same two steps (Zero, Test weight) on RS485 and on an HX711 board; only the
+  last step differs (sent to the junction box, or kept on the board). Both ask "Yes, calibrate"
+  first and warn when the weight is still moving. The typed test weight is read one way: a
+  weight finer than the scale shows (2.0005 on 3 decimals) is refused, where RS485 used to
+  round it quietly. RS485 span with a real test weight is still **not bench-proven**.
+
 ### Added
+- **W-Soft: Hi-Lo light on the yellow board** (Rhyno, 22 Nov 2026). W-Soft > Settings has a new
+  switch "Hi-Lo light". LED1 shows the zone: blue under, green correct, red over, dark otherwise.
+  OFF by default; with it and the relay switch both off the light stays dark. LED1 sits on the
+  relay pins (GPIO17 / 16 / 4), so the relay service drives it (one writer, one output on at a
+  time) and a relay board wired to those pads switches with the light. Setting `relay_light`,
+  its own field: `esp_led` (the S3's light) is ON by default and is not used on these pins.
+  **Not flashed, not bench-tested.**
+- **W-Soft: two more looks for the board screen, Full Colour and Dial** (Rhyno, 22 Nov 2026).
+  MENU > SCREEN now steps DARK, LIGHT, COLOUR, DIAL. Full Colour turns the whole screen the
+  colour of the Hi-Lo zone with a bigger weight; Dial bends the Hi-Lo bar into a gauge over the
+  weight. Both say what to do: TOO LOW ADD MORE (arrow up), TOO HIGH REMOVE PRODUCT (arrow
+  down), SAVING, DONE. Same rows and taps; the browser's Live tab follows the board. Classic dark
+  stays the default. Host-tested dot for dot on both panels; **not flashed, not seen on a
+  board yet**. See docs/WSOFT-SCREEN.md section 3a.
+- **W-Soft: Drift Guard for the load cell** (Rhyno, 22 Nov 2026: the zero floats in a slow
+  wave of about 12 g, the same empty and loaded). Scale setup → *Drift Guard* (off by default,
+  1 to 20 divisions). Once a weight has been still for 2 seconds, slow movement is held back so
+  the weight shown stands still. It lets go at once when a count moves more than half a
+  division, and when the drift held back would pass the limit, so a slow top-up is never
+  hidden by more than the limit. It rests near zero when Auto zero is on, and while Approval
+  is ON. Held in memory only. A slow change smaller than the limit stays hidden: that is the
+  price. Built and host-tested, **not bench-proven**. Saved weighings do not record whether
+  it was holding. On the USB cable `LOADCELL INFO` shows what it is doing and `LOADCELL SET`
+  changes the load cell setup (not with Approval ON).
+- **W-Soft: the board's screen in the browser** (Rhyno, 22 Nov 2026: one screen, two places).
+  The Live tab shows the board's own screen and a click is a tap on the board: the board sends
+  the words on its screen (`GET /rest/wsoftScreen`), the page paints them with the reference
+  drawing the firmware is ported from, and a click goes back as a tap (`POST /rest/wsoftScreen`).
+  A board with no panel gets its screen this way. ZERO is on the live page next to MENU on a
+  load cell board. The old Live page is removed. See `docs/WSOFT-SCREEN.md`, section 5a.
+- **W-Soft: ZERO on the screen and a filter for the load cell** (Rhyno, 22 Nov 2026). MENU →
+  ZERO sets the load cell's zero from the touch screen (not with Approval ON, a tare on, or an
+  unsteady reading). Scale setup gets *Filter* (Off, Low, Medium, High): a longer average that
+  still follows a new load at once, drops single spikes, and holds the last digit so it does
+  not flip between two divisions. The page shows the raw noise in divisions. The filter works
+  on tenths of a second, so it is the same at 10 or 80 counts a second. *Auto zero* (off by
+  default) pulls the empty scale back to 0 when it creeps. Calibrate shows the internal count
+  live and the chip's measured speed.
+- **W-Soft: scale setup for the load cell** (Rhyno, 22 Nov 2026). The Scale setup tab is the
+  one home of the setup on every source. With a load cell it shows *Unit* and *Division size*
+  in the place of the weighing card's fields, next to the same Max, Min, blanking, stable
+  samples, tare and SA number as RS485. Calibrate keeps only Zero and Test weight. The test
+  weight is kept in the scale's own digits, so the typed decimals no longer set what the scale
+  shows.
+- **W-Soft: load cell on an HX711 board as a third weight source** (yellow board, env
+  `wsoft_cyd28`; Rhyno, 22 Nov 2026). Settings → *Weight comes from* → *Load cell (HX711
+  board)*; the HX711 goes on CN1 (DT GPIO22, SCK GPIO27, 3.3 V). Calibrate tab: zero, then a
+  known test weight, kept on the board. Built and host-tested, **not bench-tested**.
+  See `docs/WSOFT-CYD28.md`, section 1c.
 
 - **W-Soft board names** (Rhyno, 22 Nov 2026): every board that gets flashed is named
   `wsoft/<board make>/<number>` (e.g. `wsoft/waveshare/1`; hostname `wsoft-waveshare-1`), one

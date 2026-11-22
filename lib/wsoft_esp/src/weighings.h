@@ -15,8 +15,11 @@
 
 // rs232 = the weight comes from an RS232 scale line (else the DJB over RS485).
 void weighings_begin(bool rs232);
-// "rs232" or "rs485", for the weighing payload.
+// "rs232", "rs485" or the name set below, for the weighing payload.
 const char *weighings_source();
+// A source that is neither (the load cell: "loadcell"). name must stay valid (a literal).
+// Call after weighings_begin(true): the rules stay those of a scale with no card setup.
+void weighings_set_source(const char *name);
 
 // Screen task, once per reading. for_trade = trade checks are on right now. tare_value is
 // the tare in the reading's decimals and unit (0 = none). hold = why the RS485 setup holds
@@ -54,6 +57,7 @@ struct WeighingsInfo {
   WsoftSaveResult last_result; // last Save tap or auto save result
   uint32_t last_result_ms;     // millis() of last_result, 0 when none
   WsoftSaveResult waiting;     // what stops a save right now (WsoftWeighingSaver::waiting)
+  int countdown;               // seconds until auto save saves (WsoftWeighingSaver::countdown), 0 = none
 };
 void weighings_info(WeighingsInfo *out);
 

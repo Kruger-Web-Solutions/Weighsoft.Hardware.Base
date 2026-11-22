@@ -12,4 +12,5 @@ export interface Features {
   wsoft_relay?: boolean;
   /** W-Soft board wired for an RS232 scale: the Serial page sets its speed and pattern. */
   wsoft_rs232?: boolean;
+  wsoft_loadcell?: boolean;
 }

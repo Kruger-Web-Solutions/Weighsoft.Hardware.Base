@@ -99,6 +99,52 @@ void test_round_corners_cut_the_corner_dots() {
   TEST_ASSERT_EQUAL_HEX16(WHITE, frame[8 * 16 + 14]);
 }
 
+// The ring looks only at the dots near its piece (fast enough for the dial on the yellow
+// board). It must paint exactly what looking at every dot paints.
+static void ring_every_dot(uint16_t *fb, int W, int H, double sx, double sy, double cx, double cy, double r, double w,
+                           double ax, double ay, double bx, double by, uint16_t color) {
+  double X = cx * sx, Y = cy * sy, R = r * sy, I = R - w * sy;
+  for (int py = 0; py < H; py++) {
+    for (int px = 0; px < W; px++) {
+      double dx = px + 0.5 - X, dy = py + 0.5 - Y, d = sqrt(dx * dx + dy * dy);
+      double cover = R - d + 0.5;
+      double inner = d - I + 0.5, from = ax * dy - ay * dx + 0.5, to = dx * by - dy * bx + 0.5;
+      if (inner < cover) cover = inner;
+      if (from < cover) cover = from;
+      if (to < cover) cover = to;
+      if (cover <= 0) continue;
+      int alpha = cover < 1 ? (int)floor(cover * 255 + 0.5) : 255;
+      uint16_t &dot = fb[py * W + px];
+      dot = alpha >= 255 ? color : wsoft_blend565(dot, color, alpha);
+    }
+  }
+}
+
+void test_a_ring_paints_the_same_as_looking_at_every_dot() {
+  static uint16_t fast[800 * 480], slow[800 * 480];
+  const double PI2 = 6.283185307179586;
+  struct Panel { int W, H; double sx, sy; } panels[] = {{320, 240, 1, 1}, {800, 480, 2.5, 2}};
+  int pieces = 0;
+  for (const Panel &p : panels) {
+    // Pieces all round the circle, short and nearly half a turn, thin and thick, part off the panel.
+    for (int k = 0; k < 24; k++) {
+      double a = k * PI2 / 24, span = 0.2 + (k % 5) * 0.55;
+      double ax = cos(a), ay = sin(a), bx = cos(a + span), by = sin(a + span);
+      double cx = 40 + (k * 37) % 260, cy = 30 + (k * 53) % 200, r = 20 + (k * 29) % 140, w = 3 + k % 4 * 4;
+      memset(fast, 0, sizeof fast);
+      memset(slow, 0, sizeof slow);
+      WsoftCanvas c;
+      c.begin(p.W, p.H, p.sx, p.sy, WSOFT_UI_FONTS_1X);
+      c.window(fast, 0, p.H);
+      c.ring(cx, cy, r, w, ax, ay, bx, by, 0xF800);
+      ring_every_dot(slow, p.W, p.H, p.sx, p.sy, cx, cy, r, w, ax, ay, bx, by, 0xF800);
+      TEST_ASSERT_EQUAL_MEMORY(slow, fast, sizeof(uint16_t) * p.W * p.H);
+      pieces++;
+    }
+  }
+  TEST_ASSERT_EQUAL(48, pieces);
+}
+
 void test_text_width_and_alignment() {
   static uint16_t frame[320 * 40];
   memset(frame, 0, sizeof frame);
@@ -538,6 +584,117 @@ void test_model_menu_tiles() {
   TEST_ASSERT_EQUAL_STRING("LIGHT", model.tiles[5].value);
   TEST_ASSERT_EQUAL_STRING("OFF", model.tiles[6].value);
   TEST_ASSERT_FALSE(model.dark);
+  // A load cell board gets ZERO after the tare tiles. The menu holds 7: with a preset tare
+  // too, WI-FI gives way (the Wi-Fi bars at the top open the same page).
+  in.zero = true;
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL(7, model.tile_count);
+  TEST_ASSERT_EQUAL(WSOFT_UI_TILE_PRESET, model.tiles[3].id);
+  TEST_ASSERT_EQUAL(WSOFT_UI_TILE_ZERO, model.tiles[4].id);
+  TEST_ASSERT_EQUAL_STRING("ZERO", model.tiles[4].caption);
+  TEST_ASSERT_EQUAL_STRING("SET TO 0", model.tiles[4].value);
+  TEST_ASSERT_EQUAL(WSOFT_UI_LOOK_BTN, model.tiles[4].look);
+  TEST_ASSERT_EQUAL(WSOFT_UI_TILE_PRODUCT, model.tiles[5].id);
+  TEST_ASSERT_EQUAL(WSOFT_UI_TILE_THEME, model.tiles[6].id);
+  // Without a preset tare everything fits, WI-FI last.
+  in.preset_on = false;
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL(7, model.tile_count);
+  TEST_ASSERT_EQUAL(WSOFT_UI_TILE_ZERO, model.tiles[3].id);
+  TEST_ASSERT_EQUAL(WSOFT_UI_TILE_WIFI, model.tiles[6].id);
+  // On the live page ZERO takes the place of GROSS, and says what the last tap did.
+  in.page = WSOFT_UI_PAGE_LIVE;
+  in.tared = false;
+  in.source = "LOADCELL";
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_TRUE(model.zero_btn);
+  TEST_ASSERT_EQUAL_STRING("TAP: SET TO 0", model.zero_line);
+  TEST_ASSERT_EQUAL_STRING("CELL", model.link);  // the bar holds 7 letters
+  in.zero_note = "NOT STEADY";
+  uint32_t before = wsoft_ui_row_key(model, WSOFT_UI_ROW_BOTTOM);
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL_STRING("NOT STEADY", model.zero_line);
+  TEST_ASSERT_NOT_EQUAL(before, wsoft_ui_row_key(model, WSOFT_UI_ROW_BOTTOM));  // the row is painted again
+  // Under a tare the gross is shown again (a zero is refused then anyway).
+  in.tared = true;
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_FALSE(model.zero_btn);
+  TEST_ASSERT_EQUAL_STRING("", model.zero_line);
+  TEST_ASSERT_TRUE(WSOFT_UI_BOX_ZERO.hit(60, 213));
+  TEST_ASSERT_FALSE(WSOFT_UI_BOX_ZERO.hit(118, 213));  // the gap before MENU
+  in.page = WSOFT_UI_PAGE_MENU;
+  in.source = "RS485";
+  in.zero_note = "";
+  // No ZERO on a board that reads a scale (RS485, RS232): that scale keeps its own zero.
+  in.zero = false;
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL(6, model.tile_count);
+  for (int i = 0; i < model.tile_count; i++) TEST_ASSERT_NOT_EQUAL(WSOFT_UI_TILE_ZERO, model.tiles[i].id);
+}
+
+void test_the_model_as_json_for_the_browser_copy() {
+  static char json[4096];
+  WsoftUiModel model;
+  // Every test screen fits and is one whole object.
+  for (int n = 0; n < WSOFT_UI_PRESET_COUNT; n++) {
+    TEST_ASSERT_TRUE(wsoft_ui_preset(n, &model));
+    size_t length = wsoft_ui_model_json(model, json, sizeof json);
+    TEST_ASSERT_TRUE(length > 0);
+    TEST_ASSERT_EQUAL(length, strlen(json));
+    TEST_ASSERT_EQUAL('{', json[0]);
+    TEST_ASSERT_EQUAL('}', json[length - 1]);
+  }
+  // The words and states, under the model's own field names.
+  WsoftUiInput in = weighing();
+  in.zero = true;
+  in.source = "LOADCELL";
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_TRUE(wsoft_ui_model_json(model, json, sizeof json) > 0);
+  TEST_ASSERT_NOT_NULL(strstr(json, "{\"dark\":true,\"page\":0,\"style\":0,"));
+  in.style = WSOFT_UI_STYLE_DIAL;
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_TRUE(wsoft_ui_model_json(model, json, sizeof json) > 0);
+  TEST_ASSERT_NOT_NULL(strstr(json, "{\"dark\":true,\"page\":0,\"style\":2,"));
+  TEST_ASSERT_NOT_NULL(strstr(json, "\"link\":\"CELL\""));
+  TEST_ASSERT_NOT_NULL(strstr(json, "\"zero_btn\":true,\"zero_line\":\"TAP: SET TO 0\""));
+  TEST_ASSERT_NOT_NULL(strstr(json, "\"pointer\":"));
+  TEST_ASSERT_NOT_NULL(strstr(json, "\"tiles\":[{\"caption\":\"APPROVAL\",\"value\":\"OFF\",\"look\":0},"));
+  TEST_ASSERT_NOT_NULL(strstr(json, "],\"pin_count\":0,\"address\":"));
+  // A quote or a backslash in a word (a product name from the Hub) cannot break the object.
+  strcpy(model.product, "5\" PIPE \\ A");
+  model.message[0] = '\n';
+  model.message[1] = 0;
+  TEST_ASSERT_TRUE(wsoft_ui_model_json(model, json, sizeof json) > 0);
+  TEST_ASSERT_NOT_NULL(strstr(json, "\"product\":\"5\\\" PIPE \\\\ A\""));
+  TEST_ASSERT_NOT_NULL(strstr(json, "\"message\":\" \""));
+  // The fullest model there can be still fits WSOFT_UI_JSON_MAX bytes: every text full of quotes (each
+  // takes two bytes), every tile there.
+  memset(&model, 0, sizeof model);
+#define FILL(field) memset(field, '"', sizeof(field) - 1)
+  FILL(model.ip); FILL(model.hub); FILL(model.link); FILL(model.slot_title); FILL(model.slot_detail);
+  FILL(model.reason); FILL(model.steady); FILL(model.plate_sa); FILL(model.plate_limits); FILL(model.audit);
+  FILL(model.label); FILL(model.weight); FILL(model.unit); FILL(model.word); FILL(model.product);
+  FILL(model.target); FILL(model.low); FILL(model.high); FILL(model.gross); FILL(model.save_line);
+  FILL(model.zero_line); FILL(model.title); FILL(model.message); FILL(model.address); FILL(model.ap_name);
+  model.tile_count = WSOFT_UI_TILES_MAX;
+  for (int i = 0; i < WSOFT_UI_TILES_MAX; i++) {
+    FILL(model.tiles[i].caption);
+    FILL(model.tiles[i].value);
+    model.tiles[i].look = 255;
+  }
+#undef FILL
+  model.pointer = -32768;
+  model.page = model.wifi_bars = model.hub_tone = model.link_tone = model.slot = model.zone = model.pin_count = 255;
+  size_t fullest = wsoft_ui_model_json(model, json, sizeof json);
+  TEST_ASSERT_TRUE(fullest > 0);
+  TEST_ASSERT_TRUE(fullest < WSOFT_UI_JSON_MAX);
+  // Too small a buffer gives nothing, never half an object.
+  static char small[64];
+  small[0] = 'x';
+  TEST_ASSERT_EQUAL(0, (int)wsoft_ui_model_json(model, small, sizeof small));
+  TEST_ASSERT_EQUAL(0, small[0]);
+  TEST_ASSERT_EQUAL(0, (int)wsoft_ui_model_json(model, json, fullest));  // one byte short
+  TEST_ASSERT_TRUE(wsoft_ui_model_json(model, json, fullest + 1) > 0);
 }
 
 void test_model_pages() {
@@ -641,6 +798,126 @@ void test_only_rows_that_changed_get_painted() {
   for (int row = 0; row < WSOFT_UI_ROW_COUNT; row++) {
     TEST_ASSERT_NOT_EQUAL(wsoft_ui_row_key(a, row), wsoft_ui_row_key(b, row));
   }
+}
+
+void test_the_style_of_the_live_page() {
+  WsoftUiInput in = weighing();
+  WsoftUiModel a, b;
+  wsoft_ui_model(in, &a);
+  TEST_ASSERT_EQUAL(WSOFT_UI_STYLE_CLASSIC, a.style);
+  // A number that is no style (a worn flash cell) is the classic screen.
+  in.style = WSOFT_UI_STYLE_COUNT;
+  wsoft_ui_model(in, &b);
+  TEST_ASSERT_EQUAL(WSOFT_UI_STYLE_CLASSIC, b.style);
+  in.style = -1;
+  wsoft_ui_model(in, &b);
+  TEST_ASSERT_EQUAL(WSOFT_UI_STYLE_CLASSIC, b.style);
+  // The SCREEN tile names the look that is on.
+  in.page = WSOFT_UI_PAGE_MENU;
+  in.style = WSOFT_UI_STYLE_COLOUR;
+  wsoft_ui_model(in, &b);
+  TEST_ASSERT_EQUAL(WSOFT_UI_TILE_THEME, b.tiles[3].id);
+  TEST_ASSERT_EQUAL_STRING("COLOUR", b.tiles[3].value);
+  in.style = WSOFT_UI_STYLE_DIAL;
+  wsoft_ui_model(in, &b);
+  TEST_ASSERT_EQUAL_STRING("DIAL", b.tiles[3].value);
+  in.page = WSOFT_UI_PAGE_LIVE;
+  // Another style paints every live row again.
+  for (int style = WSOFT_UI_STYLE_COLOUR; style < WSOFT_UI_STYLE_COUNT; style++) {
+    in.style = style;
+    wsoft_ui_model(in, &b);
+    TEST_ASSERT_EQUAL(style, b.style);
+    for (int row = 0; row < WSOFT_UI_ROW_PAGE; row++) {
+      TEST_ASSERT_NOT_EQUAL(wsoft_ui_row_key(a, row), wsoft_ui_row_key(b, row));
+    }
+    // The zone colours the whole Full Colour screen, and the dial's arc and bar: every live
+    // row follows it (on the classic screen the status bar and the bottom row do not).
+    WsoftUiModel z = b;
+    z.zone = (uint8_t)(b.zone == WSOFT_UI_ZONE_HIGH ? WSOFT_UI_ZONE_LOW : WSOFT_UI_ZONE_HIGH);
+    TEST_ASSERT_NOT_EQUAL(wsoft_ui_row_key(b, WSOFT_UI_ROW_TOP), wsoft_ui_row_key(z, WSOFT_UI_ROW_TOP));
+    TEST_ASSERT_NOT_EQUAL(wsoft_ui_row_key(b, WSOFT_UI_ROW_WEIGHT), wsoft_ui_row_key(z, WSOFT_UI_ROW_WEIGHT));
+    TEST_ASSERT_NOT_EQUAL(wsoft_ui_row_key(b, WSOFT_UI_ROW_HILO), wsoft_ui_row_key(z, WSOFT_UI_ROW_HILO));
+    if (style == WSOFT_UI_STYLE_COLOUR) {
+      TEST_ASSERT_NOT_EQUAL(wsoft_ui_row_key(b, WSOFT_UI_ROW_BAR), wsoft_ui_row_key(z, WSOFT_UI_ROW_BAR));
+      TEST_ASSERT_NOT_EQUAL(wsoft_ui_row_key(b, WSOFT_UI_ROW_BOTTOM), wsoft_ui_row_key(z, WSOFT_UI_ROW_BOTTOM));
+    }
+    // The dial's needle is drawn over the top and weight rows: they follow the marker.
+    if (style == WSOFT_UI_STYLE_DIAL) {
+      z = b;
+      z.pointer = (int16_t)(b.pointer > 500 ? 100 : 900);
+      TEST_ASSERT_NOT_EQUAL(wsoft_ui_row_key(b, WSOFT_UI_ROW_TOP), wsoft_ui_row_key(z, WSOFT_UI_ROW_TOP));
+      TEST_ASSERT_NOT_EQUAL(wsoft_ui_row_key(b, WSOFT_UI_ROW_WEIGHT), wsoft_ui_row_key(z, WSOFT_UI_ROW_WEIGHT));
+    }
+  }
+  a.zone = WSOFT_UI_ZONE_OK;
+  WsoftUiModel c = a;
+  c.zone = WSOFT_UI_ZONE_HIGH;
+  TEST_ASSERT_EQUAL_HEX32(wsoft_ui_row_key(a, WSOFT_UI_ROW_BAR), wsoft_ui_row_key(c, WSOFT_UI_ROW_BAR));
+}
+
+void test_what_to_do_next_to_the_hilo_word() {
+  WsoftUiInput in = weighing();
+  WsoftUiModel m;
+  // Too low: add more. Too high: remove product. In every style.
+  in.zone = WSOFT_RELAY_LOW;
+  wsoft_ui_model(in, &m);
+  TEST_ASSERT_EQUAL_STRING("TOO LOW", m.word);
+  TEST_ASSERT_EQUAL_STRING("ADD MORE", m.hint);
+  in.zone = WSOFT_RELAY_HIGH;
+  in.style = WSOFT_UI_STYLE_DIAL;
+  wsoft_ui_model(in, &m);
+  TEST_ASSERT_EQUAL_STRING("TOO HIGH", m.word);
+  TEST_ASSERT_EQUAL_STRING("REMOVE PRODUCT", m.hint);
+  // Inside the limits the classic screen keeps OK; the new screens say what the save does.
+  in.zone = WSOFT_RELAY_OK;
+  in.auto_save = true;
+  in.waiting = WSOFT_SAVE_NONE;
+  in.recent = WSOFT_SAVE_NONE;
+  in.style = WSOFT_UI_STYLE_CLASSIC;
+  wsoft_ui_model(in, &m);
+  TEST_ASSERT_EQUAL_STRING("OK", m.word);
+  in.style = WSOFT_UI_STYLE_COLOUR;
+  wsoft_ui_model(in, &m);
+  TEST_ASSERT_EQUAL_STRING("SAVING", m.word);
+  TEST_ASSERT_EQUAL_STRING("HOLD STILL", m.hint);
+  // Auto save counts down: on the word and on the SAVE button.
+  in.countdown = 3;
+  wsoft_ui_model(in, &m);
+  TEST_ASSERT_EQUAL_STRING("SAVING", m.word);
+  TEST_ASSERT_EQUAL_STRING("IN 3", m.hint);
+  TEST_ASSERT_EQUAL_STRING("SAVING IN 3", m.save_line);
+  in.style = WSOFT_UI_STYLE_CLASSIC;
+  wsoft_ui_model(in, &m);
+  TEST_ASSERT_EQUAL_STRING("OK", m.word);
+  TEST_ASSERT_EQUAL_STRING("SAVING IN 3", m.save_line);
+  in.style = WSOFT_UI_STYLE_COLOUR;
+  in.countdown = 0;
+  // Saved, and while the saved load is still on.
+  in.recent = WSOFT_SAVE_SAVED;
+  wsoft_ui_model(in, &m);
+  TEST_ASSERT_EQUAL_STRING("DONE", m.word);
+  TEST_ASSERT_EQUAL_STRING("TAKE IT OFF", m.hint);
+  in.recent = WSOFT_SAVE_NONE;
+  in.waiting = WSOFT_SAVE_ALREADY;
+  wsoft_ui_model(in, &m);
+  TEST_ASSERT_EQUAL_STRING("DONE", m.word);
+  // Auto save off, or a Writer: a tap saves.
+  in.waiting = WSOFT_SAVE_NONE;
+  in.auto_save = false;
+  wsoft_ui_model(in, &m);
+  TEST_ASSERT_EQUAL_STRING("GOOD", m.word);
+  TEST_ASSERT_EQUAL_STRING("TAP SAVE", m.hint);
+  // Something stops the save: never SAVING. The notice band says what.
+  in.auto_save = true;
+  in.waiting = WSOFT_SAVE_NEED_ZERO;
+  wsoft_ui_model(in, &m);
+  TEST_ASSERT_EQUAL_STRING("GOOD", m.word);
+  TEST_ASSERT_EQUAL_STRING("", m.hint);
+  // No zone, no hint.
+  in.zone = WSOFT_RELAY_NONE;
+  in.waiting = WSOFT_SAVE_NONE;
+  wsoft_ui_model(in, &m);
+  TEST_ASSERT_EQUAL_STRING("", m.hint);
 }
 
 void test_model_plate_line() {
@@ -786,6 +1063,7 @@ int main(int, char **) {
   RUN_TEST(test_a_rect_stays_inside_its_window);
   RUN_TEST(test_a_rect_scales_with_the_panel);
   RUN_TEST(test_round_corners_cut_the_corner_dots);
+  RUN_TEST(test_a_ring_paints_the_same_as_looking_at_every_dot);
   RUN_TEST(test_text_width_and_alignment);
   RUN_TEST(test_marker_position_on_the_bar);
   RUN_TEST(test_tap_boxes);
@@ -798,9 +1076,12 @@ int main(int, char **) {
   RUN_TEST(test_model_product_names);
   RUN_TEST(test_model_save_button);
   RUN_TEST(test_model_menu_tiles);
+  RUN_TEST(test_the_model_as_json_for_the_browser_copy);
   RUN_TEST(test_model_pages);
   RUN_TEST(test_model_same_facts_same_bytes);
   RUN_TEST(test_only_rows_that_changed_get_painted);
+  RUN_TEST(test_the_style_of_the_live_page);
+  RUN_TEST(test_what_to_do_next_to_the_hilo_word);
   RUN_TEST(test_model_plate_line);
   RUN_TEST(test_a_plate_never_shows_a_cut_number);
   RUN_TEST(test_there_is_a_golden_for_every_screen);

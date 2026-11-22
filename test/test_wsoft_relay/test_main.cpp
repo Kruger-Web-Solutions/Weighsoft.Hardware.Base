@@ -141,6 +141,24 @@ void test_zone_words() {
   TEST_ASSERT_EQUAL_STRING("HIGH", wsoft_relay_zone_text(WSOFT_RELAY_HIGH));
 }
 
+// Both switches off = nothing driven: relays OFF, light dark (Rhyno: "I have to be able to
+// turn it off").
+void test_drive_rule_relay_switch() {
+  TEST_ASSERT_FALSE(wsoft_relay_drive(false, false, false, false));
+  TEST_ASSERT_TRUE(wsoft_relay_drive(true, false, false, false));
+  // Writer mode: the relay switch alone is not enough.
+  TEST_ASSERT_FALSE(wsoft_relay_drive(true, true, false, false));
+  TEST_ASSERT_TRUE(wsoft_relay_drive(true, true, true, false));
+  TEST_ASSERT_FALSE(wsoft_relay_drive(false, true, true, false));
+}
+
+// The Hi-Lo light drives the outputs by itself, in either role.
+void test_drive_rule_light_switch() {
+  TEST_ASSERT_TRUE(wsoft_relay_drive(false, false, false, true));
+  TEST_ASSERT_TRUE(wsoft_relay_drive(false, true, false, true));
+  TEST_ASSERT_TRUE(wsoft_relay_drive(true, true, false, true));
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_zone_follows_the_hilo_check);
@@ -154,5 +172,7 @@ int main(int, char **) {
   RUN_TEST(test_relay_map_rules);
   RUN_TEST(test_one_relay_per_zone);
   RUN_TEST(test_zone_words);
+  RUN_TEST(test_drive_rule_relay_switch);
+  RUN_TEST(test_drive_rule_light_switch);
   return UNITY_END();
 }

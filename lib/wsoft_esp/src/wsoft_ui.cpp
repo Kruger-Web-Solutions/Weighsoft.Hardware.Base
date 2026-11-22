@@ -10,6 +10,7 @@
 #include "approval.h"
 #include "hilo.h"
 #include "hub.h"
+#include "loadcell.h"
 #include "pin.h"
 #include "relay.h"
 #include "scale.h"
@@ -324,6 +325,7 @@ static const char *SCREEN_REASON = "switched on the screen";
 
 static bool ready = false;
 static bool dark = true;
+static int style = WSOFT_UI_STYLE_CLASSIC;
 static int page = WSOFT_UI_PAGE_LIVE;
 static WsoftUiView view;           // the newest poll
 static WsoftUiModel shown;         // what is on the panel
@@ -333,17 +335,30 @@ static WsoftPinPad pad;
 static bool pin_target = false;    // Approval ON (true) or OFF, once the PIN is right
 static char message[40] = "";      // the open page's top-right line
 static uint32_t last_tap_ms = 0;
+// What the last ZERO tap did, shown under ZERO on the live page for RESULT_MS.
+static char zero_note[18] = "";
+static uint32_t zero_note_ms = 0;
 static bool wifi_dismissed = false;
+// The copy of the screen in the browser (one screen, two places): the web server's task reads
+// the words here and leaves its taps here; only this loop touches the pages.
+static portMUX_TYPE web_mux = portMUX_INITIALIZER_UNLOCKED;
+static WsoftUiModel web_model;
+static bool web_model_valid = false;
+static volatile bool web_tap_waiting = false;
+static volatile int16_t web_tap_x = 0, web_tap_y = 0;
 
 static bool wifi_up() {
   return WiFi.status() == WL_CONNECTED;
 }
 
-// Dark or light is kept in flash (NVS "wsoft_ui" / "dark"); dark until somebody switches it.
+// Dark or light and the style of the live page are kept in flash (NVS "wsoft_ui" / "dark" and
+// "style"); classic dark until somebody switches it.
 static void theme_load() {
   Preferences prefs;
   if (prefs.begin("wsoft_ui", false)) {
     dark = prefs.getBool("dark", true);
+    style = prefs.getUChar("style", WSOFT_UI_STYLE_CLASSIC);
+    if (style >= WSOFT_UI_STYLE_COUNT) style = WSOFT_UI_STYLE_CLASSIC;
     prefs.end();
   }
 }
@@ -352,6 +367,7 @@ static void theme_save() {
   Preferences prefs;
   if (prefs.begin("wsoft_ui", false)) {
     prefs.putBool("dark", dark);
+    prefs.putUChar("style", (uint8_t)style);
     prefs.end();
   }
 }
@@ -389,6 +405,7 @@ static void gather(Facts *f) {
   WsoftUiInput &in = f->in;
   in = WsoftUiInput();
   in.dark = dark;
+  in.style = style;
   in.page = page;
 
   in.wifi_up = wifi_up();
@@ -443,6 +460,7 @@ static void gather(Facts *f) {
   if (weigh.last_result != WSOFT_SAVE_NONE && millis() - weigh.last_result_ms < RESULT_MS) in.recent = weigh.last_result;
   in.saved_seq = weigh.last.seq;
   in.waiting = weigh.waiting;
+  in.countdown = weigh.countdown;
 
   SwitchesInfo switches;
   switches_info(&switches);
@@ -452,6 +470,8 @@ static void gather(Facts *f) {
   in.tare_on = tare.on;
   in.tare_value = tare.value;
   f->preset[0] = 0;
+  in.zero = strcmp(view.source, "LOADCELL") == 0;
+  in.zero_note = zero_note[0] && millis() - zero_note_ms < RESULT_MS ? zero_note : "";
   in.preset_on = scale.setup.preset_tare_kg != WSOFT_KG_UNSET && scale.setup.preset_tare_kg > 0;
   if (in.preset_on) {
     char kg[16];
@@ -485,9 +505,14 @@ static void invalidate() {
 static void refresh() {
   static Facts facts;
   static WsoftUiModel next;
-  if (!ready) return;
   gather(&facts);
   wsoft_ui_model(facts.in, &next);
+  portENTER_CRITICAL(&web_mux);
+  web_model = next;
+  web_model_valid = true;
+  portEXIT_CRITICAL(&web_mux);
+  shown = next;
+  if (!ready) return;  // no panel: the browser copy is this board's only screen
   for (int row = 0; row < WSOFT_UI_ROW_COUNT; row++) {
     if (!wsoft_ui_row_on_page(row, next.page)) {
       shown_valid[row] = false;  // painted over by the other page: paint it when it is back
@@ -499,7 +524,6 @@ static void refresh() {
     shown_key[row] = key;
     shown_valid[row] = true;
   }
-  shown = next;
   gx_flush();
 }
 
@@ -560,6 +584,28 @@ static void tare(bool preset) {
   say(error == WSOFT_TARE_OK ? (!preset && was_on ? "TARE CLEARED" : "TARE ON") : wsoft_tare_error_code(error));
 }
 
+// ZERO on the menu (load cell only; Rhyno, 22 Nov 2026): the scale drifted off zero, the
+// operator empties it and taps. The same zero as on the Calibrate tab, so it is kept over a
+// restart. Like Calibrate: not with Approval ON. Only on a steady reading, and not under a tare
+// (the tare was taken against the old zero).
+// What the tap did is said twice: in the menu's message line, and under ZERO on the live page
+// for a few seconds (short words: the button holds 17 letters).
+static void zero() {
+  const char *result;
+  if (approval_on()) result = "APPROVAL IS ON";
+  else if (scale_tare().on) result = "CLEAR TARE FIRST";
+  else if (!view.linked) result = "CALIBRATE FIRST";
+  else if (!approval_stable() || view.hold == WSOFT_HOLD_NOT_STABLE) result = "NOT STEADY";
+  else {
+    WsoftLoadcellError error = loadcell_set_zero("screen");
+    result = error == WSOFT_LOADCELL_OK ? "ZERO SET" : wsoft_loadcell_error_code(error);
+  }
+  say(result);
+  strlcpy(zero_note, message, sizeof zero_note);
+  for (char *p = zero_note; *p; p++) *p = (char)toupper((unsigned char)*p);
+  zero_note_ms = millis();
+}
+
 // PRODUCT on the menu: the next Hi-Lo product (none, first, ..., last, none). The operator's
 // pick wins until the Hub sets a new default (Hub ADR 0008, last change wins).
 static void next_product() {
@@ -597,13 +643,28 @@ static void menu_tap(int tile) {
     case WSOFT_UI_TILE_PRESET:
       if (scale_rs485()) tare(true);
       break;
+    case WSOFT_UI_TILE_ZERO:
+      if (strcmp(view.source, "LOADCELL") == 0) zero();
+      break;
     case WSOFT_UI_TILE_PRODUCT:
       next_product();
       break;
     case WSOFT_UI_TILE_THEME:
-      dark = !dark;
+      // One tile steps through the four looks: dark, light, Full Colour, dial.
+      if (style == WSOFT_UI_STYLE_CLASSIC && dark) {
+        dark = false;
+      } else if (style == WSOFT_UI_STYLE_CLASSIC) {
+        // Full Colour and dial are dark screens, their menu pages too.
+        style = WSOFT_UI_STYLE_COLOUR;
+        dark = true;
+      } else if (style == WSOFT_UI_STYLE_COLOUR) {
+        style = WSOFT_UI_STYLE_DIAL;
+      } else {
+        style = WSOFT_UI_STYLE_CLASSIC;
+        dark = true;
+      }
       theme_save();
-      say(dark ? "DARK MODE" : "LIGHT MODE");
+      say(style == WSOFT_UI_STYLE_COLOUR ? "FULL COLOUR" : style == WSOFT_UI_STYLE_DIAL ? "DIAL" : dark ? "DARK MODE" : "LIGHT MODE");
       break;
     case WSOFT_UI_TILE_WIFI:
       message[0] = 0;
@@ -660,6 +721,9 @@ static void tap(int x, int y) {
         weighings_request_save();
       } else if (WSOFT_UI_BOX_MENU.hit(x, y)) {
         open_page(WSOFT_UI_PAGE_MENU);
+      } else if (shown.zero_btn && WSOFT_UI_BOX_ZERO.hit(x, y)) {
+        zero();
+        message[0] = 0;  // the live page has no message line; the button says it
       }
       return;
     case WSOFT_UI_PAGE_MENU:
@@ -696,13 +760,41 @@ void ui_show(const WsoftUiView &next) {
   refresh();
 }
 
+bool ui_model_json(char *out, size_t size) {
+  static WsoftUiModel copy;  // one web request at a time (the web server has one task)
+  portENTER_CRITICAL(&web_mux);
+  bool valid = web_model_valid;
+  if (valid) copy = web_model;
+  portEXIT_CRITICAL(&web_mux);
+  return valid && wsoft_ui_model_json(copy, out, size) > 0;
+}
+
+bool ui_remote_tap(int x, int y) {
+  if (x < 0 || x >= 320 || y < 0 || y >= 240) return false;
+  portENTER_CRITICAL(&web_mux);
+  web_tap_x = (int16_t)x;
+  web_tap_y = (int16_t)y;
+  web_tap_waiting = true;
+  portEXIT_CRITICAL(&web_mux);
+  return true;
+}
+
 void ui_loop() {
-  if (!ready) return;
+  // A tap from the browser copy: the same tap() the panel's touch calls.
+  if (web_tap_waiting) {
+    portENTER_CRITICAL(&web_mux);
+    int web_x = web_tap_x, web_y = web_tap_y;
+    web_tap_waiting = false;
+    portEXIT_CRITICAL(&web_mux);
+    WSOFT_LOG.printf("TOUCH web=%d,%d\n", web_x, web_y);
+    tap(web_x, web_y);
+    refresh();
+  }
   // One tap per press.
   static bool was_down = false;
   static uint32_t last_press = 0;
   int x = 0, y = 0;
-  bool down = gx_touch(&x, &y);
+  bool down = ready && gx_touch(&x, &y);
   if (down && !was_down && millis() - last_press > TAP_GAP_MS) {
     last_press = millis();
 #if WSOFT_BOARD_CYD

@@ -9,12 +9,16 @@
 
 #include <RestartService.h>
 
+#include <approval.h>
 #include <hilo.h>
 #include <hub_web.h>
+#include <loadcell.h>
 #include <scale.h>
 #include <weighings.h>
 #include <wsoft_djb.h>
 #include <wsoft_screen.h>
+#include <wsoft_ui.h>
+#include <wsoft_ui_model.h>
 
 namespace {
 
@@ -110,6 +114,18 @@ WSoftStatusService::WSoftStatusService(AsyncWebServer* server,
       256);
   djbHandler->setMethod(HTTP_POST);
   server->addHandler(djbHandler);
+  _securityManager = securityManager;
+  server->on(WSOFT_LOADCELL_ENDPOINT_PATH,
+             HTTP_GET,
+             securityManager->wrapRequest(std::bind(&WSoftStatusService::readLoadcell, this, std::placeholders::_1),
+                                          AuthenticationPredicates::IS_ADMIN));
+  AsyncCallbackJsonWebHandler* loadcellHandler = new AsyncCallbackJsonWebHandler(
+      WSOFT_LOADCELL_ENDPOINT_PATH,
+      securityManager->wrapCallback(std::bind(&WSoftStatusService::updateLoadcell, this, std::placeholders::_1, std::placeholders::_2),
+                                    AuthenticationPredicates::IS_ADMIN),
+      256);
+  loadcellHandler->setMethod(HTTP_POST);
+  server->addHandler(loadcellHandler);
   server->on(WSOFT_HUB_ENDPOINT_PATH,
              HTTP_GET,
              securityManager->wrapRequest(std::bind(&WSoftStatusService::readHub, this, std::placeholders::_1),
@@ -129,6 +145,17 @@ WSoftStatusService::WSoftStatusService(AsyncWebServer* server,
              HTTP_POST,
              securityManager->wrapRequest(std::bind(&WSoftStatusService::save, this, std::placeholders::_1),
                                           AuthenticationPredicates::IS_AUTHENTICATED));
+  server->on(WSOFT_SCREEN_ENDPOINT_PATH,
+             HTTP_GET,
+             securityManager->wrapRequest(std::bind(&WSoftStatusService::readScreen, this, std::placeholders::_1),
+                                          AuthenticationPredicates::IS_AUTHENTICATED));
+  AsyncCallbackJsonWebHandler* screenHandler = new AsyncCallbackJsonWebHandler(
+      WSOFT_SCREEN_ENDPOINT_PATH,
+      securityManager->wrapCallback(std::bind(&WSoftStatusService::tapScreen, this, std::placeholders::_1, std::placeholders::_2),
+                                    AuthenticationPredicates::IS_AUTHENTICATED),
+      64);
+  screenHandler->setMethod(HTTP_POST);
+  server->addHandler(screenHandler);
 #if FT_ENABLED(FT_MQTT)
   _mqttClient->onConnect(std::bind(&WSoftStatusService::configureMqtt, this));
   // Topic or MQTT on/off changed on the settings page.
@@ -216,6 +243,34 @@ void WSoftStatusService::save(AsyncWebServerRequest* request) {
   sendSave(request, result == WSOFT_SAVE_SAVED ? 200 : 409, result, &saved);
 }
 
+// The words on the board's screen now, for the copy of the screen in the browser.
+void WSoftStatusService::readScreen(AsyncWebServerRequest* request) {
+  AsyncResponseStream* response = request->beginResponseStream("application/json");
+  char* words = (char*)malloc(WSOFT_UI_JSON_MAX);
+  if (words == nullptr || !ui_model_json(words, WSOFT_UI_JSON_MAX)) {
+    free(words);
+    delete response;
+    request->send(503, "application/json", "{\"error\":\"NOT_READY\"}");
+    return;
+  }
+  response->addHeader("Cache-Control", "no-store");
+  response->print(words);
+  free(words);
+  request->send(response);
+}
+
+// A tap on the browser copy, in the screen's own 320 x 240 layout. The screen loop runs it
+// like a finger on the panel, so the browser can do what the screen can and nothing more.
+void WSoftStatusService::tapScreen(AsyncWebServerRequest* request, JsonVariant& json) {
+  int x = json["x"] | -1;
+  int y = json["y"] | -1;
+  if (!json.is<JsonObject>() || !ui_remote_tap(x, y)) {
+    request->send(400, "application/json", "{\"error\":\"BAD_TAP\"}");
+    return;
+  }
+  request->send(200, "application/json", "{\"ok\":true}");
+}
+
 void WSoftStatusService::readHub(AsyncWebServerRequest* request) {
   sendHub(request, 200, false, nullptr);
 }
@@ -241,10 +296,10 @@ void WSoftStatusService::updateHub(AsyncWebServerRequest* request, JsonVariant& 
 }
 
 void WSoftStatusService::handleDjb(AsyncWebServerRequest* request, JsonVariant& json) {
-  if (!scale_rs485()) {
+  if (!scale_rs485() || strcmp(weighings_source(), "loadcell") == 0) {
     request->send(409,
                   "application/json",
-                  "{\"error\":\"NO_CARD\",\"message\":\"No weighing card: the scale is on RS232.\"}");
+                  "{\"error\":\"NO_CARD\",\"message\":\"No weighing card: the scale is not on the RS485 junction box.\"}");
     return;
   }
   if (!json.is<JsonObject>()) {
@@ -315,11 +370,121 @@ void WSoftStatusService::handleDjb(AsyncWebServerRequest* request, JsonVariant& 
   request->send(response);
 }
 
+// The load cell state for the Calibrate page. error / message are set on a refused change.
+void WSoftStatusService::sendLoadcell(AsyncWebServerRequest* request, int code, const char* error, const char* message) {
+  LoadcellInfo info;
+  loadcell_info(&info);
+  AsyncJsonResponse* response = new AsyncJsonResponse(false, 1024);
+  JsonObject root = response->getRoot().to<JsonObject>();
+  root["ok"] = error == nullptr;
+  if (error != nullptr) root["error"] = error;
+  if (message != nullptr) root["message"] = message;
+  root["active"] = info.started;
+  root["present"] = info.present;
+  if (info.have_raw) root["raw"] = (long)info.raw;
+  else root["raw"] = nullptr;
+  root["calibrated"] = info.calibrated;
+  root["zero_set"] = info.cal.zero_set;
+  if (info.cal.zero_set) root["zero_raw"] = (long)info.cal.zero_raw;
+  else root["zero_raw"] = nullptr;
+  root["span_set"] = info.cal.span_set;
+  root["decimals"] = info.cal.decimals;
+  root["unit"] = info.cal.unit == 3 ? "g" : "kg";
+  root["step"] = info.cal.step;
+  root["filter"] = info.cal.filter;
+  root["zero_track"] = info.cal.zero_track;
+  root["drift_guard"] = info.cal.drift_guard;
+  root["drift_offset"] = (long)info.drift_offset;
+  root["drift_holding"] = info.drift_holding;
+  root["zero_offset"] = (long)info.zero_offset;
+  root["rate"] = (unsigned long)info.rate;
+  // How far the last counts are apart, in tenths of a division: the page shows it as "Noise".
+  if (info.have_noise) root["noise_tenths"] = (long)info.noise_tenths;
+  else root["noise_tenths"] = nullptr;
+  if (info.cal.span_set) root["test_weight_digits"] = (long)info.cal.span_value;
+  else root["test_weight_digits"] = nullptr;
+  if (info.have_weight) root["weight_digits"] = (long)info.value;
+  else root["weight_digits"] = nullptr;
+  root["approval_on"] = approval_on();
+  response->setCode(code);
+  response->setLength();
+  request->send(response);
+}
+
+void WSoftStatusService::readLoadcell(AsyncWebServerRequest* request) {
+  sendLoadcell(request, 200, nullptr, nullptr);
+}
+
+void WSoftStatusService::updateLoadcell(AsyncWebServerRequest* request, JsonVariant& json) {
+  LoadcellInfo info;
+  loadcell_info(&info);
+  if (!info.started) {
+    sendLoadcell(request, 409, "not_loadcell", "This board is not set to a load cell. Choose it in Settings first.");
+    return;
+  }
+  // A calibration changes what the scale shows: like the junction box, only with Approval off.
+  if (approval_on()) {
+    sendLoadcell(request, 409, "approval_on", "Approval is ON. Switch Approval off before calibrating.");
+    return;
+  }
+  if (!json.is<JsonObject>()) {
+    sendLoadcell(request, 400, "json", "The request was not understood.");
+    return;
+  }
+  JsonObject body = json.as<JsonObject>();
+  Authentication auth = _securityManager->authenticateRequest(request);
+  String who = auth.authenticated && auth.user != nullptr && auth.user->username.length() ? auth.user->username : String("web");
+  const char* action = body["action"] | "";
+  WsoftLoadcellError error;
+  if (strcmp(action, "zero") == 0) {
+    error = loadcell_set_zero(who.c_str());
+  } else if (strcmp(action, "span") == 0) {
+    int32_t value = 0;
+    int decimals = 0;
+    const char* unit = body["unit"] | "kg";
+    int unit_code = strcmp(unit, "kg") == 0 ? 1 : strcmp(unit, "g") == 0 ? 3 : 0;
+    if (!wsoft_parse_weight_text(body["weight"] | "", &value, &decimals)) error = WSOFT_LOADCELL_BAD_WEIGHT;
+    else error = loadcell_set_span(value, decimals, unit_code, who.c_str());
+  } else if (strcmp(action, "format") == 0) {
+    // The scale setup: unit, digits after the point, the division in the last digit and the
+    // filter (0 off .. 3 high) and auto zero (0 off, 1..3 divisions); each left as it is when
+    // the page does not send it.
+    const char* unit = body["unit"] | "";
+    int unit_code = strcmp(unit, "kg") == 0 ? 1 : strcmp(unit, "g") == 0 ? 3 : 0;
+    if (!body["decimals"].is<int>()) error = WSOFT_LOADCELL_BAD_DECIMALS;
+    else if (!body["step"].is<int>()) error = WSOFT_LOADCELL_BAD_STEP;
+    else if (!body["filter"].isNull() && !body["filter"].is<int>()) error = WSOFT_LOADCELL_BAD_FILTER;
+    else if (!body["zero_track"].isNull() && !body["zero_track"].is<int>()) error = WSOFT_LOADCELL_BAD_ZERO_TRACK;
+    else if (!body["drift_guard"].isNull() && !body["drift_guard"].is<int>()) error = WSOFT_LOADCELL_BAD_DRIFT_GUARD;
+    else
+      error = loadcell_set_format(body["decimals"].as<int>(), unit_code, body["step"].as<int>(),
+                                  body["filter"] | info.cal.filter, body["zero_track"] | info.cal.zero_track,
+                                  body["drift_guard"] | info.cal.drift_guard,
+                                  who.c_str());
+    if (error == WSOFT_LOADCELL_OK) {
+      // Now, not at the next poll: a Max saved right after this is checked against the new e.
+      loadcell_info(&info);
+      scale_set_card(info.cal.step, info.cal.decimals, info.cal.unit);
+    }
+  } else {
+    sendLoadcell(request, 400, "action", "Unknown action.");
+    return;
+  }
+  if (error != WSOFT_LOADCELL_OK) {
+    sendLoadcell(request, error == WSOFT_LOADCELL_NO_READING ? 409 : 400, wsoft_loadcell_error_code(error),
+                 wsoft_loadcell_error_text(error));
+    return;
+  }
+  sendLoadcell(request, 200, nullptr, nullptr);
+}
+
 void WSoftStatusService::begin() {
-  WsoftScreenSource source = _settingsService->writerMode()                          ? WSOFT_SCREEN_WRITER
-                              : _settingsService->source() == WSOFT_SOURCE_RS232 ? WSOFT_SCREEN_RS232
-                                                                                 : WSOFT_SCREEN_RS485;
+  WsoftScreenSource source = _settingsService->writerMode()                             ? WSOFT_SCREEN_WRITER
+                              : _settingsService->source() == WSOFT_SOURCE_LOADCELL ? WSOFT_SCREEN_LOADCELL
+                              : _settingsService->source() == WSOFT_SOURCE_RS232    ? WSOFT_SCREEN_RS232
+                                                                                    : WSOFT_SCREEN_RS485;
   Serial.println(source == WSOFT_SCREEN_WRITER  ? F("[WSoft] Starting W-Soft screen (Writer: weight from a weigh board)...")
+                 : source == WSOFT_SCREEN_LOADCELL ? F("[WSoft] Starting W-Soft screen (load cell on an HX711 board)...")
                  : source == WSOFT_SCREEN_RS232 ? F("[WSoft] Starting W-Soft screen (RS232 scale via the Serial reader)...")
                                                 : F("[WSoft] Starting W-Soft screen (RS485 DJB on Serial1)..."));
   wsoft_screen_setup(source);

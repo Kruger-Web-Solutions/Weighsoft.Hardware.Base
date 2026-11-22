@@ -27,11 +27,24 @@
 #define WSOFT_HAS_RS232 0
 #endif
 
+// Boards whose env names two pins for a load cell on an HX711 board (the CYD, on CN1).
+#ifndef WSOFT_HAS_LOADCELL
+#define WSOFT_HAS_LOADCELL 0
+#endif
+
 // Boards whose env names the pin of an on-board RGB LED (WS2812) for the "ESP LED" switch.
 #ifdef WSOFT_RGB_LED_PIN
 #define WSOFT_HAS_ESP_LED 1
 #else
 #define WSOFT_HAS_ESP_LED 0
+#endif
+
+// Boards whose own light sits on the Hi-Lo relay pins (the yellow board's LED1): the "Hi-Lo
+// light" switch (relay_light) shows the zone on it. Needs the relay outputs.
+#if defined(WSOFT_RELAY_LIGHT) && FT_ENABLED(FT_WSOFT_RELAY)
+#define WSOFT_HAS_RELAY_LIGHT 1
+#else
+#define WSOFT_HAS_RELAY_LIGHT 0
 #endif
 
 class WSoftSettings {
@@ -55,6 +68,7 @@ class WSoftSettings {
     root["relay_writer_follow"] = settings.data.relay_writer_follow;
     root["alarm_test_save"] = settings.data.alarm_test_save;
     root["esp_led"] = settings.data.esp_led;
+    root["relay_light"] = settings.data.relay_light;
   }
 
   // Stored fields plus the resolved status topic, for the settings page.
@@ -64,8 +78,10 @@ class WSoftSettings {
     root["publish_interval_min_ms"] = WSOFT_PUBLISH_MIN_MS;
     root["publish_interval_max_ms"] = WSOFT_PUBLISH_MAX_MS;
     root["rs232_available"] = WSOFT_HAS_RS232 != 0;
+    root["loadcell_available"] = WSOFT_HAS_LOADCELL != 0;
     root["relay_available"] = FT_ENABLED(FT_WSOFT_RELAY) != 0;
     root["esp_led_available"] = WSOFT_HAS_ESP_LED != 0;
+    root["relay_light_available"] = WSOFT_HAS_RELAY_LIGHT != 0;
   }
 
   static StateUpdateResult update(JsonObject& root, WSoftSettings& settings) {
@@ -87,10 +103,9 @@ class WSoftSettings {
     in.mqtt_name = root["mqtt_name"].as<const char*>();
     in.mqtt_unique_id = root["mqtt_unique_id"].as<const char*>();
     in.source = root["source"].as<const char*>();
-#if !WSOFT_HAS_RS232
-    // This board has no RS232 wiring: the source stays RS485 whatever is sent.
-    if (in.source != nullptr && strcmp(in.source, "rs485") != 0) return StateUpdateResult::ERROR;
-#endif
+    // A source this board is not wired for is refused, never silently changed.
+    if (in.source != nullptr && strcmp(in.source, "rs232") == 0 && !WSOFT_HAS_RS232) return StateUpdateResult::ERROR;
+    if (in.source != nullptr && strcmp(in.source, "loadcell") == 0 && !WSOFT_HAS_LOADCELL) return StateUpdateResult::ERROR;
     if (root["relay_enabled"].is<bool>()) {
       in.has_relay_enabled = true;
       in.relay_enabled = root["relay_enabled"].as<bool>();
@@ -103,6 +118,12 @@ class WSoftSettings {
       in.has_esp_led = true;
       in.esp_led = root["esp_led"].as<bool>();
     }
+    if (root["relay_light"].is<bool>()) {
+      in.has_relay_light = true;
+      in.relay_light = root["relay_light"].as<bool>();
+    }
+    // This board's light is not on the relay pins: the switch stays off whatever is sent.
+    if (in.relay_light && !WSOFT_HAS_RELAY_LIGHT) return StateUpdateResult::ERROR;
     if (root["relay_writer_follow"].is<bool>()) {
       in.has_relay_writer_follow = true;
       in.relay_writer_follow = root["relay_writer_follow"].as<bool>();
@@ -149,7 +170,7 @@ class WSoftSettingsService : public StatefulService<WSoftSettings> {
   void begin();
 
   uint32_t publishIntervalMs();
-  // RS485 (DJB) or RS232 (scale line). Read at boot; a change takes effect after a restart.
+  // RS485 (DJB), RS232 (scale line) or a load cell (HX711). Read at boot; a change takes effect after a restart.
   WSoftSource source();
   // Empty when MQTT is switched off for W-Soft.
   String mqttStatusTopic();
@@ -158,7 +179,8 @@ class WSoftSettingsService : public StatefulService<WSoftSettings> {
   String mqttUniqueId();
   // Hi-Lo relay output: the switch and the relay (1..4, 0 = none) for each zone.
   // In Writer mode the output is on only when "relays follow the weigh board" is on too.
-  void relayConfig(bool* enabled, uint8_t* low, uint8_t* ok, uint8_t* high);
+  // The Hi-Lo light switch (yellow board) drives the same outputs by itself; *light says so.
+  void relayConfig(bool* enabled, uint8_t* low, uint8_t* ok, uint8_t* high, bool* light = nullptr);
   // The "ESP LED" switch (the board's RGB LED shows the Hi-Lo zone).
   bool espLed();
   // Set once at boot from the board's role (UartModeService): true = Writer mode.

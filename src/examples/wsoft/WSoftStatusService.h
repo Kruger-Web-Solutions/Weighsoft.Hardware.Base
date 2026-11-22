@@ -16,6 +16,9 @@
 // Hub pairing key; the board restarts after a change. The key is never sent back.
 // GET /rest/wsoftSave (logged in) shows the weighings waiting for the Hub; POST saves the
 // load on the scale now, like the SAVE button on the board's screen.
+// GET /rest/wsoftScreen (logged in) gives the words on the board's screen now; POST {x, y}
+// taps it, in the screen's 320 x 240 layout. The page in the browser paints those words with
+// the same drawing as the board, so it is one screen in two places.
 // GET /rest/wsoftFeed and the /ws/wsoftFeed socket (open, read-only, like the Serial reader's
 // /rest/serial and /ws/serial): the weight for a Writer board (wsoft_feed_write), pushed every
 // WSOFT_FEED_MS while a Writer listens.
@@ -37,8 +40,10 @@ class AsyncMqttClient;
 
 #define WSOFT_STATUS_ENDPOINT_PATH "/rest/wsoftStatus"
 #define WSOFT_DJB_ENDPOINT_PATH "/rest/djb"
+#define WSOFT_LOADCELL_ENDPOINT_PATH "/rest/wsoftLoadcell"
 #define WSOFT_HUB_ENDPOINT_PATH "/rest/wsoftHub"
 #define WSOFT_SAVE_ENDPOINT_PATH "/rest/wsoftSave"
+#define WSOFT_SCREEN_ENDPOINT_PATH "/rest/wsoftScreen"
 #define WSOFT_STATUS_SOCKET_PATH "/ws/wsoftStatus"
 #define WSOFT_STATUS_WS_CLEANUP_MS 5000UL
 #define WSOFT_FEED_ENDPOINT_PATH "/rest/wsoftFeed"
@@ -81,6 +86,7 @@ class WSoftStatusService : public StatefulService<WSoftStatus> {
   String _discoveryTopic;
 #endif
   WSoftSettingsService* _settingsService;
+  SecurityManager* _securityManager = nullptr;
   unsigned long _lastPublishMs = 0;
   unsigned long _lastCleanupMs = 0;
   AsyncWebSocket _feedSocket;
@@ -90,9 +96,15 @@ class WSoftStatusService : public StatefulService<WSoftStatus> {
   static String feedJson();
   void publishDiscovery(const String& statusTopic);
   void handleDjb(AsyncWebServerRequest* request, JsonVariant& json);
+  // Load cell on an HX711 board: state, and zero / test weight / scale format (admin).
+  void readLoadcell(AsyncWebServerRequest* request);
+  void updateLoadcell(AsyncWebServerRequest* request, JsonVariant& json);
+  void sendLoadcell(AsyncWebServerRequest* request, int code, const char* error, const char* message);
   void readHub(AsyncWebServerRequest* request);
   void readSave(AsyncWebServerRequest* request);
   void save(AsyncWebServerRequest* request);
+  void readScreen(AsyncWebServerRequest* request);
+  void tapScreen(AsyncWebServerRequest* request, JsonVariant& json);
   void updateHub(AsyncWebServerRequest* request, JsonVariant& json);
   static void screenTask(void* param);
 };

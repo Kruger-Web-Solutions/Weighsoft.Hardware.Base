@@ -4,6 +4,7 @@
 #include "wsoft_ui.h"
 #ifdef WSOFT_ON_BASE
 #include "hilo.h"
+#include "loadcell.h"
 #include "hub_web.h"
 #include "switches.h"
 #include "weighings.h"
@@ -246,6 +247,9 @@ void hub_handle_serial(Stream &port) {
       ESP.restart();
     } else if (command.startsWith("APPROVAL")) {
       approval_handle_command(command, port);
+    } else if (command.startsWith("LOADCELL")) {
+      // LOADCELL INFO / SET: the load cell's setup, read and changed over the cable.
+      loadcell_handle_command(command, port, approval_on());
     } else if (command.startsWith("SCREEN")) {
       // SCREEN CRC / SHOT / TAP: checking the screen without standing at the board.
       ui_handle_command(command, port);

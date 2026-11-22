@@ -14,7 +14,7 @@
 //                      yellow save notice, or the Wi-Fi alert
 //   weight 62-122      NET weight; the panel is yellow / green / red with the Hi-Lo relays
 //   Hi-Lo 122-188      the word, product and target, the LOW / OK / HIGH bar with its marker
-//   bottom 188-240     GROSS read-out, MENU, SAVE
+//   bottom 188-240     GROSS read-out (ZERO on a load cell board), MENU, SAVE
 // The menu pages (MENU, PIN pad, the no-PIN note, Wi-Fi) are the status bar plus one page row.
 
 #include <stddef.h>
@@ -23,9 +23,17 @@
 #include "wsoft_gfx.h"
 
 // Font numbers for WsoftCanvas, in the order of the generated WSOFT_UI_FONTS_1X / _2X.
-enum { WSOFT_UI_TINY, WSOFT_UI_SMALL, WSOFT_UI_MID, WSOFT_UI_BIG, WSOFT_UI_HERO, WSOFT_UI_FONT_COUNT };
+// HUGE (the weight) and XL (the Hi-Lo word) are the Full Colour screen's bigger letters.
+enum { WSOFT_UI_TINY, WSOFT_UI_SMALL, WSOFT_UI_MID, WSOFT_UI_BIG, WSOFT_UI_HERO, WSOFT_UI_HUGE, WSOFT_UI_XL, WSOFT_UI_FONT_COUNT };
 
 enum { WSOFT_UI_PAGE_LIVE, WSOFT_UI_PAGE_MENU, WSOFT_UI_PAGE_PIN, WSOFT_UI_PAGE_NO_PIN, WSOFT_UI_PAGE_WIFI };
+// The style of the live page (MENU > SCREEN steps through them; Rhyno, 22 Nov 2026):
+//   classic  the five rows below, dark or light
+//   colour   Full Colour: the whole screen takes the colour of the Hi-Lo zone, a bigger weight
+//   dial     the Hi-Lo bar bent into a gauge over the weight
+// Every style has the same rows and the same tap boxes; only what a row draws differs. Colour
+// and dial are dark screens. The menu pages look the same in every style.
+enum { WSOFT_UI_STYLE_CLASSIC, WSOFT_UI_STYLE_COLOUR, WSOFT_UI_STYLE_DIAL, WSOFT_UI_STYLE_COUNT };
 // How a word is coloured: plain, good (green), wait (yellow) or bad (red).
 enum { WSOFT_UI_TONE_SOFT, WSOFT_UI_TONE_OK, WSOFT_UI_TONE_WAIT, WSOFT_UI_TONE_BAD };
 // What the band above the weight shows instead of the trade row.
@@ -42,7 +50,8 @@ enum {
   WSOFT_UI_TILE_PRESET,
   WSOFT_UI_TILE_PRODUCT,
   WSOFT_UI_TILE_THEME,
-  WSOFT_UI_TILE_WIFI
+  WSOFT_UI_TILE_WIFI,
+  WSOFT_UI_TILE_ZERO
 };
 
 static const int WSOFT_UI_TILES_MAX = 7;
@@ -60,6 +69,7 @@ struct WsoftUiTile {
 struct WsoftUiModel {
   bool dark;
   uint8_t page;
+  uint8_t style;
   // status bar
   bool wifi_up;
   uint8_t wifi_bars;  // 0..4
@@ -89,6 +99,7 @@ struct WsoftUiModel {
   // Hi-Lo row
   char word[14];
   uint8_t word_tone;
+  char hint[18];      // what to do: "ADD MORE", "REMOVE PRODUCT", "HOLD STILL"; "" with no zone
   bool product_on;
   char product[26];
   char target[26];    // "TARGET 50 KG", or the hint when no product is picked
@@ -99,6 +110,8 @@ struct WsoftUiModel {
   char gross[22];
   char save_line[18];
   uint8_t save_look;
+  bool zero_btn;      // ZERO takes the place of the GROSS read-out (a board that weighs itself)
+  char zero_line[18]; // under ZERO: "TAP: SET TO 0", or what the last tap did
   // menu pages
   char title[12];
   char message[40];
@@ -148,6 +161,7 @@ static const double WSOFT_UI_STAR_W = 20;
 static const WsoftUiBox WSOFT_UI_BOX_STAR = {0, 20, 40, 26};
 static const WsoftUiBox WSOFT_UI_BOX_CONNECT = {160, 26, 100, 32}; // on the Wi-Fi alert
 static const WsoftUiBox WSOFT_UI_BOX_DISMISS = {266, 26, 42, 32};
+static const WsoftUiBox WSOFT_UI_BOX_ZERO = {8, 190, 104, 46};     // where GROSS is, when the model has zero_btn
 static const WsoftUiBox WSOFT_UI_BOX_MENU = {120, 190, 72, 46};
 static const WsoftUiBox WSOFT_UI_BOX_SAVE = {200, 190, 112, 46};
 static const WsoftUiBox WSOFT_UI_BOX_BACK = {164, 190, 148, 44};   // bottom right of a page

@@ -52,6 +52,11 @@ void FeaturesService::features(AsyncWebServerRequest* request) {
 #else
   root["wsoft_rs232"] = false;
 #endif
+#if defined(WSOFT_HAS_LOADCELL) && WSOFT_HAS_LOADCELL
+  root["wsoft_loadcell"] = true;
+#else
+  root["wsoft_loadcell"] = false;
+#endif
   response->setLength();
   request->send(response);
 }

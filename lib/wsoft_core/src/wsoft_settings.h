@@ -29,7 +29,9 @@ static const char *const WSOFT_DEFAULT_MQTT_UNIQUE_ID = "wsoft-#{unique_id}";
 // RS232 = a scale indicator that sends a text line; the existing Serial reader service
 // reads it (its own page sets baud and the weight pattern). Both use the same UART, so a
 // board has one or the other, and a change takes effect after a restart.
-enum WSoftSource { WSOFT_SOURCE_RS485 = 0, WSOFT_SOURCE_RS232 = 1 };
+// LOADCELL = a load cell on an HX711 amplifier board, read by the board itself on the same
+// plug (two data pins instead of the UART); calibrated on the board (wsoft_loadcell.h).
+enum WSoftSource { WSOFT_SOURCE_RS485 = 0, WSOFT_SOURCE_RS232 = 1, WSOFT_SOURCE_LOADCELL = 2 };
 
 struct WSoftSettingsData {
   uint32_t publish_interval_ms;
@@ -57,6 +59,12 @@ struct WSoftSettingsData {
   // "ESP LED" (Rhyno, 21 Nov 2026): the board's own RGB LED shows the Hi-Lo zone (wsoft_led.h).
   // ON by default; OFF keeps the LED dark. Only does something on a board built with the LED.
   bool esp_led;
+  // "Hi-Lo light" (Rhyno, 22 Nov 2026): on a board whose own light sits on the relay pins
+  // (the yellow board's LED1), show the Hi-Lo zone on that light without the relay switch.
+  // OFF by default and its own field, not esp_led: esp_led is ON by default, and on these
+  // pins that would switch outputs after an update with nobody asking. A relay board wired
+  // to the same pads switches with the light, so the page says so.
+  bool relay_light;
 };
 
 // One field per option. A missing field (has_* false or a null string) takes its default:
@@ -69,7 +77,7 @@ struct WSoftSettingsInput {
   const char *mqtt_base_path = nullptr;
   const char *mqtt_name = nullptr;
   const char *mqtt_unique_id = nullptr;
-  // "rs485" or "rs232"; anything else is an ERROR.
+  // "rs485", "rs232" or "loadcell"; anything else is an ERROR.
   const char *source = nullptr;
   bool has_relay_enabled = false;
   bool relay_enabled = false;
@@ -86,6 +94,8 @@ struct WSoftSettingsInput {
   bool alarm_test_save = false;
   bool has_esp_led = false;
   bool esp_led = false;
+  bool has_relay_light = false;
+  bool relay_light = false;
 };
 
 enum WSoftSettingsResult { WSOFT_SETTINGS_UNCHANGED, WSOFT_SETTINGS_CHANGED, WSOFT_SETTINGS_ERROR };
@@ -105,6 +115,6 @@ bool wsoft_settings_valid_id(const char *id);
 // Display name: 1..48 printable ASCII chars; inner spaces allowed, no leading/trailing space.
 bool wsoft_settings_valid_name(const char *name);
 
-// "rs485" / "rs232" for the JSON field and the page.
+// "rs485" / "rs232" / "loadcell" for the JSON field and the page.
 const char *wsoft_source_text(WSoftSource source);
 bool wsoft_source_parse(const char *text, WSoftSource *source);

@@ -49,6 +49,123 @@ the USB line. A real RS232 scale (up to ±12 V) needs a **3.3 V RS232-to-TTL con
 (MAX3232)** on CN1: converter TTL side to CN1 like the RS485 module above, DB9 side to the
 scale.
 
+## 1c. Load cell on an HX711 board (no scale indicator)
+
+W-Soft → **Settings** → **Weight comes from**: *Load cell (HX711 board)*. Saving restarts the
+board. The board then reads the load cell itself; nothing uses the UART on CN1, so there is
+no RS485 box and no RS232 scale on this board in that mode. The weight still goes to the
+screen, the web page, the Hub and a Writer over Wi-Fi, like any other source.
+
+> **On the bench 22 Nov 2026:** Rhyno's yellow board weighs with the HW-29 board on CN1
+> (commit c142c76), and the print next to the plug on his board reads GND, IO22, IO27, 3.3V.
+> Not measured yet: accuracy, drift, and the scale setup below (added after that run).
+
+**Wiring (CN1, 4 wires, no soldering).** Rhyno's board is the green `HW-29` HX711 module.
+
+| HX711 board (bottom row, `JP2`) | CN1 pin |
+|---|---|
+| VCC | 3V3 |
+| GND | GND |
+| DT | GPIO22 |
+| SCK | GPIO27 |
+
+- **VCC goes to 3.3 V, never 5 V.** The DT signal is at the HX711's supply voltage, and an
+  ESP32 pin takes 3.3 V.
+- The load cell goes on the top row (`J1`): E+ / E- feed it, A+ / A- are its signal. B+ / B-
+  stay empty (channel B is not read).
+- The CN1 pin names are from the community pin list for this board
+  (witnessmenow/ESP32-Cheap-Yellow-Display `PINS.md`): read the print next to the plug.
+- The pins are build flags: `WSOFT_HAS_LOADCELL`, `WSOFT_LOADCELL_DT`, `WSOFT_LOADCELL_SCK`.
+  Only this env sets them, so only this board offers the choice.
+
+**What the code does** (`lib/wsoft_esp/src/loadcell.cpp`, rules in
+`lib/wsoft_core/src/wsoft_loadcell.cpp`, host tests `test/test_wsoft_loadcell`):
+
+- From the HX711 datasheet: DT low = a count is ready; 24 clock pulses read it (24-bit two's
+  complement), a 25th picks channel A at gain 128. The 25 pulses run with interrupts off,
+  because a clock pulse held high for 60 us or more puts the chip to sleep.
+- Our own choices, not datasheet values: the filter (below); no count for 1 s = `NO SIGNAL`; a
+  test weight must move the count by at least 1000.
+- **Filter** (Rhyno, 22 Nov 2026: the reading was not steady). The counts of each tenth of a
+  second are first gathered into one, so everything below works the same whether the chip runs
+  at 10 or 80 counts a second (the Calibrate page shows the measured *Chip speed*). *Off* shows
+  each of those as it comes. *Low*, *Medium* (the default) and *High* average the last 4, 12 or
+  32 of them (0.4, 1.2, 3.2 s), and do
+  two more things: a count more than 4 divisions from the average is a new load, not noise (one
+  alone is dropped as a spike, a second on the same side starts the average again from those
+  two, so a long average still follows a new load at once; when the counts are themselves
+  further apart than that, their spread is the limit); and the last digit is held until
+  the load is more than 3/4 of a division from the weight shown, so a load on the edge between
+  two divisions does not flip between them. The screen and the web page show the same held
+  weight. On the bench 22 Nov (f84c076, before the tenth-of-a-second step, Medium, empty, 30 s):
+  the reading held inside 2 divisions, with one blip of 8 divisions getting through.
+- **Auto zero** (zero tracking; off by default). Set to 1, 2 or 3 divisions: while the load has
+  stayed that close to zero for 2 seconds, the zero follows it (an eighth of what is left, ten
+  times a second). Kept in memory only, cleared by a restart or a new zero, and never more than
+  20 divisions from the set zero. It also takes away a small load left inside that band. Our
+  own choices; not tried on a board yet.
+- **Drift Guard** (off by default; 1 to 20 divisions). Bench, 22 Nov (28f8624, 0.002 kg division,
+  hands off): a slow wave of about 12 g, the same size empty and with 0.5 kg on, no spikes. With
+  a load on, the board sees one number and cannot tell the zero floating from a slow real change.
+  So: once the count has stayed within one division for 2 seconds, slow movement is held back
+  and the weight shown stands still. It lets go, and shows the whole weight, when one filtered
+  count moves more than half a division, or when the amount held back would pass the limit.
+  Near zero with Auto zero on it does nothing. It rests while Approval is ON. Kept in memory
+  only. The price: a slow change smaller than the limit stays hidden until the next release.
+  Our own choices; host-tested (`test_wsoft_loadcell`). First bench run (d07b1b0, limit unknown,
+  0.5 kg, 30 s): band 6 g, was 12 g; whether it was switched on could not be seen from the cable.
+- **On the cable** (USB, like `SCREEN`): `LOADCELL INFO` prints the setup and what auto zero and
+  Drift Guard are doing (holding, counts held back, how often it began to hold and let go for a
+  jump or for the limit). `LOADCELL SET dec= step= filter= auto_zero= drift_guard=` changes the
+  setup like the Scale setup tab; refused while Approval is ON. The start line and a
+  `LOADCELL_STATE` line next to every weight line carry the same facts.
+- The chip's two end values (out of range) are never a weight.
+- Whether this module runs at 10 or 80 counts a second is set on its board and was not checked.
+  The code works with either.
+
+**Scale setup** (W-Soft → **Scale setup**, admin). One tab holds the setup on every source
+(Rhyno, 22 Nov 2026: one home, no double). On RS232 it says the indicator holds it; on RS485
+the decimals and e go to the weighing card; with a load cell the board is the scale, so the
+same form shows *Unit* (kg or g), *Division size* (1, 2 or 5 in any digit from 0.0001 kg or
+0.01 g up, then 10, 20, 50), *Filter* and *Auto zero* in the place of the card's two fields. Under the
+filter the page says how big the raw noise is now, in divisions, and which filter fits (a rough
+estimate of ours: up to 1 division Low, 1.7 Medium, 2.8 High, more = pick a bigger division).
+One range; a second range is not built. They are saved with `POST /rest/wsoftLoadcell
+{"action":"format","decimals":3,"step":2,"unit":"kg","filter":2,"zero_track":1}` (= 0.002 kg,
+Medium, auto zero within 1 division; filter 0 off .. 3 high, zero_track 0 off .. 3); the rest of the form is the RS485 one (section 2c): Max,
+Min, blanking below zero and above Max, stable samples, tare, the SA number, and "setup
+complete" before Approval can go ON. The board hands its own division, decimals and unit to
+those rules in the place of the card's (`scale_set_card`). The g unit stops at 0.01 g because
+those rules count in 0.00001 kg. The screen gets the TARE tiles and the plate line, as on RS485
+(not tried on a board yet).
+
+**ZERO on the screen** (load cell only; Rhyno, 22 Nov 2026). It is on the live page, where
+GROSS is on the other boards (with no tare on, gross is the big number anyway; under a tare
+the GROSS read-out is back), and in MENU → **ZERO**. Under the button the screen says what the
+tap did for 3 seconds (`ZERO SET`, `NOT STEADY`, `APPROVAL IS ON`). The status bar says `CELL`. The scale
+drifted off zero: empty it, tap ZERO. It is the same zero as on the Calibrate tab, kept over a
+restart. Refused with Approval ON (`APPROVAL IS ON`), while a tare is on, and while the reading
+is not steady. A board that reads a scale (RS485, RS232) has no ZERO tile: that scale keeps its
+own zero. The menu holds 7 tiles; with ZERO and PRESET TARE both there the WI-FI tile gives
+way (a tap on the Wi-Fi bars at the top opens the same page). Not tried on a board yet.
+
+**Calibrate** (W-Soft → **Calibrate**, admin; `GET` / `POST /rest/wsoftLoadcell`):
+
+1. **Zero**: scale empty, *Set zero*.
+2. **Test weight**: put a known weight on, type what it weighs, *Set test weight*. It is kept in
+   the scale's own digits (`2` on a 0.001 kg scale = 2000); more digits than the division has
+   are refused. Changing the division later keeps the calibration when the test weight still
+   fits the new last digit, and is refused (`format_span`) when it does not.
+
+The page shows the **internal count** (the raw count from the chip, through the filter) under
+the weight, asked for about four times a second, and how far it is from the stored zero. It is
+there before any calibration: press on the load cell and it moves.
+That checks the wiring. Once calibrated it also shows **Noise**: how far the last counts (up to
+32) are apart, in divisions. Until zero and a test weight are set the board shows no weight at all.
+The calibration is kept on the board (NVS `loadcell`) and each change is one `LOADCELL ...`
+line in the USB log. All of it is refused while Approval is ON. No junction box alarm. A
+weighing sent to the Hub carries `"source":"loadcell"`.
+
 ## 2. Screen (320 x 240)
 
 The same screen as on the Waveshare, in the look of the Edge bench screen, light or dark:
@@ -159,6 +276,7 @@ An empty scale is OFF, not TOO LOW.
 | Field | Default | Meaning |
 |---|---|---|
 | `relay_enabled` | `false` | Switch the Hi-Lo relays. OFF until someone turns it on |
+| `relay_light` | `false` | Hi-Lo light: LED1 shows the zone (blue under, green correct, red over) without the relay switch. Same pins as the relays, so a relay board wired to LED1 switches with it. In Writer mode it follows the weigh board by itself |
 | `relay_low` / `relay_ok` / `relay_high` | 1 / 2 / 3 | Relay for each zone, 0 = none. No relay twice (the save is refused otherwise) |
 
 Rules in `lib/wsoft_core/src/wsoft_relay.*` and `wsoft_settings.*` (host tests

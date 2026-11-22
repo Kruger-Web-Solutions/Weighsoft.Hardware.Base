@@ -17,6 +17,7 @@
 
 struct WsoftUiInput {
   bool dark = true;
+  int style = WSOFT_UI_STYLE_CLASSIC;  // WSOFT_UI_STYLE_*
   int page = WSOFT_UI_PAGE_LIVE;
 
   // Wi-Fi and Hub
@@ -29,7 +30,7 @@ struct WsoftUiInput {
   const char *hub_text = "";  // the Hub state in words (hub_state_text)
 
   // the scale
-  const char *source = "RS485";  // RS485, RS232 or WRITER
+  const char *source = "RS485";  // RS485, RS232, WRITER or LOADCELL (shown as CELL: the bar has room for 7 letters)
   bool linked = false;
   bool alarm = false;
   bool stable = false;
@@ -55,6 +56,7 @@ struct WsoftUiInput {
   // saving
   bool writer = false;        // Writer mode: this board never saves
   bool auto_save = false;
+  int countdown = 0;          // seconds until auto save saves this load (3, 2, 1); 0 = none
   size_t pending = 0;         // saved, not yet taken by the Hub
   WsoftSaveResult recent = WSOFT_SAVE_NONE;     // the last Save result while under 3 s old
   uint32_t saved_seq = 0;                       // the number of the last saved weighing
@@ -66,6 +68,8 @@ struct WsoftUiInput {
   bool tare_on = false;
   int32_t tare_value = 0;     // in decimals and unit
   bool preset_on = false;     // the setup has a preset tare
+  bool zero = false;          // the board weighs itself (load cell): ZERO is there
+  const char *zero_note = ""; // what the last ZERO tap did, while it is fresh ("ZERO SET", "NOT STEADY")
   const char *preset_text = "";  // "2.5 kg"
 
   // the pages
@@ -77,6 +81,14 @@ struct WsoftUiInput {
 
 // Fills *model (every byte of it) from the facts.
 void wsoft_ui_model(const WsoftUiInput &in, WsoftUiModel *model);
+
+// The model as JSON, for the copy of the screen in the browser (Rhyno, 22 Nov 2026: one
+// screen, two places). The keys are the model's own field names, the same names the reference
+// drawing tools/wsoft-ui/ref.js paints from, so the browser paints the board's words with that
+// drawing. A tile is {"caption","value","look"}. Returns the length written (without the
+// ending 0), or 0 when out is too small (WSOFT_UI_JSON_MAX bytes always holds it).
+size_t wsoft_ui_model_json(const WsoftUiModel &model, char *out, size_t size);
+static const size_t WSOFT_UI_JSON_MAX = 2560;
 
 // Wi-Fi bars from the signal in dBm: 4 from -55, 3 from -67, 2 from -75, else 1.
 int wsoft_ui_wifi_bars(int rssi);

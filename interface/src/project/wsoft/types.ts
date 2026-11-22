@@ -32,7 +32,8 @@ export interface WSoftStatus {
   hub: string;
   hub_online: boolean;
   polls: number;
-  /** rs485 = DJB junction box over Modbus; rs232 = a scale line read by the Serial reader. */
+  /** rs485 = DJB junction box over Modbus; rs232 = a scale line read by the Serial reader;
+   * loadcell = a load cell on an HX711 board, read and calibrated by this board. */
   source: WSoftSource;
   /** weigh = this board reads the scale and saves; writer = it shows a weigh board's weight and never saves. */
   role?: 'weigh' | 'writer';
@@ -48,7 +49,57 @@ export interface WSoftStatus {
 
 export type WSoftNoticeLevel = 'stop' | 'wait' | 'info';
 
-export type WSoftSource = 'rs485' | 'rs232';
+export type WSoftSource = 'rs485' | 'rs232' | 'loadcell';
+
+/** GET/POST /rest/wsoftLoadcell (admin): the load cell on an HX711 board and its calibration. */
+export interface WSoftLoadcell {
+  ok: boolean;
+  /** A refused change: a code such as zero_first or too_small, and a sentence for the page. */
+  error?: string;
+  message?: string;
+  /** The board's weight source is the load cell. */
+  active: boolean;
+  /** The HX711 answered in the last second. */
+  present: boolean;
+  /** The averaged raw count, or null when the HX711 is silent. It moves when the load cell is pressed. */
+  raw: number | null;
+  /** The count stored as zero; null before zero is set. */
+  zero_raw: number | null;
+  calibrated: boolean;
+  zero_set: boolean;
+  span_set: boolean;
+  decimals: number;
+  unit: 'kg' | 'g';
+  /** Display step in digits: 1, 2, 5, 10, 20 or 50. */
+  step: number;
+  /** The filter: 0 off, 1 low, 2 medium, 3 high. */
+  filter: number;
+  /** Auto zero: 0 off, 1 to 3 = follows a creep within that many divisions of zero. */
+  zero_track: number;
+  /** Counts auto zero has moved the zero by since the last restart or zero. */
+  zero_offset: number;
+  /** Drift Guard: 0 off, 1 to 20 = the most divisions of slow drift it holds back. */
+  drift_guard: number;
+  /** Counts Drift Guard holds back right now. */
+  drift_offset: number;
+  /** Drift Guard is holding the weight shown. */
+  drift_holding: boolean;
+  /** Counts a second from the chip, measured (10 or 80 by its board); 0 when silent. */
+  rate: number;
+  /** How far the last raw counts are apart, in tenths of a division (10 = one division); null when not known. */
+  noise_tenths: number | null;
+  /** The test weight last used, without the decimal point; null before the first one. */
+  test_weight_digits: number | null;
+  /** The weight now, without the decimal point; null when there is none. */
+  weight_digits: number | null;
+  approval_on: boolean;
+}
+
+export type WSoftLoadcellRequest =
+  | { action: 'zero' }
+  | { action: 'span'; weight: string; unit: 'kg' | 'g' }
+  /** The scale setup: unit, digits after the point, the division in the last digit (0.002 kg = 3, 2), the filter and auto zero. */
+  | { action: 'format'; decimals: number; step: number; unit: 'kg' | 'g'; filter: number; zero_track: number; drift_guard: number };
 
 // Mirrors src/examples/wsoft/WSoftSettingsService.h (WSoftSettings::read).
 export interface WSoftSettings {
@@ -73,10 +124,16 @@ export interface WSoftSettings {
   esp_led?: boolean;
   /** Read-only: true on boards built with the on-board RGB LED (the S3 without a screen). */
   esp_led_available?: boolean;
+  /** Hi-Lo light on the relay pins (yellow board LED1). Off by default. */
+  relay_light?: boolean;
+  /** Read-only: true on boards whose own light sits on the relay pins. */
+  relay_light_available?: boolean;
   /** Read-only: true on boards built with relay outputs (the yellow board). */
   relay_available?: boolean;
   /** Read-only: false on boards without RS232 wiring (the Waveshare). */
   rs232_available?: boolean;
+  /** Read-only: true on boards built with pins for a load cell on an HX711 board (the yellow board). */
+  loadcell_available?: boolean;
   /** Read-only: base path with placeholders expanded, plus "/status". */
   mqtt_status_topic?: string;
   publish_interval_min_ms?: number;
@@ -237,7 +294,8 @@ export interface WSoftScaleSetup {
 
 // A5. POST /rest/wsoftScaleSetup (admin).
 export interface WSoftScaleSetupRequest {
-  board: WSoftScaleBoard;
+  /** A field that is left out keeps its stored value. */
+  board: Partial<WSoftScaleBoard>;
   reason: string;
 }
 
@@ -284,7 +342,7 @@ export interface WSoftRelayBoard {
 export interface WSoftRelayStatus {
   relay_active: 'low' | 'high';
   pins: { ry1: number; ry2: number; ry3: number; ry4: number };
-  hilo: { enabled: boolean; relay_low: number; relay_ok: number; relay_high: number; zone: string };
+  hilo: { enabled: boolean; light?: boolean; relay_low: number; relay_ok: number; relay_high: number; zone: string };
   relays: WSoftRelayBoard;
 }
 

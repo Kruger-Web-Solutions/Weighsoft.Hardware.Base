@@ -16,7 +16,7 @@ Pictures of every test screen on both panels: [img/wsoft-screen](img/wsoft-scree
 | The band | Takes the trade row's place when needed, first match wins: a red save notice (nothing saves until the person acts), the Wi-Fi alert, a yellow save notice. Same words as the Edge and the web page |
 | Weight | `NET` or `NET (TARE)`, the net weight, the unit. `----` when the reading is blanked or no weight arrives. **The panel is yellow, green or red with the Hi-Lo relay zone** (LOW, OK, HIGH) and plain when the relays are off |
 | Hi-Lo | The word (`TOO LOW`, `OK`, `TOO HIGH`; else `WAITING`, `ALARM`, `NO PRODUCT`, `OUT OF RANGE`, `EMPTY`), the product and its target, the LOW / OK / HIGH bar with the marker and both limits |
-| Bottom | `GROSS` read-out, **MENU**, **SAVE** with its result line (`SAVED #n`, `TAP AGAIN: SAVE`, `TAKE LOAD OFF`, `n TO SEND`, `AUTO SAVE ON`, `TAP TO SAVE`, `WRITER: NO SAVE`) |
+| Bottom | `GROSS` read-out (on a load cell board with no tare on: the **ZERO** button, with what the last tap did under it), **MENU**, **SAVE** with its result line (`SAVED #n`, `TAP AGAIN: SAVE`, `TAKE LOAD OFF`, `n TO SEND`, `AUTO SAVE ON`, `TAP TO SAVE`, `WRITER: NO SAVE`) |
 
 The weight panel and the word use `relay_zone()`, the zone the relays are driven with, so the
 screen and the relays always agree. The relays (and so the colour) are off unless a product is
@@ -54,10 +54,52 @@ then says "Clock set from the Hub". The log shows `HUB clock set from hub: ...`.
 
 Each tile shows what it is set to now; green is on. APPROVAL (asks for the screen PIN on a
 phone-style pad; with no PIN set, a note says where to set it), AUTO SAVE, TARE and PRESET
-TARE (RS485 only), PRODUCT (steps through the Hub's Hi-Lo products), SCREEN (dark or light,
-kept in flash: NVS `wsoft_ui` / `dark`), WI-FI, BACK. The top right line says what the last
+TARE (RS485 only), PRODUCT (steps through the Hub's Hi-Lo products), SCREEN (steps DARK, LIGHT,
+COLOUR, DIAL; kept in flash: NVS `wsoft_ui` / `dark` and `style`; see 3a), WI-FI, BACK. The top right line says what the last
 tap did. After 30 s without a tap the screen goes back to the live page (the Wi-Fi page after
 3 minutes).
+
+## 3a. Three looks for the live page (Rhyno, 22 Nov 2026)
+
+MENU > SCREEN steps through them. The rows, the tap boxes and the words are the same in all
+three; only what a row draws differs. The menu pages look the same in every look.
+
+| SCREEN says | Look | Pictures |
+|---|---|---|
+| DARK / LIGHT | Classic: the five rows of section 1. The default | `yellow-00` to `yellow-27` |
+| COLOUR | Full Colour: the whole screen takes the colour of the Hi-Lo zone (yellow low, green OK, red high), with a bigger weight and one big line | `yellow-28` to `yellow-37`, `yellow-47` |
+| DIAL | The Hi-Lo bar bent into a gauge over the weight, with a marker that moves along it | `yellow-38` to `yellow-46`, `yellow-48`, `yellow-49`, `yellow-52` |
+
+![Full Colour](img/wsoft-screen/yellow-29.png) ![Dial](img/wsoft-screen/yellow-39.png)
+
+Both say what to do next to the word (Rhyno, 22 Nov 2026), with an arrow the way to go:
+
+| Weight | They say | Sign |
+|---|---|---|
+| Too low | TOO LOW  ADD MORE | arrow up |
+| Too high | TOO HIGH  REMOVE PRODUCT | arrow down |
+| Good, Auto save on | SAVING  IN 3, then IN 2, IN 1 | tick |
+| Good and saved | DONE  TAKE IT OFF | tick |
+| Good, Auto save off or a Writer | GOOD  TAP SAVE | tick |
+
+Auto save counts down (Rhyno, 22 Nov 2026): the weight must stand still for 3 seconds
+(`WSOFT_AUTO_SAVE_MS`, it was 1), and every look shows SAVING IN 3, 2, 1 on the SAVE button.
+A tap on SAVE does not wait. The classic screen keeps its words (TOO LOW, OK, TOO HIGH). The words come from the model's
+`word` and `hint`.
+
+On the Dial the weight takes a soft tint of its zone (yellow, green, red).
+
+Light mode follows the Weighsoft brand palette (Rhyno, 22 Nov 2026; `brand.md` of the repo-review kit): Paper `#F7F8FC` ground, white cards, Bunting `#1B1446` ink and status bar, Slate second ink, Sky-200 buttons, and the brand status colours (success `#15803D`, warning `#B45309`, danger `#B60205`).
+
+Colour and Dial are dark screens. With no Hi-Lo product picked they show a plain dark screen
+with the weight. Two letter sizes were added for them (HUGE: the weight's digits, XL: the
+Hi-Lo word): 27 KB on the yellow board, 104 KB on the Waveshare. The whole firmware is now
+2,386,184 bytes on the yellow board (58,920 more than before) and 2,860,270 on the Waveshare
+(136,696 more), built 22 Nov 2026 against `d07b1b0`.
+
+Not tried on a board yet (22 Nov 2026): how fast the dial repaints on the yellow board, which
+paints its arc dot by dot. A weight of 7 characters (100.000) is drawn in the smaller letters
+on the Dial.
 
 ## 4. How it is built
 
@@ -76,7 +118,7 @@ Waveshare scales the layout 2.5 x 2 with letters twice the size.
 
 Letters: Manrope (words) and Sora (the weight), both under the SIL Open Font License 1.1,
 drawn once into 4-bit coverage maps by `tools/wsoft-ui/gen.mjs`. About 28 KB on the yellow
-board and 100 KB on the Waveshare.
+board and 100 KB on the Waveshare, and as much again for the two sizes of section 3a.
 
 ## 5. The reference drawing and the tests
 
@@ -86,12 +128,36 @@ line-for-line port.
 
 | Command | Does |
 |---|---|
-| `node tools/wsoft-ui/gen.mjs` | Runs `ref.js` in headless Edge or Chrome and writes the letters, colours, test screens, `test/test_wsoft_ui/golden.h` (the CRC-32 of every test screen), the pictures in `docs/img/wsoft-screen` and the mock-up page `tools/wsoft-ui/out/mockup.html`. Needs the internet for the fonts |
+| `node tools/wsoft-ui/gen.mjs` | Runs `ref.js` in headless Edge or Chrome and writes the letters, colours, test screens, `test/test_wsoft_ui/golden.h` (the CRC-32 of every test screen), the pictures in `docs/img/wsoft-screen` and the mock-up page `tools/wsoft-ui/out/mockup.html`. Needs the internet for the fonts. With `WSOFT_UI_KEEP_FONTS=1` it keeps the letters of `fonts.json` (no internet, the same on any computer): use that when only the screens changed |
 | `pio test -e native -f test_wsoft_ui` | Paints every test screen on both panel sizes, whole and in bands, and holds each to its CRC; tests the wording rules, the row keys, the tap boxes and the engine. Needs a host g++ on PATH (`%USERPROFILE%\.platformio\packages\toolchain-gccmingw32\bin` on the laptop) |
 | `powershell -File tools/wsoft-ui/shoot.ps1 0 1 2` | Pictures of test screens from the mock-up page, to look at |
 
 Change the look in `ref.js` first, run `gen.mjs`, see `test_wsoft_ui` fail, then change
 `wsoft_ui_paint.cpp` the same way until it passes.
+
+## 5a. The same screen in the browser (Rhyno, 22 Nov 2026)
+
+The **Live** tab of the board's web page is the board's screen: one screen, two places. It is
+not a second screen written for the browser.
+
+| Step | Where | What |
+|---|---|---|
+| 1 | `wsoft_ui_model_json` (`wsoft_ui_model.*`) | The board's `WsoftUiModel` as JSON, the model's own field names |
+| 2 | `GET /rest/wsoftScreen` (logged in) | The words on the screen now. The page asks 4 times a second |
+| 3 | `interface/src/project/wsoft/gen/wsoftScreen.js` | `ref.js` as it is plus the letters of both panels, written by `gen.mjs`. The page paints the words with the Waveshare's letters onto an 800 x 480 canvas, so the picture stays sharp on a big screen (Rhyno, 22 Nov 2026: the blocky 320 x 240 picture looked horrible) |
+| 4 | `POST /rest/wsoftScreen {x, y}` (logged in) | A click, in layout units. The screen loop runs the board's own `tap()`, like a finger on the panel (`TOUCH web=x,y` in the log) |
+
+Why not the same C++ in the browser: the browser cannot run the board's compiled code, so it
+runs the reference drawing the C++ is a port of. The host test holds the C++ to the checksums
+in `golden.h`; `screen.test.ts` holds the browser copy to the same checksums (both sizes) and checks that
+the copy in the page is `ref.js` itself. All the rules (what a tap does, what the
+screen says) stay on the board, once.
+
+A board with no panel (`wsoft_s3_headless`) still makes the words and takes the taps: the
+browser is its screen. Every board shows the same layout in the browser, painted at the Waveshare's size. The old Live page (weight, chips, Approval and Auto save switches, Save button, status
+table) is gone; the firmware's `/rest/wsoftStatus`, `/rest/wsoftSwitches` and `/rest/wsoftSave`
+are unchanged. Not on the screen and so no longer on the Live tab: the approval log and the
+alarm test note. **Not tried on a board yet.**
 
 ## 6. Checking a board over USB
 
@@ -136,7 +202,7 @@ over USB with `shot.ps1`. Pictures sent by the boards themselves:
 | Check | Yellow board | Waveshare |
 |---|---|---|
 | Boots, settings kept (source, Wi-Fi, Hub pairing, product, auto save) | yes | yes |
-| `SCREEN CRC`: all 25 test screens equal `golden.h` | yes | yes |
+| `SCREEN CRC`: all 25 test screens (48 now; the 23 newer ones not run on a board) equal `golden.h` | yes | yes |
 | `SCREEN TAP`: MENU, SCREEN light and back, WI-FI page, status bar tap, BACK | yes | yes |
 | `GLASS`: 48 dots read back from the panel equal the picture | yes, 48 of 48 | not possible on this panel |
 | Firmware size | 2,261,952 of 3,407,872 bytes (66%) | 2,642,480 of 6,553,600 bytes (40%) |

@@ -90,7 +90,7 @@ static void bar(const WsoftUiInput &in, WsoftUiModel *m) {
     put(m->hub, in.wifi_up ? in.hub_text : "HUB");
     m->hub_tone = WSOFT_UI_TONE_BAD;
   }
-  put(m->link, in.source);
+  put(m->link, strcmp(in.source, "LOADCELL") == 0 ? "CELL" : in.source);
   m->link_tone = !in.linked ? WSOFT_UI_TONE_BAD : in.alarm ? WSOFT_UI_TONE_WAIT : WSOFT_UI_TONE_OK;
 }
 
@@ -145,6 +145,10 @@ static void weight(const WsoftUiInput &in, WsoftUiModel *m) {
   } else {
     put(m->gross, "----");
   }
+  // ZERO in the place of GROSS, on a board that weighs itself. Not under a tare: then the
+  // gross is worth showing and a zero is refused anyway.
+  m->zero_btn = in.zero && !in.tared;
+  if (m->zero_btn) put(m->zero_line, in.zero_note[0] ? in.zero_note : "TAP: SET TO 0");
 }
 
 static void kg_text(int32_t grams, char *out, size_t size) {
@@ -216,6 +220,8 @@ static void save(const WsoftUiInput &in, WsoftUiModel *m) {
   } else if (in.waiting == WSOFT_SAVE_ALREADY) {
     put(m->save_line, "TAKE LOAD OFF");
     m->save_look = WSOFT_UI_LOOK_BTN;
+  } else if (!in.writer && in.auto_save && in.countdown > 0) {
+    snprintf(m->save_line, sizeof m->save_line, "SAVING IN %d", in.countdown > 9 ? 9 : in.countdown);
   } else if (!in.writer && in.pending > 0) {
     snprintf(m->save_line, sizeof m->save_line, "%u TO SEND", (unsigned)in.pending);
   } else {
@@ -245,6 +251,8 @@ static void menu(const WsoftUiInput &in, WsoftUiModel *m) {
     tile(m, WSOFT_UI_TILE_TARE, "TARE", text, in.tare_on);
     if (in.preset_on) tile(m, WSOFT_UI_TILE_PRESET, "PRESET TARE", in.preset_text, false);
   }
+  // A board that weighs itself (load cell) sets its own zero: with the scale empty, one tap.
+  if (in.zero) tile(m, WSOFT_UI_TILE_ZERO, "ZERO", "SET TO 0", false);
   if (in.product_count == 0) {
     tile(m, WSOFT_UI_TILE_PRODUCT, "PRODUCT", "NONE ON THE HUB", false);
   } else if (in.product == nullptr) {
@@ -252,14 +260,34 @@ static void menu(const WsoftUiInput &in, WsoftUiModel *m) {
   } else {
     tile(m, WSOFT_UI_TILE_PRODUCT, "PRODUCT", m->product, true);
   }
-  tile(m, WSOFT_UI_TILE_THEME, "SCREEN", in.dark ? "DARK" : "LIGHT", false);
+  tile(m, WSOFT_UI_TILE_THEME, "SCREEN",
+       in.style == WSOFT_UI_STYLE_COLOUR ? "COLOUR" : in.style == WSOFT_UI_STYLE_DIAL ? "DIAL" : in.dark ? "DARK" : "LIGHT", false);
+  // The menu holds 7 tiles. When ZERO and PRESET TARE are both there, WI-FI gives way: a tap
+  // on the Wi-Fi bars at the top of the screen opens the same page.
   tile(m, WSOFT_UI_TILE_WIFI, "WI-FI", in.wifi_up ? in.ip : "OFF", false);
+}
+
+// What to do, next to the Hi-Lo word (Rhyno, 22 Nov 2026). Inside the limits the Full Colour
+// and Dial screens say what the save is doing instead of OK.
+static void hint(const WsoftUiInput &in, WsoftUiModel *m) {
+  if (m->zone == WSOFT_UI_ZONE_LOW) {
+    put(m->hint, "ADD MORE");
+  } else if (m->zone == WSOFT_UI_ZONE_HIGH) {
+    put(m->hint, "REMOVE PRODUCT");
+  } else if (m->zone == WSOFT_UI_ZONE_OK) {
+    bool done = in.recent == WSOFT_SAVE_SAVED || in.waiting == WSOFT_SAVE_ALREADY;
+    bool saving = !done && !in.writer && in.auto_save && in.waiting == WSOFT_SAVE_NONE;
+    put(m->hint, done ? "TAKE IT OFF" : saving ? "HOLD STILL" : in.waiting == WSOFT_SAVE_NONE ? "TAP SAVE" : "");
+    if (saving && in.countdown > 0) snprintf(m->hint, sizeof m->hint, "IN %d", in.countdown > 9 ? 9 : in.countdown);
+    if (m->style != WSOFT_UI_STYLE_CLASSIC) put(m->word, done ? "DONE" : saving ? "SAVING" : "GOOD");
+  }
 }
 
 void wsoft_ui_model(const WsoftUiInput &in, WsoftUiModel *m) {
   static const char *const TITLES[] = {"", "MENU", "ENTER PIN", "APPROVAL", "WI-FI"};
   memset(m, 0, sizeof *m);
   m->dark = in.dark;
+  m->style = (uint8_t)(in.style > WSOFT_UI_STYLE_CLASSIC && in.style < WSOFT_UI_STYLE_COUNT ? in.style : WSOFT_UI_STYLE_CLASSIC);
   m->page = (uint8_t)(in.page >= WSOFT_UI_PAGE_LIVE && in.page <= WSOFT_UI_PAGE_WIFI ? in.page : WSOFT_UI_PAGE_LIVE);
   bar(in, m);
   slot(in, m);
@@ -267,10 +295,140 @@ void wsoft_ui_model(const WsoftUiInput &in, WsoftUiModel *m) {
   weight(in, m);
   hilo(in, m);
   save(in, m);
+  hint(in, m);
   menu(in, m);
   put(m->title, TITLES[m->page]);
   put(m->message, in.message);
   m->pin_count = (uint8_t)(in.pin_count < 0 ? 0 : in.pin_count > 6 ? 6 : in.pin_count);
   put(m->address, in.address);
   put(m->ap_name, in.ap_name);
+}
+
+// ---------- the model as JSON ----------
+
+namespace {
+struct JsonOut {
+  char *out;
+  size_t size;
+  size_t used = 0;
+  bool full = false;
+  bool first = true;
+
+  JsonOut(char *o, size_t s) : out(o), size(s) {}
+
+  void ch(char c) {
+    if (used + 1 >= size) full = true;
+    else out[used++] = c;
+  }
+  void raw(const char *text) {
+    while (*text) ch(*text++);
+  }
+  void quoted(const char *text) {
+    ch('"');
+    for (; *text; text++) {
+      unsigned char c = (unsigned char)*text;
+      if (c == '"' || c == '\\') {
+        ch('\\');
+        ch((char)c);
+      } else if (c < 0x20) {
+        ch(' ');  // the screen has no control characters; never break the JSON on one
+      } else {
+        ch((char)c);
+      }
+    }
+    ch('"');
+  }
+  void key(const char *name) {
+    if (!first) ch(',');
+    first = false;
+    quoted(name);
+    ch(':');
+  }
+  void text(const char *name, const char *value) {
+    key(name);
+    quoted(value);
+  }
+  void number(const char *name, long value) {
+    char digits[16];
+    snprintf(digits, sizeof digits, "%ld", value);
+    key(name);
+    raw(digits);
+  }
+  void flag(const char *name, bool value) {
+    key(name);
+    raw(value ? "true" : "false");
+  }
+};
+}  // namespace
+
+size_t wsoft_ui_model_json(const WsoftUiModel &m, char *out, size_t size) {
+  if (out == nullptr || size == 0) return 0;
+  JsonOut j(out, size);
+  j.ch('{');
+  j.flag("dark", m.dark);
+  j.number("page", m.page);
+  j.number("style", m.style);
+  j.flag("wifi_up", m.wifi_up);
+  j.number("wifi_bars", m.wifi_bars);
+  j.text("ip", m.ip);
+  j.text("hub", m.hub);
+  j.number("hub_tone", m.hub_tone);
+  j.text("link", m.link);
+  j.number("link_tone", m.link_tone);
+  j.number("slot", m.slot);
+  j.text("slot_title", m.slot_title);
+  j.text("slot_detail", m.slot_detail);
+  j.flag("trade_ok", m.trade_ok);
+  j.text("reason", m.reason);
+  j.number("reason_tone", m.reason_tone);
+  j.text("steady", m.steady);
+  j.number("steady_tone", m.steady_tone);
+  j.text("plate_sa", m.plate_sa);
+  j.text("plate_limits", m.plate_limits);
+  j.text("audit", m.audit);
+  j.text("label", m.label);
+  j.text("weight", m.weight);
+  j.flag("live", m.live);
+  j.text("unit", m.unit);
+  j.number("zone", m.zone);
+  j.text("word", m.word);
+  j.number("word_tone", m.word_tone);
+  j.text("hint", m.hint);
+  j.flag("product_on", m.product_on);
+  j.text("product", m.product);
+  j.text("target", m.target);
+  j.text("low", m.low);
+  j.text("high", m.high);
+  j.number("pointer", m.pointer);
+  j.text("gross", m.gross);
+  j.text("save_line", m.save_line);
+  j.number("save_look", m.save_look);
+  j.flag("zero_btn", m.zero_btn);
+  j.text("zero_line", m.zero_line);
+  j.text("title", m.title);
+  j.text("message", m.message);
+  j.number("tile_count", m.tile_count);
+  j.key("tiles");
+  j.ch('[');
+  for (int i = 0; i < m.tile_count && i < WSOFT_UI_TILES_MAX; i++) {
+    if (i) j.ch(',');
+    j.ch('{');
+    j.first = true;
+    j.text("caption", m.tiles[i].caption);
+    j.text("value", m.tiles[i].value);
+    j.number("look", m.tiles[i].look);
+    j.ch('}');
+  }
+  j.ch(']');
+  j.first = false;
+  j.number("pin_count", m.pin_count);
+  j.text("address", m.address);
+  j.text("ap_name", m.ap_name);
+  j.ch('}');
+  if (j.full) {
+    out[0] = 0;
+    return 0;
+  }
+  out[j.used] = 0;
+  return j.used;
 }

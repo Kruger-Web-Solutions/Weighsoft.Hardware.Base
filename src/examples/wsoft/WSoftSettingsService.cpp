@@ -39,7 +39,9 @@ void WSoftSettingsService::begin() {
 WSoftSource WSoftSettingsService::source() {
   WSoftSource source = WSOFT_SOURCE_RS485;
   read([&](const WSoftSettings& s) { source = s.data.source; });
-  return WSOFT_HAS_RS232 ? source : WSOFT_SOURCE_RS485;
+  if (source == WSOFT_SOURCE_RS232 && !WSOFT_HAS_RS232) return WSOFT_SOURCE_RS485;
+  if (source == WSOFT_SOURCE_LOADCELL && !WSOFT_HAS_LOADCELL) return WSOFT_SOURCE_RS485;
+  return source;
 }
 
 uint32_t WSoftSettingsService::publishIntervalMs() {
@@ -74,9 +76,12 @@ void WSoftSettingsService::pushAlarmTest() {
   weighings_set_alarm_test(on);
 }
 
-void WSoftSettingsService::relayConfig(bool* enabled, uint8_t* low, uint8_t* ok, uint8_t* high) {
+void WSoftSettingsService::relayConfig(bool* enabled, uint8_t* low, uint8_t* ok, uint8_t* high, bool* light) {
   read([&](const WSoftSettings& s) {
-    *enabled = FT_ENABLED(FT_WSOFT_RELAY) && s.data.relay_enabled && (!_writerMode || s.data.relay_writer_follow);
+    bool lightOn = WSOFT_HAS_RELAY_LIGHT && s.data.relay_light;
+    *enabled = FT_ENABLED(FT_WSOFT_RELAY) &&
+               wsoft_relay_drive(s.data.relay_enabled, _writerMode, s.data.relay_writer_follow, lightOn);
+    if (light) *light = lightOn;
     *low = s.data.relay_low;
     *ok = s.data.relay_ok;
     *high = s.data.relay_high;

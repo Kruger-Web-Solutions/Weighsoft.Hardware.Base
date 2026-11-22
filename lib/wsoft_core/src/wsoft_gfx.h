@@ -49,10 +49,19 @@ class WsoftCanvas {
   void begin(int width, int height, double sx, double sy, const WsoftFont *fonts);
   // Draw into pixels: `rows` panel lines of `width` dots, the first being panel line `top`.
   void window(uint16_t *pixels, int top, int rows);
+  // Only the layout lines y0 up to y1 are drawn from here on, whatever the window: a row of the
+  // screen never paints outside itself. begin() opens it to the whole panel.
+  void clip(double y0, double y1);
 
   // r: corner radius in layout units; below 0 rounds the short side fully (a pill).
   void rect(double x, double y, double w, double h, uint16_t color, double r = 0);
   void disc(double cx, double cy, double r, uint16_t color);
+  // A line with round ends, w thick (the tick and the arrows of the Hi-Lo word).
+  void line(double x1, double y1, double x2, double y2, double w, uint16_t color);
+  // A piece of a ring: radius r, w thick inwards, from the direction (ax, ay) clockwise to
+  // (bx, by), less than half a turn. Directions are unit lengths, y down. A circle on every
+  // panel: the radius scales with the height, like disc().
+  void ring(double cx, double cy, double r, double w, double ax, double ay, double bx, double by, uint16_t color);
   // A six-pointed star (two triangles), r = centre to a point. Edges by 4 x 4 samples a dot.
   void star6(double cx, double cy, double r, uint16_t color);
 
@@ -68,6 +77,7 @@ class WsoftCanvas {
 
   int panel_width() const { return width_; }
   int panel_height() const { return height_; }
+  double scale_x() const { return sx_; }
   double scale_y() const { return sy_; }
 
  private:
@@ -76,8 +86,13 @@ class WsoftCanvas {
     dot = alpha >= 255 ? color : wsoft_blend565(dot, color, alpha);
   }
 
+  // The first panel line that may be drawn and the one after the last: the window and the clip.
+  long lo() const { return top_ > clip0_ ? top_ : clip0_; }
+  long hi() const { return top_ + rows_ < clip1_ ? top_ + rows_ : clip1_; }
+
   uint16_t *pixels_ = nullptr;
   int width_ = 0, height_ = 0, top_ = 0, rows_ = 0;
+  long clip0_ = 0, clip1_ = 0;
   double sx_ = 1, sy_ = 1;
   const WsoftFont *fonts_ = nullptr;
 };

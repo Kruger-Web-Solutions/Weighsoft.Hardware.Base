@@ -21,9 +21,11 @@ void wsoft_settings_defaults(WSoftSettingsData *s) {
   s->relay_writer_follow = false;
   s->alarm_test_save = false;
   s->esp_led = true;
+  s->relay_light = false;
 }
 
 const char *wsoft_source_text(WSoftSource source) {
+  if (source == WSOFT_SOURCE_LOADCELL) return "loadcell";
   return source == WSOFT_SOURCE_RS232 ? "rs232" : "rs485";
 }
 
@@ -31,6 +33,7 @@ bool wsoft_source_parse(const char *text, WSoftSource *source) {
   if (text == nullptr) return false;
   if (strcmp(text, "rs485") == 0) *source = WSOFT_SOURCE_RS485;
   else if (strcmp(text, "rs232") == 0) *source = WSOFT_SOURCE_RS232;
+  else if (strcmp(text, "loadcell") == 0) *source = WSOFT_SOURCE_LOADCELL;
   else return false;
   return true;
 }
@@ -107,6 +110,7 @@ WSoftSettingsResult wsoft_settings_update(const WSoftSettingsInput &in, WSoftSet
   if (in.has_relay_writer_follow) next.relay_writer_follow = in.relay_writer_follow;
   if (in.has_alarm_test_save) next.alarm_test_save = in.alarm_test_save;
   if (in.has_esp_led) next.esp_led = in.esp_led;
+  if (in.has_relay_light) next.relay_light = in.relay_light;
   // A relay number has no safe value to clamp to: a wrong one could switch the wrong output.
   if (in.has_relay_low && !relay_number(in.relay_low, &next.relay_low)) return WSOFT_SETTINGS_ERROR;
   if (in.has_relay_ok && !relay_number(in.relay_ok, &next.relay_ok)) return WSOFT_SETTINGS_ERROR;
@@ -119,7 +123,7 @@ WSoftSettingsResult wsoft_settings_update(const WSoftSettingsInput &in, WSoftSet
                  next.relay_enabled != s->relay_enabled || next.relay_low != s->relay_low ||
                  next.relay_ok != s->relay_ok || next.relay_high != s->relay_high ||
                  next.relay_writer_follow != s->relay_writer_follow || next.alarm_test_save != s->alarm_test_save ||
-                 next.esp_led != s->esp_led;
+                 next.esp_led != s->esp_led || next.relay_light != s->relay_light;
   *s = next;
   return changed ? WSOFT_SETTINGS_CHANGED : WSOFT_SETTINGS_UNCHANGED;
 }

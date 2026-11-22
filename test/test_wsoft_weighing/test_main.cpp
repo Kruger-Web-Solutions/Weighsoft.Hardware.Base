@@ -167,6 +167,42 @@ void test_auto_save_once_per_settled_load() {
   TEST_ASSERT_EQUAL_UINT32(4, b.saver.next_seq());
 }
 
+// Rhyno, 22 Nov 2026: auto save counts 3, 2, 1 while the weight stands still, then saves.
+void test_auto_save_counts_down_before_it_saves() {
+  Bench b;
+  b.feed(0, 4, true);
+  TEST_ASSERT_EQUAL(0, b.saver.countdown());  // nothing on the scale
+  TEST_ASSERT_EQUAL(0, b.feed(3120, 1, true));  // the load arrives: 3 s to go
+  TEST_ASSERT_EQUAL(3, b.saver.countdown());
+  TEST_ASSERT_EQUAL(0, b.feed(3120, 4, true));  // 1 s still
+  TEST_ASSERT_EQUAL(2, b.saver.countdown());
+  TEST_ASSERT_EQUAL(0, b.feed(3120, 4, true));  // 2 s still
+  TEST_ASSERT_EQUAL(1, b.saver.countdown());
+  TEST_ASSERT_EQUAL(0, b.feed(3120, 3, true));  // 2.75 s: not yet
+  TEST_ASSERT_EQUAL(1, b.feed(3120, 1, true));  // 3 s: saved
+  TEST_ASSERT_EQUAL(0, b.saver.countdown());
+  TEST_ASSERT_EQUAL(0, b.feed(3120, 8, true));  // the saved load stays on: no count, no save
+  TEST_ASSERT_EQUAL(0, b.saver.countdown());
+  // The weight moves: the count starts again.
+  b.feed(0, 4, true);
+  b.feed(3120, 9, true);
+  TEST_ASSERT_EQUAL(1, b.saver.countdown());
+  TEST_ASSERT_EQUAL(0, b.feed(3130, 1, true));
+  TEST_ASSERT_EQUAL(3, b.saver.countdown());
+  // Auto save off: no count. A tap saves after the usual steady second, without the wait.
+  Bench c;
+  c.feed(0, 4, false);
+  c.feed(3120, 5, false);
+  TEST_ASSERT_EQUAL(0, c.saver.countdown());
+  TEST_ASSERT_EQUAL(WSOFT_SAVE_SAVED, c.tap(3120));
+  // Outside the Hi-Lo limits auto save waits: no count.
+  Bench d;
+  d.limits = true;
+  d.feed(0, 4, true);
+  d.feed(2900, 6, true);
+  TEST_ASSERT_EQUAL(0, d.saver.countdown());
+}
+
 // Rhyno, 8 Nov 2026: no second weighing (auto save or tap) until the scale went back to 0.
 void test_a_second_weighing_needs_the_scale_back_at_zero() {
   Bench b;
@@ -482,6 +518,7 @@ int main(int, char **) {
   RUN_TEST(test_json_carries_the_hi_lo_result_on_the_net_weight);
   RUN_TEST(test_json_refuses_unsendable_weighings);
   RUN_TEST(test_auto_save_once_per_settled_load);
+  RUN_TEST(test_auto_save_counts_down_before_it_saves);
   RUN_TEST(test_a_second_weighing_needs_the_scale_back_at_zero);
   RUN_TEST(test_after_boot_the_scale_must_show_zero_first);
   RUN_TEST(test_auto_save_off_saves_nothing_by_itself);

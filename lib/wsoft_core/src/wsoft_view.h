@@ -43,6 +43,7 @@ struct WSoftSnapshot {
   uint32_t polls = 0;
   uint32_t updated_ms = 0;     // millis() of the poll this snapshot came from
   bool rs232 = false;          // weight from an RS232 scale line, not the DJB junction box
+  bool loadcell = false;       // weight from a load cell on an HX711 board (rs232 is false then)
   bool writer = false;         // Writer mode: weight from a weigh board over Wi-Fi, never saved
   // A tare is on: net_value is the net (value minus tare), same decimals and unit. The feed to
   // a Writer sends the net, as the screen shows it (Rhyno, 14 Nov 2026). value stays the gross.
