@@ -3,7 +3,7 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 
 import WsoftUi from './gen/wsoftScreen';
-import { paintScreen, tapPoint, toRgba, SCREEN_H, SCREEN_W } from './screen';
+import { paintPicture, paintScreen, tapPoint, toRgba, SCREEN_H, SCREEN_W } from './screen';
 
 const root = join(__dirname, '..', '..', '..', '..');
 
@@ -27,6 +27,17 @@ describe('the browser copy of the board screen', () => {
       // Through JSON, as the words arrive from the board.
       const model = JSON.parse(JSON.stringify(WsoftUi.modelOf(state)));
       expect([title, WsoftUi.crc32(paintScreen(model))]).toEqual([title, want[n]]);
+    });
+  });
+
+  it('paints the big picture dot for dot like the Waveshare', () => {
+    const golden = readFileSync(join(root, 'test/test_wsoft_ui/golden.h'), 'utf8');
+    const row = /GOLDEN_2X\[\] = \{([^}]*)\}/.exec(golden);
+    const want = (row ? row[1] : '').split(',').map((v) => parseInt(v.trim(), 16));
+    expect(WsoftUi.PRESETS.length).toBe(want.length);
+    WsoftUi.PRESETS.forEach(([title, , state], n) => {
+      const model = JSON.parse(JSON.stringify(WsoftUi.modelOf(state)));
+      expect([title, WsoftUi.crc32(paintPicture(model))]).toEqual([title, want[n]]);
     });
   });
 
