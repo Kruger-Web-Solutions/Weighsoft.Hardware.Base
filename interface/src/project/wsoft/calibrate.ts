@@ -38,7 +38,7 @@ export const loadcellTestWeight = (text: string) => {
   return Number(clean) > 0 ? clean : undefined;
 };
 
-// ---- Load cell scale setup (the Calibrate tab's first card) ----
+// ---- Load cell: the unit and division choices on the Scale setup tab ----
 
 export type LoadcellUnit = 'kg' | 'g';
 
@@ -66,54 +66,6 @@ export const loadcellDivisions = (unit: LoadcellUnit): LoadcellDivision[] => {
     }
   }
   return list;
-};
-
-/** "6", "6.5" or "6,5" to whole units of 0.00001 kg; undefined when it is not a number above 0 or too fine. */
-const kgUnits = (text: string, unit: LoadcellUnit) => {
-  const clean = text.trim().replace(',', '.');
-  if (!/^[0-9]{1,7}(\.[0-9]{1,5})?$/.test(clean)) return undefined;
-  const [whole, fraction = ''] = clean.split('.');
-  // g has 3 fewer digits to give: 0.01 g is the finest.
-  const places = unit === 'g' ? 2 : 5;
-  if (fraction.replace(/0+$/, '').length > places) return undefined;
-  const units = Number(whole + fraction.padEnd(places, '0').slice(0, places));
-  return units > 0 ? units : undefined;
-};
-
-const kgUnitsText = (units: number) => {
-  const text = String(units).padStart(6, '0');
-  const fraction = text.slice(-5).replace(/0+$/, '');
-  return fraction ? `${text.slice(0, -5)}.${fraction}` : text.slice(0, -5);
-};
-
-/**
- * The Max capacity as typed in the scale's unit, as the kg text the board stores ("6" g = "0.006").
- * '' when the box is empty (= not set); undefined when it is not a usable number.
- */
-export const maxToKgText = (text: string, unit: LoadcellUnit) => {
-  if (text.trim() === '') return '';
-  const units = kgUnits(text, unit);
-  return units === undefined || units > 9999999999 ? undefined : kgUnitsText(units);
-};
-
-/** The board's kg text back to the scale's unit for the box: "0.006" in g = "6". */
-export const maxFromKgText = (kg: string, unit: LoadcellUnit) => {
-  if (kg === '') return '';
-  if (unit === 'kg') return kg;
-  const units = kgUnits(kg, 'kg');
-  if (units === undefined) return '';
-  const text = String(units).padStart(3, '0');
-  const fraction = text.slice(-2).replace(/0+$/, '');
-  return fraction ? `${text.slice(0, -2)}.${fraction}` : text.slice(0, -2);
-};
-
-/** How many divisions the scale has (Max / e), or undefined when Max is not a whole number of them. */
-export const divisionCount = (maxText: string, unit: LoadcellUnit, division: LoadcellDivision) => {
-  const max = kgUnits(maxText, unit);
-  if (max === undefined) return undefined;
-  // e in 0.00001 kg: kg has 5 digits to give, g has 2.
-  const e = division.step * Math.pow(10, (unit === 'g' ? 2 : 5) - division.decimals);
-  return max % e === 0 && max > e ? max / e : undefined;
 };
 
 export type CalibrateBlock = 'writer' | 'rs232' | 'approval' | 'not_linked';

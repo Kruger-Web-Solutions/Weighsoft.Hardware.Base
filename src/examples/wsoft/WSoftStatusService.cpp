@@ -404,8 +404,6 @@ void WSoftStatusService::updateLoadcell(AsyncWebServerRequest* request, JsonVari
       loadcell_info(&info);
       scale_set_card(info.cal.step, info.cal.decimals, info.cal.unit);
     }
-  } else if (strcmp(action, "step") == 0) {
-    error = body["step"].is<int>() ? loadcell_set_step(body["step"].as<int>(), who.c_str()) : WSOFT_LOADCELL_BAD_STEP;
   } else {
     sendLoadcell(request, 400, "action", "Unknown action.");
     return;

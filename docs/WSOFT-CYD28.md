@@ -90,16 +90,23 @@ screen, the web page, the Hub and a Writer over Wi-Fi, like any other source.
 - Whether this module runs at 10 or 80 counts a second is set on its board and was not checked.
   The code works with either.
 
-**Scale setup and calibrate** (W-Soft → **Calibrate**, admin; `GET` / `POST /rest/wsoftLoadcell`).
-On RS232 the indicator holds the scale's setup and on RS485 the weighing card does. Here the
-board is the scale, so the Calibrate tab starts with the setup (Rhyno, 22 Nov 2026):
+**Scale setup** (W-Soft → **Scale setup**, admin). One tab holds the setup on every source
+(Rhyno, 22 Nov 2026: one home, no double). On RS232 it says the indicator holds it; on RS485
+the decimals and e go to the weighing card; with a load cell the board is the scale, so the
+same form shows *Unit* (kg or g) and *Division size* (1, 2 or 5 in any digit from 0.0001 kg or
+0.01 g up, then 10, 20, 50) in the place of the card's two fields. One range; a second range
+is not built. They are saved with `POST /rest/wsoftLoadcell {"action":"format","decimals":3,
+"step":2,"unit":"kg"}` (= 0.002 kg); the rest of the form is the RS485 one (section 2c): Max,
+Min, blanking below zero and above Max, stable samples, tare, the SA number, and "setup
+complete" before Approval can go ON. The board hands its own division, decimals and unit to
+those rules in the place of the card's (`scale_set_card`). The g unit stops at 0.01 g because
+those rules count in 0.00001 kg. The screen gets the TARE tiles and the plate line, as on RS485
+(not tried on a board yet).
 
-1. **Scale setup**: *Unit* (kg or g), *Division size* (1, 2 or 5 in any digit from 0.0001 kg or
-   0.01 g up, then 10, 20, 50) and *Max capacity*. One range; a second range is not built.
-   `POST {"action":"format","decimals":3,"step":2,"unit":"kg"}` = 0.002 kg. Max is the board's
-   `max_kg` (`POST /rest/wsoftScaleSetup`), and must be a whole number of divisions.
-2. **Zero**: scale empty, *Set zero*.
-3. **Test weight**: put a known weight on, type what it weighs, *Set test weight*. It is kept in
+**Calibrate** (W-Soft → **Calibrate**, admin; `GET` / `POST /rest/wsoftLoadcell`):
+
+1. **Zero**: scale empty, *Set zero*.
+2. **Test weight**: put a known weight on, type what it weighs, *Set test weight*. It is kept in
    the scale's own digits (`2` on a 0.001 kg scale = 2000); more digits than the division has
    are refused. Changing the division later keeps the calibration when the test weight still
    fits the new last digit, and is refused (`format_span`) when it does not.
@@ -107,14 +114,8 @@ board is the scale, so the Calibrate tab starts with the setup (Rhyno, 22 Nov 20
 The page shows the **raw count** before any calibration: press on the load cell and it moves.
 That checks the wiring. Until zero and a test weight are set the board shows no weight at all.
 The calibration is kept on the board (NVS `loadcell`) and each change is one `LOADCELL ...`
-line in the USB log. All of it is refused while Approval is ON.
-
-**The rest of the setup is the RS485 one** (W-Soft → **Scale setup**, section 2c): Min, blanking
-below zero and above Max, stable samples, tare, the SA number, and "setup complete" before
-Approval can go ON. The board hands its own division, decimals and unit to those rules in the
-place of the weighing card's (`scale_set_card`). The g unit stops at 0.01 g because those rules
-count in 0.00001 kg. No junction box alarm. A weighing sent to the Hub carries
-`"source":"loadcell"`.
+line in the USB log. All of it is refused while Approval is ON. No junction box alarm. A
+weighing sent to the Hub carries `"source":"loadcell"`.
 
 ## 2. Screen (320 x 240)
 

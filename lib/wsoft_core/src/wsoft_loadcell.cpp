@@ -1,5 +1,7 @@
 #include "wsoft_loadcell.h"
 
+#include "wsoft_scale_setup.h"
+
 int32_t wsoft_hx711_decode(uint32_t bits24) {
   bits24 &= 0xFFFFFFu;
   if (bits24 & 0x800000u) return (int32_t)bits24 - 0x1000000;
@@ -43,21 +45,14 @@ static bool format_valid(int decimals, int unit) {
 
 bool wsoft_loadcell_rescale(int32_t value, int from_decimals, int from_unit, int to_decimals, int to_unit,
                             int32_t *out) {
-  if (value <= 0) return false;
-  // kg to g is three more digits, g to kg three fewer.
-  int shift = (to_decimals - from_decimals) + (from_unit == 1 && to_unit == 3 ? 3 : 0) -
-              (from_unit == 3 && to_unit == 1 ? 3 : 0);
-  int64_t digits = value;
-  for (; shift > 0; shift--) {
-    digits *= 10;
-    if (digits > WSOFT_LOADCELL_MAX_VALUE) return false;
+  // Through kg, with the setup's own exact conversions (wsoft_scale_setup).
+  int64_t kg = 0;
+  int32_t digits = 0;
+  if (value <= 0 || !wsoft_reading_to_kg(value, from_decimals, from_unit, &kg) ||
+      !wsoft_kg_to_reading(kg, to_decimals, to_unit, &digits) || digits <= 0 || digits > WSOFT_LOADCELL_MAX_VALUE) {
+    return false;
   }
-  for (; shift < 0; shift++) {
-    if (digits % 10 != 0) return false;
-    digits /= 10;
-  }
-  if (digits <= 0 || digits > WSOFT_LOADCELL_MAX_VALUE) return false;
-  *out = (int32_t)digits;
+  *out = digits;
   return true;
 }
 
@@ -92,12 +87,6 @@ WsoftLoadcellError wsoft_loadcell_set_format(WsoftLoadcellCal *cal, int decimals
   cal->span_value = span_value;
   cal->decimals = decimals;
   cal->unit = unit;
-  cal->step = step;
-  return WSOFT_LOADCELL_OK;
-}
-
-WsoftLoadcellError wsoft_loadcell_set_step(WsoftLoadcellCal *cal, int step) {
-  if (!wsoft_loadcell_step_valid(step)) return WSOFT_LOADCELL_BAD_STEP;
   cal->step = step;
   return WSOFT_LOADCELL_OK;
 }

@@ -63,7 +63,6 @@ WsoftLoadcellError wsoft_loadcell_set_zero(WsoftLoadcellCal *cal, bool have_raw,
 // 2000. BAD_DECIMALS when it has more digits than the scale shows. On an error *cal is unchanged.
 WsoftLoadcellError wsoft_loadcell_set_span(WsoftLoadcellCal *cal, bool have_raw, int32_t raw, int32_t value,
                                            int decimals, int unit);
-WsoftLoadcellError wsoft_loadcell_set_step(WsoftLoadcellCal *cal, int step);
 
 // The scale setup the weighing card holds on RS485: unit, digits after the point and the
 // division e (= step in the last digit: 0.002 kg is decimals 3, step 2). A span that is set is

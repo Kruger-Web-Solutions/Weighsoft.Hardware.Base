@@ -92,7 +92,7 @@ class WSoftStatusService : public StatefulService<WSoftStatus> {
   static String feedJson();
   void publishDiscovery(const String& statusTopic);
   void handleDjb(AsyncWebServerRequest* request, JsonVariant& json);
-  // Load cell on an HX711 board: state, and zero / test weight / step (admin).
+  // Load cell on an HX711 board: state, and zero / test weight / scale format (admin).
   void readLoadcell(AsyncWebServerRequest* request);
   void updateLoadcell(AsyncWebServerRequest* request, JsonVariant& json);
   void sendLoadcell(AsyncWebServerRequest* request, int code, const char* error, const char* message);

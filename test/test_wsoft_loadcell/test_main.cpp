@@ -89,7 +89,7 @@ void test_a_load_cell_wired_the_other_way_round_still_weighs() {
 
 void test_the_step_rounds_the_shown_weight() {
   WsoftLoadcellCal cal = calibrated(0, 200000, 1000, 3);
-  TEST_ASSERT_EQUAL(WSOFT_LOADCELL_OK, wsoft_loadcell_set_step(&cal, 5));
+  TEST_ASSERT_EQUAL(WSOFT_LOADCELL_OK, wsoft_loadcell_set_format(&cal, 3, 1, 5));
   int32_t value;
   TEST_ASSERT_TRUE(wsoft_loadcell_weight(cal, 200 * 12, &value));  // 12 digits
   TEST_ASSERT_EQUAL_INT32(10, value);
@@ -97,8 +97,8 @@ void test_the_step_rounds_the_shown_weight() {
   TEST_ASSERT_EQUAL_INT32(15, value);
   TEST_ASSERT_TRUE(wsoft_loadcell_weight(cal, -200 * 13, &value));
   TEST_ASSERT_EQUAL_INT32(-15, value);
-  TEST_ASSERT_EQUAL(WSOFT_LOADCELL_BAD_STEP, wsoft_loadcell_set_step(&cal, 3));
-  TEST_ASSERT_EQUAL(WSOFT_LOADCELL_BAD_STEP, wsoft_loadcell_set_step(&cal, 0));
+  TEST_ASSERT_EQUAL(WSOFT_LOADCELL_BAD_STEP, wsoft_loadcell_set_format(&cal, 3, 1, 3));
+  TEST_ASSERT_EQUAL(WSOFT_LOADCELL_BAD_STEP, wsoft_loadcell_set_format(&cal, 3, 1, 0));
   TEST_ASSERT_EQUAL(5, cal.step);
 }
 

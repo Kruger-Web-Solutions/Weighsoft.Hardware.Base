@@ -80,7 +80,6 @@ export interface WSoftLoadcell {
 export type WSoftLoadcellRequest =
   | { action: 'zero' }
   | { action: 'span'; weight: string; unit: 'kg' | 'g' }
-  | { action: 'step'; step: number }
   /** The scale setup: unit, digits after the point, and the division in the last digit (0.002 kg = 3, 2). */
   | { action: 'format'; decimals: number; step: number; unit: 'kg' | 'g' };
 

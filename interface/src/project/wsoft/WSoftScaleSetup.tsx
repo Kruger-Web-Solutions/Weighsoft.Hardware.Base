@@ -9,6 +9,7 @@ import { AuthenticationContext } from '../../contexts/authentication';
 
 import WSoftCardSetup from './WSoftCardSetup';
 import * as WSoftApi from './api';
+import { divisionKey, loadcellDivisions, LoadcellUnit } from './calibrate';
 import { boardErrorText } from './errors';
 import { WSoftScaleBoard, WSoftScaleCard, WSoftScaleSetup as WSoftScaleSetupState } from './types';
 import { REASON_MAX, reasonProblem } from './validators';
@@ -91,6 +92,8 @@ const WSoftScaleSetup: FC = () => {
   const [loadError, setLoadError] = useState<string>();
   const [form, setForm] = useState<BoardForm>();
   const [cardForm, setCardForm] = useState<CardForm>({ decimal: '', e_kg: '' });
+  // Load cell: the board holds the unit and the division the card holds on RS485.
+  const [cellForm, setCellForm] = useState<{ unit: LoadcellUnit; division: string }>({ unit: 'kg', division: '' });
   const [dirty, setDirty] = useState(false);
   const [reason, setReason] = useState('');
   const [saving, setSaving] = useState(false);
@@ -115,6 +118,9 @@ const WSoftScaleSetup: FC = () => {
     if (setup && !dirty) {
       setForm(toForm(setup.board));
       setCardForm(toCardForm(setup.card));
+      if (setup.card) {
+        setCellForm({ unit: setup.card.unit === 3 ? 'g' : 'kg', division: divisionKey(setup.card.decimal, setup.card.division) });
+      }
     }
   }, [setup, dirty]);
 
@@ -131,10 +137,20 @@ const WSoftScaleSetup: FC = () => {
       );
     }
 
-    // A load cell on an HX711 board: the board is the scale, so the setup is kept here like on
-    // RS485. Only the unit and the division are set on the Calibrate tab, next to the calibration.
+    // A load cell on an HX711 board: the board is the scale, so everything is kept here. The
+    // unit and the division take the place of the card's two fields; the rest is the same form.
     const loadcell = setup.source === 'loadcell';
-    const unitText = setup.card?.unit === 3 ? 'g' : 'kg';
+    const divisions = loadcellDivisions(cellForm.unit);
+    const division = divisions.find((d) => d.key === cellForm.division);
+    const cellChanged = (next: Partial<typeof cellForm>) => {
+      const merged = { ...cellForm, ...next };
+      // kg and g have different lists: keep the choice when it is in both, else start at 1.
+      if (next.unit && !loadcellDivisions(next.unit).some((d) => d.key === merged.division)) merged.division = divisionKey(0, 1);
+      setCellForm(merged);
+      setDirty(true);
+    };
+    const cellDiffers = loadcell && !!division && (!setup.card || setup.card.decimal !== division.decimals
+      || setup.card.division !== division.step || (setup.card.unit === 3 ? 'g' : 'kg') !== cellForm.unit);
 
     const canEdit = isAdmin && setup.editable && setup.locked === null;
     const change = (key: keyof BoardForm, value: string | boolean) => {
@@ -169,18 +185,23 @@ const WSoftScaleSetup: FC = () => {
 
     // Card first (decimal places, then e), so the board checks Max and Min against the new e.
     const writeCard = async () => {
-      if (loadcell || !cardDiffers || step === undefined) return;
+      if (!cardDiffers || step === undefined) return;
       for (const [field, value] of [['decimal', Number(cardForm.decimal)], ['division', step]] as const) {
         const reply = (await WSoftApi.djb({ op: 'write', field, value })).data;
         if (!reply.ok) throw new Error(reply.error ?? 'The weighing card did not answer.');
       }
     };
 
+    const writeCell = async () => {
+      if (!cellDiffers || !division) return;
+      await WSoftApi.updateWSoftLoadcell({ action: 'format', decimals: division.decimals, step: division.step, unit: cellForm.unit });
+    };
+
     const save = async () => {
       if (!formOk || reasonText) return;
       setSaving(true);
       try {
-        await writeCard();
+        await (loadcell ? writeCell() : writeCard());
         const reply = (await WSoftApi.updateWSoftScaleSetup({ board: toBoard(form), reason: reason.trim() })).data;
         setSetup(reply);
         setForm(toForm(reply.board));
@@ -232,16 +253,37 @@ const WSoftScaleSetup: FC = () => {
         <Grid container columnSpacing={2}>
           {field('sa_number', 'SA approval number', 'Shown on the screen plate. 1 to 32 characters', false)}
           {loadcell ? (
-            <Grid item xs={12} sm={6}>
-              <TextField
-                label="Division size (e)"
-                fullWidth
-                margin="dense"
-                value={setup.card ? `${(setup.card.division / 10 ** setup.card.decimal).toFixed(setup.card.decimal)} ${unitText}` : ''}
-                disabled
-                helperText="Set on the Calibrate tab, with the unit"
-              />
-            </Grid>
+            <>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  select
+                  label="Unit"
+                  fullWidth
+                  margin="dense"
+                  value={cellForm.unit}
+                  disabled={!canEdit}
+                  onChange={(event) => cellChanged({ unit: event.target.value as LoadcellUnit })}
+                  helperText="What the scale shows its weight in"
+                >
+                  <MenuItem value="kg">kg</MenuItem>
+                  <MenuItem value="g">g</MenuItem>
+                </TextField>
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  select
+                  label="Division size (e)"
+                  fullWidth
+                  margin="dense"
+                  value={division ? division.key : ''}
+                  disabled={!canEdit}
+                  onChange={(event) => cellChanged({ division: event.target.value })}
+                  helperText="The steps the weight moves in, like 0.002 kg"
+                >
+                  {divisions.map((d) => (<MenuItem key={d.key} value={d.key}>{d.text} {cellForm.unit}</MenuItem>))}
+                </TextField>
+              </Grid>
+            </>
           ) : (
             <>
             <Grid item xs={12} sm={6}>

@@ -1,8 +1,8 @@
 import { describe, expect, it } from '@jest/globals';
 
 import {
-  adWriteRequest, alarmReadRequest, calibrateBlock, calibratesLoadcell, digitsText, divisionCount, loadcellDivisions,
-  loadcellTestWeight, maxFromKgText, maxToKgText, parseTestWeight, spanDigits
+  adWriteRequest, alarmReadRequest, calibrateBlock, calibratesLoadcell, digitsText, loadcellDivisions, loadcellTestWeight,
+  parseTestWeight, spanDigits
 } from './calibrate';
 import { WSoftStatus } from './types';
 
@@ -96,32 +96,5 @@ describe('load cell scale setup', () => {
     expect(loadcellDivisions('g').map((d) => d.text)).toEqual([
       '0.01', '0.02', '0.05', '0.1', '0.2', '0.5', '1', '2', '5', '10', '20', '50'
     ]);
-  });
-
-  it('turns Max into the kg text the board stores, and back', () => {
-    expect(maxToKgText('6', 'kg')).toBe('6');
-    expect(maxToKgText(' 6,5 ', 'kg')).toBe('6.5');
-    expect(maxToKgText('6000', 'g')).toBe('6');
-    expect(maxToKgText('6', 'g')).toBe('0.006');
-    expect(maxToKgText('0.05', 'g')).toBe('0.00005');
-    expect(maxToKgText('', 'kg')).toBe('');
-    expect(maxToKgText('0', 'kg')).toBeUndefined();
-    expect(maxToKgText('six', 'kg')).toBeUndefined();
-    expect(maxToKgText('0.005', 'g')).toBeUndefined();
-    expect(maxFromKgText('6', 'kg')).toBe('6');
-    expect(maxFromKgText('6', 'g')).toBe('6000');
-    expect(maxFromKgText('0.006', 'g')).toBe('6');
-    expect(maxFromKgText('0.0065', 'g')).toBe('6.5');
-    expect(maxFromKgText('', 'g')).toBe('');
-  });
-
-  it('counts the divisions only when Max is a whole number of them', () => {
-    const d = (text: string, unit: 'kg' | 'g') => loadcellDivisions(unit).find((x) => x.text === text)!;
-    expect(divisionCount('6', 'kg', d('0.002', 'kg'))).toBe(3000);
-    expect(divisionCount('6000', 'g', d('2', 'g'))).toBe(3000);
-    expect(divisionCount('150', 'kg', d('50', 'kg'))).toBe(3);
-    expect(divisionCount('6.001', 'kg', d('0.002', 'kg'))).toBeUndefined();
-    expect(divisionCount('0.002', 'kg', d('0.002', 'kg'))).toBeUndefined();
-    expect(divisionCount('', 'kg', d('0.002', 'kg'))).toBeUndefined();
   });
 });

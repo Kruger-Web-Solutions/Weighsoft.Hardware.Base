@@ -8,11 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **W-Soft: scale setup for the load cell** (Rhyno, 22 Nov 2026). The Calibrate tab starts
-  with *Scale setup*: unit, division size and Max capacity (one range), then Zero and Test
-  weight. The Scale setup tab (Min, blanking, stable samples, tare, SA number) now applies to
-  the load cell as it does to RS485. The test weight is kept in the scale's own digits, so the
-  typed decimals no longer set what the scale shows.
+- **W-Soft: scale setup for the load cell** (Rhyno, 22 Nov 2026). The Scale setup tab is the
+  one home of the setup on every source. With a load cell it shows *Unit* and *Division size*
+  in the place of the weighing card's fields, next to the same Max, Min, blanking, stable
+  samples, tare and SA number as RS485. Calibrate keeps only Zero and Test weight. The test
+  weight is kept in the scale's own digits, so the typed decimals no longer set what the scale
+  shows.
 - **W-Soft: load cell on an HX711 board as a third weight source** (yellow board, env
   `wsoft_cyd28`; Rhyno, 22 Nov 2026). Settings → *Weight comes from* → *Load cell (HX711
   board)*; the HX711 goes on CN1 (DT GPIO22, SCK GPIO27, 3.3 V). Calibrate tab: zero, then a
