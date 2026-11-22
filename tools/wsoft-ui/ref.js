@@ -582,6 +582,8 @@ const WsoftUi = (() => {
     c.text(c.fit(m.product, MID, 312 - tw - 12 - 10), 10, 51, MID, P.ink, LEFT);
   }
 
+  // Where the outline copies of the weight go: 3 px all round.
+  const OUTLINE = [[-3, 0], [3, 0], [0, -3], [0, 3], [-2, -2], [2, -2], [-2, 2], [2, 2]];
   function paintWeightColour(c, m, T) {
     let bg = T.bg, ink = m.live ? T.ink : T.soft, soft = T.soft;
     if (m.zone !== ZONE_NONE) {
@@ -600,12 +602,13 @@ const WsoftUi = (() => {
     // Aurora's card: the weight sits inside it with room to spare.
     if (m.zone !== ZONE_NONE && colourSet(m, T).card) {
       c.text(m.label, 302, 73, TINY, soft, RIGHT);
-      // A soft glow of the zone colour round the numbers (Rhyno, 22 Nov 2026).
-      const role = c.width(m.weight, HERO) <= 236 ? HERO : BIG, P = colourSet(m, T), halo = blend(P.w_bg, P.strip, 55), core = blend(P.w_bg, P.strip, 120);
-      for (const [dx, dy] of [[-3, 0], [3, 0], [0, -3], [0, 3]]) c.text(m.weight, 264 + dx, 94 + dy, role, halo, RIGHT);
-      for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) c.text(m.weight, 264 + dx, 94 + dy, role, core, RIGHT);
-      c.text(m.weight, 264, 94, role, ink, RIGHT);
-      c.text(m.unit, 270, 106, MID, soft, LEFT);
+      // Big numbers with a thick outline in the full zone colour (Rhyno, 22 Nov 2026: "as big as
+      // under range", outline "thicker", "brighter").
+      const P = colourSet(m, T), huge = c.width(m.weight, HUGE) <= 256;
+      const role = huge ? HUGE : c.width(m.weight, HERO) <= 236 ? HERO : BIG, x = huge ? 280 : 264, y = huge ? 92 : 94;
+      for (const [dx, dy] of OUTLINE) c.text(m.weight, x + dx, y + dy, role, P.strip, RIGHT);
+      c.text(m.weight, x, y, role, ink, RIGHT);
+      c.text(m.unit, x + 6, huge ? 109 : 106, MID, soft, LEFT);
       return;
     }
     if (c.width(m.label, TINY) <= 24 && c.width(m.weight, HUGE) <= 270) {
