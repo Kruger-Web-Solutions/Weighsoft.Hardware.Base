@@ -11,6 +11,7 @@ React web UI). **One base, many devices: each device type lives on its own long-
 - Which branch builds which device → [docs/BRANCH-MAP.md](docs/BRANCH-MAP.md)
 - How to branch and merge → [docs/INTEGRATION-WORKFLOW.md](docs/INTEGRATION-WORKFLOW.md)
 - W-Soft weigh screen boards (Waveshare 4.3, yellow CYD 2.8, S3 headless) → [docs/WSOFT-WAVESHARE43.md](docs/WSOFT-WAVESHARE43.md)
+- **Every W-Soft board that gets flashed is named `wsoft/<board make>/<number>`** (e.g. `wsoft/waveshare/1`; hostname `wsoft-waveshare-1`) and goes in the register → [docs/WSOFT-WAVESHARE43.md](docs/WSOFT-WAVESHARE43.md) section 0c
 
 ## Rules
 

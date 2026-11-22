@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **W-Soft board names** (Rhyno, 22 Nov 2026): every board that gets flashed is named
+  `wsoft/<board make>/<number>` (e.g. `wsoft/waveshare/1`; hostname `wsoft-waveshare-1`), one
+  number per board for life, kept in a register. `docs/WSOFT-WAVESHARE43.md` section 0c.
 - **W-Soft: Wi-Fi update switch** (Rhyno, 14 Nov 2026). New software can go onto a board over
   Wi-Fi, so it does not have to be plugged into a laptop. W-Soft > Settings > Wi-Fi update
   (admin): OFF by default, the board's own password (4 to 64 characters since PR #58, never shown again, no
