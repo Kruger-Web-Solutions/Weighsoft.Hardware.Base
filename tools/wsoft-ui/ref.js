@@ -504,15 +504,16 @@ const WsoftUi = (() => {
   // ---------- Full Colour: the Hi-Lo zone shown in colour on the brand night blue ----------
   // With no zone (no product, empty scale, no signal) it is the classic dark screen with the
   // bigger weight.
-  // Made classy (Rhyno, 22 Nov 2026: the flat bright colours looked like an old TV game). The
-  // brand's night blue carries the screen; the zone's colour is a thin strip by the weight, the
-  // pill the word sits in, the marker's centre and the steady dot.
-  const NIGHT = c565('#120D36'), BUNTING = c565('#1B1446');
+  // Made to sit in the Weighsoft faceplate (Rhyno, 22 Nov 2026: the flat bright colours looked
+  // like an old TV game; the box's plate is light grey-white with a red swoosh). A light plate
+  // grey screen, the brand's blue bar, navy letters, a thin red strip by the weight, and the
+  // word in a pill of the zone's own colour.
+  const PLATE = c565('#E9EEF2'), NAVY = c565('#1B1446'), SLATE = c565('#5A6270');
+  const PLATE_LINE = c565('#C9D2DA'), SKY = c565('#1699D6'), SWOOSH = c565('#E4243B');
   function colourSet(m, T) {
     const z = m.zone === ZONE_LOW ? T.z_low : m.zone === ZONE_OK ? T.z_ok : T.z_high;
     const z_ink = m.zone === ZONE_LOW ? T.z_low_ink : m.zone === ZONE_OK ? T.z_ok_ink : T.z_high_ink;
-    const bg = NIGHT;
-    return { bg, soft: blend(bg, WHITE, 170), shade: blend(bg, 0, 70), btn: BUNTING, bar: blend(bg, 0, 100), z, z_ink };
+    return { bg: PLATE, ink: NAVY, soft: SLATE, shade: PLATE_LINE, btn: WHITE, bar: SKY, on: NAVY, on_ink: WHITE, strip: SWOOSH, z, z_ink };
   }
 
   function paintTopColour(c, m, T) {
@@ -521,19 +522,20 @@ const WsoftUi = (() => {
     c.rect(0, 20, 320, 42, P.bg, 0);
     if (m.slot === SLOT_WIFI) {
       c.rect(6, 22, 308, 40, P.btn, 8);
-      c.text('WI-FI IS OFF', 18, 42, MID, WHITE, LEFT);
-      c.rect(160, 26, 100, 32, WHITE, 6);
-      c.text('CONNECT', 210, 42, SMALL, NIGHT, CENTER);
-      c.rect(266, 26, 42, 32, WHITE, 6);
+      c.text('WI-FI IS OFF', 18, 42, MID, P.ink, LEFT);
+      c.rect(160, 26, 100, 32, P.ink, 6);
+      c.text('CONNECT', 210, 42, SMALL, P.on_ink, CENTER);
+      c.rect(266, 26, 42, 32, P.ink, 6);
       c.rect(267.5, 27.5, 39, 29, P.btn, 5);
-      c.text('X', 287, 42, MID, WHITE, CENTER);
+      c.text('X', 287, 42, MID, P.ink, CENTER);
       return;
     }
     if (m.slot !== SLOT_NONE) {
-      c.rect(6, 22, 308, 40, m.slot === SLOT_STOP ? T.stop : P.btn, 8);
-      if (c.width(m.slot_title, BIG) <= 292) c.text(m.slot_title, 160, 34, BIG, WHITE, CENTER);
-      else c.text(c.fit(m.slot_title, MID, 296), 160, 34, MID, WHITE, CENTER);
-      c.text(c.fit(m.slot_detail, SMALL, 296), 160, 53, SMALL, WHITE, CENTER);
+      const stop = m.slot === SLOT_STOP, sk = stop ? WHITE : P.ink;
+      c.rect(6, 22, 308, 40, stop ? T.stop : P.btn, 8);
+      if (c.width(m.slot_title, BIG) <= 292) c.text(m.slot_title, 160, 34, BIG, sk, CENTER);
+      else c.text(c.fit(m.slot_title, MID, 296), 160, 34, MID, sk, CENTER);
+      c.text(c.fit(m.slot_detail, SMALL, 296), 160, 53, SMALL, sk, CENTER);
       return;
     }
     let w = STAR_W;
@@ -541,7 +543,7 @@ const WsoftUi = (() => {
       const chip = 'TRADE CHECKS ON';
       w = c.width(chip, SMALL) + 14;
       c.rect(8, 24, w, 17, P.btn, 4);
-      c.text(chip, 8 + w / 2, 32.5, SMALL, WHITE, CENTER);
+      c.text(chip, 8 + w / 2, 32.5, SMALL, P.ink, CENTER);
     } else {
       c.star6(8 + w / 2, 32.5, 9, P.soft);
     }
@@ -554,17 +556,17 @@ const WsoftUi = (() => {
       return;
     }
     const tw = c.text(m.target, 312, 52, SMALL, P.soft, RIGHT);
-    c.text(c.fit(m.product, MID, 312 - tw - 12 - 10), 10, 51, MID, WHITE, LEFT);
+    c.text(c.fit(m.product, MID, 312 - tw - 12 - 10), 10, 51, MID, P.ink, LEFT);
   }
 
   function paintWeightColour(c, m, T) {
     let bg = T.bg, ink = m.live ? T.ink : T.soft, soft = T.soft;
     if (m.zone !== ZONE_NONE) {
       const P = colourSet(m, T);
-      bg = P.bg; ink = WHITE; soft = P.soft;
+      bg = P.bg; ink = P.ink; soft = P.soft;
     }
     c.rect(0, 62, 320, 60, bg, 0);
-    if (m.zone !== ZONE_NONE) c.rect(0, 64, 4, 56, colourSet(m, T).z, 0);
+    if (m.zone !== ZONE_NONE) c.rect(0, 64, 4, 56, colourSet(m, T).strip, 0);
     if (c.width(m.label, TINY) <= 24 && c.width(m.weight, HUGE) <= 270) {
       c.text(m.label, 306, 74, TINY, soft, RIGHT);
       c.text(m.weight, 280, 92, HUGE, ink, RIGHT);
@@ -605,7 +607,7 @@ const WsoftUi = (() => {
     if (mx < bx + 7) mx = bx + 7;
     if (mx > bx + bw - 7) mx = bx + bw - 7;
     c.disc(mx, by + bh / 2, 8, P.bg);
-    c.disc(mx, by + bh / 2, 6.5, WHITE);
+    c.disc(mx, by + bh / 2, 6.5, P.ink);
     c.disc(mx, by + bh / 2, 3, P.z);
   }
 
@@ -615,20 +617,20 @@ const WsoftUi = (() => {
     c.rect(0, 188, 320, 52, P.bg, 0);
     c.rect(8, 190, 104, 46, P.btn, 8);
     if (m.zero_btn) {
-      c.text('ZERO', 60, 206, MID, WHITE, CENTER);
+      c.text('ZERO', 60, 206, MID, P.ink, CENTER);
       if (c.width(m.zero_line, SMALL) <= 96) c.text(m.zero_line, 60, 225, SMALL, P.soft, CENTER);
       else c.text(c.fit(m.zero_line, TINY, 96), 60, 225, TINY, P.soft, CENTER);
     } else {
       c.text('GROSS', 17, 202, TINY, P.soft, LEFT);
-      if (c.width(m.gross, MID) <= 88) c.text(m.gross, 17, 221, MID, WHITE, LEFT);
-      else c.text(c.fit(m.gross, SMALL, 88), 17, 221, SMALL, WHITE, LEFT);
+      if (c.width(m.gross, MID) <= 88) c.text(m.gross, 17, 221, MID, P.ink, LEFT);
+      else c.text(c.fit(m.gross, SMALL, 88), 17, 221, SMALL, P.ink, LEFT);
     }
     c.rect(120, 190, 72, 46, P.btn, 8);
-    for (let i = 0; i < 3; i++) c.rect(144, 200 + i * 6, 24, 3, WHITE, 1);
-    c.text('MENU', 156, 226, SMALL, WHITE, CENTER);
+    for (let i = 0; i < 3; i++) c.rect(144, 200 + i * 6, 24, 3, P.ink, 1);
+    c.text('MENU', 156, 226, SMALL, P.ink, CENTER);
     const on = m.save_look === LOOK_ON, bad = m.save_look === LOOK_BAD;
-    c.rect(200, 190, 112, 46, on ? WHITE : bad ? T.stop : P.btn, 8);
-    const ink = on ? NIGHT : WHITE;
+    c.rect(200, 190, 112, 46, on ? P.on : bad ? T.stop : P.btn, 8);
+    const ink = on ? P.on_ink : bad ? WHITE : P.ink;
     c.text('SAVE', 256, 206, MID, ink, CENTER);
     if (c.width(m.save_line, SMALL) <= 104) c.text(m.save_line, 256, 225, SMALL, ink, CENTER);
     else c.text(c.fit(m.save_line, TINY, 104), 256, 225, TINY, ink, CENTER);
