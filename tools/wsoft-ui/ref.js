@@ -132,6 +132,19 @@ const WsoftUi = (() => {
   }
 
   // ---------- the drawing engine ----------
+  // The box of a ring piece around its centre: the ends of the piece on both edges, and each
+  // of the four extremes (right, down, left, up) the piece passes. [x0, y0, x1, y1], y down.
+  function ringBox(R, I, ax, ay, bx, by) {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    const add = (x, y) => { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; };
+    const r = R + 1, i = I > 1 ? I - 1 : 0;
+    add(ax * r, ay * r); add(bx * r, by * r); add(ax * i, ay * i); add(bx * i, by * i);
+    for (const [dx, dy] of [[1, 0], [0, 1], [-1, 0], [0, -1]]) {
+      if (ax * dy - ay * dx >= 0 && dx * by - dy * bx >= 0) add(dx * r, dy * r);
+    }
+    return [x0, y0, x1, y1];
+  }
+
   class Canvas {
     constructor(W, H, sx, sy, fonts) {
       this.W = W; this.H = H; this.sx = sx; this.sy = sy; this.fonts = fonts;
@@ -203,8 +216,26 @@ const WsoftUi = (() => {
     ring(cx, cy, r, w, ax, ay, bx, by, c) {
       const X = cx * this.sx, Y = cy * this.sy, R = r * this.sy, I = R - w * this.sy;
       const far = (R + 1) * (R + 1), near = I > 1 ? (I - 1) * (I - 1) : 0;
-      for (let py = Math.max(Math.floor(Y - R - 1), this.c0); py <= Math.min(Math.floor(Y + R + 1), this.c1 - 1); py++) {
-        for (let px = Math.max(Math.floor(X - R - 1), 0); px <= Math.min(Math.floor(X + R + 1), this.W - 1); px++) {
+      // Only the dots that can be on the piece are looked at (Rhyno, 22 Nov 2026: the dial was
+      // sticky on the yellow board): the box of the piece, and on each line only the ring's own
+      // two short stretches. Each limit has a dot to spare, and every dot still passes the same
+      // test below, so the picture is the same dot for dot; only the work is less.
+      const box = ringBox(R, I, ax, ay, bx, by);
+      const top = Math.max(Math.floor(Y + box[1]) - 2, this.c0), bottom = Math.min(Math.floor(Y + box[3]) + 2, this.c1 - 1);
+      const left = Math.max(Math.floor(X + box[0]) - 2, 0), right = Math.min(Math.floor(X + box[2]) + 2, this.W - 1);
+      for (let py = top; py <= bottom; py++) {
+        const ey = py + 0.5 - Y, ey2 = ey * ey;
+        if (ey2 > far) continue;
+        const out = Math.sqrt(far - ey2);
+        const x0 = Math.max(Math.floor(X - out) - 1, left), x1 = Math.min(Math.floor(X + out) + 1, right);
+        let gap0 = x1 + 1, gap1 = x1;  // the dots inside the hole, skipped
+        if (ey2 < near) {
+          const hole = Math.sqrt(near - ey2);
+          gap0 = Math.ceil(X - hole + 0.5);
+          gap1 = Math.floor(X + hole - 1.5);
+        }
+        for (let px = x0; px <= x1; px++) {
+          if (px >= gap0 && px <= gap1) { px = gap1; continue; }
           const dx = px + 0.5 - X, dy = py + 0.5 - Y, d2 = dx * dx + dy * dy;
           if (d2 > far || d2 < near) continue;
           const d = Math.sqrt(d2);

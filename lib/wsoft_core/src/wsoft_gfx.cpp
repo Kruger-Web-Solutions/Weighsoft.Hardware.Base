@@ -137,19 +137,65 @@ void WsoftCanvas::line(double x1, double y1, double x2, double y2, double w, uin
   }
 }
 
+// The box of a ring piece around its centre: the ends of the piece on both edges, and each of
+// the four extremes (right, down, left, up) the piece passes. y down.
+struct RingBox {
+  double x0 = 1e300, y0 = 1e300, x1 = -1e300, y1 = -1e300;
+  void add(double x, double y) {
+    if (x < x0) x0 = x;
+    if (x > x1) x1 = x;
+    if (y < y0) y0 = y;
+    if (y > y1) y1 = y;
+  }
+};
+
+static RingBox ring_box(double R, double I, double ax, double ay, double bx, double by) {
+  static const double SIDES[4][2] = {{1, 0}, {0, 1}, {-1, 0}, {0, -1}};
+  RingBox box;
+  double r = R + 1, i = I > 1 ? I - 1 : 0;
+  box.add(ax * r, ay * r);
+  box.add(bx * r, by * r);
+  box.add(ax * i, ay * i);
+  box.add(bx * i, by * i);
+  for (const auto &d : SIDES) {
+    if (ax * d[1] - ay * d[0] >= 0 && d[0] * by - d[1] * bx >= 0) box.add(d[0] * r, d[1] * r);
+  }
+  return box;
+}
+
 void WsoftCanvas::ring(double cx, double cy, double r, double w, double ax, double ay, double bx, double by, uint16_t color) {
   double X = cx * sx_, Y = cy * sy_, R = r * sy_, I = R - w * sy_;
   double outer2 = (R + 1) * (R + 1), inner2 = I > 1 ? (I - 1) * (I - 1) : 0;
-  long first = (long)floor(Y - R - 1), last = (long)floor(Y + R + 1);
-  long left = (long)floor(X - R - 1), right = (long)floor(X + R + 1);
+  // Only the dots that can be on the piece are looked at (the dial was sticky on the yellow
+  // board, 22 Nov 2026): the box of the piece, and on each line only the ring's own two short
+  // stretches. Each limit has a dot to spare and every dot still passes the same test, so the
+  // picture is the same dot for dot.
+  RingBox box = ring_box(R, I, ax, ay, bx, by);
+  long first = (long)floor(Y + box.y0) - 2, last = (long)floor(Y + box.y1) + 2;
+  long left = (long)floor(X + box.x0) - 2, right = (long)floor(X + box.x1) + 2;
   if (first < lo()) first = lo();
   if (last > hi() - 1) last = hi() - 1;
   if (left < 0) left = 0;
   if (right > width_ - 1) right = width_ - 1;
   for (long py = first; py <= last; py++) {
-    for (long px = left; px <= right; px++) {
+    double ey = py + 0.5 - Y, ey2 = ey * ey;
+    if (ey2 > outer2) continue;
+    double out = sqrt(outer2 - ey2);
+    long x0 = (long)floor(X - out) - 1, x1 = (long)floor(X + out) + 1;
+    if (x0 < left) x0 = left;
+    if (x1 > right) x1 = right;
+    long gap0 = x1 + 1, gap1 = x1;  // the dots inside the hole, skipped
+    if (ey2 < inner2) {
+      double hole = sqrt(inner2 - ey2);
+      gap0 = (long)ceil(X - hole + 0.5);
+      gap1 = (long)floor(X + hole - 1.5);
+    }
+    for (long px = x0; px <= x1; px++) {
+      if (px >= gap0 && px <= gap1) {
+        px = gap1;
+        continue;
+      }
       double dx = px + 0.5 - X, dy = py + 0.5 - Y, d2 = dx * dx + dy * dy;
-      // Most dots are off the ring: they cost no square root.
       if (d2 > outer2 || d2 < inner2) continue;
       double d = sqrt(d2);
       double cover = R - d + 0.5;

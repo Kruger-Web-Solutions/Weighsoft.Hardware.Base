@@ -99,6 +99,52 @@ void test_round_corners_cut_the_corner_dots() {
   TEST_ASSERT_EQUAL_HEX16(WHITE, frame[8 * 16 + 14]);
 }
 
+// The ring looks only at the dots near its piece (fast enough for the dial on the yellow
+// board). It must paint exactly what looking at every dot paints.
+static void ring_every_dot(uint16_t *fb, int W, int H, double sx, double sy, double cx, double cy, double r, double w,
+                           double ax, double ay, double bx, double by, uint16_t color) {
+  double X = cx * sx, Y = cy * sy, R = r * sy, I = R - w * sy;
+  for (int py = 0; py < H; py++) {
+    for (int px = 0; px < W; px++) {
+      double dx = px + 0.5 - X, dy = py + 0.5 - Y, d = sqrt(dx * dx + dy * dy);
+      double cover = R - d + 0.5;
+      double inner = d - I + 0.5, from = ax * dy - ay * dx + 0.5, to = dx * by - dy * bx + 0.5;
+      if (inner < cover) cover = inner;
+      if (from < cover) cover = from;
+      if (to < cover) cover = to;
+      if (cover <= 0) continue;
+      int alpha = cover < 1 ? (int)floor(cover * 255 + 0.5) : 255;
+      uint16_t &dot = fb[py * W + px];
+      dot = alpha >= 255 ? color : wsoft_blend565(dot, color, alpha);
+    }
+  }
+}
+
+void test_a_ring_paints_the_same_as_looking_at_every_dot() {
+  static uint16_t fast[800 * 480], slow[800 * 480];
+  const double PI2 = 6.283185307179586;
+  struct Panel { int W, H; double sx, sy; } panels[] = {{320, 240, 1, 1}, {800, 480, 2.5, 2}};
+  int pieces = 0;
+  for (const Panel &p : panels) {
+    // Pieces all round the circle, short and nearly half a turn, thin and thick, part off the panel.
+    for (int k = 0; k < 24; k++) {
+      double a = k * PI2 / 24, span = 0.2 + (k % 5) * 0.55;
+      double ax = cos(a), ay = sin(a), bx = cos(a + span), by = sin(a + span);
+      double cx = 40 + (k * 37) % 260, cy = 30 + (k * 53) % 200, r = 20 + (k * 29) % 140, w = 3 + k % 4 * 4;
+      memset(fast, 0, sizeof fast);
+      memset(slow, 0, sizeof slow);
+      WsoftCanvas c;
+      c.begin(p.W, p.H, p.sx, p.sy, WSOFT_UI_FONTS_1X);
+      c.window(fast, 0, p.H);
+      c.ring(cx, cy, r, w, ax, ay, bx, by, 0xF800);
+      ring_every_dot(slow, p.W, p.H, p.sx, p.sy, cx, cy, r, w, ax, ay, bx, by, 0xF800);
+      TEST_ASSERT_EQUAL_MEMORY(slow, fast, sizeof(uint16_t) * p.W * p.H);
+      pieces++;
+    }
+  }
+  TEST_ASSERT_EQUAL(48, pieces);
+}
+
 void test_text_width_and_alignment() {
   static uint16_t frame[320 * 40];
   memset(frame, 0, sizeof frame);
@@ -1017,6 +1063,7 @@ int main(int, char **) {
   RUN_TEST(test_a_rect_stays_inside_its_window);
   RUN_TEST(test_a_rect_scales_with_the_panel);
   RUN_TEST(test_round_corners_cut_the_corner_dots);
+  RUN_TEST(test_a_ring_paints_the_same_as_looking_at_every_dot);
   RUN_TEST(test_text_width_and_alignment);
   RUN_TEST(test_marker_position_on_the_bar);
   RUN_TEST(test_tap_boxes);
