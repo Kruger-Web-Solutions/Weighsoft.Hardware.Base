@@ -512,11 +512,11 @@ const WsoftUi = (() => {
   const PLATE_LINE = c565('#C9D2DA'), SKY = c565('#1699D6'), SWOOSH = c565('#E4243B');
   // Full strength (Rhyno, 22 Nov 2026: "nice and bright", Ferrari red, no mustard).
   const VIVID_LOW = c565('#FF8C00'), VIVID_OK = c565('#00C853'), VIVID_HIGH = c565('#FF2800'), NIGHT = c565('#120D36');
-  // Full Colour is "Aurora" (Rhyno, 22 Nov 2026): a night-blue screen that fades down to Bunting,
-  // the weight in white on a dark glass card with a zone-coloured bar, and the word in black on a
-  // pill of the zone colour (Rhyno picked A, 22 Nov 2026).
-  const AUR_TOP = c565('#0B0726'), AUR_LOW = c565('#1B1446'), AUR_SOFT = c565('#9FB3D9');
-  const AUR_BTN = c565('#221C55'), AUR_LINE = c565('#3A3478'), AUR_BAR = c565('#07051A'), INK0 = c565('#0B0D10');
+  // Full Colour is "mini Edge" (Rhyno, 22 Nov 2026): the Edge Touch look. Deck navy fading down, a
+  // navy status bar with a teal line, the weight floating with no box and a thick zone outline, the
+  // word in black on a pill of the zone colour, glass buttons with a cyan edge and a blue SAVE.
+  const AUR_TOP = c565('#0d1b2a'), AUR_LOW = c565('#0b1420'), AUR_SOFT = c565('#a9c4d4'), EDGE_ON = c565('#2596be'), EDGE_TEAL = c565('#0e8a7d');
+  const AUR_BTN = c565('#13212f'), AUR_LINE = c565('#3f7f98'), AUR_BAR = c565('#0f1e33'), INK0 = c565('#0B0D10');
   // The ground: flat, or Aurora's fade in 6-line steps (y 20 is the top colour, y 240 the bottom).
   function ground(c, P, y0, h) {
     if (!P.grad) { c.rect(0, y0, 320, h, P.bg, 0); return; }
@@ -527,12 +527,12 @@ const WsoftUi = (() => {
     if (m.style !== STYLE_COLOUR) {
       const z = low ? VIVID_LOW : ok ? VIVID_OK : VIVID_HIGH;
       const z_ink = low ? NIGHT : WHITE;
-      return { bg: PLATE, ink: NAVY, soft: SLATE, shade: PLATE_LINE, btn: WHITE, btn_ink: NAVY, btn_soft: SLATE, bar: SKY, on: NAVY, on_ink: WHITE,
+      return { bg: PLATE, ink: NAVY, soft: SLATE, shade: PLATE_LINE, btn: WHITE, btn_ink: NAVY, btn_soft: SLATE, bar: SKY, on: NAVY, on_ink: WHITE, bar_line: SKY,
         grad: false, band: false, card: false, border: false, btn_line: PLATE_LINE, w_bg: PLATE, w_ink: NAVY, w_soft: SLATE, strip: SWOOSH,
         pill: z, pill_ink: z_ink, out: blend(PLATE, VIVID_LOW, 130), mid: blend(PLATE, VIVID_OK, 130), over: blend(PLATE, VIVID_HIGH, 130), dot: z, mark: NAVY, m_dot: z };
     }
     const z = low ? VIVID_LOW : ok ? VIVID_OK : VIVID_HIGH, bg = blend(AUR_TOP, AUR_LOW, 174);
-        return { bg, grad: true, ink: WHITE, soft: AUR_SOFT, shade: blend(bg, WHITE, 30), btn: AUR_BTN, btn_ink: WHITE, btn_soft: AUR_SOFT, bar: AUR_BAR, on: SKY, on_ink: WHITE,
+        return { bg, grad: true, ink: WHITE, soft: AUR_SOFT, shade: blend(bg, WHITE, 30), btn: AUR_BTN, btn_ink: WHITE, btn_soft: AUR_SOFT, bar: AUR_BAR, bar_line: EDGE_TEAL, on: EDGE_ON, on_ink: WHITE,
       band: false, card: true, border: true, btn_line: AUR_LINE, w_bg: AUR_BTN, w_ink: WHITE, w_soft: AUR_SOFT, strip: z,
       pill: z, pill_ink: INK0, out: blend(bg, VIVID_LOW, 110), mid: blend(bg, VIVID_OK, 110), over: blend(bg, VIVID_HIGH, 110), dot: z, mark: WHITE, m_dot: z };
   }
@@ -589,17 +589,13 @@ const WsoftUi = (() => {
     if (m.zone !== ZONE_NONE) {
       const P = colourSet(m, T);
       ground(c, P, 62, 60);
-      if (P.card) {
-        // Aurora glass card (Rhyno picked A, 22 Nov 2026): a thin line round it and a zone-coloured bar on the left.
-        c.rect(6, 62, 308, 60, P.btn_line, 10);
-        c.rect(7, 63, 306, 58, P.w_bg, 9);
-        c.rect(11, 69, 5, 46, P.strip, 2);
-      } else if (!P.band) c.rect(0, 64, 4, 56, P.strip, 0);
+      // Mini Edge: the weight floats on the ground, no box (Rhyno, 22 Nov 2026).
+      if (!P.card && !P.band) c.rect(0, 64, 4, 56, P.strip, 0);
       ink = P.w_ink; soft = P.w_soft;
     } else {
       c.rect(0, 62, 320, 60, bg, 0);
     }
-    // Aurora's card: the weight sits inside it with room to spare.
+    // Mini Edge: big numbers floating on the ground.
     if (m.zone !== ZONE_NONE && colourSet(m, T).card) {
       c.text(m.label, 302, 73, TINY, soft, RIGHT);
       // Big numbers with a thick outline in the full zone colour (Rhyno, 22 Nov 2026: "as big as
@@ -868,7 +864,7 @@ const WsoftUi = (() => {
     const look = style === STYLE_COLOUR || plateLook(m, style);
     c.clip(ROWS[row][0], ROWS[row][1]);
     if (row === ROW_BAR) {
-      if (look && m.zone !== ZONE_NONE) { const bg = colourSet(m, T).bar; paintBar(c, m, bg, bg); }
+      if (look && m.zone !== ZONE_NONE) { const P = colourSet(m, T); paintBar(c, m, P.bar, P.bar_line); }
       else paintBar(c, m, T.bar, T.bar_line);
     } else if (row === ROW_TOP) {
       if (look) paintTopColour(c, m, T); else if (style === STYLE_DIAL) paintTopDial(c, m, T); else paintTop(c, m, T);
