@@ -325,6 +325,7 @@ static const char *SCREEN_REASON = "switched on the screen";
 
 static bool ready = false;
 static bool dark = true;
+static int style = WSOFT_UI_STYLE_CLASSIC;
 static int page = WSOFT_UI_PAGE_LIVE;
 static WsoftUiView view;           // the newest poll
 static WsoftUiModel shown;         // what is on the panel
@@ -350,11 +351,14 @@ static bool wifi_up() {
   return WiFi.status() == WL_CONNECTED;
 }
 
-// Dark or light is kept in flash (NVS "wsoft_ui" / "dark"); dark until somebody switches it.
+// Dark or light and the style of the live page are kept in flash (NVS "wsoft_ui" / "dark" and
+// "style"); classic dark until somebody switches it.
 static void theme_load() {
   Preferences prefs;
   if (prefs.begin("wsoft_ui", false)) {
     dark = prefs.getBool("dark", true);
+    style = prefs.getUChar("style", WSOFT_UI_STYLE_CLASSIC);
+    if (style >= WSOFT_UI_STYLE_COUNT) style = WSOFT_UI_STYLE_CLASSIC;
     prefs.end();
   }
 }
@@ -363,6 +367,7 @@ static void theme_save() {
   Preferences prefs;
   if (prefs.begin("wsoft_ui", false)) {
     prefs.putBool("dark", dark);
+    prefs.putUChar("style", (uint8_t)style);
     prefs.end();
   }
 }
@@ -400,6 +405,7 @@ static void gather(Facts *f) {
   WsoftUiInput &in = f->in;
   in = WsoftUiInput();
   in.dark = dark;
+  in.style = style;
   in.page = page;
 
   in.wifi_up = wifi_up();
@@ -454,6 +460,7 @@ static void gather(Facts *f) {
   if (weigh.last_result != WSOFT_SAVE_NONE && millis() - weigh.last_result_ms < RESULT_MS) in.recent = weigh.last_result;
   in.saved_seq = weigh.last.seq;
   in.waiting = weigh.waiting;
+  in.countdown = weigh.countdown;
 
   SwitchesInfo switches;
   switches_info(&switches);
@@ -643,9 +650,21 @@ static void menu_tap(int tile) {
       next_product();
       break;
     case WSOFT_UI_TILE_THEME:
-      dark = !dark;
+      // One tile steps through the four looks: dark, light, Full Colour, dial.
+      if (style == WSOFT_UI_STYLE_CLASSIC && dark) {
+        dark = false;
+      } else if (style == WSOFT_UI_STYLE_CLASSIC) {
+        // Full Colour and dial are dark screens, their menu pages too.
+        style = WSOFT_UI_STYLE_COLOUR;
+        dark = true;
+      } else if (style == WSOFT_UI_STYLE_COLOUR) {
+        style = WSOFT_UI_STYLE_DIAL;
+      } else {
+        style = WSOFT_UI_STYLE_CLASSIC;
+        dark = true;
+      }
       theme_save();
-      say(dark ? "DARK MODE" : "LIGHT MODE");
+      say(style == WSOFT_UI_STYLE_COLOUR ? "FULL COLOUR" : style == WSOFT_UI_STYLE_DIAL ? "DIAL" : dark ? "DARK MODE" : "LIGHT MODE");
       break;
     case WSOFT_UI_TILE_WIFI:
       message[0] = 0;

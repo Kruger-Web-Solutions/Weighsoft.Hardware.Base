@@ -54,10 +54,52 @@ then says "Clock set from the Hub". The log shows `HUB clock set from hub: ...`.
 
 Each tile shows what it is set to now; green is on. APPROVAL (asks for the screen PIN on a
 phone-style pad; with no PIN set, a note says where to set it), AUTO SAVE, TARE and PRESET
-TARE (RS485 only), PRODUCT (steps through the Hub's Hi-Lo products), SCREEN (dark or light,
-kept in flash: NVS `wsoft_ui` / `dark`), WI-FI, BACK. The top right line says what the last
+TARE (RS485 only), PRODUCT (steps through the Hub's Hi-Lo products), SCREEN (steps DARK, LIGHT,
+COLOUR, DIAL; kept in flash: NVS `wsoft_ui` / `dark` and `style`; see 3a), WI-FI, BACK. The top right line says what the last
 tap did. After 30 s without a tap the screen goes back to the live page (the Wi-Fi page after
 3 minutes).
+
+## 3a. Three looks for the live page (Rhyno, 22 Nov 2026)
+
+MENU > SCREEN steps through them. The rows, the tap boxes and the words are the same in all
+three; only what a row draws differs. The menu pages look the same in every look.
+
+| SCREEN says | Look | Pictures |
+|---|---|---|
+| DARK / LIGHT | Classic: the five rows of section 1. The default | `yellow-00` to `yellow-27` |
+| COLOUR | Full Colour: the whole screen takes the colour of the Hi-Lo zone (yellow low, green OK, red high), with a bigger weight and one big line | `yellow-28` to `yellow-37`, `yellow-47` |
+| DIAL | The Hi-Lo bar bent into a gauge over the weight, with a marker that moves along it | `yellow-38` to `yellow-46`, `yellow-48`, `yellow-49`, `yellow-52` |
+
+![Full Colour](img/wsoft-screen/yellow-29.png) ![Dial](img/wsoft-screen/yellow-39.png)
+
+Both say what to do next to the word (Rhyno, 22 Nov 2026), with an arrow the way to go:
+
+| Weight | They say | Sign |
+|---|---|---|
+| Too low | TOO LOW  ADD MORE | arrow up |
+| Too high | TOO HIGH  REMOVE PRODUCT | arrow down |
+| Good, Auto save on | SAVING  IN 3, then IN 2, IN 1 | tick |
+| Good and saved | DONE  TAKE IT OFF | tick |
+| Good, Auto save off or a Writer | GOOD  TAP SAVE | tick |
+
+Auto save counts down (Rhyno, 22 Nov 2026): the weight must stand still for 3 seconds
+(`WSOFT_AUTO_SAVE_MS`, it was 1), and every look shows SAVING IN 3, 2, 1 on the SAVE button.
+A tap on SAVE does not wait. The classic screen keeps its words (TOO LOW, OK, TOO HIGH). The words come from the model's
+`word` and `hint`.
+
+On the Dial the weight takes a soft tint of its zone (yellow, green, red).
+
+Light mode follows the Weighsoft brand palette (Rhyno, 22 Nov 2026; `brand.md` of the repo-review kit): Paper `#F7F8FC` ground, white cards, Bunting `#1B1446` ink and status bar, Slate second ink, Sky-200 buttons, and the brand status colours (success `#15803D`, warning `#B45309`, danger `#B60205`).
+
+Colour and Dial are dark screens. With no Hi-Lo product picked they show a plain dark screen
+with the weight. Two letter sizes were added for them (HUGE: the weight's digits, XL: the
+Hi-Lo word): 27 KB on the yellow board, 104 KB on the Waveshare. The whole firmware is now
+2,386,184 bytes on the yellow board (58,920 more than before) and 2,860,270 on the Waveshare
+(136,696 more), built 22 Nov 2026 against `d07b1b0`.
+
+Not tried on a board yet (22 Nov 2026): how fast the dial repaints on the yellow board, which
+paints its arc dot by dot. A weight of 7 characters (100.000) is drawn in the smaller letters
+on the Dial.
 
 ## 4. How it is built
 
@@ -76,7 +118,7 @@ Waveshare scales the layout 2.5 x 2 with letters twice the size.
 
 Letters: Manrope (words) and Sora (the weight), both under the SIL Open Font License 1.1,
 drawn once into 4-bit coverage maps by `tools/wsoft-ui/gen.mjs`. About 28 KB on the yellow
-board and 100 KB on the Waveshare.
+board and 100 KB on the Waveshare, and as much again for the two sizes of section 3a.
 
 ## 5. The reference drawing and the tests
 
@@ -161,7 +203,7 @@ over USB with `shot.ps1`. Pictures sent by the boards themselves:
 | Check | Yellow board | Waveshare |
 |---|---|---|
 | Boots, settings kept (source, Wi-Fi, Hub pairing, product, auto save) | yes | yes |
-| `SCREEN CRC`: all 25 test screens equal `golden.h` | yes | yes |
+| `SCREEN CRC`: all 25 test screens (48 now; the 23 newer ones not run on a board) equal `golden.h` | yes | yes |
 | `SCREEN TAP`: MENU, SCREEN light and back, WI-FI page, status bar tap, BACK | yes | yes |
 | `GLASS`: 48 dots read back from the panel equal the picture | yes, 48 of 48 | not possible on this panel |
 | Firmware size | 2,261,952 of 3,407,872 bytes (66%) | 2,642,480 of 6,553,600 bytes (40%) |

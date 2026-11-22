@@ -10,26 +10,30 @@
   try {
     // ?keep=1 (WSOFT_UI_KEEP_FONTS=1): the letters of fonts.json, not drawn again, no web fonts.
     const keep = new URLSearchParams(location.search).get('keep') === '1';
-    let kept = null;
+    let kept = null, added = false;
     if (keep) {
       const bytes = (f) => ({ first: f.first, count: f.count, cap: f.cap, track: f.track, glyphs: f.glyphs,
         bytes: Array.from(atob(f.b64), (ch) => ch.charCodeAt(0)) });
       const saved = await (await fetch('fonts.json')).json();
       kept = { yellow: saved.yellow.map(bytes), wave: saved.wave.map(bytes) };
-    } else {
+      // Letter sizes fonts.json does not hold yet are drawn now (that needs the web fonts once);
+      // the ones it holds stay as they are, dot for dot.
+      added = saved.yellow.length < U.ROLES.length;
+    }
+    if (!keep || added) {
       const link = document.createElement('link');
       link.rel = 'stylesheet';
       link.href = 'https://fonts.googleapis.com/css2?family=Manrope:wght@700;800&family=Sora:wght@800&display=block';
       await new Promise((ok, bad) => { link.onload = ok; link.onerror = () => bad(new Error('web fonts did not load')); document.head.appendChild(link); });
-      const wanted = ['700 11px Manrope', '800 13px Manrope', '800 54px Sora'];
+      const wanted = ['700 11px Manrope', '800 13px Manrope', '800 54px Sora', '800 76px Sora', '800 34px Manrope'];
       const loaded = await Promise.all(wanted.map((f) => document.fonts.load(f, 'Ag019')));
       loaded.forEach((faces, i) => { if (!faces.length) throw new Error('web font did not load: ' + wanted[i]); });
     }
-    const out = { fonts: {}, crc: {}, png: {}, theme: U.THEME, bar: U.BAR, roles: U.ROLES.map((r) => r.name),
+    const out = { added, fonts: {}, crc: {}, png: {}, theme: U.THEME, bar: U.BAR, roles: U.ROLES.map((r) => r.name),
       models: U.PRESETS.map(([title, , S]) => ({ title, model: U.modelOf(S) })) };
     for (const id of ['yellow', 'wave']) {
       const b = U.BOARDS[id];
-      out.fonts[id] = keep ? kept[id] : U.buildFonts(b.sy).map(U.packFont);
+      out.fonts[id] = keep ? kept[id].concat(added ? U.buildFonts(b.sy).slice(kept[id].length).map(U.packFont) : []) : U.buildFonts(b.sy).map(U.packFont);
       // Draw with the packed letters, so the checksums cover the packing too.
       const fonts = out.fonts[id].map(U.unpackFont);
       out.crc[id] = []; out.png[id] = [];

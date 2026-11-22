@@ -106,6 +106,7 @@ WsoftSaveResult WsoftWeighingSaver::update(const TradeReading &r, bool auto_save
   stable_ = r.linked && r.fresh && r.now_ms - unchanged_since_ >= TRADE_STABLE_MS;
   if (r.linked && r.fresh && r.value <= 0) seen_empty_ = true;
 
+  countdown_ = 0;
   if (hold == WSOFT_SAVE_WRITER) {
     moving_ = false;
     armed_ = false;
@@ -149,7 +150,14 @@ WsoftSaveResult WsoftWeighingSaver::update(const TradeReading &r, bool auto_save
   else if (moving_ && r.now_ms - moving_since_ >= WSOFT_MOVING_NOTICE_MS) waiting_ = WSOFT_SAVE_NOT_STABLE;
   else waiting_ = WSOFT_SAVE_NONE;
 
+  // Auto save waits for WSOFT_AUTO_SAVE_MS of stillness; the screen counts the seconds down.
+  uint32_t still_ms = r.now_ms - unchanged_since_;
+  bool auto_ready = auto_save && new_load && loaded && !outside && !queue_full && hold == WSOFT_SAVE_NONE &&
+                    (blocked == WSOFT_SAVE_NONE || blocked == WSOFT_SAVE_NOT_STABLE);
+  if (auto_ready && still_ms < WSOFT_AUTO_SAVE_MS) countdown_ = (int)((WSOFT_AUTO_SAVE_MS - still_ms + 999) / 1000);
+
   if (!save_requested && !(auto_save && new_load)) return WSOFT_SAVE_NONE;
+  if (!save_requested && still_ms < WSOFT_AUTO_SAVE_MS) return WSOFT_SAVE_NONE;
   // A tap on a load that never left the scale gets that reason, even while it moves.
   if (blocked == WSOFT_SAVE_NOT_STABLE && save_requested && loaded && !new_load) blocked = WSOFT_SAVE_NONE;
   if (blocked != WSOFT_SAVE_NONE) return save_requested ? blocked : WSOFT_SAVE_NONE;

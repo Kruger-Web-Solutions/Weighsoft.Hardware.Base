@@ -220,6 +220,8 @@ static void save(const WsoftUiInput &in, WsoftUiModel *m) {
   } else if (in.waiting == WSOFT_SAVE_ALREADY) {
     put(m->save_line, "TAKE LOAD OFF");
     m->save_look = WSOFT_UI_LOOK_BTN;
+  } else if (!in.writer && in.auto_save && in.countdown > 0) {
+    snprintf(m->save_line, sizeof m->save_line, "SAVING IN %d", in.countdown > 9 ? 9 : in.countdown);
   } else if (!in.writer && in.pending > 0) {
     snprintf(m->save_line, sizeof m->save_line, "%u TO SEND", (unsigned)in.pending);
   } else {
@@ -258,16 +260,34 @@ static void menu(const WsoftUiInput &in, WsoftUiModel *m) {
   } else {
     tile(m, WSOFT_UI_TILE_PRODUCT, "PRODUCT", m->product, true);
   }
-  tile(m, WSOFT_UI_TILE_THEME, "SCREEN", in.dark ? "DARK" : "LIGHT", false);
+  tile(m, WSOFT_UI_TILE_THEME, "SCREEN",
+       in.style == WSOFT_UI_STYLE_COLOUR ? "COLOUR" : in.style == WSOFT_UI_STYLE_DIAL ? "DIAL" : in.dark ? "DARK" : "LIGHT", false);
   // The menu holds 7 tiles. When ZERO and PRESET TARE are both there, WI-FI gives way: a tap
   // on the Wi-Fi bars at the top of the screen opens the same page.
   tile(m, WSOFT_UI_TILE_WIFI, "WI-FI", in.wifi_up ? in.ip : "OFF", false);
+}
+
+// What to do, next to the Hi-Lo word (Rhyno, 22 Nov 2026). Inside the limits the Full Colour
+// and Dial screens say what the save is doing instead of OK.
+static void hint(const WsoftUiInput &in, WsoftUiModel *m) {
+  if (m->zone == WSOFT_UI_ZONE_LOW) {
+    put(m->hint, "ADD MORE");
+  } else if (m->zone == WSOFT_UI_ZONE_HIGH) {
+    put(m->hint, "REMOVE PRODUCT");
+  } else if (m->zone == WSOFT_UI_ZONE_OK) {
+    bool done = in.recent == WSOFT_SAVE_SAVED || in.waiting == WSOFT_SAVE_ALREADY;
+    bool saving = !done && !in.writer && in.auto_save && in.waiting == WSOFT_SAVE_NONE;
+    put(m->hint, done ? "TAKE IT OFF" : saving ? "HOLD STILL" : in.waiting == WSOFT_SAVE_NONE ? "TAP SAVE" : "");
+    if (saving && in.countdown > 0) snprintf(m->hint, sizeof m->hint, "IN %d", in.countdown > 9 ? 9 : in.countdown);
+    if (m->style != WSOFT_UI_STYLE_CLASSIC) put(m->word, done ? "DONE" : saving ? "SAVING" : "GOOD");
+  }
 }
 
 void wsoft_ui_model(const WsoftUiInput &in, WsoftUiModel *m) {
   static const char *const TITLES[] = {"", "MENU", "ENTER PIN", "APPROVAL", "WI-FI"};
   memset(m, 0, sizeof *m);
   m->dark = in.dark;
+  m->style = (uint8_t)(in.style > WSOFT_UI_STYLE_CLASSIC && in.style < WSOFT_UI_STYLE_COUNT ? in.style : WSOFT_UI_STYLE_CLASSIC);
   m->page = (uint8_t)(in.page >= WSOFT_UI_PAGE_LIVE && in.page <= WSOFT_UI_PAGE_WIFI ? in.page : WSOFT_UI_PAGE_LIVE);
   bar(in, m);
   slot(in, m);
@@ -275,6 +295,7 @@ void wsoft_ui_model(const WsoftUiInput &in, WsoftUiModel *m) {
   weight(in, m);
   hilo(in, m);
   save(in, m);
+  hint(in, m);
   menu(in, m);
   put(m->title, TITLES[m->page]);
   put(m->message, in.message);
@@ -346,6 +367,7 @@ size_t wsoft_ui_model_json(const WsoftUiModel &m, char *out, size_t size) {
   j.ch('{');
   j.flag("dark", m.dark);
   j.number("page", m.page);
+  j.number("style", m.style);
   j.flag("wifi_up", m.wifi_up);
   j.number("wifi_bars", m.wifi_bars);
   j.text("ip", m.ip);
@@ -371,6 +393,7 @@ size_t wsoft_ui_model_json(const WsoftUiModel &m, char *out, size_t size) {
   j.number("zone", m.zone);
   j.text("word", m.word);
   j.number("word_tone", m.word_tone);
+  j.text("hint", m.hint);
   j.flag("product_on", m.product_on);
   j.text("product", m.product);
   j.text("target", m.target);

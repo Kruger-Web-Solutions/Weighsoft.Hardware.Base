@@ -17,6 +17,7 @@
 
 struct WsoftUiInput {
   bool dark = true;
+  int style = WSOFT_UI_STYLE_CLASSIC;  // WSOFT_UI_STYLE_*
   int page = WSOFT_UI_PAGE_LIVE;
 
   // Wi-Fi and Hub
@@ -55,6 +56,7 @@ struct WsoftUiInput {
   // saving
   bool writer = false;        // Writer mode: this board never saves
   bool auto_save = false;
+  int countdown = 0;          // seconds until auto save saves this load (3, 2, 1); 0 = none
   size_t pending = 0;         // saved, not yet taken by the Hub
   WsoftSaveResult recent = WSOFT_SAVE_NONE;     // the last Save result while under 3 s old
   uint32_t saved_seq = 0;                       // the number of the last saved weighing

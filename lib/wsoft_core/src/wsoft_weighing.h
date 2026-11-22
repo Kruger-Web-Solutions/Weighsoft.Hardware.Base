@@ -54,6 +54,9 @@ WsoftAlarmGate wsoft_alarm_test_gate(bool alarm, bool test_on, bool approval_on)
 
 // How long a first Save tap outside the Hi-Lo limits waits for the second (override) tap.
 static const uint32_t WSOFT_OVERRIDE_MS = 5000;
+// Auto save counts down before it saves (Rhyno, 22 Nov 2026): the weight must stand still this
+// long, and the screen shows 3, 2, 1. A tap on SAVE does not wait for it.
+static const uint32_t WSOFT_AUTO_SAVE_MS = 3000;
 // A moving weight is normal while a load goes on. Only after this long does the big notice
 // say "weight is moving" (Rhyno, 9 Nov 2026: the real reason must be big and obvious).
 static const uint32_t WSOFT_MOVING_NOTICE_MS = 3000;
@@ -106,6 +109,9 @@ class WsoftWeighingSaver {
   // it is the saved load, else NEED_ZERO), FULL, BELOW_MIN, OUT_OF_LIMITS, and NOT_STABLE only
   // after WSOFT_MOVING_NOTICE_MS of movement with a load on. WRITER whenever the board is a Writer.
   WsoftSaveResult waiting() const { return waiting_; }
+  // Seconds until auto save saves the load on the scale, rounded up (3, 2, 1). 0 when auto
+  // save is off, nothing is to be saved, or something stops the save.
+  int countdown() const { return countdown_; }
   uint32_t next_seq() const { return next_seq_; }
   const TradeWeight &last() const { return last_; }
   // The last SAVED weighing was outside the Hi-Lo limits and saved by the operator's second tap.
@@ -120,6 +126,7 @@ class WsoftWeighingSaver {
   bool stable_ = false;
   bool seen_empty_ = false;  // a live 0 seen since the last save; false at boot
   WsoftSaveResult waiting_ = WSOFT_SAVE_NONE;
+  int countdown_ = 0;
   bool moving_ = false;          // NOT_STABLE blocks with a load on ...
   uint32_t moving_since_ = 0;    // ... since this millis()
   bool armed_ = false;        // a first tap outside the limits is waiting for the second

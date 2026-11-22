@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **W-Soft: auto save counts down 3, 2, 1** (Rhyno, 22 Nov 2026). Auto save now waits for 3
+  still seconds (it was 1) and the screen and the browser copy show SAVING IN 3, 2, 1. A tap on
+  SAVE saves as before.
+- **W-Soft: light mode in the Weighsoft brand colours** (Rhyno, 22 Nov 2026). Paper ground, white
+  cards, Bunting ink and status bar, Sky buttons, brand green, amber and red. Dark mode is unchanged.
 - **W-Soft: one Calibrate page for the junction box and the load cell** (Rhyno, 22 Nov 2026).
   Same look and the same two steps (Zero, Test weight) on RS485 and on an HX711 board; only the
   last step differs (sent to the junction box, or kept on the board). Both ask "Yes, calibrate"
@@ -16,6 +21,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   round it quietly. RS485 span with a real test weight is still **not bench-proven**.
 
 ### Added
+- **W-Soft: two more looks for the board screen, Full Colour and Dial** (Rhyno, 22 Nov 2026).
+  MENU > SCREEN now steps DARK, LIGHT, COLOUR, DIAL. Full Colour turns the whole screen the
+  colour of the Hi-Lo zone with a bigger weight; Dial bends the Hi-Lo bar into a gauge over the
+  weight. Both say what to do: TOO LOW ADD MORE (arrow up), TOO HIGH REMOVE PRODUCT (arrow
+  down), SAVING, DONE. Same rows and taps; the browser's Live tab follows the board. Classic dark
+  stays the default. Host-tested dot for dot on both panels; **not flashed, not seen on a
+  board yet**. See docs/WSOFT-SCREEN.md section 3a.
 - **W-Soft: Drift Guard for the load cell** (Rhyno, 22 Nov 2026: the zero floats in a slow
   wave of about 12 g, the same empty and loaded). Scale setup → *Drift Guard* (off by default,
   1 to 20 divisions). Once a weight has been still for 2 seconds, slow movement is held back so

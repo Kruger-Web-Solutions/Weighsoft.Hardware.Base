@@ -12,7 +12,8 @@
 // font engine (Manrope and Sora from Google Fonts, so it needs the internet).
 //   node tools/wsoft-ui/gen.mjs
 // With WSOFT_UI_KEEP_FONTS=1 the letters are not drawn again: the ones in fonts.json are used
-// and the letter files are left alone. That needs no internet and gives the same result on any
+// and the letter files are left alone (a letter size they do not hold yet is drawn and added,
+// which needs the internet that once). That needs no internet and gives the same result on any
 // computer, so use it when only the screens changed (ref.js), not the letters.
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -73,7 +74,7 @@ function colorsHeader(theme, bar) {
 
 // Room for each text in WsoftUiModel (lib/wsoft_core/src/wsoft_ui_paint.h), the ending 0 included.
 const ROOM = { ip: 16, hub: 14, link: 8, slot_title: 24, slot_detail: 36, reason: 18, steady: 10, plate_sa: 40, plate_limits: 56, audit: 18, label: 12,
-  weight: 14, unit: 4, word: 14, product: 26, target: 26, low: 12, high: 12, gross: 22, save_line: 18, title: 12, message: 40,
+  weight: 14, unit: 4, word: 14, hint: 18, product: 26, target: 26, low: 12, high: 12, gross: 22, save_line: 18, title: 12, message: 40,
   address: 20, ap_name: 34, caption: 14, value: 26, zero_line: 18 };
 function checkRoom(title, key, text) {
   if (!(key in ROOM)) throw new Error('no room set for the text ' + key);
@@ -131,8 +132,10 @@ function screenModule() {
 const KEEP_FONTS = process.env.WSOFT_UI_KEEP_FONTS === '1';
 
 function finish(data) {
+  // In keep mode the letter files are written only when a new letter size was added to them.
+  const letters = !KEEP_FONTS || data.added;
   const one = fontsHeader('1X', data.roles, data.fonts.yellow), two = fontsHeader('2X', data.roles, data.fonts.wave);
-  if (!KEEP_FONTS) {
+  if (letters) {
     write(join(root, 'lib/wsoft_core/src/gen/wsoft_ui_fonts_1x.h'), one.text);
     write(join(root, 'lib/wsoft_core/src/gen/wsoft_ui_fonts_2x.h'), two.text);
   }
@@ -140,7 +143,7 @@ function finish(data) {
   write(join(root, 'lib/wsoft_core/src/gen/wsoft_ui_presets.h'), presetsHeader(data.models));
   write(join(root, 'test/test_wsoft_ui/golden.h'), goldenHeader(data.crc));
   const b64 = (f) => ({ first: f.first, count: f.count, cap: f.cap, track: f.track, glyphs: f.glyphs, b64: Buffer.from(f.bytes).toString('base64') });
-  if (!KEEP_FONTS) write(join(here, 'fonts.json'), JSON.stringify({ yellow: data.fonts.yellow.map(b64), wave: data.fonts.wave.map(b64) }));
+  if (letters) write(join(here, 'fonts.json'), JSON.stringify({ yellow: data.fonts.yellow.map(b64), wave: data.fonts.wave.map(b64) }));
   write(join(root, 'interface/src/project/wsoft/gen/wsoftScreen.js'), screenModule());
   for (const id of ['yellow', 'wave']) {
     data.png[id].forEach((url, n) => {

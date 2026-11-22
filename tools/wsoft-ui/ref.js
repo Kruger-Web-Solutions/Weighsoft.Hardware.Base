@@ -24,8 +24,11 @@ const WsoftUi = (() => {
     { name: 'MID', family: 'Manrope', weight: 800, px: 18, track: 0, first: 32, count: 95 },
     { name: 'BIG', family: 'Manrope', weight: 800, px: 26, track: 0.4, first: 32, count: 59 },
     { name: 'HERO', family: 'Sora', weight: 800, px: 54, track: -1, first: 45, count: 13 },
+    // The Full Colour screen: a bigger weight and a bigger Hi-Lo word.
+    { name: 'HUGE', family: 'Sora', weight: 800, px: 76, track: -1.5, first: 45, count: 13 },
+    { name: 'XL', family: 'Manrope', weight: 800, px: 34, track: 0.4, first: 32, count: 59 },
   ];
-  const TINY = 0, SMALL = 1, MID = 2, BIG = 3, HERO = 4;
+  const TINY = 0, SMALL = 1, MID = 2, BIG = 3, HERO = 4, HUGE = 5, XL = 6;
   const LEFT = 0, CENTER = 1, RIGHT = 2;
 
   // Rasterises one role at one scale with the browser's own font engine.
@@ -56,7 +59,7 @@ const WsoftUi = (() => {
       font.glyphs.push({ w, h, dx: x0 - ox, dy: y0 - base, adv, al });
     }
     // Text is centred on the height of a capital (a digit for the weight letters).
-    const ref = font.glyphs[(roleIndex === HERO ? 48 : 72) - role.first];
+    const ref = font.glyphs[(role.first === 45 ? 48 : 72) - role.first];
     font.cap = -ref.dy;
     return font;
   }
@@ -100,14 +103,19 @@ const WsoftUi = (() => {
       ok: '#2fa46c', ok_ink: '#b7f0cd', wait: '#e2b84a', wait_ink: '#f3d48a', bad: '#dc5a5a', bad_ink: '#ffb4b4',
       chip_ok: mixHex('#0b1620', '#2fa46c', 0.18), chip_bad: mixHex('#0b1620', '#dc5a5a', 0.18),
       accent: '#2596be', btn: '#1e3654', btn_ink: '#f5f8fa', stop: '#c94545', pointer: '#f5f8fa',
-      z_low: '#e2b84a', z_low_ink: '#1a2a33', z_ok: '#23965f', z_ok_ink: '#ffffff', z_high: '#c94545', z_high_ink: '#ffffff' },
-    light: { bg: '#eef2f5', panel: '#ffffff', line: '#b4c0c8', ink: '#1a2a33', soft: '#4a6570',
-      ok: '#15a34a', ok_ink: '#14532d', wait: '#e0a021', wait_ink: '#7a4d00', bad: '#dc2626', bad_ink: '#7f1d1d',
-      chip_ok: mixHex('#eef2f5', '#15a34a', 0.18), chip_bad: mixHex('#eef2f5', '#dc2626', 0.18),
-      accent: '#176685', btn: '#d3dce3', btn_ink: '#1a2a33', stop: '#dc2626', pointer: '#0f1e33',
-      z_low: '#e9b227', z_low_ink: '#1a2a33', z_ok: '#15a34a', z_ok_ink: '#ffffff', z_high: '#dc2626', z_high_ink: '#ffffff' },
+      z_low: '#e2b84a', z_low_ink: '#1a2a33', z_ok: '#23965f', z_ok_ink: '#ffffff', z_high: '#c94545', z_high_ink: '#ffffff',
+      bar: '#0f1e33', bar_line: '#24354d' },
+    // Light mode follows the Weighsoft brand palette (Rhyno, 22 Nov 2026; repo-review brand.md):
+    // Paper ground, white cards, Bunting ink, Slate second ink, Line dividers, Sky-200 buttons,
+    // Curious Deep accent, and the reserved status colours with their tints.
+    light: { bg: '#F7F8FC', panel: '#FFFFFF', line: '#DCDAE8', ink: '#1B1446', soft: '#4A4568',
+      ok: '#15803D', ok_ink: '#14532d', wait: '#B45309', wait_ink: '#7a3c06', bad: '#B60205', bad_ink: '#7f1d1d',
+      chip_ok: '#DCFCE7', chip_bad: '#FEE2E2',
+      accent: '#1174A8', btn: '#BCE2F5', btn_ink: '#1B1446', stop: '#B60205', pointer: '#1B1446',
+      z_low: '#B45309', z_low_ink: '#ffffff', z_ok: '#15803D', z_ok_ink: '#ffffff', z_high: '#B60205', z_high_ink: '#ffffff',
+      bar: '#1B1446', bar_line: '#27246B' },
   };
-  // The status bar is navy in both modes.
+  // The status bar is dark in both modes (navy, or the brand's Bunting on the light screen): its inks are these.
   const BAR_HEX = { bg: '#0f1e33', line: '#24354d', ink: '#f5f8fa', mute: '#8fb8c8', dim: '#3a506b', ok: '#3dbe78', bad: '#ff8a8a', warn: '#f2c879' };
   const to565 = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, c565(v)]));
   const THEME = { dark: to565(THEME_HEX.dark), light: to565(THEME_HEX.light) };
@@ -128,6 +136,11 @@ const WsoftUi = (() => {
     constructor(W, H, sx, sy, fonts) {
       this.W = W; this.H = H; this.sx = sx; this.sy = sy; this.fonts = fonts;
       this.fb = new Uint16Array(W * H);
+      this.c0 = 0; this.c1 = H;
+    }
+    // Only the layout lines y0 up to y1 are drawn from here on: a row never paints outside itself.
+    clip(y0, y1) {
+      this.c0 = Math.max(rnd(y0 * this.sy), 0); this.c1 = Math.min(rnd(y1 * this.sy), this.H);
     }
     put(px, py, c, a) {
       const i = py * this.W + px;
@@ -139,7 +152,7 @@ const WsoftUi = (() => {
       let R = r < 0 ? Math.min(X1 - X0, Y1 - Y0) / 2 : r * this.sy;
       if (R > (X1 - X0) / 2) R = (X1 - X0) / 2;
       if (R > (Y1 - Y0) / 2) R = (Y1 - Y0) / 2;
-      for (let py = Math.max(Y0, 0); py < Math.min(Y1, this.H); py++) {
+      for (let py = Math.max(Y0, this.c0); py < Math.min(Y1, this.c1); py++) {
         let cornerRow = false, cy = 0;
         if (py + 0.5 < Y0 + R) { cornerRow = true; cy = Y0 + R; } else if (py + 0.5 > Y1 - R) { cornerRow = true; cy = Y1 - R; }
         for (let px = Math.max(X0, 0); px < Math.min(X1, this.W); px++) {
@@ -159,9 +172,47 @@ const WsoftUi = (() => {
     }
     disc(cx, cy, r, c) {
       const X = cx * this.sx, Y = cy * this.sy, R = r * this.sy;
-      for (let py = Math.max(Math.floor(Y - R - 1), 0); py <= Math.min(Math.floor(Y + R + 1), this.H - 1); py++) {
+      for (let py = Math.max(Math.floor(Y - R - 1), this.c0); py <= Math.min(Math.floor(Y + R + 1), this.c1 - 1); py++) {
         for (let px = Math.max(Math.floor(X - R - 1), 0); px <= Math.min(Math.floor(X + R + 1), this.W - 1); px++) {
           const dx = px + 0.5 - X, dy = py + 0.5 - Y, cov = R - Math.sqrt(dx * dx + dy * dy) + 0.5;
+          if (cov <= 0) continue;
+          this.put(px, py, c, cov < 1 ? rnd(cov * 255) : 255);
+        }
+      }
+    }
+    // A line with round ends, w thick (the tick and the arrows of the Hi-Lo word).
+    line(x1, y1, x2, y2, w, c) {
+      const AX = x1 * this.sx, AY = y1 * this.sy, BX = x2 * this.sx, BY = y2 * this.sy, Hw = w * this.sy / 2;
+      const ex = BX - AX, ey = BY - AY, len2 = ex * ex + ey * ey;
+      const top = Math.floor(Math.min(AY, BY) - Hw - 1), bottom = Math.floor(Math.max(AY, BY) + Hw + 1);
+      const left = Math.floor(Math.min(AX, BX) - Hw - 1), right = Math.floor(Math.max(AX, BX) + Hw + 1);
+      for (let py = Math.max(top, this.c0); py <= Math.min(bottom, this.c1 - 1); py++) {
+        for (let px = Math.max(left, 0); px <= Math.min(right, this.W - 1); px++) {
+          const qx = px + 0.5 - AX, qy = py + 0.5 - AY;
+          let t = len2 > 0 ? (qx * ex + qy * ey) / len2 : 0;
+          if (t < 0) t = 0; else if (t > 1) t = 1;
+          const dx = qx - t * ex, dy = qy - t * ey, cov = Hw - Math.sqrt(dx * dx + dy * dy) + 0.5;
+          if (cov <= 0) continue;
+          this.put(px, py, c, cov < 1 ? rnd(cov * 255) : 255);
+        }
+      }
+    }
+    // A piece of a ring: radius r, w thick inwards, from the direction (ax, ay) clockwise to
+    // (bx, by), less than half a turn. Directions are unit lengths, y down. A circle on every
+    // panel: the radius scales with the height, like disc().
+    ring(cx, cy, r, w, ax, ay, bx, by, c) {
+      const X = cx * this.sx, Y = cy * this.sy, R = r * this.sy, I = R - w * this.sy;
+      const far = (R + 1) * (R + 1), near = I > 1 ? (I - 1) * (I - 1) : 0;
+      for (let py = Math.max(Math.floor(Y - R - 1), this.c0); py <= Math.min(Math.floor(Y + R + 1), this.c1 - 1); py++) {
+        for (let px = Math.max(Math.floor(X - R - 1), 0); px <= Math.min(Math.floor(X + R + 1), this.W - 1); px++) {
+          const dx = px + 0.5 - X, dy = py + 0.5 - Y, d2 = dx * dx + dy * dy;
+          if (d2 > far || d2 < near) continue;
+          const d = Math.sqrt(d2);
+          let cov = R - d + 0.5;
+          const inner = d - I + 0.5, from = ax * dy - ay * dx + 0.5, to = dx * by - dy * bx + 0.5;
+          if (inner < cov) cov = inner;
+          if (from < cov) cov = from;
+          if (to < cov) cov = to;
           if (cov <= 0) continue;
           this.put(px, py, c, cov < 1 ? rnd(cov * 255) : 255);
         }
@@ -174,7 +225,7 @@ const WsoftUi = (() => {
         const k = Math.sqrt(3) * Math.abs(x);
         return (y <= R / 2 && y + R >= k) || (y >= -R / 2 && R - y >= k);
       };
-      for (let py = Math.max(Math.floor(Y - R - 1), 0); py <= Math.min(Math.floor(Y + R + 1), this.H - 1); py++) {
+      for (let py = Math.max(Math.floor(Y - R - 1), this.c0); py <= Math.min(Math.floor(Y + R + 1), this.c1 - 1); py++) {
         for (let px = Math.max(Math.floor(X - R - 1), 0); px <= Math.min(Math.floor(X + R + 1), this.W - 1); px++) {
           let n = 0;
           for (let j = 0; j < 4; j++) {
@@ -217,7 +268,7 @@ const WsoftUi = (() => {
         const gl = f.glyphs[k];
         for (let yy = 0; yy < gl.h; yy++) {
           const py = baseline + gl.dy + yy;
-          if (py < 0 || py >= this.H) continue;
+          if (py < this.c0 || py >= this.c1) continue;
           for (let xx = 0; xx < gl.w; xx++) {
             const px = pen + gl.dx + xx, al = gl.al[yy * gl.w + xx];
             if (al && px >= 0 && px < this.W) this.put(px, py, c, al * 17);
@@ -236,6 +287,8 @@ const WsoftUi = (() => {
   const STAR_W = 20;  // the not-for-trade star (WSOFT_UI_STAR_W)
   const ZONE_NONE = 0, ZONE_LOW = 1, ZONE_OK = 2, ZONE_HIGH = 3;
   const LOOK_BTN = 0, LOOK_ON = 1, LOOK_ACCENT = 2, LOOK_PLAIN = 3, LOOK_BAD = 4;
+  // The style of the live page: the classic rows, the whole screen in the Hi-Lo colour, or a dial.
+  const STYLE_CLASSIC = 0, STYLE_COLOUR = 1, STYLE_DIAL = 2;
 
   // ---------- where things are (layout units) ----------
   // Tappable boxes: x, y, w, h. The firmware uses the same numbers for its taps.
@@ -253,9 +306,9 @@ const WsoftUi = (() => {
   const barTone = (t) => (t === TONE_OK ? BAR.ok : t === TONE_WAIT ? BAR.warn : t === TONE_BAD ? BAR.bad : BAR.mute);
 
   // ---------- the live page, row by row ----------
-  function paintBar(c, m) {
-    c.rect(0, 0, 320, 20, BAR.bg, 0);
-    c.rect(0, 19, 320, 1, BAR.line, 0);
+  function paintBar(c, m, bg, line) {
+    c.rect(0, 0, 320, 20, bg, 0);
+    c.rect(0, 19, 320, 1, line, 0);
     for (let i = 0; i < 4; i++) {
       const h = 4 + i * 3;
       c.rect(8 + i * 5, 15 - h, 3, h, m.wifi_up && i < m.wifi_bars ? BAR.ok : BAR.dim, 0);
@@ -287,26 +340,32 @@ const WsoftUi = (() => {
     return cut + ' ...';
   }
 
-  function paintTop(c, m, T) {
-    c.rect(0, 20, 320, 42, T.bg, 0);
+  // The band over the trade row: the Wi-Fi alert or a save notice. False when there is none.
+  function paintSlot(c, m, T) {
     if (m.slot === SLOT_WIFI) {
-      c.rect(6, 22, 308, 40, T.wait, 8);
-      c.text('WI-FI IS OFF', 18, 42, MID, DARK, LEFT);
+      c.rect(6, 22, 308, 40, T.z_low, 8);
+      c.text('WI-FI IS OFF', 18, 42, MID, T.z_low_ink, LEFT);
       c.rect(160, 26, 100, 32, DARK, 6);
       c.text('CONNECT', 210, 42, SMALL, WHITE, CENTER);
       c.rect(266, 26, 42, 32, DARK, 6);
-      c.rect(267.5, 27.5, 39, 29, T.wait, 5);
-      c.text('X', 287, 42, MID, DARK, CENTER);
-      return;
+      c.rect(267.5, 27.5, 39, 29, T.z_low, 5);
+      c.text('X', 287, 42, MID, T.z_low_ink, CENTER);
+      return true;
     }
     if (m.slot !== SLOT_NONE) {
-      const stop = m.slot === SLOT_STOP, ink = stop ? WHITE : DARK;
-      c.rect(6, 22, 308, 40, stop ? T.stop : T.wait, 8);
+      const stop = m.slot === SLOT_STOP, ink = stop ? WHITE : T.z_low_ink;
+      c.rect(6, 22, 308, 40, stop ? T.stop : T.z_low, 8);
       if (c.width(m.slot_title, BIG) <= 292) c.text(m.slot_title, 160, 34, BIG, ink, CENTER);
       else c.text(c.fit(m.slot_title, MID, 296), 160, 34, MID, ink, CENTER);
       c.text(c.fit(m.slot_detail, SMALL, 296), 160, 53, SMALL, ink, CENTER);
-      return;
+      return true;
     }
+    return false;
+  }
+
+  function paintTop(c, m, T) {
+    c.rect(0, 20, 320, 42, T.bg, 0);
+    if (paintSlot(c, m, T)) return;
     // Not for trade: a small six-pointed star instead of the words (Rhyno, 14 Nov 2026).
     let w = STAR_W;
     if (m.trade_ok) {
@@ -394,6 +453,233 @@ const WsoftUi = (() => {
     else c.text(c.fit(m.save_line, TINY, 104), 256, 225, TINY, ink, CENTER);
   }
 
+  // ---------- the Hi-Lo word's sign: a tick, or the way to go: an arrow up (too low, add
+  // more) or down (too high, remove some) (Rhyno, 22 Nov 2026) ----------
+  function paintSign(c, zone, x, y, ink) {
+    if (zone === ZONE_OK) {
+      c.line(x - 8, y, x - 2.5, y + 5.5, 4, ink);
+      c.line(x - 2.5, y + 5.5, x + 8, y - 6, 4, ink);
+    } else if (zone === ZONE_LOW) {
+      c.line(x - 7.5, y + 4, x, y - 4.5, 4, ink);
+      c.line(x, y - 4.5, x + 7.5, y + 4, 4, ink);
+    } else {
+      c.line(x - 7.5, y - 4, x, y + 4.5, 4, ink);
+      c.line(x, y + 4.5, x + 7.5, y - 4, 4, ink);
+    }
+  }
+  // The plate and the audit counter belong on the screen when there is a plate or the trade checks are on.
+  const plateOn = (m) => m.trade_ok || m.plate_sa.length > 0 || m.plate_limits.length > 0;
+
+  // ---------- Full Colour: the whole screen takes the colour of the Hi-Lo zone ----------
+  // With no zone (no product, empty scale, no signal) it is the classic dark screen with the
+  // bigger weight.
+  function colourSet(m, T) {
+    const bg = m.zone === ZONE_LOW ? T.z_low : m.zone === ZONE_OK ? T.z_ok : T.z_high;
+    const ink = m.zone === ZONE_LOW ? T.z_low_ink : m.zone === ZONE_OK ? T.z_ok_ink : T.z_high_ink;
+    const pale = ink !== WHITE;
+    return { bg, ink, soft: blend(bg, ink, 184), shade: blend(bg, 0, 82), bar: blend(bg, 0, 115), on: pale ? DARK : WHITE, on_ink: pale ? WHITE : DARK };
+  }
+
+  function paintTopColour(c, m, T) {
+    if (m.zone === ZONE_NONE) return paintTop(c, m, T);
+    const P = colourSet(m, T);
+    c.rect(0, 20, 320, 42, P.bg, 0);
+    if (m.slot === SLOT_WIFI) {
+      c.rect(6, 22, 308, 40, P.shade, 8);
+      c.text('WI-FI IS OFF', 18, 42, MID, WHITE, LEFT);
+      c.rect(160, 26, 100, 32, WHITE, 6);
+      c.text('CONNECT', 210, 42, SMALL, DARK, CENTER);
+      c.rect(266, 26, 42, 32, WHITE, 6);
+      c.rect(267.5, 27.5, 39, 29, P.shade, 5);
+      c.text('X', 287, 42, MID, WHITE, CENTER);
+      return;
+    }
+    if (m.slot !== SLOT_NONE) {
+      c.rect(6, 22, 308, 40, m.slot === SLOT_STOP ? DARK : P.shade, 8);
+      if (c.width(m.slot_title, BIG) <= 292) c.text(m.slot_title, 160, 34, BIG, WHITE, CENTER);
+      else c.text(c.fit(m.slot_title, MID, 296), 160, 34, MID, WHITE, CENTER);
+      c.text(c.fit(m.slot_detail, SMALL, 296), 160, 53, SMALL, WHITE, CENTER);
+      return;
+    }
+    let w = STAR_W;
+    if (m.trade_ok) {
+      const chip = 'TRADE CHECKS ON';
+      w = c.width(chip, SMALL) + 14;
+      c.rect(8, 24, w, 17, P.shade, 4);
+      c.text(chip, 8 + w / 2, 32.5, SMALL, WHITE, CENTER);
+    } else {
+      c.star6(8 + w / 2, 32.5, 9, P.ink);
+    }
+    const sw = c.text(m.steady, 312, 32.5, SMALL, P.ink, RIGHT);
+    c.disc(312 - sw - 8, 32.5, 4, P.ink);
+    c.text(c.fit(m.reason, TINY, 312 - sw - 20 - (8 + w + 7)), 8 + w + 7, 32.5, TINY, P.soft, LEFT);
+    if (plateOn(m)) {
+      const aw = c.text(m.audit, 312, 52, TINY, P.soft, RIGHT);
+      c.text(plateLine(c, m.plate_sa, m.plate_limits, 312 - aw - 8 - 10), 10, 52, TINY, P.soft, LEFT);
+      return;
+    }
+    const tw = c.text(m.target, 312, 52, SMALL, P.soft, RIGHT);
+    c.text(c.fit(m.product, MID, 312 - tw - 12 - 10), 10, 51, MID, P.ink, LEFT);
+  }
+
+  function paintWeightColour(c, m, T) {
+    let bg = T.bg, ink = m.live ? T.ink : T.soft, soft = T.soft;
+    if (m.zone !== ZONE_NONE) {
+      const P = colourSet(m, T);
+      bg = P.bg; ink = P.ink; soft = P.soft;
+    }
+    c.rect(0, 62, 320, 60, bg, 0);
+    if (c.width(m.label, TINY) <= 24 && c.width(m.weight, HUGE) <= 276) {
+      c.text(m.label, 312, 71, TINY, soft, RIGHT);
+      c.text(m.weight, 284, 92, HUGE, ink, RIGHT);
+      c.text(m.unit, 290, 109, MID, soft, LEFT);
+      return;
+    }
+    c.text(m.label, 14, 72, TINY, soft, LEFT);
+    c.text(m.weight, 268, 95, c.width(m.weight, HERO) <= 250 ? HERO : BIG, ink, RIGHT);
+    c.text(m.unit, 274, 106, MID, soft, LEFT);
+  }
+
+  function paintHiloColour(c, m, T) {
+    if (m.zone === ZONE_NONE) return paintHilo(c, m, T);
+    const P = colourSet(m, T);
+    c.rect(0, 122, 320, 66, P.bg, 0);
+    // The word and what to do on one line, in the biggest letters that fit.
+    const words = m.hint ? m.word + '  ' + m.hint : m.word;
+    let role = XL;
+    if (c.width(words, XL) > 270) role = BIG;
+    if (role === BIG && c.width(words, BIG) > 270) role = MID;
+    const wy = plateOn(m) ? 139 : 144;
+    const x0 = 160 - (c.width(words, role) + 26) / 2;
+    paintSign(c, m.zone, x0 + 9, wy, P.ink);
+    c.text(words, x0 + 26, wy, role, P.ink, LEFT);
+    // The product moves under the word when the plate has its line.
+    if (plateOn(m)) c.text(c.fit(m.product + '   ' + m.target, SMALL, 300), 160, 160, SMALL, P.soft, CENTER);
+    const bx = 12, bw = 296, by = 170, bh = 8;
+    const lo = bx + bw * 6 / 22, hi = bx + bw * 16 / 22;
+    c.rect(bx, by, bw, bh, P.shade, -1);
+    c.rect(lo, by, hi - lo, bh, P.soft, 0);
+    c.text(m.low, lo, 183.5, TINY, P.soft, CENTER);
+    c.text(m.high, hi, 183.5, TINY, P.soft, CENTER);
+    if (m.pointer < 0) return;
+    let mx = bx + bw * m.pointer / 1000;
+    if (mx < bx + 7) mx = bx + 7;
+    if (mx > bx + bw - 7) mx = bx + bw - 7;
+    c.disc(mx, by + bh / 2, 7, P.on);
+    c.disc(mx, by + bh / 2, 3.5, P.bg);
+  }
+
+  function paintBottomColour(c, m, T) {
+    if (m.zone === ZONE_NONE) return paintBottom(c, m, T);
+    const P = colourSet(m, T);
+    c.rect(0, 188, 320, 52, P.bg, 0);
+    c.rect(8, 190, 104, 46, P.shade, 8);
+    if (m.zero_btn) {
+      c.text('ZERO', 60, 206, MID, WHITE, CENTER);
+      if (c.width(m.zero_line, SMALL) <= 96) c.text(m.zero_line, 60, 225, SMALL, WHITE, CENTER);
+      else c.text(c.fit(m.zero_line, TINY, 96), 60, 225, TINY, WHITE, CENTER);
+    } else {
+      c.text('GROSS', 17, 202, TINY, WHITE, LEFT);
+      if (c.width(m.gross, MID) <= 88) c.text(m.gross, 17, 221, MID, WHITE, LEFT);
+      else c.text(c.fit(m.gross, SMALL, 88), 17, 221, SMALL, WHITE, LEFT);
+    }
+    c.rect(120, 190, 72, 46, P.shade, 8);
+    for (let i = 0; i < 3; i++) c.rect(144, 200 + i * 6, 24, 3, WHITE, 1);
+    c.text('MENU', 156, 226, SMALL, WHITE, CENTER);
+    c.rect(200, 190, 112, 46, m.save_look === LOOK_ON ? P.on : m.save_look === LOOK_BAD ? DARK : P.shade, 8);
+    const ink = m.save_look === LOOK_ON ? P.on_ink : WHITE;
+    c.text('SAVE', 256, 206, MID, ink, CENTER);
+    if (c.width(m.save_line, SMALL) <= 104) c.text(m.save_line, 256, 225, SMALL, ink, CENTER);
+    else c.text(c.fit(m.save_line, TINY, 104), 256, 225, TINY, ink, CENTER);
+  }
+
+  // ---------- Dial: the Hi-Lo bar bent into a gauge over the weight ----------
+  const DIAL_X = 160, DIAL_Y = 176, DIAL_R = 152, DIAL_W = 11;
+  // The direction from the dial's centre for a place 0..1000 along it: from the left end over
+  // the top to the right end. Square roots only, so a PC and a board find the same dot.
+  function dialDir(p) {
+    const ex = 0.9703, ey = -0.2419;
+    let vx, vy;
+    if (p < 500) { const u = p / 500; vx = -ex + ex * u; vy = ey + (-1 - ey) * u; }
+    else { const u = (p - 500) / 500; vx = ex * u; vy = -1 + (ey + 1) * u; }
+    const n = Math.sqrt(vx * vx + vy * vy);
+    return [vx / n, vy / n];
+  }
+  // The arc, the two limits and the marker. Three rows share it: each paints its own part.
+  function paintDial(c, m, T) {
+    const a = dialDir(0), lo = dialDir(6000 / 22), hi = dialDir(16000 / 22), b = dialDir(1000);
+    if (!m.product_on) {
+      c.ring(DIAL_X, DIAL_Y, DIAL_R, DIAL_W, a[0], a[1], 0, -1, T.line);
+      c.ring(DIAL_X, DIAL_Y, DIAL_R, DIAL_W, 0, -1, b[0], b[1], T.line);
+      return;
+    }
+    c.ring(DIAL_X, DIAL_Y, DIAL_R, DIAL_W, a[0], a[1], lo[0], lo[1], T.wait);
+    c.ring(DIAL_X, DIAL_Y, DIAL_R, DIAL_W, lo[0], lo[1], hi[0], hi[1], T.ok);
+    c.ring(DIAL_X, DIAL_Y, DIAL_R, DIAL_W, hi[0], hi[1], b[0], b[1], T.bad);
+    const k = c.sy / c.sx, lr = DIAL_R - DIAL_W - 12;
+    c.text(m.low, DIAL_X + lo[0] * lr * k, DIAL_Y + lo[1] * lr, TINY, T.soft, CENTER);
+    c.text(m.high, DIAL_X + hi[0] * lr * k, DIAL_Y + hi[1] * lr, TINY, T.soft, CENTER);
+    if (m.pointer < 0) return;
+    const d = dialDir(m.pointer), mr = DIAL_R - DIAL_W / 2;
+    const mx = DIAL_X + d[0] * mr * k, my = DIAL_Y + d[1] * mr;
+    c.disc(mx, my, 10, T.bg);
+    c.disc(mx, my, 8, T.pointer);
+    c.disc(mx, my, 3.5, m.zone === ZONE_LOW ? T.z_low : m.zone === ZONE_OK ? T.z_ok : m.zone === ZONE_HIGH ? T.z_high : T.bg);
+  }
+
+  function paintTopDial(c, m, T) {
+    c.rect(0, 20, 320, 42, T.bg, 0);
+    paintDial(c, m, T);
+    if (paintSlot(c, m, T)) return;
+    if (m.trade_ok) {
+      // Two short lines: the dial leaves no room for one long one.
+      c.rect(8, 24, 68, 24, T.ok, 4);
+      c.rect(9, 25, 66, 22, T.chip_ok, 3);
+      c.text('TRADE', 42, 30.5, TINY, T.ok_ink, CENTER);
+      c.text('CHECKS ON', 42, 41.5, TINY, T.ok_ink, CENTER);
+      c.text(c.fit(m.reason, TINY, 48), 10, 56, TINY, tone(T, m.reason_tone), LEFT);
+    } else {
+      c.star6(18, 32.5, 9, T.bad);
+      c.text(c.fit(m.reason, TINY, 66), 35, 32.5, TINY, tone(T, m.reason_tone), LEFT);
+    }
+    const sw = c.text(m.steady, 312, 32.5, SMALL, tone(T, m.steady_tone), RIGHT);
+    c.disc(312 - sw - 8, 32.5, 4, dot(T, m.steady_tone));
+  }
+
+  function paintWeightDial(c, m, T) {
+    c.rect(0, 62, 320, 60, T.bg, 0);
+    paintDial(c, m, T);
+    c.text(m.label + '  ' + m.unit, 160, 71, TINY, T.soft, CENTER);
+    // The number takes a soft tint of its zone (Rhyno, 22 Nov 2026).
+    const ink = !m.live ? T.soft : m.zone === ZONE_LOW ? T.wait_ink : m.zone === ZONE_OK ? T.ok_ink : m.zone === ZONE_HIGH ? T.bad_ink : T.ink;
+    c.text(m.weight, 160, 100, c.width(m.weight, HERO) <= 200 ? HERO : BIG, ink, CENTER);
+  }
+
+  function paintHiloDial(c, m, T) {
+    c.rect(0, 122, 320, 66, T.bg, 0);
+    paintDial(c, m, T);
+    // The word in a pill of the zone's colour, with its sign.
+    const zoned = m.zone !== ZONE_NONE;
+    const fill = m.zone === ZONE_LOW ? T.z_low : m.zone === ZONE_OK ? T.z_ok : m.zone === ZONE_HIGH ? T.z_high : T.btn;
+    const ink = m.zone === ZONE_LOW ? T.z_low_ink : m.zone === ZONE_OK ? T.z_ok_ink : m.zone === ZONE_HIGH ? T.z_high_ink : tone(T, m.word_tone);
+    // The word and what to do, in the biggest letters that fit.
+    const words = m.hint ? m.word + '  ' + m.hint : m.word, sign = zoned ? 24 : 0;
+    let role = m.product_on ? BIG : MID;
+    if (role === BIG && c.width(words, BIG) + sign + 28 > 304) role = MID;
+    if (role === MID && c.width(words, MID) + sign + 28 > 304) role = SMALL;
+    const pw = c.width(words, role) + sign + 28, px = 160 - pw / 2;
+    c.rect(px, 141, pw, 25, fill, -1);
+    if (zoned) paintSign(c, m.zone, px + 23, 153.5, ink);
+    c.text(words, px + 14 + sign, 153.5, role, ink, LEFT);
+    // The plate takes the bottom line when it is there: the product line moves up in small letters.
+    const role2 = plateOn(m) ? TINY : SMALL, y2 = plateOn(m) ? 171.5 : 174;
+    if (m.product_on) c.text(c.fit(m.product + '   ' + m.target, role2, 300), 160, y2, role2, T.soft, CENTER);
+    else c.text(c.fit(m.target, role2, 300), 160, y2, role2, T.soft, CENTER);
+    if (!plateOn(m)) return;
+    const aw = c.text(m.audit, 312, 183.5, TINY, T.soft, RIGHT);
+    c.text(plateLine(c, m.plate_sa, m.plate_limits, 312 - aw - 8 - 10), 10, 183.5, TINY, T.soft, LEFT);
+  }
+
   // ---------- the menu pages (everything under the status bar) ----------
   function paintTile(c, T, box, caption, value, look) {
     const [x, y, w, h] = box;
@@ -472,13 +758,23 @@ const WsoftUi = (() => {
   const ROW_BAR = 0, ROW_TOP = 1, ROW_WEIGHT = 2, ROW_HILO = 3, ROW_BOTTOM = 4, ROW_PAGE = 5;
   const ROWS = [[0, 20], [20, 62], [62, 122], [122, 188], [188, 240], [20, 240]];
   function paintRow(c, m, row) {
-    const T = m.dark ? THEME.dark : THEME.light;
-    if (row === ROW_BAR) paintBar(c, m);
-    else if (row === ROW_TOP) paintTop(c, m, T);
-    else if (row === ROW_WEIGHT) paintWeight(c, m, T);
-    else if (row === ROW_HILO) paintHilo(c, m, T);
-    else if (row === ROW_BOTTOM) paintBottom(c, m, T);
-    else paintPage(c, m, T);
+    // Full Colour and Dial are dark screens. A menu page looks the same in every style.
+    const style = m.page === PAGE_LIVE ? m.style : STYLE_CLASSIC;
+    const T = m.dark || m.style !== STYLE_CLASSIC ? THEME.dark : THEME.light;
+    c.clip(ROWS[row][0], ROWS[row][1]);
+    if (row === ROW_BAR) {
+      if (style === STYLE_COLOUR && m.zone !== ZONE_NONE) { const bg = colourSet(m, T).bar; paintBar(c, m, bg, bg); }
+      else paintBar(c, m, T.bar, T.bar_line);
+    } else if (row === ROW_TOP) {
+      if (style === STYLE_COLOUR) paintTopColour(c, m, T); else if (style === STYLE_DIAL) paintTopDial(c, m, T); else paintTop(c, m, T);
+    } else if (row === ROW_WEIGHT) {
+      if (style === STYLE_COLOUR) paintWeightColour(c, m, T); else if (style === STYLE_DIAL) paintWeightDial(c, m, T); else paintWeight(c, m, T);
+    } else if (row === ROW_HILO) {
+      if (style === STYLE_COLOUR) paintHiloColour(c, m, T); else if (style === STYLE_DIAL) paintHiloDial(c, m, T); else paintHilo(c, m, T);
+    } else if (row === ROW_BOTTOM) {
+      if (style === STYLE_COLOUR) paintBottomColour(c, m, T); else paintBottom(c, m, T);
+    } else paintPage(c, m, T);
+    c.clip(0, 240);
   }
   function paint(c, m) {
     paintRow(c, m, ROW_BAR);
@@ -522,7 +818,7 @@ const WsoftUi = (() => {
   }
 
   function modelOf(S) {
-    const m = { dark: S.dark, page: { live: PAGE_LIVE, menu: PAGE_MENU, pin: PAGE_PIN, nopin: PAGE_NO_PIN, wifi: PAGE_WIFI }[S.page] };
+    const m = { dark: S.dark, page: { live: PAGE_LIVE, menu: PAGE_MENU, pin: PAGE_PIN, nopin: PAGE_NO_PIN, wifi: PAGE_WIFI }[S.page], style: S.style };
     const up = S.wifi.up, hub = up ? S.hub : 'nowifi', net = S.gross - S.tare, pr = S.product;
     m.wifi_up = up; m.wifi_bars = up ? S.wifi.bars : 0; m.ip = up ? S.wifi.ip : 'NO WI-FI';
     m.hub = HUB[hub]; m.hub_tone = hub === 'online' ? TONE_OK : hub === 'setup' ? TONE_SOFT : TONE_BAD;
@@ -566,8 +862,21 @@ const WsoftUi = (() => {
     else if (r && r.result === 'SAVED') { m.save_line = 'SAVED #' + r.seq; m.save_look = LOOK_ON; }
     else if (r) { m.save_line = RESULT[r.result]; m.save_look = r.result === 'ALREADY' || r.result === 'NEED_ZERO' ? LOOK_BTN : LOOK_BAD; }
     else if (S.waiting === 'ALREADY') { m.save_line = 'TAKE LOAD OFF'; m.save_look = LOOK_BTN; }
+    else if (!writer && S.save.auto && S.save.count > 0) { m.save_line = 'SAVING IN ' + Math.min(S.save.count, 9); m.save_look = LOOK_ON; }
     else if (!writer && S.save.pending > 0) { m.save_line = S.save.pending + ' TO SEND'; m.save_look = LOOK_ON; }
     else { m.save_line = !writer && S.save.auto ? 'AUTO SAVE ON' : 'TAP TO SAVE'; m.save_look = LOOK_ON; }
+    // What to do, next to the Hi-Lo word (Rhyno, 22 Nov 2026). Inside the limits the Full Colour
+    // and Dial screens say what the save is doing instead of OK.
+    m.hint = '';
+    if (m.zone === ZONE_LOW) m.hint = 'ADD MORE';
+    else if (m.zone === ZONE_HIGH) m.hint = 'REMOVE PRODUCT';
+    else if (m.zone === ZONE_OK) {
+      const done = (r && r.result === 'SAVED') || S.waiting === 'ALREADY';
+      const saving = !done && !writer && S.save.auto && S.waiting === 'NONE';
+      m.hint = done ? 'TAKE IT OFF' : saving ? 'HOLD STILL' : S.waiting === 'NONE' ? 'TAP SAVE' : '';
+      if (saving && S.save.count > 0) m.hint = 'IN ' + Math.min(S.save.count, 9);
+      if (m.style !== STYLE_CLASSIC) m.word = done ? 'DONE' : saving ? 'SAVING' : 'GOOD';
+    }
     m.zero_btn = S.source === 'LOADCELL' && !S.tare;
     m.zero_line = m.zero_btn ? S.zeroNote || 'TAP: SET TO 0' : '';
     m.title = ['', 'MENU', 'ENTER PIN', 'APPROVAL', 'WI-FI'][m.page];
@@ -582,7 +891,7 @@ const WsoftUi = (() => {
     }
     if (S.source === 'LOADCELL') tile('zero', 'ZERO', 'SET TO 0', LOOK_BTN);
     tile('product', 'PRODUCT', !S.products.length ? 'NONE ON THE HUB' : pr ? pr.name.toUpperCase() : 'NONE', pr ? LOOK_ON : LOOK_BTN);
-    tile('theme', 'SCREEN', S.dark ? 'DARK' : 'LIGHT', LOOK_BTN);
+    tile('theme', 'SCREEN', S.style === STYLE_COLOUR ? 'COLOUR' : S.style === STYLE_DIAL ? 'DIAL' : S.dark ? 'DARK' : 'LIGHT', LOOK_BTN);
     tile('wifi', 'WI-FI', up ? S.wifi.ip : 'OFF', LOOK_BTN);
     m.tile_count = m.tiles.length;
     m.pin_count = S.pin.length;
@@ -597,13 +906,13 @@ const WsoftUi = (() => {
   const LONG = { name: 'Yellow maize meal 12.5', low: 12400, target: 12500, high: 12650 };
   function state(patch = {}) {
     const S = {
-      dark: true, page: 'live', message: '', pin: '',
+      dark: true, style: STYLE_CLASSIC, page: 'live', message: '', pin: '',
       wifi: { up: true, ip: '192.168.0.142', bars: 3, ap: 'Weighsoft-Esp-NEW', apIp: '192.168.4.1', hotspot: true, dismissed: false },
       hub: 'online', source: 'RS232', linked: true, alarm: false, stable: true,
       gross: 50120, tare: 0, presetTare: 0, decimals: 3, unit: 'kg', hold: 'none',
       zeroNote: '', approval: false, check: 'off', seq: 0, audit: 0, plate: null,
       products: [MAIZE, SUGAR], product: MAIZE,
-      save: { auto: true, pending: 0, recent: null }, waiting: 'NONE', nextSeq: 8,
+      save: { auto: true, pending: 0, count: 0, recent: null }, waiting: 'NONE', nextSeq: 8,
     };
     for (const [k, v] of Object.entries(patch)) {
       S[k] = v && typeof v === 'object' && !Array.isArray(v) && S[k] && k !== 'product' && k !== 'plate' ? { ...S[k], ...v } : v;
@@ -641,6 +950,36 @@ const WsoftUi = (() => {
     ['Load cell', 'A board that weighs itself has ZERO next to MENU: empty the scale and tap.', state({ source: 'LOADCELL', gross: 1254, product: null, products: [] })],
     ['Load cell, ZERO refused', 'The button says why for a few seconds.', state({ source: 'LOADCELL', gross: 15, product: null, products: [], zeroNote: 'NOT STEADY', dark: false })],
     ['Load cell menu', 'ZERO is in the menu too, after TARE.', state({ page: 'menu', source: 'LOADCELL' })],
+    // Full Colour: the whole screen is the Hi-Lo colour (MENU > SCREEN steps to it).
+    ['Full Colour, inside the limits', 'The whole screen is green. The weight is as big as it fits.', state({ style: STYLE_COLOUR, source: 'LOADCELL' })],
+    ['Full Colour, too low', 'The whole screen is yellow: TOO LOW, ADD MORE, with an arrow up.', state({ style: STYLE_COLOUR, source: 'LOADCELL', gross: 47350 })],
+    ['Full Colour, too high', 'The whole screen is red: TOO HIGH, REMOVE PRODUCT, with an arrow down.', state({ style: STYLE_COLOUR, gross: 52480 })],
+    ['Full Colour, a notice', 'A notice sits in a dark band over the colour.', state({ style: STYLE_COLOUR, gross: 47350, waiting: 'OUT_OF_LIMITS' })],
+    ['Full Colour, take the load off', 'A red notice is the darkest band.', state({ style: STYLE_COLOUR, waiting: 'NEED_ZERO', save: { recent: { result: 'NEED_ZERO' } } })],
+    ['Full Colour, Wi-Fi drops', 'CONNECT and X in the band.', state({ style: STYLE_COLOUR, wifi: { up: false } })],
+    ['Full Colour, nothing on the scale', 'No colour until a load is on: the dark screen with the big weight.', state({ style: STYLE_COLOUR, gross: 0, save: { auto: false } })],
+    ['Full Colour, Approval on with tare', 'The plate keeps its line; the product moves under the word.', state({ style: STYLE_COLOUR, source: 'RS485', approval: true, check: 'ok', seq: 41, audit: 7, decimals: 2, gross: 52600, tare: 2500, presetTare: 2500, plate: { sa: '1234/56', max: '150', min: '1', e: '0.05' } })],
+    ['Full Colour, long product name', 'The name is cut to its room.', state({ style: STYLE_COLOUR, product: LONG, gross: 12700 })],
+    ['Full Colour, menu', 'SCREEN says COLOUR.', state({ style: STYLE_COLOUR, page: 'menu' })],
+    // Dial: the Hi-Lo bar as a gauge over the weight.
+    ['Dial, inside the limits', 'The dot rides the arc. The word sits in a green pill.', state({ style: STYLE_DIAL, source: 'LOADCELL' })],
+    ['Dial, too low', 'The dot is in the yellow part.', state({ style: STYLE_DIAL, source: 'LOADCELL', gross: 47350 })],
+    ['Dial, too high', 'The dot is in the red part.', state({ style: STYLE_DIAL, gross: 52480 })],
+    ['Dial, a notice', 'A notice covers the top of the arc.', state({ style: STYLE_DIAL, gross: 47350, waiting: 'OUT_OF_LIMITS' })],
+    ['Dial, Wi-Fi drops', 'CONNECT and X over the arc.', state({ style: STYLE_DIAL, wifi: { up: false } })],
+    ['Dial, no product picked', 'A grey arc, and where to pick a product.', state({ style: STYLE_DIAL, product: null })],
+    ['Dial, scale unplugged', 'Dashes, never an old number.', state({ style: STYLE_DIAL, linked: false, waiting: 'NO_SIGNAL' })],
+    ['Dial, Approval on with tare', 'The trade chip on two lines, the plate along the bottom.', state({ style: STYLE_DIAL, source: 'RS485', approval: true, check: 'ok', seq: 41, audit: 7, decimals: 2, gross: 52600, tare: 2500, presetTare: 2500, plate: { sa: '1234/56', max: '150', min: '1', e: '0.05' } })],
+    ['Dial, long product name', 'The name is cut to its room.', state({ style: STYLE_DIAL, product: LONG, gross: 12700 })],
+    ['Full Colour, saved', 'DONE, and take it off.', state({ style: STYLE_COLOUR, save: { recent: { result: 'SAVED', seq: 8 } }, waiting: 'ALREADY' })],
+    ['Dial, saved', 'DONE, and take it off.', state({ style: STYLE_DIAL, save: { recent: { result: 'SAVED', seq: 8 } }, waiting: 'ALREADY' })],
+    ['Dial, Auto save off', 'GOOD, and tap SAVE.', state({ style: STYLE_DIAL, save: { auto: false } })],
+    ['Light mode, too low with a notice', 'The brand colours: the amber band and panel carry white letters.', state({ dark: false, gross: 47350, waiting: 'OUT_OF_LIMITS' })],
+    ['Light mode, Wi-Fi drops', 'The alert in the brand amber.', state({ dark: false, wifi: { up: false } })],
+    ['Counting down to the save', 'Auto save counts 3, 2, 1 on the SAVE button while the weight stands still.', state({ save: { count: 3 } })],
+    ['Full Colour, counting down', 'SAVING IN 2.', state({ style: STYLE_COLOUR, save: { count: 2 } })],
+    ['Dial, counting down', 'SAVING IN 1.', state({ style: STYLE_DIAL, source: 'LOADCELL', save: { count: 1 } })],
+    ['Dial, six figures', 'A long weight drops to the smaller letters.', state({ style: STYLE_DIAL, gross: 982760, decimals: 0, product: { name: 'Maize', low: 980000, target: 982000, high: 984000 } })],
   ];
 
   const BOARDS = {

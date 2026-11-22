@@ -25,6 +25,7 @@ static WsoftSaveResult last_result = WSOFT_SAVE_NONE;
 static uint32_t last_result_ms = 0;
 static TradeWeight last_saved;
 static WsoftSaveResult waiting = WSOFT_SAVE_NONE;  // under lock
+static int countdown = 0;                          // under lock
 static uint32_t result_count = 0;                   // under lock: Save results since boot
 static void (*remote_save)() = nullptr;             // Writer role: Save taps go to the weigh board
 static WsoftSaveResult remote_waiting = WSOFT_SAVE_NO_SIGNAL;  // under lock
@@ -287,6 +288,7 @@ WsoftSaveResult weighings_update(bool linked, bool fresh, bool alarm, int32_t va
 
   portENTER_CRITICAL(&lock);
   waiting = remote_save != nullptr ? remote_waiting : saver.waiting();
+  countdown = remote_save != nullptr ? 0 : saver.countdown();
   if (tapped) save_answered = requests;
   if (result != WSOFT_SAVE_NONE) {
     result_count++;
@@ -384,6 +386,7 @@ void weighings_info(WeighingsInfo *out) {
   out->last_result = last_result;
   out->last_result_ms = last_result_ms;
   out->waiting = waiting;
+  out->countdown = countdown;
   portEXIT_CRITICAL(&lock);
 }
 
