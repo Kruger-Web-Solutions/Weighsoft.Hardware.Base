@@ -5,7 +5,7 @@
 // NVS (namespace "loadcell"). The rules are wsoft_loadcell (wsoft_core, host-tested).
 //
 // Tasks: a small task of its own reads the chip whenever a count is ready and keeps a moving
-// average; the screen task asks for the weight once per poll; the web task reads the state and
+// average (the filter); the screen task asks for the weight once per poll; the web task reads the state and
 // sets zero, span and the scale setup (unit, decimals, division). Everything shared is under one spinlock.
 //
 // Timing, from the HX711 datasheet: DT low = a count is ready; 24 clock pulses read it, most
@@ -34,13 +34,17 @@ struct LoadcellInfo {
   bool calibrated;
   bool have_weight;
   int32_t value;    // the weight in display digits (with cal.decimals and cal.unit)
+  bool have_noise;
+  int32_t noise_tenths;  // how far the last counts are apart, in tenths of a division (10 = one division)
   WsoftLoadcellCal cal;
 };
 void loadcell_info(LoadcellInfo *out);
 
-// Web task (admin). Each uses the averaged count of this moment and stores the result.
+// Web task (admin); zero also from the ZERO tile on the screen. Each uses the averaged count of
+// this moment and stores the result.
 // who is the signed-in name, for the USB log line.
 WsoftLoadcellError loadcell_set_zero(const char *who);
 WsoftLoadcellError loadcell_set_span(int32_t value, int decimals, int unit, const char *who);
-// The scale setup: digits after the point, unit (1 kg, 3 g) and the division in the last digit.
-WsoftLoadcellError loadcell_set_format(int decimals, int unit, int step, const char *who);
+// The scale setup: digits after the point, unit (1 kg, 3 g), the division in the last digit
+// and the filter (WSOFT_LOADCELL_FILTER_OFF .. _HIGH). All of it or none of it.
+WsoftLoadcellError loadcell_set_format(int decimals, int unit, int step, int filter, const char *who);

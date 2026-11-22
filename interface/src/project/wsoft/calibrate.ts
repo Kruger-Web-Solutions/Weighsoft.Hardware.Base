@@ -52,6 +52,32 @@ export interface LoadcellDivision {
   text: string;
 }
 
+/** The filter choices, as the board numbers them (wsoft_loadcell.h). */
+export const LOADCELL_FILTERS = [
+  { value: 0, text: 'Off', detail: 'every reading as it comes' },
+  { value: 1, text: 'Low', detail: 'fast' },
+  { value: 2, text: 'Medium', detail: 'steady' },
+  { value: 3, text: 'High', detail: 'steadiest, about 3 seconds to settle' }
+];
+
+/** "0.4" divisions from the board's tenths. */
+export const noiseText = (tenths: number) => (tenths / 10).toFixed(1);
+
+/**
+ * A plain hint from the raw noise. Our own rough estimate, not a measured rule: averaging N
+ * counts shrinks the noise by about the square root of N, and the board holds the last digit
+ * while the weight stays within a quarter of a division of the edge. So about 1 division of raw
+ * noise is steady on Low (4 counts), 1.7 on Medium (12) and 2.8 on High (32).
+ */
+export const noiseHint = (tenths: number | null | undefined): string => {
+  if (tenths === null || tenths === undefined) return 'Steadies the weight. Higher is steadier and a little slower.';
+  const now = `Noise now: ${noiseText(tenths)} of a division.`;
+  if (tenths <= 10) return `${now} Low is enough.`;
+  if (tenths <= 17) return `${now} Medium fits.`;
+  if (tenths <= 28) return `${now} High fits.`;
+  return `${now} Too much for a filter: pick a bigger division size.`;
+};
+
 export const divisionKey = (decimals: number, step: number) => `${decimals}:${step}`;
 
 /**

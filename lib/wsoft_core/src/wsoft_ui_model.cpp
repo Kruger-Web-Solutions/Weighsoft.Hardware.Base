@@ -245,6 +245,8 @@ static void menu(const WsoftUiInput &in, WsoftUiModel *m) {
     tile(m, WSOFT_UI_TILE_TARE, "TARE", text, in.tare_on);
     if (in.preset_on) tile(m, WSOFT_UI_TILE_PRESET, "PRESET TARE", in.preset_text, false);
   }
+  // A board that weighs itself (load cell) sets its own zero: with the scale empty, one tap.
+  if (in.zero) tile(m, WSOFT_UI_TILE_ZERO, "ZERO", "SET TO 0", false);
   if (in.product_count == 0) {
     tile(m, WSOFT_UI_TILE_PRODUCT, "PRODUCT", "NONE ON THE HUB", false);
   } else if (in.product == nullptr) {
@@ -253,6 +255,8 @@ static void menu(const WsoftUiInput &in, WsoftUiModel *m) {
     tile(m, WSOFT_UI_TILE_PRODUCT, "PRODUCT", m->product, true);
   }
   tile(m, WSOFT_UI_TILE_THEME, "SCREEN", in.dark ? "DARK" : "LIGHT", false);
+  // The menu holds 7 tiles. When ZERO and PRESET TARE are both there, WI-FI gives way: a tap
+  // on the Wi-Fi bars at the top of the screen opens the same page.
   tile(m, WSOFT_UI_TILE_WIFI, "WI-FI", in.wifi_up ? in.ip : "OFF", false);
 }
 

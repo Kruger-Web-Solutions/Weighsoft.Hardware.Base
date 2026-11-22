@@ -70,6 +70,10 @@ export interface WSoftLoadcell {
   unit: 'kg' | 'g';
   /** Display step in digits: 1, 2, 5, 10, 20 or 50. */
   step: number;
+  /** The filter: 0 off, 1 low, 2 medium, 3 high. */
+  filter: number;
+  /** How far the last raw counts are apart, in tenths of a division (10 = one division); null when not known. */
+  noise_tenths: number | null;
   /** The test weight last used, without the decimal point; null before the first one. */
   test_weight_digits: number | null;
   /** The weight now, without the decimal point; null when there is none. */
@@ -80,8 +84,8 @@ export interface WSoftLoadcell {
 export type WSoftLoadcellRequest =
   | { action: 'zero' }
   | { action: 'span'; weight: string; unit: 'kg' | 'g' }
-  /** The scale setup: unit, digits after the point, and the division in the last digit (0.002 kg = 3, 2). */
-  | { action: 'format'; decimals: number; step: number; unit: 'kg' | 'g' };
+  /** The scale setup: unit, digits after the point, the division in the last digit (0.002 kg = 3, 2) and the filter. */
+  | { action: 'format'; decimals: number; step: number; unit: 'kg' | 'g'; filter: number };
 
 // Mirrors src/examples/wsoft/WSoftSettingsService.h (WSoftSettings::read).
 export interface WSoftSettings {

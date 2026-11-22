@@ -538,6 +538,29 @@ void test_model_menu_tiles() {
   TEST_ASSERT_EQUAL_STRING("LIGHT", model.tiles[5].value);
   TEST_ASSERT_EQUAL_STRING("OFF", model.tiles[6].value);
   TEST_ASSERT_FALSE(model.dark);
+  // A load cell board gets ZERO after the tare tiles. The menu holds 7: with a preset tare
+  // too, WI-FI gives way (the Wi-Fi bars at the top open the same page).
+  in.zero = true;
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL(7, model.tile_count);
+  TEST_ASSERT_EQUAL(WSOFT_UI_TILE_PRESET, model.tiles[3].id);
+  TEST_ASSERT_EQUAL(WSOFT_UI_TILE_ZERO, model.tiles[4].id);
+  TEST_ASSERT_EQUAL_STRING("ZERO", model.tiles[4].caption);
+  TEST_ASSERT_EQUAL_STRING("SET TO 0", model.tiles[4].value);
+  TEST_ASSERT_EQUAL(WSOFT_UI_LOOK_BTN, model.tiles[4].look);
+  TEST_ASSERT_EQUAL(WSOFT_UI_TILE_PRODUCT, model.tiles[5].id);
+  TEST_ASSERT_EQUAL(WSOFT_UI_TILE_THEME, model.tiles[6].id);
+  // Without a preset tare everything fits, WI-FI last.
+  in.preset_on = false;
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL(7, model.tile_count);
+  TEST_ASSERT_EQUAL(WSOFT_UI_TILE_ZERO, model.tiles[3].id);
+  TEST_ASSERT_EQUAL(WSOFT_UI_TILE_WIFI, model.tiles[6].id);
+  // No ZERO on a board that reads a scale (RS485, RS232): that scale keeps its own zero.
+  in.zero = false;
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL(6, model.tile_count);
+  for (int i = 0; i < model.tile_count; i++) TEST_ASSERT_NOT_EQUAL(WSOFT_UI_TILE_ZERO, model.tiles[i].id);
 }
 
 void test_model_pages() {

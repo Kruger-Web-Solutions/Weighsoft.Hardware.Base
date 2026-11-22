@@ -12,8 +12,8 @@
 //
 // From the HX711 datasheet (Avia Semiconductor): the count is 24-bit two's complement, and it
 // stays at 0x800000 (lowest) or 0x7FFFFF (highest) when the input is out of range.
-// Not from the datasheet, our own choices: the averaging length, the smallest span that counts
-// as a real test weight, and the display steps.
+// Not from the datasheet, our own choices: the filter (averaging lengths, the jump and the hold
+// on the last digit), the smallest span that counts as a real test weight, and the display steps.
 
 #include <stddef.h>
 #include <stdint.h>
@@ -38,7 +38,20 @@ struct WsoftLoadcellCal {
   int decimals;         // 0..4 digits after the point (the scale setup on the Calibrate tab)
   int unit;             // DJB unit code: 1 kg, 3 g
   int step;             // display step in digits: 1, 2, 5, 10, 20 or 50
+  int filter;           // WSOFT_LOADCELL_FILTER_OFF .. _HIGH: how hard the reading is steadied
 };
+
+// The filter on the Scale setup tab (Rhyno, 22 Nov 2026: the HX711 is not steady).
+// OFF shows every count as it comes. The others average the last counts (wsoft_loadcell_filter_window),
+// still follow a new load at once (WsoftLoadcellFilter) and hold the last digit until the
+// weight has really moved (wsoft_loadcell_weight_steady).
+enum { WSOFT_LOADCELL_FILTER_OFF = 0, WSOFT_LOADCELL_FILTER_LOW, WSOFT_LOADCELL_FILTER_MEDIUM, WSOFT_LOADCELL_FILTER_HIGH };
+bool wsoft_loadcell_filter_valid(int filter);
+// Counts averaged: 1, 4, 12, 32. At the chip's slow rate (10 a second) HIGH is about 3 seconds.
+size_t wsoft_loadcell_filter_window(int filter);
+// How far one count must be from the average to be a new load and not noise: 4 divisions, in
+// raw counts. 0 (= plain averaging) with the filter off or before the board is calibrated.
+int32_t wsoft_loadcell_filter_jump(const WsoftLoadcellCal &cal);
 
 enum WsoftLoadcellError {
   WSOFT_LOADCELL_OK = 0,
@@ -49,7 +62,8 @@ enum WsoftLoadcellError {
   WSOFT_LOADCELL_BAD_UNIT,
   WSOFT_LOADCELL_BAD_STEP,
   WSOFT_LOADCELL_TOO_SMALL,    // the count hardly moved: no test weight on the scale?
-  WSOFT_LOADCELL_FORMAT_SPAN   // the stored test weight is not a whole number of the new last digit
+  WSOFT_LOADCELL_FORMAT_SPAN,  // the stored test weight is not a whole number of the new last digit
+  WSOFT_LOADCELL_BAD_FILTER
 };
 
 void wsoft_loadcell_defaults(WsoftLoadcellCal *cal);
@@ -75,6 +89,7 @@ WsoftLoadcellError wsoft_loadcell_set_format(WsoftLoadcellCal *cal, int decimals
 bool wsoft_loadcell_rescale(int32_t value, int from_decimals, int from_unit, int to_decimals, int to_unit,
                             int32_t *out);
 bool wsoft_loadcell_step_valid(int step);
+WsoftLoadcellError wsoft_loadcell_set_filter(WsoftLoadcellCal *cal, int filter);
 
 // The weight for a count, rounded half away from zero to the display step. False when the
 // board is not calibrated or the result does not fit: never a weight then.
@@ -84,19 +99,40 @@ bool wsoft_loadcell_weight(const WsoftLoadcellCal &cal, int32_t raw, int32_t *va
 const char *wsoft_loadcell_error_code(WsoftLoadcellError error);
 const char *wsoft_loadcell_error_text(WsoftLoadcellError error);
 
-// A moving average over the last WSOFT_LOADCELL_AVERAGE counts, to steady the last digits.
-static const size_t WSOFT_LOADCELL_AVERAGE = 8;
+// The same weight, with the last digit held (filter not OFF): a weight already shown (have_last,
+// last) stays until the load is more than 3/4 of a division away from it, so a load that sits
+// on the edge between two divisions does not flip between them. Plain rounding when nothing
+// was shown yet or the filter is OFF.
+bool wsoft_loadcell_weight_steady(const WsoftLoadcellCal &cal, int32_t raw, bool have_last, int32_t last,
+                                  int32_t *value);
+// How far the counts in the filter are apart (highest less lowest), in tenths of a division:
+// 10 = the noise is one whole division. False when the board is not calibrated.
+bool wsoft_loadcell_noise_tenths(const WsoftLoadcellCal &cal, int32_t spread, int32_t *tenths);
+
+// The last counts from the chip. average() is over the newest `window` of them. With a jump
+// above 0, a count further than that from the average is a new load, not noise: one such
+// count alone is dropped (a spike); a second one on the same side starts the average again
+// from those two, so the weight follows a new load at once however long the average is.
+// When the counts held are themselves further apart than the jump (a noisy scale), that
+// spread is the jump: noise is never taken for a new load.
+static const size_t WSOFT_LOADCELL_COUNTS = 32;
 
 class WsoftLoadcellFilter {
  public:
   void reset();
-  void add(int32_t raw);
+  void add(int32_t raw, size_t window = 8, int32_t jump = 0);
   size_t count() const { return _count; }
   // False until at least one count is in.
   bool average(int32_t *out) const;
+  // Highest less lowest of the counts held (up to WSOFT_LOADCELL_COUNTS). False under 2 counts.
+  bool spread(int32_t *out) const;
 
  private:
-  int32_t _samples[WSOFT_LOADCELL_AVERAGE] = {};
+  void push(int32_t raw);
+  int32_t _samples[WSOFT_LOADCELL_COUNTS] = {};
   size_t _count = 0;
   size_t _next = 0;
+  size_t _window = 8;
+  bool _odd = false;      // one count far from the average is waiting for a second
+  int32_t _odd_raw = 0;
 };

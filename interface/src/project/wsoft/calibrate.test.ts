@@ -2,7 +2,8 @@ import { describe, expect, it } from '@jest/globals';
 
 import {
   adWriteRequest, alarmReadRequest, calibrateBlock, calibratesLoadcell, digitsText, loadcellDivisions, loadcellTestWeight,
-  parseTestWeight, spanDigits
+  parseTestWeight, spanDigits,
+  LOADCELL_FILTERS, noiseHint, noiseText
 } from './calibrate';
 import { WSoftStatus } from './types';
 
@@ -85,6 +86,21 @@ describe('load cell on an HX711 board', () => {
 });
 
 describe('load cell scale setup', () => {
+  it('turns the raw noise into a plain hint', () => {
+    expect(noiseText(4)).toBe('0.4');
+    expect(noiseHint(null)).toBe('Steadies the weight. Higher is steadier and a little slower.');
+    expect(noiseHint(undefined)).toBe(noiseHint(null));
+    expect(noiseHint(4)).toBe('Noise now: 0.4 of a division. Low is enough.');
+    expect(noiseHint(10)).toContain('Low is enough');
+    expect(noiseHint(11)).toContain('Medium fits');
+    expect(noiseHint(17)).toContain('Medium fits');
+    expect(noiseHint(18)).toContain('High fits');
+    expect(noiseHint(28)).toContain('High fits');
+    expect(noiseHint(29)).toBe('Noise now: 2.9 of a division. Too much for a filter: pick a bigger division size.');
+    // The four choices, numbered as the board numbers them.
+    expect(LOADCELL_FILTERS.map((f) => f.value)).toEqual([0, 1, 2, 3]);
+  });
+
   it('lists the divisions finest first, 1 2 5 in each digit', () => {
     const kg = loadcellDivisions('kg');
     expect(kg[0]).toEqual({ decimals: 4, step: 1, key: '4:1', text: '0.0001' });

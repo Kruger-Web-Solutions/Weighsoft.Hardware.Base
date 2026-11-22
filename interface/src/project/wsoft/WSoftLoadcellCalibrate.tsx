@@ -7,7 +7,7 @@ import { MessageBox, SectionContent } from '../../components';
 import { AuthenticationContext } from '../../contexts/authentication';
 
 import * as WSoftApi from './api';
-import { digitsText, loadcellTestWeight } from './calibrate';
+import { digitsText, loadcellTestWeight, noiseText } from './calibrate';
 import { boardErrorText } from './errors';
 import { WSoftLoadcell, WSoftLoadcellRequest, WSoftStatus } from './types';
 
@@ -101,6 +101,14 @@ const WSoftLoadcellCalibrate: FC<{ status: WSoftStatus }> = ({ status }) => {
             <Chip size="small" variant="outlined" label={`Division ${digitsText(cell.step, cell.decimals)} ${cell.unit}`} />
           )}
           <Chip size="small" variant="outlined" label={!cell ? 'Reading...' : `Raw count ${cell.raw !== null ? cell.raw : 'none'}`} />
+          {cell && cell.noise_tenths !== null && (
+            <Chip
+              size="small"
+              variant="outlined"
+              color={cell.noise_tenths > 28 ? 'warning' : 'default'}
+              label={`Noise ${noiseText(cell.noise_tenths)} div`}
+            />
+          )}
         </Box>
       </Paper>
 
@@ -128,7 +136,7 @@ const WSoftLoadcellCalibrate: FC<{ status: WSoftStatus }> = ({ status }) => {
       {done && <MessageBox level="success" message={done} my={2} />}
 
       <Typography paragraph color="text.secondary">
-        Unit, division size and Max capacity are on the{' '}
+        Unit, division size, filter and Max capacity are on the{' '}
         <Link component={RouterLink} to="../setup">Scale setup</Link> tab. Set them first.
       </Typography>
 

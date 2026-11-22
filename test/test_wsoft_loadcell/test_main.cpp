@@ -250,7 +250,7 @@ void test_the_filter_averages_the_last_eight() {
   TEST_ASSERT_TRUE(filter.average(&average));
   TEST_ASSERT_EQUAL_INT32(150, average);
   for (int i = 0; i < 8; i++) filter.add(1000);
-  TEST_ASSERT_EQUAL(8, (int)filter.count());
+  TEST_ASSERT_EQUAL(10, (int)filter.count());  // the counts are kept; the average is the last 8
   TEST_ASSERT_TRUE(filter.average(&average));
   TEST_ASSERT_EQUAL_INT32(1000, average);
   filter.add(1800);  // the oldest 1000 drops out
@@ -269,8 +269,176 @@ void test_the_filter_holds_minus_counts() {
   TEST_ASSERT_EQUAL_INT32(-4, average);  // -3.5 rounds away from zero
 }
 
+// A scale calibrated at 100 counts a division: zero 1000, 2.000 kg = 200000 counts above it.
+static WsoftLoadcellCal steady_cal(int filter) {
+  WsoftLoadcellCal cal;
+  wsoft_loadcell_defaults(&cal);
+  TEST_ASSERT_EQUAL(WSOFT_LOADCELL_OK, wsoft_loadcell_set_zero(&cal, true, 1000));
+  TEST_ASSERT_EQUAL(WSOFT_LOADCELL_OK, wsoft_loadcell_set_span(&cal, true, 201000, 2000, 3, 1));
+  TEST_ASSERT_EQUAL(WSOFT_LOADCELL_OK, wsoft_loadcell_set_filter(&cal, filter));
+  return cal;
+}
+
+void test_the_filter_setting_is_medium_until_set() {
+  WsoftLoadcellCal cal;
+  wsoft_loadcell_defaults(&cal);
+  TEST_ASSERT_EQUAL(WSOFT_LOADCELL_FILTER_MEDIUM, cal.filter);
+  TEST_ASSERT_EQUAL(1, (int)wsoft_loadcell_filter_window(WSOFT_LOADCELL_FILTER_OFF));
+  TEST_ASSERT_EQUAL(4, (int)wsoft_loadcell_filter_window(WSOFT_LOADCELL_FILTER_LOW));
+  TEST_ASSERT_EQUAL(12, (int)wsoft_loadcell_filter_window(WSOFT_LOADCELL_FILTER_MEDIUM));
+  TEST_ASSERT_EQUAL(32, (int)wsoft_loadcell_filter_window(WSOFT_LOADCELL_FILTER_HIGH));
+  TEST_ASSERT_EQUAL(WSOFT_LOADCELL_OK, wsoft_loadcell_set_filter(&cal, WSOFT_LOADCELL_FILTER_HIGH));
+  TEST_ASSERT_EQUAL(WSOFT_LOADCELL_FILTER_HIGH, cal.filter);
+  TEST_ASSERT_EQUAL(WSOFT_LOADCELL_BAD_FILTER, wsoft_loadcell_set_filter(&cal, 4));
+  TEST_ASSERT_EQUAL(WSOFT_LOADCELL_BAD_FILTER, wsoft_loadcell_set_filter(&cal, -1));
+  TEST_ASSERT_EQUAL(WSOFT_LOADCELL_FILTER_HIGH, cal.filter);
+}
+
+void test_the_last_digit_is_held_on_the_edge_between_two_divisions() {
+  WsoftLoadcellCal cal = steady_cal(WSOFT_LOADCELL_FILTER_MEDIUM);
+  int32_t value = 0;
+  // 5.4 divisions: shows 5.
+  TEST_ASSERT_TRUE(wsoft_loadcell_weight_steady(cal, 1540, false, 0, &value));
+  TEST_ASSERT_EQUAL_INT32(5, value);
+  // 5.6 would round to 6, but 5 is on the screen and the load is only 0.6 away: stays 5.
+  TEST_ASSERT_TRUE(wsoft_loadcell_weight_steady(cal, 1560, true, 5, &value));
+  TEST_ASSERT_EQUAL_INT32(5, value);
+  // Exactly 3/4 of a division away still holds; a little more lets go.
+  TEST_ASSERT_TRUE(wsoft_loadcell_weight_steady(cal, 1575, true, 5, &value));
+  TEST_ASSERT_EQUAL_INT32(5, value);
+  TEST_ASSERT_TRUE(wsoft_loadcell_weight_steady(cal, 1580, true, 5, &value));
+  TEST_ASSERT_EQUAL_INT32(6, value);
+  // And back down: 6 holds until the load is under 5.25.
+  TEST_ASSERT_TRUE(wsoft_loadcell_weight_steady(cal, 1530, true, 6, &value));
+  TEST_ASSERT_EQUAL_INT32(6, value);
+  TEST_ASSERT_TRUE(wsoft_loadcell_weight_steady(cal, 1520, true, 6, &value));
+  TEST_ASSERT_EQUAL_INT32(5, value);
+  // A real change is shown at once, rounded as always.
+  TEST_ASSERT_TRUE(wsoft_loadcell_weight_steady(cal, 101000, true, 5, &value));
+  TEST_ASSERT_EQUAL_INT32(1000, value);
+  // Filter OFF: plain rounding, nothing held.
+  cal.filter = WSOFT_LOADCELL_FILTER_OFF;
+  TEST_ASSERT_TRUE(wsoft_loadcell_weight_steady(cal, 1560, true, 5, &value));
+  TEST_ASSERT_EQUAL_INT32(6, value);
+}
+
+void test_the_hold_works_in_whole_divisions() {
+  WsoftLoadcellCal cal = steady_cal(WSOFT_LOADCELL_FILTER_LOW);
+  TEST_ASSERT_EQUAL(WSOFT_LOADCELL_OK, wsoft_loadcell_set_format(&cal, 3, 1, 5));  // e = 0.005 kg
+  int32_t value = 0;
+  // 13 digits: 2.6 divisions, 0.6 from the 10 on the screen: stays 10.
+  TEST_ASSERT_TRUE(wsoft_loadcell_weight_steady(cal, 2300, true, 10, &value));
+  TEST_ASSERT_EQUAL_INT32(10, value);
+  // 14 digits: 0.8 of a division away: moves to 15.
+  TEST_ASSERT_TRUE(wsoft_loadcell_weight_steady(cal, 2400, true, 10, &value));
+  TEST_ASSERT_EQUAL_INT32(15, value);
+  // A held value that is not a whole division (the division was just changed) is not kept.
+  TEST_ASSERT_TRUE(wsoft_loadcell_weight_steady(cal, 2300, true, 12, &value));
+  TEST_ASSERT_EQUAL_INT32(15, value);
+  // Not calibrated: never a weight.
+  WsoftLoadcellCal blank;
+  wsoft_loadcell_defaults(&blank);
+  value = 7;
+  TEST_ASSERT_FALSE(wsoft_loadcell_weight_steady(blank, 2300, true, 10, &value));
+  TEST_ASSERT_EQUAL_INT32(7, value);
+}
+
+void test_the_jump_is_four_divisions_in_counts() {
+  WsoftLoadcellCal cal = steady_cal(WSOFT_LOADCELL_FILTER_HIGH);
+  TEST_ASSERT_EQUAL_INT32(400, wsoft_loadcell_filter_jump(cal));
+  TEST_ASSERT_EQUAL(WSOFT_LOADCELL_OK, wsoft_loadcell_set_format(&cal, 3, 1, 5));
+  TEST_ASSERT_EQUAL_INT32(2000, wsoft_loadcell_filter_jump(cal));
+  cal.filter = WSOFT_LOADCELL_FILTER_OFF;
+  TEST_ASSERT_EQUAL_INT32(0, wsoft_loadcell_filter_jump(cal));
+  WsoftLoadcellCal blank;
+  wsoft_loadcell_defaults(&blank);
+  TEST_ASSERT_EQUAL_INT32(0, wsoft_loadcell_filter_jump(blank));
+}
+
+void test_the_filter_averages_the_window_it_is_given() {
+  WsoftLoadcellFilter filter;
+  int32_t average = 0;
+  for (int i = 1; i <= 40; i++) filter.add(i * 10, 32);
+  TEST_ASSERT_EQUAL(32, (int)filter.count());
+  TEST_ASSERT_TRUE(filter.average(&average));
+  TEST_ASSERT_EQUAL_INT32(245, average);  // 90..400: 245
+  filter.add(410, 4);                     // 380, 390, 400, 410
+  TEST_ASSERT_TRUE(filter.average(&average));
+  TEST_ASSERT_EQUAL_INT32(395, average);
+  filter.add(500, 1);                     // window 1 = the newest count
+  TEST_ASSERT_TRUE(filter.average(&average));
+  TEST_ASSERT_EQUAL_INT32(500, average);
+  filter.add(600, 99);                    // a window that is too long is the longest
+  TEST_ASSERT_TRUE(filter.average(&average));
+  TEST_ASSERT_EQUAL_INT32(283, average);  // 120..410 (30 counts), 500, 600: 9050 / 32
+}
+
+void test_one_spike_is_dropped_and_a_new_load_is_followed_at_once() {
+  WsoftLoadcellFilter filter;
+  int32_t average = 0;
+  for (int i = 0; i < 32; i++) filter.add(1000 + (i % 2), 32, 400);
+  TEST_ASSERT_TRUE(filter.average(&average));
+  TEST_ASSERT_EQUAL_INT32(1001, average);  // 1000.5 rounds away from zero
+  // One count far off, then normal again: it never reaches the average.
+  filter.add(9000, 32, 400);
+  TEST_ASSERT_TRUE(filter.average(&average));
+  TEST_ASSERT_EQUAL_INT32(1001, average);
+  filter.add(1000, 32, 400);
+  TEST_ASSERT_EQUAL(32, (int)filter.count());
+  TEST_ASSERT_TRUE(filter.average(&average));
+  TEST_ASSERT_TRUE(average == 1000 || average == 1001);
+  // A spike up then a spike down are two spikes, not a new load.
+  filter.add(9000, 32, 400);
+  filter.add(-7000, 32, 400);
+  TEST_ASSERT_EQUAL(32, (int)filter.count());
+  filter.add(1000, 32, 400);
+  // Two counts far off on the same side: a new load. The average starts again from those two.
+  filter.add(50000, 32, 400);
+  filter.add(50010, 32, 400);
+  TEST_ASSERT_EQUAL(2, (int)filter.count());
+  TEST_ASSERT_TRUE(filter.average(&average));
+  TEST_ASSERT_EQUAL_INT32(50005, average);
+  // A noisy scale: the counts swing 1000 apart, more than the jump of 400. A count inside
+  // that swing is noise and is averaged in, twice in a row too; one well outside is a new load.
+  WsoftLoadcellFilter noisy;
+  for (int i = 0; i < 32; i++) noisy.add(i % 2 ? 2000 : 1000, 32, 0);
+  TEST_ASSERT_EQUAL(32, (int)noisy.count());
+  noisy.add(2000, 32, 400);
+  noisy.add(2000, 32, 400);
+  TEST_ASSERT_EQUAL(32, (int)noisy.count());
+  noisy.add(9000, 32, 400);
+  noisy.add(9100, 32, 400);
+  TEST_ASSERT_EQUAL(2, (int)noisy.count());
+  // No jump given (filter off, or not calibrated): plain averaging, nothing dropped.
+  WsoftLoadcellFilter plain;
+  plain.add(1000, 2, 0);
+  plain.add(9000, 2, 0);
+  TEST_ASSERT_TRUE(plain.average(&average));
+  TEST_ASSERT_EQUAL_INT32(5000, average);
+}
+
+void test_the_noise_is_the_spread_of_the_counts_in_divisions() {
+  WsoftLoadcellFilter filter;
+  int32_t spread = 0, tenths = 0;
+  filter.add(1000);
+  TEST_ASSERT_FALSE(filter.spread(&spread));
+  filter.add(1030);
+  filter.add(990);
+  TEST_ASSERT_TRUE(filter.spread(&spread));
+  TEST_ASSERT_EQUAL_INT32(40, spread);
+  WsoftLoadcellCal cal = steady_cal(WSOFT_LOADCELL_FILTER_MEDIUM);  // 100 counts a division
+  TEST_ASSERT_TRUE(wsoft_loadcell_noise_tenths(cal, spread, &tenths));
+  TEST_ASSERT_EQUAL_INT32(4, tenths);  // 0.4 of a division
+  TEST_ASSERT_EQUAL(WSOFT_LOADCELL_OK, wsoft_loadcell_set_format(&cal, 3, 1, 5));
+  TEST_ASSERT_TRUE(wsoft_loadcell_noise_tenths(cal, 1000, &tenths));
+  TEST_ASSERT_EQUAL_INT32(20, tenths);  // 1000 counts at 500 a division
+  WsoftLoadcellCal blank;
+  wsoft_loadcell_defaults(&blank);
+  TEST_ASSERT_FALSE(wsoft_loadcell_noise_tenths(blank, spread, &tenths));
+}
+
 void test_every_error_has_a_code_and_a_sentence() {
-  for (int e = WSOFT_LOADCELL_OK; e <= WSOFT_LOADCELL_FORMAT_SPAN; e++) {
+  for (int e = WSOFT_LOADCELL_OK; e <= WSOFT_LOADCELL_BAD_FILTER; e++) {
     TEST_ASSERT_NOT_NULL(wsoft_loadcell_error_code((WsoftLoadcellError)e));
     TEST_ASSERT_TRUE(wsoft_loadcell_error_text((WsoftLoadcellError)e)[0] != '\0');
   }
@@ -299,6 +467,13 @@ int main() {
   RUN_TEST(test_an_out_of_range_count_or_a_huge_weight_is_never_a_weight);
   RUN_TEST(test_the_filter_averages_the_last_eight);
   RUN_TEST(test_the_filter_holds_minus_counts);
+  RUN_TEST(test_the_filter_setting_is_medium_until_set);
+  RUN_TEST(test_the_last_digit_is_held_on_the_edge_between_two_divisions);
+  RUN_TEST(test_the_hold_works_in_whole_divisions);
+  RUN_TEST(test_the_jump_is_four_divisions_in_counts);
+  RUN_TEST(test_the_filter_averages_the_window_it_is_given);
+  RUN_TEST(test_one_spike_is_dropped_and_a_new_load_is_followed_at_once);
+  RUN_TEST(test_the_noise_is_the_spread_of_the_counts_in_divisions);
   RUN_TEST(test_every_error_has_a_code_and_a_sentence);
   return UNITY_END();
 }

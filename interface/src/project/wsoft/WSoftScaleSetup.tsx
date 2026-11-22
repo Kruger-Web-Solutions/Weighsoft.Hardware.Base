@@ -9,9 +9,9 @@ import { AuthenticationContext } from '../../contexts/authentication';
 
 import WSoftCardSetup from './WSoftCardSetup';
 import * as WSoftApi from './api';
-import { divisionKey, loadcellDivisions, LoadcellUnit } from './calibrate';
+import { divisionKey, LOADCELL_FILTERS, loadcellDivisions, LoadcellUnit, noiseHint } from './calibrate';
 import { boardErrorText } from './errors';
-import { WSoftScaleBoard, WSoftScaleCard, WSoftScaleSetup as WSoftScaleSetupState } from './types';
+import { WSoftLoadcell, WSoftScaleBoard, WSoftScaleCard, WSoftScaleSetup as WSoftScaleSetupState } from './types';
 import { REASON_MAX, reasonProblem } from './validators';
 
 const REFRESH_MS = 5000;
@@ -92,15 +92,21 @@ const WSoftScaleSetup: FC = () => {
   const [loadError, setLoadError] = useState<string>();
   const [form, setForm] = useState<BoardForm>();
   const [cardForm, setCardForm] = useState<CardForm>({ decimal: '', e_kg: '' });
-  // Load cell: the board holds the unit and the division the card holds on RS485.
-  const [cellForm, setCellForm] = useState<{ unit: LoadcellUnit; division: string }>({ unit: 'kg', division: '' });
+  // Load cell: the board holds the unit and the division the card holds on RS485, and the filter.
+  const [cell, setCell] = useState<WSoftLoadcell>();
+  const [cellForm, setCellForm] = useState<{ unit: LoadcellUnit; division: string; filter: number }>(
+    { unit: 'kg', division: '', filter: 2 }
+  );
   const [dirty, setDirty] = useState(false);
   const [reason, setReason] = useState('');
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      setSetup((await WSoftApi.readWSoftScaleSetup()).data);
+      const next = (await WSoftApi.readWSoftScaleSetup()).data;
+      // The filter and the live noise come from the load cell itself.
+      if (next.source === 'loadcell') setCell((await WSoftApi.readWSoftLoadcell()).data);
+      setSetup(next);
       setLoadError(undefined);
     } catch (error) {
       setLoadError(boardErrorText(error, 'Could not read the scale setup'));
@@ -119,10 +125,14 @@ const WSoftScaleSetup: FC = () => {
       setForm(toForm(setup.board));
       setCardForm(toCardForm(setup.card));
       if (setup.card) {
-        setCellForm({ unit: setup.card.unit === 3 ? 'g' : 'kg', division: divisionKey(setup.card.decimal, setup.card.division) });
+        setCellForm({
+          unit: setup.card.unit === 3 ? 'g' : 'kg',
+          division: divisionKey(setup.card.decimal, setup.card.division),
+          filter: cell ? cell.filter : 2
+        });
       }
     }
-  }, [setup, dirty]);
+  }, [setup, cell, dirty]);
 
   const content = () => {
     if (!setup || !form) {
@@ -150,7 +160,8 @@ const WSoftScaleSetup: FC = () => {
       setDirty(true);
     };
     const cellDiffers = loadcell && !!division && (!setup.card || setup.card.decimal !== division.decimals
-      || setup.card.division !== division.step || (setup.card.unit === 3 ? 'g' : 'kg') !== cellForm.unit);
+      || setup.card.division !== division.step || (setup.card.unit === 3 ? 'g' : 'kg') !== cellForm.unit
+      || (!!cell && cell.filter !== cellForm.filter));
 
     const canEdit = isAdmin && setup.editable && setup.locked === null;
     const change = (key: keyof BoardForm, value: string | boolean) => {
@@ -194,7 +205,9 @@ const WSoftScaleSetup: FC = () => {
 
     const writeCell = async () => {
       if (!cellDiffers || !division) return;
-      await WSoftApi.updateWSoftLoadcell({ action: 'format', decimals: division.decimals, step: division.step, unit: cellForm.unit });
+      setCell((await WSoftApi.updateWSoftLoadcell({
+        action: 'format', decimals: division.decimals, step: division.step, unit: cellForm.unit, filter: cellForm.filter
+      })).data);
     };
 
     const save = async () => {
@@ -281,6 +294,20 @@ const WSoftScaleSetup: FC = () => {
                   helperText="The steps the weight moves in, like 0.002 kg"
                 >
                   {divisions.map((d) => (<MenuItem key={d.key} value={d.key}>{d.text} {cellForm.unit}</MenuItem>))}
+                </TextField>
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  select
+                  label="Filter"
+                  fullWidth
+                  margin="dense"
+                  value={cellForm.filter}
+                  disabled={!canEdit}
+                  onChange={(event) => cellChanged({ filter: Number(event.target.value) })}
+                  helperText={noiseHint(cell?.noise_tenths)}
+                >
+                  {LOADCELL_FILTERS.map((f) => (<MenuItem key={f.value} value={f.value}>{f.text}: {f.detail}</MenuItem>))}
                 </TextField>
               </Grid>
             </>

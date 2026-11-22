@@ -20,6 +20,19 @@ static WsoftLoadcellCal cal;
 static WsoftLoadcellFilter filter;
 static uint32_t last_sample_ms = 0;
 static bool have_sample = false;
+// From cal, for the reader task: how many counts to average and what counts as a new load.
+static size_t filter_window = 8;
+static int32_t filter_jump = 0;
+// The weight last given out, for the hold on the last digit.
+static bool have_shown = false;
+static int32_t shown = 0;
+
+// Under the lock, after cal changed.
+static void cal_changed() {
+  filter_window = wsoft_loadcell_filter_window(cal.filter);
+  filter_jump = wsoft_loadcell_filter_jump(cal);
+  have_shown = false;
+}
 
 static void load(WsoftLoadcellCal *c) {
   wsoft_loadcell_defaults(c);
@@ -33,6 +46,7 @@ static void load(WsoftLoadcellCal *c) {
   c->decimals = store.getInt("dec", c->decimals);
   c->unit = store.getInt("unit", c->unit);
   c->step = store.getInt("step", c->step);
+  c->filter = store.getInt("flt", c->filter);
   store.end();
   // A store that does not add up is treated as not calibrated, never as a weight.
   if (c->decimals < 0 || c->decimals > 4 || (c->unit != 1 && c->unit != 3) || c->span_counts == 0 ||
@@ -40,6 +54,7 @@ static void load(WsoftLoadcellCal *c) {
     c->span_set = false;
   }
   if (!wsoft_loadcell_step_valid(c->step)) c->step = 1;
+  if (!wsoft_loadcell_filter_valid(c->filter)) c->filter = WSOFT_LOADCELL_FILTER_MEDIUM;
 }
 
 static void store_cal(const WsoftLoadcellCal &c) {
@@ -53,6 +68,7 @@ static void store_cal(const WsoftLoadcellCal &c) {
   store.putInt("dec", c.decimals);
   store.putInt("unit", c.unit);
   store.putInt("step", c.step);
+  store.putInt("flt", c.filter);
   store.end();
 }
 
@@ -88,8 +104,9 @@ static void reader_task(void *) {
         // that: a count that never moves when the load cell is pressed is a wiring fault.
         filter.reset();
         have_sample = false;
+        have_shown = false;
       } else {
-        filter.add(raw);
+        filter.add(raw, filter_window, filter_jump);
         last_sample_ms = now;
         have_sample = true;
       }
@@ -107,6 +124,7 @@ void loadcell_begin(int dt_pin, int sck_pin) {
   load(&loaded);
   portENTER_CRITICAL(&lock);
   cal = loaded;
+  cal_changed();
   filter.reset();
   have_sample = false;
   portEXIT_CRITICAL(&lock);
@@ -126,13 +144,22 @@ static bool live_raw(int32_t *raw) {
   return filter.average(raw);
 }
 
+// Under the lock: the weight to show, with the last digit held (wsoft_loadcell_weight_steady).
+// The screen and the web page both come through here, so they always show the same number.
+static bool live_weight(int32_t raw, bool have_raw, int32_t *value) {
+  have_shown = have_raw && wsoft_loadcell_weight_steady(cal, raw, have_shown, shown, &shown);
+  if (have_shown) *value = shown;
+  return have_shown;
+}
+
 bool loadcell_weight(int32_t *value, int *decimals, int *unit) {
   int32_t raw = 0;
   portENTER_CRITICAL(&lock);
   bool have = live_raw(&raw);
+  have = live_weight(raw, have, value);
   WsoftLoadcellCal c = cal;
   portEXIT_CRITICAL(&lock);
-  if (!have || !wsoft_loadcell_weight(c, raw, value)) return false;
+  if (!have) return false;
   *decimals = c.decimals;
   *unit = c.unit;
   return true;
@@ -144,10 +171,13 @@ void loadcell_info(LoadcellInfo *out) {
   out->started = started;
   out->have_raw = live_raw(&out->raw);
   out->cal = cal;
+  out->have_weight = live_weight(out->raw, out->have_raw, &out->value);
+  int32_t spread = 0;
+  bool have_spread = out->have_raw && filter.spread(&spread);
   portEXIT_CRITICAL(&lock);
   out->present = out->have_raw;
   out->calibrated = wsoft_loadcell_calibrated(out->cal);
-  out->have_weight = out->have_raw && wsoft_loadcell_weight(out->cal, out->raw, &out->value);
+  out->have_noise = have_spread && wsoft_loadcell_noise_tenths(out->cal, spread, &out->noise_tenths);
 }
 
 // Applies one change to a copy, then stores and publishes it. NVS is written outside the
@@ -168,10 +198,12 @@ static WsoftLoadcellError change_cal(Change change, const char *what, const char
   store_cal(next);
   portENTER_CRITICAL(&lock);
   cal = next;
+  cal_changed();
   portEXIT_CRITICAL(&lock);
-  WSOFT_LOG.printf("LOADCELL %s count=%ld zero=%ld span_counts=%ld span_value=%ld decimals=%d unit=%d step=%d by=%s\n",
-                   what, (long)raw, (long)next.zero_raw, (long)next.span_counts, (long)next.span_value, next.decimals,
-                   next.unit, next.step, who ? who : "?");
+  WSOFT_LOG.printf(
+      "LOADCELL %s count=%ld zero=%ld span_counts=%ld span_value=%ld decimals=%d unit=%d step=%d filter=%d by=%s\n", what,
+      (long)raw, (long)next.zero_raw, (long)next.span_counts, (long)next.span_value, next.decimals, next.unit, next.step,
+      next.filter, who ? who : "?");
   return WSOFT_LOADCELL_OK;
 }
 
@@ -188,8 +220,12 @@ WsoftLoadcellError loadcell_set_span(int32_t value, int decimals, int unit, cons
       "SPAN", who);
 }
 
-WsoftLoadcellError loadcell_set_format(int decimals, int unit, int step, const char *who) {
+WsoftLoadcellError loadcell_set_format(int decimals, int unit, int step, int filter, const char *who) {
   return change_cal(
-      [=](WsoftLoadcellCal *c, bool, int32_t) { return wsoft_loadcell_set_format(c, decimals, unit, step); },
-      "FORMAT", who);
+      [=](WsoftLoadcellCal *c, bool, int32_t) {
+        // change_cal works on a copy, so a bad filter leaves the format as it was too.
+        WsoftLoadcellError error = wsoft_loadcell_set_format(c, decimals, unit, step);
+        return error != WSOFT_LOADCELL_OK ? error : wsoft_loadcell_set_filter(c, filter);
+      },
+      "SETUP", who);
 }

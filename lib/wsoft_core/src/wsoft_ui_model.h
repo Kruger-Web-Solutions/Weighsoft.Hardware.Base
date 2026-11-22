@@ -66,6 +66,7 @@ struct WsoftUiInput {
   bool tare_on = false;
   int32_t tare_value = 0;     // in decimals and unit
   bool preset_on = false;     // the setup has a preset tare
+  bool zero = false;          // the board weighs itself (load cell): ZERO is there
   const char *preset_text = "";  // "2.5 kg"
 
   // the pages

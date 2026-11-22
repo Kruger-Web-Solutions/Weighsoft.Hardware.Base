@@ -10,6 +10,7 @@
 #include "approval.h"
 #include "hilo.h"
 #include "hub.h"
+#include "loadcell.h"
 #include "pin.h"
 #include "relay.h"
 #include "scale.h"
@@ -452,6 +453,7 @@ static void gather(Facts *f) {
   in.tare_on = tare.on;
   in.tare_value = tare.value;
   f->preset[0] = 0;
+  in.zero = strcmp(view.source, "LOADCELL") == 0;
   in.preset_on = scale.setup.preset_tare_kg != WSOFT_KG_UNSET && scale.setup.preset_tare_kg > 0;
   if (in.preset_on) {
     char kg[16];
@@ -560,6 +562,31 @@ static void tare(bool preset) {
   say(error == WSOFT_TARE_OK ? (!preset && was_on ? "TARE CLEARED" : "TARE ON") : wsoft_tare_error_code(error));
 }
 
+// ZERO on the menu (load cell only; Rhyno, 22 Nov 2026): the scale drifted off zero, the
+// operator empties it and taps. The same zero as on the Calibrate tab, so it is kept over a
+// restart. Like Calibrate: not with Approval ON. Only on a steady reading, and not under a tare
+// (the tare was taken against the old zero).
+static void zero() {
+  if (approval_on()) {
+    say("APPROVAL IS ON");
+    return;
+  }
+  if (scale_tare().on) {
+    say("CLEAR THE TARE FIRST");
+    return;
+  }
+  if (!view.linked) {
+    say("NO WEIGHT: CALIBRATE FIRST");
+    return;
+  }
+  if (!approval_stable() || view.hold == WSOFT_HOLD_NOT_STABLE) {
+    say("NOT STEADY: TRY AGAIN");
+    return;
+  }
+  WsoftLoadcellError error = loadcell_set_zero("screen");
+  say(error == WSOFT_LOADCELL_OK ? "ZERO SET" : wsoft_loadcell_error_code(error));
+}
+
 // PRODUCT on the menu: the next Hi-Lo product (none, first, ..., last, none). The operator's
 // pick wins until the Hub sets a new default (Hub ADR 0008, last change wins).
 static void next_product() {
@@ -596,6 +623,9 @@ static void menu_tap(int tile) {
       break;
     case WSOFT_UI_TILE_PRESET:
       if (scale_rs485()) tare(true);
+      break;
+    case WSOFT_UI_TILE_ZERO:
+      if (strcmp(view.source, "LOADCELL") == 0) zero();
       break;
     case WSOFT_UI_TILE_PRODUCT:
       next_product();

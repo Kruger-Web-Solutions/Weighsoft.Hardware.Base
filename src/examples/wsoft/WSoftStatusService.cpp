@@ -348,6 +348,10 @@ void WSoftStatusService::sendLoadcell(AsyncWebServerRequest* request, int code, 
   root["decimals"] = info.cal.decimals;
   root["unit"] = info.cal.unit == 3 ? "g" : "kg";
   root["step"] = info.cal.step;
+  root["filter"] = info.cal.filter;
+  // How far the last counts are apart, in tenths of a division: the page shows it as "Noise".
+  if (info.have_noise) root["noise_tenths"] = (long)info.noise_tenths;
+  else root["noise_tenths"] = nullptr;
   if (info.cal.span_set) root["test_weight_digits"] = (long)info.cal.span_value;
   else root["test_weight_digits"] = nullptr;
   if (info.have_weight) root["weight_digits"] = (long)info.value;
@@ -393,12 +397,16 @@ void WSoftStatusService::updateLoadcell(AsyncWebServerRequest* request, JsonVari
     if (!wsoft_parse_weight_text(body["weight"] | "", &value, &decimals)) error = WSOFT_LOADCELL_BAD_WEIGHT;
     else error = loadcell_set_span(value, decimals, unit_code, who.c_str());
   } else if (strcmp(action, "format") == 0) {
-    // The scale setup: unit, digits after the point and the division in the last digit.
+    // The scale setup: unit, digits after the point, the division in the last digit and the
+    // filter (0 off .. 3 high; left as it is when the page does not send one).
     const char* unit = body["unit"] | "";
     int unit_code = strcmp(unit, "kg") == 0 ? 1 : strcmp(unit, "g") == 0 ? 3 : 0;
     if (!body["decimals"].is<int>()) error = WSOFT_LOADCELL_BAD_DECIMALS;
     else if (!body["step"].is<int>()) error = WSOFT_LOADCELL_BAD_STEP;
-    else error = loadcell_set_format(body["decimals"].as<int>(), unit_code, body["step"].as<int>(), who.c_str());
+    else if (!body["filter"].isNull() && !body["filter"].is<int>()) error = WSOFT_LOADCELL_BAD_FILTER;
+    else
+      error = loadcell_set_format(body["decimals"].as<int>(), unit_code, body["step"].as<int>(),
+                                  body["filter"] | info.cal.filter, who.c_str());
     if (error == WSOFT_LOADCELL_OK) {
       // Now, not at the next poll: a Max saved right after this is checked against the new e.
       loadcell_info(&info);
