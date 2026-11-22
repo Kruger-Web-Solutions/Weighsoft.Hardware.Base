@@ -834,6 +834,18 @@ void test_what_to_do_next_to_the_hilo_word() {
   wsoft_ui_model(in, &m);
   TEST_ASSERT_EQUAL_STRING("SAVING", m.word);
   TEST_ASSERT_EQUAL_STRING("HOLD STILL", m.hint);
+  // Auto save counts down: on the word and on the SAVE button.
+  in.countdown = 3;
+  wsoft_ui_model(in, &m);
+  TEST_ASSERT_EQUAL_STRING("SAVING", m.word);
+  TEST_ASSERT_EQUAL_STRING("IN 3", m.hint);
+  TEST_ASSERT_EQUAL_STRING("SAVING IN 3", m.save_line);
+  in.style = WSOFT_UI_STYLE_CLASSIC;
+  wsoft_ui_model(in, &m);
+  TEST_ASSERT_EQUAL_STRING("OK", m.word);
+  TEST_ASSERT_EQUAL_STRING("SAVING IN 3", m.save_line);
+  in.style = WSOFT_UI_STYLE_COLOUR;
+  in.countdown = 0;
   // Saved, and while the saved load is still on.
   in.recent = WSOFT_SAVE_SAVED;
   wsoft_ui_model(in, &m);

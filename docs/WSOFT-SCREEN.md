@@ -78,11 +78,13 @@ Both say what to do next to the word (Rhyno, 22 Nov 2026), with an arrow the way
 |---|---|---|
 | Too low | TOO LOW  ADD MORE | arrow up |
 | Too high | TOO HIGH  REMOVE PRODUCT | arrow down |
-| Good, Auto save on | SAVING  HOLD STILL | tick |
+| Good, Auto save on | SAVING  IN 3, then IN 2, IN 1 | tick |
 | Good and saved | DONE  TAKE IT OFF | tick |
 | Good, Auto save off or a Writer | GOOD  TAP SAVE | tick |
 
-The classic screen keeps its words (TOO LOW, OK, TOO HIGH). The words come from the model's
+Auto save counts down (Rhyno, 22 Nov 2026): the weight must stand still for 3 seconds
+(`WSOFT_AUTO_SAVE_MS`, it was 1), and every look shows SAVING IN 3, 2, 1 on the SAVE button.
+A tap on SAVE does not wait. The classic screen keeps its words (TOO LOW, OK, TOO HIGH). The words come from the model's
 `word` and `hint`.
 
 On the Dial the weight takes a soft tint of its zone (yellow, green, red).

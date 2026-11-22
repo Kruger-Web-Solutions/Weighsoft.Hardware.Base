@@ -220,6 +220,8 @@ static void save(const WsoftUiInput &in, WsoftUiModel *m) {
   } else if (in.waiting == WSOFT_SAVE_ALREADY) {
     put(m->save_line, "TAKE LOAD OFF");
     m->save_look = WSOFT_UI_LOOK_BTN;
+  } else if (!in.writer && in.auto_save && in.countdown > 0) {
+    snprintf(m->save_line, sizeof m->save_line, "SAVING IN %d", in.countdown > 9 ? 9 : in.countdown);
   } else if (!in.writer && in.pending > 0) {
     snprintf(m->save_line, sizeof m->save_line, "%u TO SEND", (unsigned)in.pending);
   } else {
@@ -276,6 +278,7 @@ static void hint(const WsoftUiInput &in, WsoftUiModel *m) {
     bool done = in.recent == WSOFT_SAVE_SAVED || in.waiting == WSOFT_SAVE_ALREADY;
     bool saving = !done && !in.writer && in.auto_save && in.waiting == WSOFT_SAVE_NONE;
     put(m->hint, done ? "TAKE IT OFF" : saving ? "HOLD STILL" : in.waiting == WSOFT_SAVE_NONE ? "TAP SAVE" : "");
+    if (saving && in.countdown > 0) snprintf(m->hint, sizeof m->hint, "IN %d", in.countdown > 9 ? 9 : in.countdown);
     if (m->style != WSOFT_UI_STYLE_CLASSIC) put(m->word, done ? "DONE" : saving ? "SAVING" : "GOOD");
   }
 }

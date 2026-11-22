@@ -460,6 +460,7 @@ static void gather(Facts *f) {
   if (weigh.last_result != WSOFT_SAVE_NONE && millis() - weigh.last_result_ms < RESULT_MS) in.recent = weigh.last_result;
   in.saved_seq = weigh.last.seq;
   in.waiting = weigh.waiting;
+  in.countdown = weigh.countdown;
 
   SwitchesInfo switches;
   switches_info(&switches);

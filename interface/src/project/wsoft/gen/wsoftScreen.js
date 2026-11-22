@@ -864,6 +864,7 @@ const WsoftUi = (() => {
     else if (r && r.result === 'SAVED') { m.save_line = 'SAVED #' + r.seq; m.save_look = LOOK_ON; }
     else if (r) { m.save_line = RESULT[r.result]; m.save_look = r.result === 'ALREADY' || r.result === 'NEED_ZERO' ? LOOK_BTN : LOOK_BAD; }
     else if (S.waiting === 'ALREADY') { m.save_line = 'TAKE LOAD OFF'; m.save_look = LOOK_BTN; }
+    else if (!writer && S.save.auto && S.save.count > 0) { m.save_line = 'SAVING IN ' + Math.min(S.save.count, 9); m.save_look = LOOK_ON; }
     else if (!writer && S.save.pending > 0) { m.save_line = S.save.pending + ' TO SEND'; m.save_look = LOOK_ON; }
     else { m.save_line = !writer && S.save.auto ? 'AUTO SAVE ON' : 'TAP TO SAVE'; m.save_look = LOOK_ON; }
     // What to do, next to the Hi-Lo word (Rhyno, 22 Nov 2026). Inside the limits the Full Colour
@@ -875,6 +876,7 @@ const WsoftUi = (() => {
       const done = (r && r.result === 'SAVED') || S.waiting === 'ALREADY';
       const saving = !done && !writer && S.save.auto && S.waiting === 'NONE';
       m.hint = done ? 'TAKE IT OFF' : saving ? 'HOLD STILL' : S.waiting === 'NONE' ? 'TAP SAVE' : '';
+      if (saving && S.save.count > 0) m.hint = 'IN ' + Math.min(S.save.count, 9);
       if (m.style !== STYLE_CLASSIC) m.word = done ? 'DONE' : saving ? 'SAVING' : 'GOOD';
     }
     m.zero_btn = S.source === 'LOADCELL' && !S.tare;
@@ -912,7 +914,7 @@ const WsoftUi = (() => {
       gross: 50120, tare: 0, presetTare: 0, decimals: 3, unit: 'kg', hold: 'none',
       zeroNote: '', approval: false, check: 'off', seq: 0, audit: 0, plate: null,
       products: [MAIZE, SUGAR], product: MAIZE,
-      save: { auto: true, pending: 0, recent: null }, waiting: 'NONE', nextSeq: 8,
+      save: { auto: true, pending: 0, count: 0, recent: null }, waiting: 'NONE', nextSeq: 8,
     };
     for (const [k, v] of Object.entries(patch)) {
       S[k] = v && typeof v === 'object' && !Array.isArray(v) && S[k] && k !== 'product' && k !== 'plate' ? { ...S[k], ...v } : v;
@@ -976,6 +978,9 @@ const WsoftUi = (() => {
     ['Dial, Auto save off', 'GOOD, and tap SAVE.', state({ style: STYLE_DIAL, save: { auto: false } })],
     ['Light mode, too low with a notice', 'The brand colours: the amber band and panel carry white letters.', state({ dark: false, gross: 47350, waiting: 'OUT_OF_LIMITS' })],
     ['Light mode, Wi-Fi drops', 'The alert in the brand amber.', state({ dark: false, wifi: { up: false } })],
+    ['Counting down to the save', 'Auto save counts 3, 2, 1 on the SAVE button while the weight stands still.', state({ save: { count: 3 } })],
+    ['Full Colour, counting down', 'SAVING IN 2.', state({ style: STYLE_COLOUR, save: { count: 2 } })],
+    ['Dial, counting down', 'SAVING IN 1.', state({ style: STYLE_DIAL, source: 'LOADCELL', save: { count: 1 } })],
     ['Dial, six figures', 'A long weight drops to the smaller letters.', state({ style: STYLE_DIAL, gross: 982760, decimals: 0, product: { name: 'Maize', low: 980000, target: 982000, high: 984000 } })],
   ];
 

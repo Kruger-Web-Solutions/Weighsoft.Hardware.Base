@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **W-Soft: auto save counts down 3, 2, 1** (Rhyno, 22 Nov 2026). Auto save now waits for 3
+  still seconds (it was 1) and the screen and the browser copy show SAVING IN 3, 2, 1. A tap on
+  SAVE saves as before.
 - **W-Soft: light mode in the Weighsoft brand colours** (Rhyno, 22 Nov 2026). Paper ground, white
   cards, Bunting ink and status bar, Sky buttons, brand green, amber and red. Dark mode is unchanged.
 - **W-Soft: one Calibrate page for the junction box and the load cell** (Rhyno, 22 Nov 2026).

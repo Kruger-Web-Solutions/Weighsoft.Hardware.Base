@@ -57,6 +57,7 @@ struct WeighingsInfo {
   WsoftSaveResult last_result; // last Save tap or auto save result
   uint32_t last_result_ms;     // millis() of last_result, 0 when none
   WsoftSaveResult waiting;     // what stops a save right now (WsoftWeighingSaver::waiting)
+  int countdown;               // seconds until auto save saves (WsoftWeighingSaver::countdown), 0 = none
 };
 void weighings_info(WeighingsInfo *out);
 
