@@ -86,15 +86,24 @@ screen, the web page, the Hub and a Writer over Wi-Fi, like any other source.
   because a clock pulse held high for 60 us or more puts the chip to sleep.
 - Our own choices, not datasheet values: the filter (below); no count for 1 s = `NO SIGNAL`; a
   test weight must move the count by at least 1000.
-- **Filter** (Rhyno, 22 Nov 2026: the reading was not steady). *Off* shows every count as it
-  comes. *Low*, *Medium* (the default) and *High* average the last 4, 12 or 32 counts, and do
+- **Filter** (Rhyno, 22 Nov 2026: the reading was not steady). The counts of each tenth of a
+  second are first gathered into one, so everything below works the same whether the chip runs
+  at 10 or 80 counts a second (the Calibrate page shows the measured *Chip speed*). *Off* shows
+  each of those as it comes. *Low*, *Medium* (the default) and *High* average the last 4, 12 or
+  32 of them (0.4, 1.2, 3.2 s), and do
   two more things: a count more than 4 divisions from the average is a new load, not noise (one
   alone is dropped as a spike, a second on the same side starts the average again from those
   two, so a long average still follows a new load at once; when the counts are themselves
   further apart than that, their spread is the limit); and the last digit is held until
   the load is more than 3/4 of a division from the weight shown, so a load on the edge between
   two divisions does not flip between them. The screen and the web page show the same held
-  weight. Not tried on a board yet: how steady each level is on Rhyno's load cell.
+  weight. On the bench 22 Nov (f84c076, before the tenth-of-a-second step, Medium, empty, 30 s):
+  the reading held inside 2 divisions, with one blip of 8 divisions getting through.
+- **Auto zero** (zero tracking; off by default). Set to 1, 2 or 3 divisions: while the load has
+  stayed that close to zero for 2 seconds, the zero follows it (an eighth of what is left, ten
+  times a second). Kept in memory only, cleared by a restart or a new zero, and never more than
+  20 divisions from the set zero. It also takes away a small load left inside that band. Our
+  own choices; not tried on a board yet.
 - The chip's two end values (out of range) are never a weight.
 - Whether this module runs at 10 or 80 counts a second is set on its board and was not checked.
   The code works with either.
@@ -103,12 +112,12 @@ screen, the web page, the Hub and a Writer over Wi-Fi, like any other source.
 (Rhyno, 22 Nov 2026: one home, no double). On RS232 it says the indicator holds it; on RS485
 the decimals and e go to the weighing card; with a load cell the board is the scale, so the
 same form shows *Unit* (kg or g), *Division size* (1, 2 or 5 in any digit from 0.0001 kg or
-0.01 g up, then 10, 20, 50) and *Filter* in the place of the card's two fields. Under the
+0.01 g up, then 10, 20, 50), *Filter* and *Auto zero* in the place of the card's two fields. Under the
 filter the page says how big the raw noise is now, in divisions, and which filter fits (a rough
 estimate of ours: up to 1 division Low, 1.7 Medium, 2.8 High, more = pick a bigger division).
 One range; a second range is not built. They are saved with `POST /rest/wsoftLoadcell
-{"action":"format","decimals":3,"step":2,"unit":"kg","filter":2}` (= 0.002 kg, Medium; filter
-0 off .. 3 high); the rest of the form is the RS485 one (section 2c): Max,
+{"action":"format","decimals":3,"step":2,"unit":"kg","filter":2,"zero_track":1}` (= 0.002 kg,
+Medium, auto zero within 1 division; filter 0 off .. 3 high, zero_track 0 off .. 3); the rest of the form is the RS485 one (section 2c): Max,
 Min, blanking below zero and above Max, stable samples, tare, the SA number, and "setup
 complete" before Approval can go ON. The board hands its own division, decimals and unit to
 those rules in the place of the card's (`scale_set_card`). The g unit stops at 0.01 g because

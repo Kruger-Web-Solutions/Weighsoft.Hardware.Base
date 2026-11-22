@@ -437,8 +437,90 @@ void test_the_noise_is_the_spread_of_the_counts_in_divisions() {
   TEST_ASSERT_FALSE(wsoft_loadcell_noise_tenths(blank, spread, &tenths));
 }
 
+void test_a_fast_chip_gives_the_filter_ten_counts_a_second() {
+  WsoftLoadcellBlock block;
+  int32_t mean = 0;
+  int blocks = 0;
+  int64_t sum = 0;
+  // 80 a second for one second: a count every 12.5 ms, values 0..79.
+  for (int i = 0; i < 80; i++) {
+    if (block.add(i, (uint32_t)(1000 + i * 25 / 2), &mean)) {
+      if (blocks == 0) TEST_ASSERT_EQUAL_INT32(4, mean);  // 0..7: 3.5 rounds away from zero
+      blocks++;
+      sum += mean;
+    }
+  }
+  TEST_ASSERT_EQUAL(9, blocks);  // the tenth is still open
+  // 10 a second: every count is its own block, one count late.
+  WsoftLoadcellBlock slow;
+  TEST_ASSERT_FALSE(slow.add(500, 0, &mean));
+  TEST_ASSERT_TRUE(slow.add(600, 100, &mean));
+  TEST_ASSERT_EQUAL_INT32(500, mean);
+  TEST_ASSERT_TRUE(slow.add(700, 195, &mean));  // a little early still counts
+  TEST_ASSERT_EQUAL_INT32(600, mean);
+  // The millisecond clock wrapping round does not break a block.
+  WsoftLoadcellBlock wrap;
+  TEST_ASSERT_FALSE(wrap.add(10, 0xFFFFFFF0u, &mean));
+  TEST_ASSERT_FALSE(wrap.add(20, 0xFFFFFFFFu, &mean));
+  TEST_ASSERT_TRUE(wrap.add(30, 0x00000060u, &mean));
+  TEST_ASSERT_EQUAL_INT32(15, mean);
+  wrap.reset();
+  TEST_ASSERT_FALSE(wrap.add(30, 0x00001000u, &mean));
+}
+
+void test_auto_zero_follows_a_small_creep_and_leaves_a_load_alone() {
+  WsoftLoadcellCal cal = steady_cal(WSOFT_LOADCELL_FILTER_MEDIUM);  // zero 1000, 100 counts a division
+  WsoftLoadcellZeroTrack track;
+  // Off: nothing moves.
+  for (int i = 0; i < 100; i++) track.update(cal, 1150);
+  TEST_ASSERT_EQUAL_INT32(0, track.offset());
+  TEST_ASSERT_EQUAL(WSOFT_LOADCELL_OK, wsoft_loadcell_set_zero_track(&cal, 2));
+  TEST_ASSERT_EQUAL(WSOFT_LOADCELL_BAD_ZERO_TRACK, wsoft_loadcell_set_zero_track(&cal, 4));
+  TEST_ASSERT_EQUAL(WSOFT_LOADCELL_BAD_ZERO_TRACK, wsoft_loadcell_set_zero_track(&cal, -1));
+  TEST_ASSERT_EQUAL(2, cal.zero_track);
+  // The empty scale sits 1.5 divisions high. Nothing for the first 2 seconds (20 counts) ...
+  for (int i = 0; i < 20; i++) track.update(cal, 1150);
+  TEST_ASSERT_EQUAL_INT32(0, track.offset());
+  // ... then the zero follows: an eighth of what is left each count, all the way.
+  track.update(cal, 1150);
+  TEST_ASSERT_EQUAL_INT32(18, track.offset());  // 150 / 8
+  for (int i = 0; i < 100; i++) track.update(cal, 1150);
+  TEST_ASSERT_EQUAL_INT32(150, track.offset());
+  // With that offset the scale shows 0 again.
+  WsoftLoadcellCal now = cal;
+  now.zero_raw += track.offset();
+  int32_t value = 9;
+  TEST_ASSERT_TRUE(wsoft_loadcell_weight(now, 1150, &value));
+  TEST_ASSERT_EQUAL_INT32(0, value);
+  // A load (10 divisions) is outside the band: left alone, however long it sits.
+  for (int i = 0; i < 100; i++) track.update(cal, 2150);
+  TEST_ASSERT_EQUAL_INT32(150, track.offset());
+  // Back near zero, it waits its 2 seconds again before moving.
+  for (int i = 0; i < 20; i++) track.update(cal, 1100);
+  TEST_ASSERT_EQUAL_INT32(150, track.offset());
+  for (int i = 0; i < 100; i++) track.update(cal, 1100);
+  TEST_ASSERT_EQUAL_INT32(100, track.offset());
+  // A creep that keeps going stops 20 divisions from the set zero.
+  int32_t count = 1100;
+  for (int i = 0; i < 5000; i++) {
+    if (i % 10 == 0) count += 10;
+    track.update(cal, count);
+  }
+  TEST_ASSERT_EQUAL_INT32(2000, track.offset());
+  // Switched off, or a new zero (reset): the offset is gone.
+  cal.zero_track = 0;
+  track.update(cal, 1100);
+  TEST_ASSERT_EQUAL_INT32(0, track.offset());
+  // Not calibrated: nothing to follow.
+  WsoftLoadcellCal blank;
+  wsoft_loadcell_defaults(&blank);
+  blank.zero_track = 3;
+  for (int i = 0; i < 100; i++) track.update(blank, 5);
+  TEST_ASSERT_EQUAL_INT32(0, track.offset());
+}
+
 void test_every_error_has_a_code_and_a_sentence() {
-  for (int e = WSOFT_LOADCELL_OK; e <= WSOFT_LOADCELL_BAD_FILTER; e++) {
+  for (int e = WSOFT_LOADCELL_OK; e <= WSOFT_LOADCELL_BAD_ZERO_TRACK; e++) {
     TEST_ASSERT_NOT_NULL(wsoft_loadcell_error_code((WsoftLoadcellError)e));
     TEST_ASSERT_TRUE(wsoft_loadcell_error_text((WsoftLoadcellError)e)[0] != '\0');
   }
@@ -474,6 +556,8 @@ int main() {
   RUN_TEST(test_the_filter_averages_the_window_it_is_given);
   RUN_TEST(test_one_spike_is_dropped_and_a_new_load_is_followed_at_once);
   RUN_TEST(test_the_noise_is_the_spread_of_the_counts_in_divisions);
+  RUN_TEST(test_a_fast_chip_gives_the_filter_ten_counts_a_second);
+  RUN_TEST(test_auto_zero_follows_a_small_creep_and_leaves_a_load_alone);
   RUN_TEST(test_every_error_has_a_code_and_a_sentence);
   return UNITY_END();
 }

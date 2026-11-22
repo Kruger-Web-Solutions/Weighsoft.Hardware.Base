@@ -12,7 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ZERO sets the load cell's zero from the touch screen (not with Approval ON, a tare on, or an
   unsteady reading). Scale setup gets *Filter* (Off, Low, Medium, High): a longer average that
   still follows a new load at once, drops single spikes, and holds the last digit so it does
-  not flip between two divisions. The page shows the raw noise in divisions.
+  not flip between two divisions. The page shows the raw noise in divisions. The filter works
+  on tenths of a second, so it is the same at 10 or 80 counts a second. *Auto zero* (off by
+  default) pulls the empty scale back to 0 when it creeps. Calibrate shows the internal count
+  live and the chip's measured speed.
 - **W-Soft: scale setup for the load cell** (Rhyno, 22 Nov 2026). The Scale setup tab is the
   one home of the setup on every source. With a load cell it shows *Unit* and *Division size*
   in the place of the weighing card's fields, next to the same Max, Min, blanking, stable

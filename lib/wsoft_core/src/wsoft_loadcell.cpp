@@ -22,6 +22,7 @@ void wsoft_loadcell_defaults(WsoftLoadcellCal *cal) {
   cal->unit = 1;
   cal->step = 1;
   cal->filter = WSOFT_LOADCELL_FILTER_MEDIUM;
+  cal->zero_track = 0;
 }
 
 bool wsoft_loadcell_calibrated(const WsoftLoadcellCal &cal) {
@@ -48,6 +49,12 @@ size_t wsoft_loadcell_filter_window(int filter) {
 WsoftLoadcellError wsoft_loadcell_set_filter(WsoftLoadcellCal *cal, int filter) {
   if (!wsoft_loadcell_filter_valid(filter)) return WSOFT_LOADCELL_BAD_FILTER;
   cal->filter = filter;
+  return WSOFT_LOADCELL_OK;
+}
+
+WsoftLoadcellError wsoft_loadcell_set_zero_track(WsoftLoadcellCal *cal, int divisions) {
+  if (divisions < 0 || divisions > WSOFT_LOADCELL_ZERO_TRACK_MAX) return WSOFT_LOADCELL_BAD_ZERO_TRACK;
+  cal->zero_track = divisions;
   return WSOFT_LOADCELL_OK;
 }
 
@@ -189,6 +196,7 @@ const char *wsoft_loadcell_error_code(WsoftLoadcellError error) {
     case WSOFT_LOADCELL_TOO_SMALL: return "too_small";
     case WSOFT_LOADCELL_FORMAT_SPAN: return "format_span";
     case WSOFT_LOADCELL_BAD_FILTER: return "bad_filter";
+    case WSOFT_LOADCELL_BAD_ZERO_TRACK: return "bad_zero_track";
   }
   return "error";
 }
@@ -207,8 +215,58 @@ const char *wsoft_loadcell_error_text(WsoftLoadcellError error) {
     case WSOFT_LOADCELL_FORMAT_SPAN:
       return "The test weight used last time does not fit this division size. Pick a finer one, or set the test weight again after.";
     case WSOFT_LOADCELL_BAD_FILTER: return "Pick a filter from the list.";
+    case WSOFT_LOADCELL_BAD_ZERO_TRACK: return "Pick an auto zero choice from the list.";
   }
   return "Something went wrong.";
+}
+
+void WsoftLoadcellBlock::reset() {
+  _sum = 0;
+  _n = 0;
+}
+
+bool WsoftLoadcellBlock::add(int32_t raw, uint32_t now_ms, int32_t *mean) {
+  // A little under the block length, so a chip at 10 a second (a count every 100 ms, give or
+  // take) gives one block per count and not one per two.
+  bool complete = _n > 0 && now_ms - _start >= WSOFT_LOADCELL_BLOCK_MS - 10;
+  if (complete) {
+    *mean = (int32_t)divide_round(_sum, (int64_t)_n);
+    reset();
+  }
+  if (_n == 0) _start = now_ms;
+  _sum += raw;
+  _n++;
+  return complete;
+}
+
+void WsoftLoadcellZeroTrack::reset() {
+  _offset = 0;
+  _still = 0;
+}
+
+void WsoftLoadcellZeroTrack::update(const WsoftLoadcellCal &cal, int32_t average) {
+  int64_t division = division_counts_x10(cal);
+  if (cal.zero_track <= 0 || division <= 0) {
+    reset();
+    return;
+  }
+  int64_t load = (int64_t)average - cal.zero_raw - _offset;
+  int64_t band = division * cal.zero_track / 10;
+  if (load > band || load < -band) {
+    _still = 0;
+    return;
+  }
+  if (_still < WSOFT_LOADCELL_ZERO_TRACK_STILL) {
+    _still++;
+    return;
+  }
+  int64_t step = load / 8;
+  if (step == 0) step = load > 0 ? 1 : load < 0 ? -1 : 0;
+  int64_t reach = division * WSOFT_LOADCELL_ZERO_TRACK_REACH / 10;
+  int64_t next = _offset + step;
+  if (next > reach) next = reach;
+  if (next < -reach) next = -reach;
+  _offset = (int32_t)next;
 }
 
 void WsoftLoadcellFilter::reset() {

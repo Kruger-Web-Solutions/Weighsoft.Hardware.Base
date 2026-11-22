@@ -60,6 +60,14 @@ export const LOADCELL_FILTERS = [
   { value: 3, text: 'High', detail: 'steadiest, about 3 seconds to settle' }
 ];
 
+/** Auto zero choices: how many divisions around zero the board follows a slow creep. */
+export const LOADCELL_AUTO_ZERO = [
+  { value: 0, text: 'Off' },
+  { value: 1, text: 'On: within 1 division of zero' },
+  { value: 2, text: 'On: within 2 divisions of zero' },
+  { value: 3, text: 'On: within 3 divisions of zero' }
+];
+
 /** "0.4" divisions from the board's tenths. */
 export const noiseText = (tenths: number) => (tenths / 10).toFixed(1);
 

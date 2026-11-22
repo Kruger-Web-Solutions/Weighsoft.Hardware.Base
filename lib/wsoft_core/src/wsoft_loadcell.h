@@ -39,6 +39,7 @@ struct WsoftLoadcellCal {
   int unit;             // DJB unit code: 1 kg, 3 g
   int step;             // display step in digits: 1, 2, 5, 10, 20 or 50
   int filter;           // WSOFT_LOADCELL_FILTER_OFF .. _HIGH: how hard the reading is steadied
+  int zero_track;       // auto zero: 0 off, 1..WSOFT_LOADCELL_ZERO_TRACK_MAX divisions around zero
 };
 
 // The filter on the Scale setup tab (Rhyno, 22 Nov 2026: the HX711 is not steady).
@@ -47,7 +48,8 @@ struct WsoftLoadcellCal {
 // weight has really moved (wsoft_loadcell_weight_steady).
 enum { WSOFT_LOADCELL_FILTER_OFF = 0, WSOFT_LOADCELL_FILTER_LOW, WSOFT_LOADCELL_FILTER_MEDIUM, WSOFT_LOADCELL_FILTER_HIGH };
 bool wsoft_loadcell_filter_valid(int filter);
-// Counts averaged: 1, 4, 12, 32. At the chip's slow rate (10 a second) HIGH is about 3 seconds.
+// Counts averaged: 1, 4, 12, 32. The filter gets 10 counts a second whatever the chip's rate
+// (WsoftLoadcellBlock), so that is 0.1, 0.4, 1.2 and 3.2 seconds.
 size_t wsoft_loadcell_filter_window(int filter);
 // How far one count must be from the average to be a new load and not noise: 4 divisions, in
 // raw counts. 0 (= plain averaging) with the filter off or before the board is calibrated.
@@ -63,7 +65,8 @@ enum WsoftLoadcellError {
   WSOFT_LOADCELL_BAD_STEP,
   WSOFT_LOADCELL_TOO_SMALL,    // the count hardly moved: no test weight on the scale?
   WSOFT_LOADCELL_FORMAT_SPAN,  // the stored test weight is not a whole number of the new last digit
-  WSOFT_LOADCELL_BAD_FILTER
+  WSOFT_LOADCELL_BAD_FILTER,
+  WSOFT_LOADCELL_BAD_ZERO_TRACK
 };
 
 void wsoft_loadcell_defaults(WsoftLoadcellCal *cal);
@@ -90,6 +93,7 @@ bool wsoft_loadcell_rescale(int32_t value, int from_decimals, int from_unit, int
                             int32_t *out);
 bool wsoft_loadcell_step_valid(int step);
 WsoftLoadcellError wsoft_loadcell_set_filter(WsoftLoadcellCal *cal, int filter);
+WsoftLoadcellError wsoft_loadcell_set_zero_track(WsoftLoadcellCal *cal, int divisions);
 
 // The weight for a count, rounded half away from zero to the display step. False when the
 // board is not calibrated or the result does not fit: never a weight then.
@@ -108,6 +112,48 @@ bool wsoft_loadcell_weight_steady(const WsoftLoadcellCal &cal, int32_t raw, bool
 // How far the counts in the filter are apart (highest less lowest), in tenths of a division:
 // 10 = the noise is one whole division. False when the board is not calibrated.
 bool wsoft_loadcell_noise_tenths(const WsoftLoadcellCal &cal, int32_t spread, int32_t *tenths);
+
+// The HX711 runs at 10 or 80 counts a second (set on its board). The counts of each tenth of a
+// second are gathered into one (their mean), so the filter, the jump and the auto zero work the
+// same at either rate (bench, 22 Nov 2026: a blip two counts long got through the filter).
+static const uint32_t WSOFT_LOADCELL_BLOCK_MS = 100;
+
+class WsoftLoadcellBlock {
+ public:
+  void reset();
+  // One count from the chip at now_ms. True when the tenth of a second before it is complete:
+  // *mean is the mean of its counts. This count then opens the next one.
+  bool add(int32_t raw, uint32_t now_ms, int32_t *mean);
+
+ private:
+  int64_t _sum = 0;
+  uint32_t _n = 0;
+  uint32_t _start = 0;
+};
+
+// Auto zero (zero tracking; Rhyno, 22 Nov 2026: the empty scale creeps off zero). While the
+// load has stayed within cal.zero_track divisions of zero for WSOFT_LOADCELL_ZERO_TRACK_STILL
+// filtered counts in a row (2 seconds), the zero follows it: an eighth of what is left, each
+// count. The offset is kept in memory only (a restart or a new zero clears it) and never goes
+// further than WSOFT_LOADCELL_ZERO_TRACK_REACH divisions from the set zero. Our own choices.
+// It also takes away a small load that is put on and left inside that band: that is what auto
+// zero does on any scale.
+static const int WSOFT_LOADCELL_ZERO_TRACK_MAX = 3;
+static const int WSOFT_LOADCELL_ZERO_TRACK_STILL = 20;
+static const int WSOFT_LOADCELL_ZERO_TRACK_REACH = 20;
+
+class WsoftLoadcellZeroTrack {
+ public:
+  void reset();
+  // Counts to add to cal.zero_raw.
+  int32_t offset() const { return _offset; }
+  // One filtered count (10 a second).
+  void update(const WsoftLoadcellCal &cal, int32_t average);
+
+ private:
+  int32_t _offset = 0;
+  int _still = 0;
+};
 
 // The last counts from the chip. average() is over the newest `window` of them. With a jump
 // above 0, a count further than that from the average is a new load, not noise: one such

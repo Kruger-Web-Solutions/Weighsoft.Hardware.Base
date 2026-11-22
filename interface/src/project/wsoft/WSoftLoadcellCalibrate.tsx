@@ -120,6 +120,12 @@ const WSoftLoadcellCalibrate: FC<{ status: WSoftStatus }> = ({ status }) => {
           {cell && (
             <Chip size="small" variant="outlined" label={`Division ${digitsText(cell.step, cell.decimals)} ${cell.unit}`} />
           )}
+          {cell && cell.rate > 0 && (
+            <Chip size="small" variant="outlined" label={`Chip speed ${cell.rate} a second`} />
+          )}
+          {cell && cell.zero_track > 0 && (
+            <Chip size="small" variant="outlined" label={`Auto zero ${cell.zero_offset >= 0 ? '+' : ''}${cell.zero_offset}`} />
+          )}
           {cell && cell.noise_tenths !== null && (
             <Chip
               size="small"

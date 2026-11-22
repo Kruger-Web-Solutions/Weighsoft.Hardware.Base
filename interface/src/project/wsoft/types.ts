@@ -74,6 +74,12 @@ export interface WSoftLoadcell {
   step: number;
   /** The filter: 0 off, 1 low, 2 medium, 3 high. */
   filter: number;
+  /** Auto zero: 0 off, 1 to 3 = follows a creep within that many divisions of zero. */
+  zero_track: number;
+  /** Counts auto zero has moved the zero by since the last restart or zero. */
+  zero_offset: number;
+  /** Counts a second from the chip, measured (10 or 80 by its board); 0 when silent. */
+  rate: number;
   /** How far the last raw counts are apart, in tenths of a division (10 = one division); null when not known. */
   noise_tenths: number | null;
   /** The test weight last used, without the decimal point; null before the first one. */
@@ -86,8 +92,8 @@ export interface WSoftLoadcell {
 export type WSoftLoadcellRequest =
   | { action: 'zero' }
   | { action: 'span'; weight: string; unit: 'kg' | 'g' }
-  /** The scale setup: unit, digits after the point, the division in the last digit (0.002 kg = 3, 2) and the filter. */
-  | { action: 'format'; decimals: number; step: number; unit: 'kg' | 'g'; filter: number };
+  /** The scale setup: unit, digits after the point, the division in the last digit (0.002 kg = 3, 2), the filter and auto zero. */
+  | { action: 'format'; decimals: number; step: number; unit: 'kg' | 'g'; filter: number; zero_track: number };
 
 // Mirrors src/examples/wsoft/WSoftSettingsService.h (WSoftSettings::read).
 export interface WSoftSettings {

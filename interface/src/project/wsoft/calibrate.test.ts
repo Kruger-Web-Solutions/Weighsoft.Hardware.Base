@@ -3,7 +3,7 @@ import { describe, expect, it } from '@jest/globals';
 import {
   adWriteRequest, alarmReadRequest, calibrateBlock, calibratesLoadcell, digitsText, loadcellDivisions, loadcellTestWeight,
   parseTestWeight, spanDigits,
-  LOADCELL_FILTERS, noiseHint, noiseText
+  LOADCELL_AUTO_ZERO, LOADCELL_FILTERS, noiseHint, noiseText
 } from './calibrate';
 import { WSoftStatus } from './types';
 
@@ -99,6 +99,9 @@ describe('load cell scale setup', () => {
     expect(noiseHint(29)).toBe('Noise now: 2.9 of a division. Too much for a filter: pick a bigger division size.');
     // The four choices, numbered as the board numbers them.
     expect(LOADCELL_FILTERS.map((f) => f.value)).toEqual([0, 1, 2, 3]);
+    // Auto zero: off, then the divisions around zero, as the board takes them.
+    expect(LOADCELL_AUTO_ZERO.map((z) => z.value)).toEqual([0, 1, 2, 3]);
+    expect(LOADCELL_AUTO_ZERO[0].text).toBe('Off');
   });
 
   it('lists the divisions finest first, 1 2 5 in each digit', () => {
