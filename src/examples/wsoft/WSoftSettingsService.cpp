@@ -39,7 +39,9 @@ void WSoftSettingsService::begin() {
 WSoftSource WSoftSettingsService::source() {
   WSoftSource source = WSOFT_SOURCE_RS485;
   read([&](const WSoftSettings& s) { source = s.data.source; });
-  return WSOFT_HAS_RS232 ? source : WSOFT_SOURCE_RS485;
+  if (source == WSOFT_SOURCE_RS232 && !WSOFT_HAS_RS232) return WSOFT_SOURCE_RS485;
+  if (source == WSOFT_SOURCE_LOADCELL && !WSOFT_HAS_LOADCELL) return WSOFT_SOURCE_RS485;
+  return source;
 }
 
 uint32_t WSoftSettingsService::publishIntervalMs() {

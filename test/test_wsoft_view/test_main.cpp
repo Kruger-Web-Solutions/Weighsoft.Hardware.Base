@@ -236,6 +236,13 @@ void test_rs232_source_is_reported() {
   TEST_ASSERT_TRUE(has(view(s), "\"source\":\"rs232\""));
 }
 
+void test_load_cell_source_is_reported() {
+  WSoftSnapshot s = live(1520);
+  s.loadcell = true;
+  TEST_ASSERT_TRUE(has(view(s), "\"source\":\"loadcell\""));
+  TEST_ASSERT_FALSE(has(view(s), "\"source\":\"rs232\""));
+}
+
 void test_weight_text_parses_sign_digits_and_decimals() {
   int32_t v = 0;
   int d = -1;
@@ -390,6 +397,7 @@ int main(int, char **) {
   RUN_TEST(test_trade_ok_is_for_trade_with_seq_and_audit);
   RUN_TEST(test_full_view_field_order_is_stable);
   RUN_TEST(test_rs232_source_is_reported);
+  RUN_TEST(test_load_cell_source_is_reported);
   RUN_TEST(test_notice_says_what_stops_a_save);
   RUN_TEST(test_weight_text_parses_sign_digits_and_decimals);
   RUN_TEST(test_weight_text_rejects_non_weights_without_change);

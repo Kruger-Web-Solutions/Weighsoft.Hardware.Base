@@ -24,6 +24,7 @@ void wsoft_settings_defaults(WSoftSettingsData *s) {
 }
 
 const char *wsoft_source_text(WSoftSource source) {
+  if (source == WSOFT_SOURCE_LOADCELL) return "loadcell";
   return source == WSOFT_SOURCE_RS232 ? "rs232" : "rs485";
 }
 
@@ -31,6 +32,7 @@ bool wsoft_source_parse(const char *text, WSoftSource *source) {
   if (text == nullptr) return false;
   if (strcmp(text, "rs485") == 0) *source = WSOFT_SOURCE_RS485;
   else if (strcmp(text, "rs232") == 0) *source = WSOFT_SOURCE_RS232;
+  else if (strcmp(text, "loadcell") == 0) *source = WSOFT_SOURCE_LOADCELL;
   else return false;
   return true;
 }

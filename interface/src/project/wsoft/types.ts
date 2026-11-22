@@ -32,7 +32,8 @@ export interface WSoftStatus {
   hub: string;
   hub_online: boolean;
   polls: number;
-  /** rs485 = DJB junction box over Modbus; rs232 = a scale line read by the Serial reader. */
+  /** rs485 = DJB junction box over Modbus; rs232 = a scale line read by the Serial reader;
+   * loadcell = a load cell on an HX711 board, read and calibrated by this board. */
   source: WSoftSource;
   /** weigh = this board reads the scale and saves; writer = it shows a weigh board's weight and never saves. */
   role?: 'weigh' | 'writer';
@@ -48,7 +49,38 @@ export interface WSoftStatus {
 
 export type WSoftNoticeLevel = 'stop' | 'wait' | 'info';
 
-export type WSoftSource = 'rs485' | 'rs232';
+export type WSoftSource = 'rs485' | 'rs232' | 'loadcell';
+
+/** GET/POST /rest/wsoftLoadcell (admin): the load cell on an HX711 board and its calibration. */
+export interface WSoftLoadcell {
+  ok: boolean;
+  /** A refused change: a code such as zero_first or too_small, and a sentence for the page. */
+  error?: string;
+  message?: string;
+  /** The board's weight source is the load cell. */
+  active: boolean;
+  /** The HX711 answered in the last second. */
+  present: boolean;
+  /** The averaged raw count, or null when the HX711 is silent. It moves when the load cell is pressed. */
+  raw: number | null;
+  calibrated: boolean;
+  zero_set: boolean;
+  span_set: boolean;
+  decimals: number;
+  unit: 'kg' | 'g';
+  /** Display step in digits: 1, 2, 5, 10, 20 or 50. */
+  step: number;
+  /** The test weight last used, without the decimal point; null before the first one. */
+  test_weight_digits: number | null;
+  /** The weight now, without the decimal point; null when there is none. */
+  weight_digits: number | null;
+  approval_on: boolean;
+}
+
+export type WSoftLoadcellRequest =
+  | { action: 'zero' }
+  | { action: 'span'; weight: string; unit: 'kg' | 'g' }
+  | { action: 'step'; step: number };
 
 // Mirrors src/examples/wsoft/WSoftSettingsService.h (WSoftSettings::read).
 export interface WSoftSettings {
@@ -77,6 +109,8 @@ export interface WSoftSettings {
   relay_available?: boolean;
   /** Read-only: false on boards without RS232 wiring (the Waveshare). */
   rs232_available?: boolean;
+  /** Read-only: true on boards built with pins for a load cell on an HX711 board (the yellow board). */
+  loadcell_available?: boolean;
   /** Read-only: base path with placeholders expanded, plus "/status". */
   mqtt_status_topic?: string;
   publish_interval_min_ms?: number;

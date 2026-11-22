@@ -27,6 +27,11 @@
 #define WSOFT_HAS_RS232 0
 #endif
 
+// Boards whose env names two pins for a load cell on an HX711 board (the CYD, on CN1).
+#ifndef WSOFT_HAS_LOADCELL
+#define WSOFT_HAS_LOADCELL 0
+#endif
+
 // Boards whose env names the pin of an on-board RGB LED (WS2812) for the "ESP LED" switch.
 #ifdef WSOFT_RGB_LED_PIN
 #define WSOFT_HAS_ESP_LED 1
@@ -64,6 +69,7 @@ class WSoftSettings {
     root["publish_interval_min_ms"] = WSOFT_PUBLISH_MIN_MS;
     root["publish_interval_max_ms"] = WSOFT_PUBLISH_MAX_MS;
     root["rs232_available"] = WSOFT_HAS_RS232 != 0;
+    root["loadcell_available"] = WSOFT_HAS_LOADCELL != 0;
     root["relay_available"] = FT_ENABLED(FT_WSOFT_RELAY) != 0;
     root["esp_led_available"] = WSOFT_HAS_ESP_LED != 0;
   }
@@ -87,10 +93,9 @@ class WSoftSettings {
     in.mqtt_name = root["mqtt_name"].as<const char*>();
     in.mqtt_unique_id = root["mqtt_unique_id"].as<const char*>();
     in.source = root["source"].as<const char*>();
-#if !WSOFT_HAS_RS232
-    // This board has no RS232 wiring: the source stays RS485 whatever is sent.
-    if (in.source != nullptr && strcmp(in.source, "rs485") != 0) return StateUpdateResult::ERROR;
-#endif
+    // A source this board is not wired for is refused, never silently changed.
+    if (in.source != nullptr && strcmp(in.source, "rs232") == 0 && !WSOFT_HAS_RS232) return StateUpdateResult::ERROR;
+    if (in.source != nullptr && strcmp(in.source, "loadcell") == 0 && !WSOFT_HAS_LOADCELL) return StateUpdateResult::ERROR;
     if (root["relay_enabled"].is<bool>()) {
       in.has_relay_enabled = true;
       in.relay_enabled = root["relay_enabled"].as<bool>();
@@ -149,7 +154,7 @@ class WSoftSettingsService : public StatefulService<WSoftSettings> {
   void begin();
 
   uint32_t publishIntervalMs();
-  // RS485 (DJB) or RS232 (scale line). Read at boot; a change takes effect after a restart.
+  // RS485 (DJB), RS232 (scale line) or a load cell (HX711). Read at boot; a change takes effect after a restart.
   WSoftSource source();
   // Empty when MQTT is switched off for W-Soft.
   String mqttStatusTopic();

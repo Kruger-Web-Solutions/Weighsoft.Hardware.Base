@@ -21,6 +21,23 @@ export const parseTestWeight = (text: string) => {
 };
 
 /** Why this board can not calibrate from its web page right now, or undefined when it can. */
+/** True when the Calibrate tab shows the load cell steps (WSoftLoadcellCalibrate) instead of the junction box ones. */
+export const calibratesLoadcell = (status: WSoftStatus) => status.source === 'loadcell' && status.role !== 'writer';
+
+/** Digits without the point back to text: 2000 at 3 decimals = "2.000". */
+export const digitsText = (digits: number, decimals: number) => {
+  const sign = digits < 0 ? '-' : '';
+  const text = String(Math.abs(Math.trunc(digits))).padStart(decimals + 1, '0');
+  return decimals > 0 ? `${sign}${text.slice(0, -decimals)}.${text.slice(-decimals)}` : `${sign}${text}`;
+};
+
+/** The test weight as the board takes it: "2", "2.000" or "2,5" (up to 4 decimals), above 0. Else undefined. */
+export const loadcellTestWeight = (text: string) => {
+  const clean = text.trim().replace(',', '.');
+  if (!/^[0-9]{1,7}(\.[0-9]{1,4})?$/.test(clean)) return undefined;
+  return Number(clean) > 0 ? clean : undefined;
+};
+
 export type CalibrateBlock = 'writer' | 'rs232' | 'approval' | 'not_linked';
 
 export const calibrateBlock = (status: WSoftStatus): CalibrateBlock | undefined => {

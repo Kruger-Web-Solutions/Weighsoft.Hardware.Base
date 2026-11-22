@@ -11,8 +11,9 @@ import { useWs } from '../../utils';
 import * as WSoftApi from './api';
 import { WSOFT_STATUS_WEBSOCKET_URL } from './api';
 import {
-  adWriteRequest, alarmReadRequest, CALIBRATE_BLOCK_TEXT, calibrateBlock, parseTestWeight, spanDigits
+  adWriteRequest, alarmReadRequest, CALIBRATE_BLOCK_TEXT, calibrateBlock, calibratesLoadcell, parseTestWeight, spanDigits
 } from './calibrate';
+import WSoftLoadcellCalibrate from './WSoftLoadcellCalibrate';
 import { boardErrorText, plainError } from './errors';
 import { WSoftStatus } from './types';
 
@@ -37,6 +38,8 @@ const WSoftCalibrate: FC = () => {
   }
 
   const status = data;
+  // A load cell on an HX711 board is calibrated on the board itself, with its own steps.
+  if (calibratesLoadcell(status)) return <WSoftLoadcellCalibrate status={status} />;
   const block = calibrateBlock(status);
   const weight = parseTestWeight(weightText);
   const digits = weight !== undefined ? spanDigits(weight, status.decimals) : 0;

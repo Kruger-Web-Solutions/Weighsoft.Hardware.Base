@@ -56,7 +56,7 @@ const WSoftSettingsForm: FC = () => {
           }
           my={2}
         />
-        {data.rs232_available && (
+        {(data.rs232_available || data.loadcell_available) && (
           <ValidatedTextField
             fieldErrors={fieldErrors}
             name="source"
@@ -69,11 +69,13 @@ const WSoftSettingsForm: FC = () => {
             margin="normal"
             helperText={
               'RS232: set the speed and the weight pattern on the Serial page. ' +
-              'Saving a new choice restarts the board.'
+              'Load cell: calibrate it on the Calibrate tab. ' +
+              'All of them use the same plug, so the board has one at a time. Saving a new choice restarts the board.'
             }
           >
             <MenuItem value="rs485">Junction box (RS485)</MenuItem>
-            <MenuItem value="rs232">RS232 scale</MenuItem>
+            {data.rs232_available && <MenuItem value="rs232">RS232 scale</MenuItem>}
+            {data.loadcell_available && <MenuItem value="loadcell">Load cell (HX711 board)</MenuItem>}
           </ValidatedTextField>
         )}
         {data.relay_available && (

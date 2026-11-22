@@ -155,7 +155,7 @@ void wsoft_view_write(const WSoftSnapshot &s, WSoftJsonSink &out) {
   out.put_str("hub", s.hub_text);
   out.put_bool("hub_online", s.hub_online);
   out.put_int("polls", s.polls);
-  out.put_str("source", s.rs232 ? "rs232" : "rs485");
+  out.put_str("source", s.loadcell ? "loadcell" : s.rs232 ? "rs232" : "rs485");
   out.put_str("role", s.writer ? "writer" : "weigh");
   write_notice(s, out);
 }

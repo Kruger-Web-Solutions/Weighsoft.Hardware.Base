@@ -14,7 +14,9 @@
 //   screen task takes the weight from the line reader below and never opens Serial1.
 // WRITER: the weight comes from a weigh board over Wi-Fi (the line reader below); the
 //   Writer service owns Serial1 and sends it out. This board saves no weighings.
-enum WsoftScreenSource { WSOFT_SCREEN_RS485, WSOFT_SCREEN_RS232, WSOFT_SCREEN_WRITER };
+// LOADCELL: the board reads a load cell through an HX711 board itself (loadcell.h) on the
+//   env's WSOFT_LOADCELL_DT / WSOFT_LOADCELL_SCK pins; nothing opens Serial1.
+enum WsoftScreenSource { WSOFT_SCREEN_RS485, WSOFT_SCREEN_RS232, WSOFT_SCREEN_WRITER, WSOFT_SCREEN_LOADCELL };
 void wsoft_screen_setup(WsoftScreenSource source = WSOFT_SCREEN_RS485);
 void wsoft_screen_loop();
 

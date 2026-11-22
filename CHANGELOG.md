@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **W-Soft: load cell on an HX711 board as a third weight source** (yellow board, env
+  `wsoft_cyd28`; Rhyno, 22 Nov 2026). Settings → *Weight comes from* → *Load cell (HX711
+  board)*; the HX711 goes on CN1 (DT GPIO22, SCK GPIO27, 3.3 V). Calibrate tab: zero, then a
+  known test weight, kept on the board. Built and host-tested, **not bench-tested**.
+  See `docs/WSOFT-CYD28.md`, section 1c.
 
 - **W-Soft: Wi-Fi update switch** (Rhyno, 14 Nov 2026). New software can go onto a board over
   Wi-Fi, so it does not have to be plugged into a laptop. W-Soft > Settings > Wi-Fi update

@@ -6,6 +6,7 @@
 #include "approval_base.h"
 #include "hilo.h"
 #include "hub.h"
+#include "loadcell.h"
 #include "pin.h"
 #include "relay.h"
 #include "scale.h"
@@ -56,6 +57,15 @@ static const uint32_t RS232_STALE_MS = 3000;
 // no weighings (WSOFT_SAVE_WRITER).
 static bool line_mode = false;
 static bool writer_mode = false;
+// loadcell_mode: the weight comes from the HX711 reader (loadcell.h). line_mode is on too, so
+// Serial1 stays closed and the junction box jobs are refused.
+static bool loadcell_mode = false;
+#ifndef WSOFT_LOADCELL_DT
+#define WSOFT_LOADCELL_DT -1
+#endif
+#ifndef WSOFT_LOADCELL_SCK
+#define WSOFT_LOADCELL_SCK -1
+#endif
 static WsoftLineReader line_reader = nullptr;
 
 void wsoft_screen_set_line_reader(WsoftLineReader reader) {
@@ -343,7 +353,8 @@ static void publish_snapshot(const Reading &r, bool fresh, TradeCheck check, Hub
   strlcpy(next.hub_text, hub_state_text(hub), sizeof next.hub_text);
   next.polls = polls;
   next.updated_ms = millis();
-  next.rs232 = line_mode && !writer_mode;
+  next.rs232 = line_mode && !writer_mode && !loadcell_mode;
+  next.loadcell = loadcell_mode;
   next.writer = writer_mode;
   WeighingsInfo weigh;
   weighings_info(&weigh);
@@ -362,6 +373,7 @@ void wsoft_screen_snapshot(WSoftSnapshot *out) {
 void wsoft_screen_setup(WsoftScreenSource source) {
   writer_mode = source == WSOFT_SCREEN_WRITER;
   line_mode = source != WSOFT_SCREEN_RS485;
+  loadcell_mode = source == WSOFT_SCREEN_LOADCELL;
 #if defined(WSOFT_LOG_USB) && WSOFT_LOG_USB
   // The S3's own USB port. Never wait on it: with no PC reading, prints are dropped.
   WSOFT_LOG.begin(115200);
@@ -374,6 +386,7 @@ void wsoft_screen_setup(WsoftScreenSource source) {
   WSOFT_LOG.begin(115200, SERIAL_8N1, 44, 43);
 #endif
   log_line(writer_mode ? "weigh screen boot (Writer: weight from a weigh board over Wi-Fi)"
+             : loadcell_mode ? "weigh screen boot (load cell on an HX711 board)"
              : line_mode ? "weigh screen boot (RS232 scale)"
                          : "weigh screen boot (RS485 junction box)");
   if (!line_mode) Serial1.begin(DJB_BAUD, SERIAL_8N1, RS485_RX, RS485_TX);
@@ -384,6 +397,10 @@ void wsoft_screen_setup(WsoftScreenSource source) {
   pin_begin();
   approval_begin();
   weighings_begin(line_mode && !writer_mode);
+  if (loadcell_mode) {
+    weighings_set_source("loadcell");
+    loadcell_begin(WSOFT_LOADCELL_DT, WSOFT_LOADCELL_SCK);
+  }
   hilo_begin();
   hub_begin();
   portENTER_CRITICAL(&snapshot_lock);
@@ -456,6 +473,25 @@ static bool poll_line(Reading *out) {
   return fresh;
 }
 
+// One load cell pass: the calibrated weight from the HX711 reader. Fresh and linked while the
+// chip answers and the board is calibrated; otherwise no weight at all. No DJB alarm.
+static bool poll_loadcell(Reading *out) {
+  int32_t value;
+  int decimals;
+  int unit;
+  bool fresh = loadcell_weight(&value, &decimals, &unit);
+  out->alarm = false;
+  out->alarm_allowed = false;
+  out->alarm_word_valid = false;
+  out->linked = fresh;
+  if (fresh) {
+    out->value = value;
+    out->decimals = decimals;
+    out->unit = unit;
+  }
+  return fresh;
+}
+
 void wsoft_screen_loop() {
   static uint32_t last_poll = 0;
   hub_handle_serial(WSOFT_LOG);
@@ -471,7 +507,10 @@ void wsoft_screen_loop() {
 
   Reading next = reading;
   bool fresh;
-  if (line_mode) {
+  if (loadcell_mode) {
+    fresh = poll_loadcell(&next);
+    polls++;
+  } else if (line_mode) {
     fresh = poll_line(&next);
     polls++;
   } else {
@@ -521,7 +560,8 @@ void wsoft_screen_loop() {
     if (!line_mode) WSOFT_LOG.printf("DJB slave=%u baud=%lu ", slave, (unsigned long)SCAN_BAUDS[baud_index]);
     char value[16];
     format_weight(next.value, next.decimals, value, sizeof value);
-    WSOFT_LOG.printf("%s %s weight=%s %s raw=%ld alarm=%d stable=%d %s\n", line_mode ? "RS232" : "DJB",
+    WSOFT_LOG.printf("%s %s weight=%s %s raw=%ld alarm=%d stable=%d %s\n",
+                     loadcell_mode ? "LOADCELL" : line_mode ? "RS232" : "DJB",
                      next.linked ? "LIVE" : "NO_SIGNAL", value, weight_unit_text(next.unit), (long)next.value,
                      next.alarm ? 1 : 0, approval_stable() ? 1 : 0, check == TRADE_OK ? "TRADE_CHECKS_ON" : "NOT_FOR_TRADE");
   }
@@ -547,7 +587,7 @@ void wsoft_screen_loop() {
   view.unit = next.unit;
   view.hold = hold;
   view.check = check;
-  view.source = writer_mode ? "WRITER" : line_mode ? "RS232" : "RS485";
+  view.source = writer_mode ? "WRITER" : loadcell_mode ? "LOADCELL" : line_mode ? "RS232" : "RS485";
   view.writer = writer_mode;
   ui_show(view);
 }

@@ -151,6 +151,16 @@ void test_source_defaults_to_rs485_and_takes_rs232() {
   TEST_ASSERT_EQUAL(WSOFT_SETTINGS_UNCHANGED, wsoft_settings_update(in, &s));
 }
 
+void test_source_takes_the_load_cell() {
+  WSoftSettingsData s = defaults();
+  WSoftSettingsInput in;
+  in.source = "loadcell";
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_CHANGED, wsoft_settings_update(in, &s));
+  TEST_ASSERT_EQUAL(WSOFT_SOURCE_LOADCELL, s.source);
+  TEST_ASSERT_EQUAL_STRING("loadcell", wsoft_source_text(s.source));
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_UNCHANGED, wsoft_settings_update(in, &s));
+}
+
 void test_bad_source_is_rejected_without_change() {
   WSoftSettingsData s = defaults();
   s.source = WSOFT_SOURCE_RS232;
@@ -270,6 +280,7 @@ int main(int, char **) {
   RUN_TEST(test_topic_at_max_length_is_accepted);
   RUN_TEST(test_bad_names_are_rejected);
   RUN_TEST(test_source_defaults_to_rs485_and_takes_rs232);
+  RUN_TEST(test_source_takes_the_load_cell);
   RUN_TEST(test_bad_source_is_rejected_without_change);
   RUN_TEST(test_relay_is_off_by_default_on_relays_1_2_3);
   RUN_TEST(test_relay_settings_apply_and_report_changed);

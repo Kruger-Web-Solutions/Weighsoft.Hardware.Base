@@ -73,7 +73,11 @@ const WSoftLive: FC = () => {
         </Typography>
         <Box sx={{ mt: 2, display: 'flex', gap: 1, justifyContent: 'center', flexWrap: 'wrap' }}>
           <Chip
-            label={status.link === 'live' && status.source === 'rs232' ? 'RS232 live' : LINK_LABEL[status.link] ?? status.link}
+            label={
+              status.link === 'live' && status.source === 'rs232' ? 'RS232 live'
+                : status.link === 'live' && status.source === 'loadcell' ? 'Load cell live'
+                  : LINK_LABEL[status.link] ?? status.link
+            }
             color={linkColor(status.link)}
             size="small"
           />

@@ -49,6 +49,63 @@ the USB line. A real RS232 scale (up to ±12 V) needs a **3.3 V RS232-to-TTL con
 (MAX3232)** on CN1: converter TTL side to CN1 like the RS485 module above, DB9 side to the
 scale.
 
+## 1c. Load cell on an HX711 board (no scale indicator)
+
+W-Soft → **Settings** → **Weight comes from**: *Load cell (HX711 board)*. Saving restarts the
+board. The board then reads the load cell itself; nothing uses the UART on CN1, so there is
+no RS485 box and no RS232 scale on this board in that mode. The weight still goes to the
+screen, the web page, the Hub and a Writer over Wi-Fi, like any other source.
+
+> **Built, not bench-tested (22 Nov 2026).** No HX711 has been on a board with this code yet.
+> The host tests cover the sums; the pins and the timing are from the datasheet, not from a
+> bench run.
+
+**Wiring (CN1, 4 wires, no soldering).** Rhyno's board is the green `HW-29` HX711 module.
+
+| HX711 board (bottom row, `JP2`) | CN1 pin |
+|---|---|
+| VCC | 3V3 |
+| GND | GND |
+| DT | GPIO22 |
+| SCK | GPIO27 |
+
+- **VCC goes to 3.3 V, never 5 V.** The DT signal is at the HX711's supply voltage, and an
+  ESP32 pin takes 3.3 V.
+- The load cell goes on the top row (`J1`): E+ / E- feed it, A+ / A- are its signal. B+ / B-
+  stay empty (channel B is not read).
+- The CN1 pin names are from the community pin list for this board
+  (witnessmenow/ESP32-Cheap-Yellow-Display `PINS.md`): read the print next to the plug.
+- The pins are build flags: `WSOFT_HAS_LOADCELL`, `WSOFT_LOADCELL_DT`, `WSOFT_LOADCELL_SCK`.
+  Only this env sets them, so only this board offers the choice.
+
+**What the code does** (`lib/wsoft_esp/src/loadcell.cpp`, rules in
+`lib/wsoft_core/src/wsoft_loadcell.cpp`, host tests `test/test_wsoft_loadcell`):
+
+- From the HX711 datasheet: DT low = a count is ready; 24 clock pulses read it (24-bit two's
+  complement), a 25th picks channel A at gain 128. The 25 pulses run with interrupts off,
+  because a clock pulse held high for 60 us or more puts the chip to sleep.
+- Our own choices, not datasheet values: the average of the last 8 counts; no count for 1 s =
+  `NO SIGNAL`; a test weight must move the count by at least 1000.
+- The chip's two end values (out of range) are never a weight.
+- Whether this module runs at 10 or 80 counts a second is set on its board and was not checked.
+  The code works with either.
+
+**Calibrate** (W-Soft → **Calibrate**, admin; `GET` / `POST /rest/wsoftLoadcell`):
+
+1. **Zero**: scale empty, *Set zero*.
+2. **Test weight**: put a known weight on, type what it weighs, pick kg or g, *Set test weight*.
+   The digits typed after the point are the digits the scale shows (`2.000` = 3 decimals).
+3. **Check**: the big number shows the test weight, and 0 with the scale empty.
+
+The page shows the **raw count** before any calibration: press on the load cell and it moves.
+That checks the wiring. Until zero and a test weight are set the board shows no weight at all.
+*Step* (1, 2, 5, 10, 20, 50) rounds the last digits. The calibration is kept on the board (NVS
+`loadcell`) and each change is one `LOADCELL ...` line in the USB log. Calibrating is refused
+while Approval is ON, like the junction box calibration.
+
+The other scale rules are those of an RS232 scale: no card setup, no tare, no blanking, no
+junction box alarm. A weighing sent to the Hub carries `"source":"loadcell"`.
+
 ## 2. Screen (320 x 240)
 
 The same screen as on the Waveshare, in the look of the Edge bench screen, light or dark:

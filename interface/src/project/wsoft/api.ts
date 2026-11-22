@@ -3,7 +3,7 @@ import { AxiosPromise } from 'axios';
 import { AXIOS, WEB_SOCKET_ROOT } from '../../api/endpoints';
 
 import {
-  WSoftDjbReply, WSoftDjbRequest, WSoftHub, WSoftHubAction, WSoftPinReply, WSoftPinRequest, WSoftSave,
+  WSoftDjbReply, WSoftDjbRequest, WSoftHub, WSoftLoadcell, WSoftLoadcellRequest, WSoftHubAction, WSoftPinReply, WSoftPinRequest, WSoftSave,
   WSoftProductAction, WSoftProducts, WSoftRelayBoard, WSoftRelayStatus, WSoftScaleSetup, WSoftScaleSetupRequest, WSoftSettings, WSoftStatus, WSoftSwitches, WSoftSwitchRequest,
   WSoftWifiUpdate, WSoftWifiUpdateRequest
 } from './types';
@@ -70,3 +70,10 @@ export const readWSoftProducts = (): AxiosPromise<WSoftProducts> => AXIOS.get('/
 /** Admin only. Add, edit or delete a board product, or pick the product in use. 400/409 with a code when it cannot. */
 export const updateWSoftProducts = (action: WSoftProductAction): AxiosPromise<WSoftProducts> =>
   AXIOS.post('/wsoftProducts', action);
+
+/** Admin only. The load cell on an HX711 board: raw count, weight and calibration. */
+export const readWSoftLoadcell = (): AxiosPromise<WSoftLoadcell> => AXIOS.get('/wsoftLoadcell');
+
+/** Admin only. Set zero, set the test weight or set the display step. 400/409 with a code and a sentence when it cannot. */
+export const updateWSoftLoadcell = (request: WSoftLoadcellRequest): AxiosPromise<WSoftLoadcell> =>
+  AXIOS.post('/wsoftLoadcell', request);

@@ -37,6 +37,7 @@ class AsyncMqttClient;
 
 #define WSOFT_STATUS_ENDPOINT_PATH "/rest/wsoftStatus"
 #define WSOFT_DJB_ENDPOINT_PATH "/rest/djb"
+#define WSOFT_LOADCELL_ENDPOINT_PATH "/rest/wsoftLoadcell"
 #define WSOFT_HUB_ENDPOINT_PATH "/rest/wsoftHub"
 #define WSOFT_SAVE_ENDPOINT_PATH "/rest/wsoftSave"
 #define WSOFT_STATUS_SOCKET_PATH "/ws/wsoftStatus"
@@ -81,6 +82,7 @@ class WSoftStatusService : public StatefulService<WSoftStatus> {
   String _discoveryTopic;
 #endif
   WSoftSettingsService* _settingsService;
+  SecurityManager* _securityManager = nullptr;
   unsigned long _lastPublishMs = 0;
   unsigned long _lastCleanupMs = 0;
   AsyncWebSocket _feedSocket;
@@ -90,6 +92,10 @@ class WSoftStatusService : public StatefulService<WSoftStatus> {
   static String feedJson();
   void publishDiscovery(const String& statusTopic);
   void handleDjb(AsyncWebServerRequest* request, JsonVariant& json);
+  // Load cell on an HX711 board: state, and zero / test weight / step (admin).
+  void readLoadcell(AsyncWebServerRequest* request);
+  void updateLoadcell(AsyncWebServerRequest* request, JsonVariant& json);
+  void sendLoadcell(AsyncWebServerRequest* request, int code, const char* error, const char* message);
   void readHub(AsyncWebServerRequest* request);
   void readSave(AsyncWebServerRequest* request);
   void save(AsyncWebServerRequest* request);

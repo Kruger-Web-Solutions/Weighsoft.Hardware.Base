@@ -1,6 +1,9 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { adWriteRequest, alarmReadRequest, calibrateBlock, parseTestWeight, spanDigits } from './calibrate';
+import {
+  adWriteRequest, alarmReadRequest, calibrateBlock, calibratesLoadcell, digitsText, loadcellTestWeight, parseTestWeight,
+  spanDigits
+} from './calibrate';
 import { WSoftStatus } from './types';
 
 const status = (overrides: Partial<WSoftStatus>): WSoftStatus =>
@@ -47,5 +50,36 @@ describe('junction box requests', () => {
 
   it('reads the alarm bits of load cell 1', () => {
     expect(alarmReadRequest()).toEqual({ op: 'read', field: 'alarm', channel: 1 });
+  });
+});
+
+describe('load cell on an HX711 board', () => {
+  it('gets its own calibrate steps, but never on a Writer or another source', () => {
+    expect(calibratesLoadcell(status({ source: 'loadcell' }))).toBe(true);
+    // Not calibrated yet means no weight and no link: the steps must still show.
+    expect(calibratesLoadcell(status({ source: 'loadcell', linked: false }))).toBe(true);
+    expect(calibratesLoadcell(status({ source: 'loadcell', role: 'writer' }))).toBe(false);
+    expect(calibratesLoadcell(status({ source: 'rs485' }))).toBe(false);
+    expect(calibratesLoadcell(status({ source: 'rs232' }))).toBe(false);
+  });
+
+  it('shows digits with the point put back', () => {
+    expect(digitsText(2000, 3)).toBe('2.000');
+    expect(digitsText(5, 3)).toBe('0.005');
+    expect(digitsText(-15, 2)).toBe('-0.15');
+    expect(digitsText(250, 0)).toBe('250');
+    expect(digitsText(0, 1)).toBe('0.0');
+  });
+
+  it('sends the test weight as typed, keeping its decimals', () => {
+    expect(loadcellTestWeight('2.000')).toBe('2.000');
+    expect(loadcellTestWeight(' 2,5 ')).toBe('2.5');
+    expect(loadcellTestWeight('500')).toBe('500');
+    expect(loadcellTestWeight('0')).toBeUndefined();
+    expect(loadcellTestWeight('0.000')).toBeUndefined();
+    expect(loadcellTestWeight('1.23456')).toBeUndefined();
+    expect(loadcellTestWeight('-2')).toBeUndefined();
+    expect(loadcellTestWeight('2kg')).toBeUndefined();
+    expect(loadcellTestWeight('')).toBeUndefined();
   });
 });

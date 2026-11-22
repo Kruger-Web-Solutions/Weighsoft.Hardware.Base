@@ -131,6 +131,15 @@ const WSoftScaleSetup: FC = () => {
       );
     }
 
+    if (setup.source === 'loadcell') {
+      return (
+        <Typography variant="body1">
+          This board weighs with a load cell on an HX711 board. Set zero and the test weight on the Calibrate tab.
+          The fields here are for the junction box only.
+        </Typography>
+      );
+    }
+
     const canEdit = isAdmin && setup.editable && setup.locked === null;
     const change = (key: keyof BoardForm, value: string | boolean) => {
       setForm({ ...form, [key]: value });

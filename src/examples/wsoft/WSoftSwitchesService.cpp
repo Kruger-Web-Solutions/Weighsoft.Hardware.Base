@@ -6,6 +6,7 @@
 #include <approval_base.h>
 #include <pin.h>
 #include <scale.h>
+#include <weighings.h>
 #include <switches.h>
 #include <wsoft_scale_setup.h>
 #include <wsoft_switch.h>
@@ -39,7 +40,7 @@ void sendSwitches(AsyncWebServerRequest* request) {
 
   AsyncJsonResponse* response = new AsyncJsonResponse(false, SWITCHES_JSON_SIZE);
   JsonObject root = response->getRoot().to<JsonObject>();
-  root["source"] = info.rs485 ? "rs485" : "rs232";
+  root["source"] = weighings_source();
   JsonObject approval = root.createNestedObject("approval");
   approval["on"] = info.approval_on;
   approval["audit_counter"] = info.audit_counter;
@@ -76,7 +77,7 @@ void sendScaleSetup(AsyncWebServerRequest* request) {
 
   AsyncJsonResponse* response = new AsyncJsonResponse(false, SETUP_JSON_SIZE);
   JsonObject root = response->getRoot().to<JsonObject>();
-  root["source"] = info.rs485 ? "rs485" : "rs232";
+  root["source"] = weighings_source();
   // Whether the setup may change right now, whoever asks; the page adds the admin check.
   root["editable"] = info.rs485 && !approval;
   if (!info.rs485) {

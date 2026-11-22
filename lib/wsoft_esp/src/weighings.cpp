@@ -100,9 +100,15 @@ static void slot_key(uint32_t index, char *key, size_t size) {
 }
 
 static bool source_rs232 = false;
+static const char *source_name = nullptr;
 
 const char *weighings_source() {
+  if (source_name != nullptr) return source_name;
   return source_rs232 ? "rs232" : "rs485";
+}
+
+void weighings_set_source(const char *name) {
+  source_name = name;
 }
 
 // Auto save used to live in the W-Soft settings file. Read it raw, once, at the first boot

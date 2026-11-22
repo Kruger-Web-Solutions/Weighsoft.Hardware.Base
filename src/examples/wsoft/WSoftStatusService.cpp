@@ -9,8 +9,10 @@
 
 #include <RestartService.h>
 
+#include <approval.h>
 #include <hilo.h>
 #include <hub_web.h>
+#include <loadcell.h>
 #include <scale.h>
 #include <weighings.h>
 #include <wsoft_djb.h>
@@ -110,6 +112,18 @@ WSoftStatusService::WSoftStatusService(AsyncWebServer* server,
       256);
   djbHandler->setMethod(HTTP_POST);
   server->addHandler(djbHandler);
+  _securityManager = securityManager;
+  server->on(WSOFT_LOADCELL_ENDPOINT_PATH,
+             HTTP_GET,
+             securityManager->wrapRequest(std::bind(&WSoftStatusService::readLoadcell, this, std::placeholders::_1),
+                                          AuthenticationPredicates::IS_ADMIN));
+  AsyncCallbackJsonWebHandler* loadcellHandler = new AsyncCallbackJsonWebHandler(
+      WSOFT_LOADCELL_ENDPOINT_PATH,
+      securityManager->wrapCallback(std::bind(&WSoftStatusService::updateLoadcell, this, std::placeholders::_1, std::placeholders::_2),
+                                    AuthenticationPredicates::IS_ADMIN),
+      256);
+  loadcellHandler->setMethod(HTTP_POST);
+  server->addHandler(loadcellHandler);
   server->on(WSOFT_HUB_ENDPOINT_PATH,
              HTTP_GET,
              securityManager->wrapRequest(std::bind(&WSoftStatusService::readHub, this, std::placeholders::_1),
@@ -244,7 +258,7 @@ void WSoftStatusService::handleDjb(AsyncWebServerRequest* request, JsonVariant& 
   if (!scale_rs485()) {
     request->send(409,
                   "application/json",
-                  "{\"error\":\"NO_CARD\",\"message\":\"No weighing card: the scale is on RS232.\"}");
+                  "{\"error\":\"NO_CARD\",\"message\":\"No weighing card: the scale is not on the RS485 junction box.\"}");
     return;
   }
   if (!json.is<JsonObject>()) {
@@ -315,11 +329,90 @@ void WSoftStatusService::handleDjb(AsyncWebServerRequest* request, JsonVariant& 
   request->send(response);
 }
 
+// The load cell state for the Calibrate page. error / message are set on a refused change.
+void WSoftStatusService::sendLoadcell(AsyncWebServerRequest* request, int code, const char* error, const char* message) {
+  LoadcellInfo info;
+  loadcell_info(&info);
+  AsyncJsonResponse* response = new AsyncJsonResponse(false, 512);
+  JsonObject root = response->getRoot().to<JsonObject>();
+  root["ok"] = error == nullptr;
+  if (error != nullptr) root["error"] = error;
+  if (message != nullptr) root["message"] = message;
+  root["active"] = info.started;
+  root["present"] = info.present;
+  if (info.have_raw) root["raw"] = (long)info.raw;
+  else root["raw"] = nullptr;
+  root["calibrated"] = info.calibrated;
+  root["zero_set"] = info.cal.zero_set;
+  root["span_set"] = info.cal.span_set;
+  root["decimals"] = info.cal.decimals;
+  root["unit"] = info.cal.unit == 3 ? "g" : "kg";
+  root["step"] = info.cal.step;
+  if (info.cal.span_set) root["test_weight_digits"] = (long)info.cal.span_value;
+  else root["test_weight_digits"] = nullptr;
+  if (info.have_weight) root["weight_digits"] = (long)info.value;
+  else root["weight_digits"] = nullptr;
+  root["approval_on"] = approval_on();
+  response->setCode(code);
+  response->setLength();
+  request->send(response);
+}
+
+void WSoftStatusService::readLoadcell(AsyncWebServerRequest* request) {
+  sendLoadcell(request, 200, nullptr, nullptr);
+}
+
+void WSoftStatusService::updateLoadcell(AsyncWebServerRequest* request, JsonVariant& json) {
+  LoadcellInfo info;
+  loadcell_info(&info);
+  if (!info.started) {
+    sendLoadcell(request, 409, "not_loadcell", "This board is not set to a load cell. Choose it in Settings first.");
+    return;
+  }
+  // A calibration changes what the scale shows: like the junction box, only with Approval off.
+  if (approval_on()) {
+    sendLoadcell(request, 409, "approval_on", "Approval is ON. Switch Approval off before calibrating.");
+    return;
+  }
+  if (!json.is<JsonObject>()) {
+    sendLoadcell(request, 400, "json", "The request was not understood.");
+    return;
+  }
+  JsonObject body = json.as<JsonObject>();
+  Authentication auth = _securityManager->authenticateRequest(request);
+  String who = auth.authenticated && auth.user != nullptr && auth.user->username.length() ? auth.user->username : String("web");
+  const char* action = body["action"] | "";
+  WsoftLoadcellError error;
+  if (strcmp(action, "zero") == 0) {
+    error = loadcell_set_zero(who.c_str());
+  } else if (strcmp(action, "span") == 0) {
+    int32_t value = 0;
+    int decimals = 0;
+    const char* unit = body["unit"] | "kg";
+    int unit_code = strcmp(unit, "kg") == 0 ? 1 : strcmp(unit, "g") == 0 ? 3 : 0;
+    if (!wsoft_parse_weight_text(body["weight"] | "", &value, &decimals)) error = WSOFT_LOADCELL_BAD_WEIGHT;
+    else error = loadcell_set_span(value, decimals, unit_code, who.c_str());
+  } else if (strcmp(action, "step") == 0) {
+    error = body["step"].is<int>() ? loadcell_set_step(body["step"].as<int>(), who.c_str()) : WSOFT_LOADCELL_BAD_STEP;
+  } else {
+    sendLoadcell(request, 400, "action", "Unknown action.");
+    return;
+  }
+  if (error != WSOFT_LOADCELL_OK) {
+    sendLoadcell(request, error == WSOFT_LOADCELL_NO_READING ? 409 : 400, wsoft_loadcell_error_code(error),
+                 wsoft_loadcell_error_text(error));
+    return;
+  }
+  sendLoadcell(request, 200, nullptr, nullptr);
+}
+
 void WSoftStatusService::begin() {
-  WsoftScreenSource source = _settingsService->writerMode()                          ? WSOFT_SCREEN_WRITER
-                              : _settingsService->source() == WSOFT_SOURCE_RS232 ? WSOFT_SCREEN_RS232
-                                                                                 : WSOFT_SCREEN_RS485;
+  WsoftScreenSource source = _settingsService->writerMode()                             ? WSOFT_SCREEN_WRITER
+                              : _settingsService->source() == WSOFT_SOURCE_LOADCELL ? WSOFT_SCREEN_LOADCELL
+                              : _settingsService->source() == WSOFT_SOURCE_RS232    ? WSOFT_SCREEN_RS232
+                                                                                    : WSOFT_SCREEN_RS485;
   Serial.println(source == WSOFT_SCREEN_WRITER  ? F("[WSoft] Starting W-Soft screen (Writer: weight from a weigh board)...")
+                 : source == WSOFT_SCREEN_LOADCELL ? F("[WSoft] Starting W-Soft screen (load cell on an HX711 board)...")
                  : source == WSOFT_SCREEN_RS232 ? F("[WSoft] Starting W-Soft screen (RS232 scale via the Serial reader)...")
                                                 : F("[WSoft] Starting W-Soft screen (RS485 DJB on Serial1)..."));
   wsoft_screen_setup(source);

@@ -413,6 +413,10 @@ void setup() {
     serialService->begin();
     wsoft_screen_set_line_reader(wsoftReadSerialLine);
     Serial.println(F("[9/10] W-Soft source: RS232 scale (Serial reader)"));
+  } else if (wsoftBootSource == WSOFT_SOURCE_LOADCELL) {
+    // Load cell on an HX711 board: the W-Soft screen task starts its reader on the CN1 pins.
+    // No service opens Serial1 on those pins.
+    Serial.println(F("[9/10] W-Soft source: load cell (HX711 board)"));
   }
   wsoftStatusService = new WSoftStatusService(
       server,

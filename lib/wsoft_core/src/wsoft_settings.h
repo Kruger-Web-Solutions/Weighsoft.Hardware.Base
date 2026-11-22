@@ -29,7 +29,9 @@ static const char *const WSOFT_DEFAULT_MQTT_UNIQUE_ID = "wsoft-#{unique_id}";
 // RS232 = a scale indicator that sends a text line; the existing Serial reader service
 // reads it (its own page sets baud and the weight pattern). Both use the same UART, so a
 // board has one or the other, and a change takes effect after a restart.
-enum WSoftSource { WSOFT_SOURCE_RS485 = 0, WSOFT_SOURCE_RS232 = 1 };
+// LOADCELL = a load cell on an HX711 amplifier board, read by the board itself on the same
+// plug (two data pins instead of the UART); calibrated on the board (wsoft_loadcell.h).
+enum WSoftSource { WSOFT_SOURCE_RS485 = 0, WSOFT_SOURCE_RS232 = 1, WSOFT_SOURCE_LOADCELL = 2 };
 
 struct WSoftSettingsData {
   uint32_t publish_interval_ms;
@@ -69,7 +71,7 @@ struct WSoftSettingsInput {
   const char *mqtt_base_path = nullptr;
   const char *mqtt_name = nullptr;
   const char *mqtt_unique_id = nullptr;
-  // "rs485" or "rs232"; anything else is an ERROR.
+  // "rs485", "rs232" or "loadcell"; anything else is an ERROR.
   const char *source = nullptr;
   bool has_relay_enabled = false;
   bool relay_enabled = false;
@@ -105,6 +107,6 @@ bool wsoft_settings_valid_id(const char *id);
 // Display name: 1..48 printable ASCII chars; inner spaces allowed, no leading/trailing space.
 bool wsoft_settings_valid_name(const char *name);
 
-// "rs485" / "rs232" for the JSON field and the page.
+// "rs485" / "rs232" / "loadcell" for the JSON field and the page.
 const char *wsoft_source_text(WSoftSource source);
 bool wsoft_source_parse(const char *text, WSoftSource *source);
