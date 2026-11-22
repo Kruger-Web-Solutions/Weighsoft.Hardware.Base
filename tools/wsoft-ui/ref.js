@@ -501,14 +501,18 @@ const WsoftUi = (() => {
   // The plate and the audit counter belong on the screen when there is a plate or the trade checks are on.
   const plateOn = (m) => m.trade_ok || m.plate_sa.length > 0 || m.plate_limits.length > 0;
 
-  // ---------- Full Colour: the whole screen takes the colour of the Hi-Lo zone ----------
+  // ---------- Full Colour: the Hi-Lo zone shown in colour on the brand night blue ----------
   // With no zone (no product, empty scale, no signal) it is the classic dark screen with the
   // bigger weight.
+  // Made classy (Rhyno, 22 Nov 2026: the flat bright colours looked like an old TV game). The
+  // brand's night blue carries the screen; the zone's colour is a thin strip by the weight, the
+  // pill the word sits in, the marker's centre and the steady dot.
+  const NIGHT = c565('#120D36'), BUNTING = c565('#1B1446');
   function colourSet(m, T) {
-    const bg = m.zone === ZONE_LOW ? T.z_low : m.zone === ZONE_OK ? T.z_ok : T.z_high;
-    const ink = m.zone === ZONE_LOW ? T.z_low_ink : m.zone === ZONE_OK ? T.z_ok_ink : T.z_high_ink;
-    const pale = ink !== WHITE;
-    return { bg, ink, soft: blend(bg, ink, 184), shade: blend(bg, 0, 82), bar: blend(bg, 0, 115), on: pale ? DARK : WHITE, on_ink: pale ? WHITE : DARK };
+    const z = m.zone === ZONE_LOW ? T.z_low : m.zone === ZONE_OK ? T.z_ok : T.z_high;
+    const z_ink = m.zone === ZONE_LOW ? T.z_low_ink : m.zone === ZONE_OK ? T.z_ok_ink : T.z_high_ink;
+    const bg = NIGHT;
+    return { bg, soft: blend(bg, WHITE, 170), shade: blend(bg, 0, 70), btn: BUNTING, bar: blend(bg, 0, 100), z, z_ink };
   }
 
   function paintTopColour(c, m, T) {
@@ -516,17 +520,17 @@ const WsoftUi = (() => {
     const P = colourSet(m, T);
     c.rect(0, 20, 320, 42, P.bg, 0);
     if (m.slot === SLOT_WIFI) {
-      c.rect(6, 22, 308, 40, P.shade, 8);
+      c.rect(6, 22, 308, 40, P.btn, 8);
       c.text('WI-FI IS OFF', 18, 42, MID, WHITE, LEFT);
       c.rect(160, 26, 100, 32, WHITE, 6);
-      c.text('CONNECT', 210, 42, SMALL, DARK, CENTER);
+      c.text('CONNECT', 210, 42, SMALL, NIGHT, CENTER);
       c.rect(266, 26, 42, 32, WHITE, 6);
-      c.rect(267.5, 27.5, 39, 29, P.shade, 5);
+      c.rect(267.5, 27.5, 39, 29, P.btn, 5);
       c.text('X', 287, 42, MID, WHITE, CENTER);
       return;
     }
     if (m.slot !== SLOT_NONE) {
-      c.rect(6, 22, 308, 40, m.slot === SLOT_STOP ? DARK : P.shade, 8);
+      c.rect(6, 22, 308, 40, m.slot === SLOT_STOP ? T.stop : P.btn, 8);
       if (c.width(m.slot_title, BIG) <= 292) c.text(m.slot_title, 160, 34, BIG, WHITE, CENTER);
       else c.text(c.fit(m.slot_title, MID, 296), 160, 34, MID, WHITE, CENTER);
       c.text(c.fit(m.slot_detail, SMALL, 296), 160, 53, SMALL, WHITE, CENTER);
@@ -536,13 +540,13 @@ const WsoftUi = (() => {
     if (m.trade_ok) {
       const chip = 'TRADE CHECKS ON';
       w = c.width(chip, SMALL) + 14;
-      c.rect(8, 24, w, 17, P.shade, 4);
+      c.rect(8, 24, w, 17, P.btn, 4);
       c.text(chip, 8 + w / 2, 32.5, SMALL, WHITE, CENTER);
     } else {
-      c.star6(8 + w / 2, 32.5, 9, P.ink);
+      c.star6(8 + w / 2, 32.5, 9, P.soft);
     }
-    const sw = c.text(m.steady, 312, 32.5, SMALL, P.ink, RIGHT);
-    c.disc(312 - sw - 8, 32.5, 4, P.ink);
+    const sw = c.text(m.steady, 312, 32.5, SMALL, P.soft, RIGHT);
+    c.disc(312 - sw - 8, 32.5, 4, P.z);
     c.text(c.fit(m.reason, TINY, 312 - sw - 20 - (8 + w + 7)), 8 + w + 7, 32.5, TINY, P.soft, LEFT);
     if (plateOn(m)) {
       const aw = c.text(m.audit, 312, 52, TINY, P.soft, RIGHT);
@@ -550,23 +554,24 @@ const WsoftUi = (() => {
       return;
     }
     const tw = c.text(m.target, 312, 52, SMALL, P.soft, RIGHT);
-    c.text(c.fit(m.product, MID, 312 - tw - 12 - 10), 10, 51, MID, P.ink, LEFT);
+    c.text(c.fit(m.product, MID, 312 - tw - 12 - 10), 10, 51, MID, WHITE, LEFT);
   }
 
   function paintWeightColour(c, m, T) {
     let bg = T.bg, ink = m.live ? T.ink : T.soft, soft = T.soft;
     if (m.zone !== ZONE_NONE) {
       const P = colourSet(m, T);
-      bg = P.bg; ink = P.ink; soft = P.soft;
+      bg = P.bg; ink = WHITE; soft = P.soft;
     }
     c.rect(0, 62, 320, 60, bg, 0);
-    if (c.width(m.label, TINY) <= 24 && c.width(m.weight, HUGE) <= 276) {
-      c.text(m.label, 312, 71, TINY, soft, RIGHT);
-      c.text(m.weight, 284, 92, HUGE, ink, RIGHT);
-      c.text(m.unit, 290, 109, MID, soft, LEFT);
+    if (m.zone !== ZONE_NONE) c.rect(0, 64, 4, 56, colourSet(m, T).z, 0);
+    if (c.width(m.label, TINY) <= 24 && c.width(m.weight, HUGE) <= 270) {
+      c.text(m.label, 306, 74, TINY, soft, RIGHT);
+      c.text(m.weight, 280, 92, HUGE, ink, RIGHT);
+      c.text(m.unit, 286, 109, MID, soft, LEFT);
       return;
     }
-    c.text(m.label, 14, 72, TINY, soft, LEFT);
+    c.text(m.label, 16, 74, TINY, soft, LEFT);
     c.text(m.weight, 268, 95, c.width(m.weight, HERO) <= 250 ? HERO : BIG, ink, RIGHT);
     c.text(m.unit, 274, 106, MID, soft, LEFT);
   }
@@ -575,50 +580,55 @@ const WsoftUi = (() => {
     if (m.zone === ZONE_NONE) return paintHilo(c, m, T);
     const P = colourSet(m, T);
     c.rect(0, 122, 320, 66, P.bg, 0);
-    // The word and what to do on one line, in the biggest letters that fit.
+    // The word and what to do in a pill of the zone's own colour.
     const words = m.hint ? m.word + '  ' + m.hint : m.word;
-    let role = XL;
-    if (c.width(words, XL) > 270) role = BIG;
-    if (role === BIG && c.width(words, BIG) > 270) role = MID;
-    const wy = plateOn(m) ? 139 : 144;
-    const x0 = 160 - (c.width(words, role) + 26) / 2;
-    paintSign(c, m.zone, x0 + 9, wy, P.ink);
-    c.text(words, x0 + 26, wy, role, P.ink, LEFT);
-    // The product moves under the word when the plate has its line.
+    let role = BIG;
+    if (c.width(words, BIG) + 52 > 304) role = MID;
+    if (role === MID && c.width(words, MID) + 52 > 304) role = SMALL;
+    const wy = plateOn(m) ? 139 : 143;
+    const pw = c.width(words, role) + 52, px = 160 - pw / 2;
+    c.rect(px, wy - 14, pw, 28, P.z, -1);
+    paintSign(c, m.zone, px + 23, wy, P.z_ink);
+    c.text(words, px + 38, wy, role, P.z_ink, LEFT);
     if (plateOn(m)) c.text(c.fit(m.product + '   ' + m.target, SMALL, 300), 160, 160, SMALL, P.soft, CENTER);
-    const bx = 12, bw = 296, by = 170, bh = 8;
+    // The limits as three soft bands, the marker white.
+    const bx = 14, bw = 292, by = 168, bh = 6;
     const lo = bx + bw * 6 / 22, hi = bx + bw * 16 / 22;
     c.rect(bx, by, bw, bh, P.shade, -1);
-    c.rect(lo, by, hi - lo, bh, P.soft, 0);
-    c.text(m.low, lo, 183.5, TINY, P.soft, CENTER);
-    c.text(m.high, hi, 183.5, TINY, P.soft, CENTER);
+    c.rect(bx, by, lo - bx, bh, blend(P.bg, T.z_low, 150), -1);
+    c.rect(lo, by, hi - lo, bh, blend(P.bg, T.z_ok, 150), 0);
+    c.rect(hi, by, bx + bw - hi, bh, blend(P.bg, T.z_high, 150), -1);
+    c.text(m.low, lo, 182, TINY, P.soft, CENTER);
+    c.text(m.high, hi, 182, TINY, P.soft, CENTER);
     if (m.pointer < 0) return;
     let mx = bx + bw * m.pointer / 1000;
     if (mx < bx + 7) mx = bx + 7;
     if (mx > bx + bw - 7) mx = bx + bw - 7;
-    c.disc(mx, by + bh / 2, 7, P.on);
-    c.disc(mx, by + bh / 2, 3.5, P.bg);
+    c.disc(mx, by + bh / 2, 8, P.bg);
+    c.disc(mx, by + bh / 2, 6.5, WHITE);
+    c.disc(mx, by + bh / 2, 3, P.z);
   }
 
   function paintBottomColour(c, m, T) {
     if (m.zone === ZONE_NONE) return paintBottom(c, m, T);
     const P = colourSet(m, T);
     c.rect(0, 188, 320, 52, P.bg, 0);
-    c.rect(8, 190, 104, 46, P.shade, 8);
+    c.rect(8, 190, 104, 46, P.btn, 8);
     if (m.zero_btn) {
       c.text('ZERO', 60, 206, MID, WHITE, CENTER);
-      if (c.width(m.zero_line, SMALL) <= 96) c.text(m.zero_line, 60, 225, SMALL, WHITE, CENTER);
-      else c.text(c.fit(m.zero_line, TINY, 96), 60, 225, TINY, WHITE, CENTER);
+      if (c.width(m.zero_line, SMALL) <= 96) c.text(m.zero_line, 60, 225, SMALL, P.soft, CENTER);
+      else c.text(c.fit(m.zero_line, TINY, 96), 60, 225, TINY, P.soft, CENTER);
     } else {
-      c.text('GROSS', 17, 202, TINY, WHITE, LEFT);
+      c.text('GROSS', 17, 202, TINY, P.soft, LEFT);
       if (c.width(m.gross, MID) <= 88) c.text(m.gross, 17, 221, MID, WHITE, LEFT);
       else c.text(c.fit(m.gross, SMALL, 88), 17, 221, SMALL, WHITE, LEFT);
     }
-    c.rect(120, 190, 72, 46, P.shade, 8);
+    c.rect(120, 190, 72, 46, P.btn, 8);
     for (let i = 0; i < 3; i++) c.rect(144, 200 + i * 6, 24, 3, WHITE, 1);
     c.text('MENU', 156, 226, SMALL, WHITE, CENTER);
-    c.rect(200, 190, 112, 46, m.save_look === LOOK_ON ? P.on : m.save_look === LOOK_BAD ? DARK : P.shade, 8);
-    const ink = m.save_look === LOOK_ON ? P.on_ink : WHITE;
+    const on = m.save_look === LOOK_ON, bad = m.save_look === LOOK_BAD;
+    c.rect(200, 190, 112, 46, on ? WHITE : bad ? T.stop : P.btn, 8);
+    const ink = on ? NIGHT : WHITE;
     c.text('SAVE', 256, 206, MID, ink, CENTER);
     if (c.width(m.save_line, SMALL) <= 104) c.text(m.save_line, 256, 225, SMALL, ink, CENTER);
     else c.text(c.fit(m.save_line, TINY, 104), 256, 225, TINY, ink, CENTER);
