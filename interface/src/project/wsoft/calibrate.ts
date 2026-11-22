@@ -82,8 +82,9 @@ export const LOADCELL_DRIFT_GUARD = [
   { value: 1, text: 'On: holds up to 1 division' },
   { value: 2, text: 'On: holds up to 2 divisions' },
   { value: 3, text: 'On: holds up to 3 divisions' },
-  { value: 4, text: 'On: holds up to 4 divisions' },
-  { value: 5, text: 'On: holds up to 5 divisions' }
+  { value: 5, text: 'On: holds up to 5 divisions' },
+  { value: 10, text: 'On: holds up to 10 divisions' },
+  { value: 20, text: 'On: holds up to 20 divisions' }
 ];
 
 /** "0.4" divisions from the board's tenths. */

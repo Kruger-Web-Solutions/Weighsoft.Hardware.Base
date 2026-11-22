@@ -78,7 +78,7 @@ export interface WSoftLoadcell {
   zero_track: number;
   /** Counts auto zero has moved the zero by since the last restart or zero. */
   zero_offset: number;
-  /** Drift Guard: 0 off, 1 to 5 = the most divisions of slow drift it holds back. */
+  /** Drift Guard: 0 off, 1 to 20 = the most divisions of slow drift it holds back. */
   drift_guard: number;
   /** Counts Drift Guard holds back right now. */
   drift_offset: number;

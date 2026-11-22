@@ -282,6 +282,9 @@ void WsoftLoadcellDriftGuard::reset() {
   _offset = 0;
   _still = 0;
   _have = false;
+  _holds = 0;
+  _jumps = 0;
+  _limits = 0;
 }
 
 void WsoftLoadcellDriftGuard::release(int32_t average) {
@@ -312,6 +315,7 @@ void WsoftLoadcellDriftGuard::update(const WsoftLoadcellCal &cal, int32_t averag
   }
   // More than half a division in one count: a load went on or came off.
   if ((delta < 0 ? -delta : delta) * 20 > division) {
+    if (holding()) _jumps++;
     release(average);
     return;
   }
@@ -319,11 +323,12 @@ void WsoftLoadcellDriftGuard::update(const WsoftLoadcellCal &cal, int32_t averag
     // Settling: it must stay within one division of where it began to settle.
     int64_t away = (int64_t)average - _ref;
     if ((away < 0 ? -away : away) * 10 > division) release(average);
-    else _still++;
+    else if (++_still >= WSOFT_LOADCELL_DRIFT_GUARD_STILL) _holds++;
     return;
   }
   int64_t next = _offset + delta;
   if ((next < 0 ? -next : next) * 10 > division * cal.drift_guard) {
+    _limits++;
     release(average);  // past the limit: a real change, show all of it
     return;
   }

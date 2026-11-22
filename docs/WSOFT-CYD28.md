@@ -104,7 +104,7 @@ screen, the web page, the Hub and a Writer over Wi-Fi, like any other source.
   times a second). Kept in memory only, cleared by a restart or a new zero, and never more than
   20 divisions from the set zero. It also takes away a small load left inside that band. Our
   own choices; not tried on a board yet.
-- **Drift Guard** (off by default; 1 to 5 divisions). Bench, 22 Nov (28f8624, 0.002 kg division,
+- **Drift Guard** (off by default; 1 to 20 divisions). Bench, 22 Nov (28f8624, 0.002 kg division,
   hands off): a slow wave of about 12 g, the same size empty and with 0.5 kg on, no spikes. With
   a load on, the board sees one number and cannot tell the zero floating from a slow real change.
   So: once the count has stayed within one division for 2 seconds, slow movement is held back
@@ -112,7 +112,13 @@ screen, the web page, the Hub and a Writer over Wi-Fi, like any other source.
   count moves more than half a division, or when the amount held back would pass the limit.
   Near zero with Auto zero on it does nothing. It rests while Approval is ON. Kept in memory
   only. The price: a slow change smaller than the limit stays hidden until the next release.
-  Our own choices; host-tested (`test_wsoft_loadcell`), not tried on a board yet.
+  Our own choices; host-tested (`test_wsoft_loadcell`). First bench run (d07b1b0, limit unknown,
+  0.5 kg, 30 s): band 6 g, was 12 g; whether it was switched on could not be seen from the cable.
+- **On the cable** (USB, like `SCREEN`): `LOADCELL INFO` prints the setup and what auto zero and
+  Drift Guard are doing (holding, counts held back, how often it began to hold and let go for a
+  jump or for the limit). `LOADCELL SET dec= step= filter= auto_zero= drift_guard=` changes the
+  setup like the Scale setup tab; refused while Approval is ON. The start line and a
+  `LOADCELL_STATE` line next to every weight line carry the same facts.
 - The chip's two end values (out of range) are never a weight.
 - Whether this module runs at 10 or 80 counts a second is set on its board and was not checked.
   The code works with either.

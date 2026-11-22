@@ -24,13 +24,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   board yet**. See docs/WSOFT-SCREEN.md section 3a.
 - **W-Soft: Drift Guard for the load cell** (Rhyno, 22 Nov 2026: the zero floats in a slow
   wave of about 12 g, the same empty and loaded). Scale setup → *Drift Guard* (off by default,
-  1 to 5 divisions). Once a weight has been still for 2 seconds, slow movement is held back so
+  1 to 20 divisions). Once a weight has been still for 2 seconds, slow movement is held back so
   the weight shown stands still. It lets go at once when a count moves more than half a
   division, and when the drift held back would pass the limit, so a slow top-up is never
   hidden by more than the limit. It rests near zero when Auto zero is on, and while Approval
   is ON. Held in memory only. A slow change smaller than the limit stays hidden: that is the
   price. Built and host-tested, **not bench-proven**. Saved weighings do not record whether
-  it was holding.
+  it was holding. On the USB cable `LOADCELL INFO` shows what it is doing and `LOADCELL SET`
+  changes the load cell setup (not with Approval ON).
 - **W-Soft: the board's screen in the browser** (Rhyno, 22 Nov 2026: one screen, two places).
   The Live tab shows the board's own screen and a click is a tap on the board: the board sends
   the words on its screen (`GET /rest/wsoftScreen`), the page paints them with the reference

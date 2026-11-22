@@ -108,8 +108,8 @@ describe('load cell scale setup', () => {
     // Auto zero: off, then the divisions around zero, as the board takes them.
     expect(LOADCELL_AUTO_ZERO.map((z) => z.value)).toEqual([0, 1, 2, 3]);
     expect(LOADCELL_AUTO_ZERO[0].text).toBe('Off');
-    // Drift Guard: off, then the limit in divisions, as the board takes it (0..5).
-    expect(LOADCELL_DRIFT_GUARD.map((d) => d.value)).toEqual([0, 1, 2, 3, 4, 5]);
+    // Drift Guard: off, then the limit in divisions, as the board takes it (0..20).
+    expect(LOADCELL_DRIFT_GUARD.map((d) => d.value)).toEqual([0, 1, 2, 3, 5, 10, 20]);
     expect(LOADCELL_DRIFT_GUARD[0].text).toBe('Off');
   });
 

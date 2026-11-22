@@ -570,6 +570,17 @@ void wsoft_screen_loop() {
                      loadcell_mode ? "LOADCELL" : line_mode ? "RS232" : "DJB",
                      next.linked ? "LIVE" : "NO_SIGNAL", value, weight_unit_text(next.unit), (long)next.value,
                      next.alarm ? 1 : 0, approval_stable() ? 1 : 0, check == TRADE_OK ? "TRADE_CHECKS_ON" : "NOT_FOR_TRADE");
+    if (loadcell_mode) {
+      // What the load cell's helpers are doing, so a bench can check them from the cable.
+      LoadcellInfo cell;
+      loadcell_info(&cell);
+      WSOFT_LOG.printf("LOADCELL_STATE count=%ld auto_zero=%d zero_offset=%ld drift_guard=%d holding=%d drift_offset=%ld "
+                       "holds=%lu let_go_jump=%lu let_go_limit=%lu noise_tenths=%ld\n",
+                       (long)cell.raw, cell.cal.zero_track, (long)cell.zero_offset, cell.cal.drift_guard,
+                       cell.drift_holding ? 1 : 0, (long)cell.drift_offset, (unsigned long)cell.drift_holds,
+                       (unsigned long)cell.drift_jumps, (unsigned long)cell.drift_limits,
+                       cell.have_noise ? (long)cell.noise_tenths : -1L);
+    }
   }
 
   char weight[24];
