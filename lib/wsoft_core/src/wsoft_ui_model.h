@@ -80,6 +80,14 @@ struct WsoftUiInput {
 // Fills *model (every byte of it) from the facts.
 void wsoft_ui_model(const WsoftUiInput &in, WsoftUiModel *model);
 
+// The model as JSON, for the copy of the screen in the browser (Rhyno, 22 Nov 2026: one
+// screen, two places). The keys are the model's own field names, the same names the reference
+// drawing tools/wsoft-ui/ref.js paints from, so the browser paints the board's words with that
+// drawing. A tile is {"caption","value","look"}. Returns the length written (without the
+// ending 0), or 0 when out is too small (WSOFT_UI_JSON_MAX bytes always holds it).
+size_t wsoft_ui_model_json(const WsoftUiModel &model, char *out, size_t size);
+static const size_t WSOFT_UI_JSON_MAX = 2560;
+
 // Wi-Fi bars from the signal in dBm: 4 from -55, 3 from -67, 2 from -75, else 1.
 int wsoft_ui_wifi_bars(int rssi);
 

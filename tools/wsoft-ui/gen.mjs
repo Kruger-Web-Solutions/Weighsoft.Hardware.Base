@@ -6,6 +6,8 @@
 //   test/test_wsoft_ui/golden.h                  the checksum each test screen must give
 //   tools/wsoft-ui/fonts.json                    the same letters for the mock-up page
 //   docs/img/wsoft-screen/*.png                  pictures of the test screens
+//   interface/src/project/wsoft/gen/wsoftScreen.js   this drawing and the yellow board's letters,
+//                                                for the copy of the screen in the browser
 // It runs gen.html in headless Edge or Chrome, because the letters are drawn by a browser's
 // font engine (Manrope and Sora from Google Fonts, so it needs the internet).
 //   node tools/wsoft-ui/gen.mjs
@@ -118,6 +120,14 @@ function write(file, text) {
   console.log('wrote', file.slice(root.length + 1), text.length, 'bytes');
 }
 
+// The copy of the screen in the browser (the board's own web page) paints with this very
+// drawing: ref.js as it is, and the yellow board's letters (320 x 240, one dot per unit).
+function screenModule() {
+  const ref = readFileSync(join(here, 'ref.js'), 'utf8');
+  const fonts = JSON.parse(readFileSync(join(here, 'fonts.json'), 'utf8')).yellow;
+  return `/* eslint-disable */\n${HEAD}${ref}\nexport const FONTS = ${JSON.stringify(fonts)};\nexport default WsoftUi;\n`;
+}
+
 const KEEP_FONTS = process.env.WSOFT_UI_KEEP_FONTS === '1';
 
 function finish(data) {
@@ -131,6 +141,7 @@ function finish(data) {
   write(join(root, 'test/test_wsoft_ui/golden.h'), goldenHeader(data.crc));
   const b64 = (f) => ({ first: f.first, count: f.count, cap: f.cap, track: f.track, glyphs: f.glyphs, b64: Buffer.from(f.bytes).toString('base64') });
   if (!KEEP_FONTS) write(join(here, 'fonts.json'), JSON.stringify({ yellow: data.fonts.yellow.map(b64), wave: data.fonts.wave.map(b64) }));
+  write(join(root, 'interface/src/project/wsoft/gen/wsoftScreen.js'), screenModule());
   for (const id of ['yellow', 'wave']) {
     data.png[id].forEach((url, n) => {
       const file = join(root, 'docs/img/wsoft-screen', `${id}-${String(n).padStart(2, '0')}.png`);

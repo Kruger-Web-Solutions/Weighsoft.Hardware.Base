@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **W-Soft: the board's screen in the browser** (Rhyno, 22 Nov 2026: one screen, two places).
+  The Live tab shows the board's own screen and a click is a tap on the board: the board sends
+  the words on its screen (`GET /rest/wsoftScreen`), the page paints them with the reference
+  drawing the firmware is ported from, and a click goes back as a tap (`POST /rest/wsoftScreen`).
+  A board with no panel gets its screen this way. ZERO is on the live page next to MENU on a
+  load cell board. The old Live page is removed. See `docs/WSOFT-SCREEN.md`, section 5a.
 - **W-Soft: ZERO on the screen and a filter for the load cell** (Rhyno, 22 Nov 2026). MENU →
   ZERO sets the load cell's zero from the touch screen (not with Approval ON, a tare on, or an
   unsteady reading). Scale setup gets *Filter* (Off, Low, Medium, High): a longer average that

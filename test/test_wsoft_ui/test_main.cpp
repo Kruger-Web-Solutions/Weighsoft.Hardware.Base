@@ -586,6 +586,67 @@ void test_model_menu_tiles() {
   for (int i = 0; i < model.tile_count; i++) TEST_ASSERT_NOT_EQUAL(WSOFT_UI_TILE_ZERO, model.tiles[i].id);
 }
 
+void test_the_model_as_json_for_the_browser_copy() {
+  static char json[4096];
+  WsoftUiModel model;
+  // Every test screen fits and is one whole object.
+  for (int n = 0; n < WSOFT_UI_PRESET_COUNT; n++) {
+    TEST_ASSERT_TRUE(wsoft_ui_preset(n, &model));
+    size_t length = wsoft_ui_model_json(model, json, sizeof json);
+    TEST_ASSERT_TRUE(length > 0);
+    TEST_ASSERT_EQUAL(length, strlen(json));
+    TEST_ASSERT_EQUAL('{', json[0]);
+    TEST_ASSERT_EQUAL('}', json[length - 1]);
+  }
+  // The words and states, under the model's own field names.
+  WsoftUiInput in = weighing();
+  in.zero = true;
+  in.source = "LOADCELL";
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_TRUE(wsoft_ui_model_json(model, json, sizeof json) > 0);
+  TEST_ASSERT_NOT_NULL(strstr(json, "{\"dark\":true,\"page\":0,"));
+  TEST_ASSERT_NOT_NULL(strstr(json, "\"link\":\"CELL\""));
+  TEST_ASSERT_NOT_NULL(strstr(json, "\"zero_btn\":true,\"zero_line\":\"TAP: SET TO 0\""));
+  TEST_ASSERT_NOT_NULL(strstr(json, "\"pointer\":"));
+  TEST_ASSERT_NOT_NULL(strstr(json, "\"tiles\":[{\"caption\":\"APPROVAL\",\"value\":\"OFF\",\"look\":0},"));
+  TEST_ASSERT_NOT_NULL(strstr(json, "],\"pin_count\":0,\"address\":"));
+  // A quote or a backslash in a word (a product name from the Hub) cannot break the object.
+  strcpy(model.product, "5\" PIPE \\ A");
+  model.message[0] = '\n';
+  model.message[1] = 0;
+  TEST_ASSERT_TRUE(wsoft_ui_model_json(model, json, sizeof json) > 0);
+  TEST_ASSERT_NOT_NULL(strstr(json, "\"product\":\"5\\\" PIPE \\\\ A\""));
+  TEST_ASSERT_NOT_NULL(strstr(json, "\"message\":\" \""));
+  // The fullest model there can be still fits WSOFT_UI_JSON_MAX bytes: every text full of quotes (each
+  // takes two bytes), every tile there.
+  memset(&model, 0, sizeof model);
+#define FILL(field) memset(field, '"', sizeof(field) - 1)
+  FILL(model.ip); FILL(model.hub); FILL(model.link); FILL(model.slot_title); FILL(model.slot_detail);
+  FILL(model.reason); FILL(model.steady); FILL(model.plate_sa); FILL(model.plate_limits); FILL(model.audit);
+  FILL(model.label); FILL(model.weight); FILL(model.unit); FILL(model.word); FILL(model.product);
+  FILL(model.target); FILL(model.low); FILL(model.high); FILL(model.gross); FILL(model.save_line);
+  FILL(model.zero_line); FILL(model.title); FILL(model.message); FILL(model.address); FILL(model.ap_name);
+  model.tile_count = WSOFT_UI_TILES_MAX;
+  for (int i = 0; i < WSOFT_UI_TILES_MAX; i++) {
+    FILL(model.tiles[i].caption);
+    FILL(model.tiles[i].value);
+    model.tiles[i].look = 255;
+  }
+#undef FILL
+  model.pointer = -32768;
+  model.page = model.wifi_bars = model.hub_tone = model.link_tone = model.slot = model.zone = model.pin_count = 255;
+  size_t fullest = wsoft_ui_model_json(model, json, sizeof json);
+  TEST_ASSERT_TRUE(fullest > 0);
+  TEST_ASSERT_TRUE(fullest < WSOFT_UI_JSON_MAX);
+  // Too small a buffer gives nothing, never half an object.
+  static char small[64];
+  small[0] = 'x';
+  TEST_ASSERT_EQUAL(0, (int)wsoft_ui_model_json(model, small, sizeof small));
+  TEST_ASSERT_EQUAL(0, small[0]);
+  TEST_ASSERT_EQUAL(0, (int)wsoft_ui_model_json(model, json, fullest));  // one byte short
+  TEST_ASSERT_TRUE(wsoft_ui_model_json(model, json, fullest + 1) > 0);
+}
+
 void test_model_pages() {
   WsoftUiInput in = weighing();
   in.page = WSOFT_UI_PAGE_PIN;
@@ -844,6 +905,7 @@ int main(int, char **) {
   RUN_TEST(test_model_product_names);
   RUN_TEST(test_model_save_button);
   RUN_TEST(test_model_menu_tiles);
+  RUN_TEST(test_the_model_as_json_for_the_browser_copy);
   RUN_TEST(test_model_pages);
   RUN_TEST(test_model_same_facts_same_bytes);
   RUN_TEST(test_only_rows_that_changed_get_painted);

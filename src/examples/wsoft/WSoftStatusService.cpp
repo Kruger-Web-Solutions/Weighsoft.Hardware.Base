@@ -17,6 +17,8 @@
 #include <weighings.h>
 #include <wsoft_djb.h>
 #include <wsoft_screen.h>
+#include <wsoft_ui.h>
+#include <wsoft_ui_model.h>
 
 namespace {
 
@@ -143,6 +145,17 @@ WSoftStatusService::WSoftStatusService(AsyncWebServer* server,
              HTTP_POST,
              securityManager->wrapRequest(std::bind(&WSoftStatusService::save, this, std::placeholders::_1),
                                           AuthenticationPredicates::IS_AUTHENTICATED));
+  server->on(WSOFT_SCREEN_ENDPOINT_PATH,
+             HTTP_GET,
+             securityManager->wrapRequest(std::bind(&WSoftStatusService::readScreen, this, std::placeholders::_1),
+                                          AuthenticationPredicates::IS_AUTHENTICATED));
+  AsyncCallbackJsonWebHandler* screenHandler = new AsyncCallbackJsonWebHandler(
+      WSOFT_SCREEN_ENDPOINT_PATH,
+      securityManager->wrapCallback(std::bind(&WSoftStatusService::tapScreen, this, std::placeholders::_1, std::placeholders::_2),
+                                    AuthenticationPredicates::IS_AUTHENTICATED),
+      64);
+  screenHandler->setMethod(HTTP_POST);
+  server->addHandler(screenHandler);
 #if FT_ENABLED(FT_MQTT)
   _mqttClient->onConnect(std::bind(&WSoftStatusService::configureMqtt, this));
   // Topic or MQTT on/off changed on the settings page.
@@ -228,6 +241,34 @@ void WSoftStatusService::save(AsyncWebServerRequest* request) {
   TradeWeight saved;
   WsoftSaveResult result = weighings_save(1500, &saved);
   sendSave(request, result == WSOFT_SAVE_SAVED ? 200 : 409, result, &saved);
+}
+
+// The words on the board's screen now, for the copy of the screen in the browser.
+void WSoftStatusService::readScreen(AsyncWebServerRequest* request) {
+  AsyncResponseStream* response = request->beginResponseStream("application/json");
+  char* words = (char*)malloc(WSOFT_UI_JSON_MAX);
+  if (words == nullptr || !ui_model_json(words, WSOFT_UI_JSON_MAX)) {
+    free(words);
+    delete response;
+    request->send(503, "application/json", "{\"error\":\"NOT_READY\"}");
+    return;
+  }
+  response->addHeader("Cache-Control", "no-store");
+  response->print(words);
+  free(words);
+  request->send(response);
+}
+
+// A tap on the browser copy, in the screen's own 320 x 240 layout. The screen loop runs it
+// like a finger on the panel, so the browser can do what the screen can and nothing more.
+void WSoftStatusService::tapScreen(AsyncWebServerRequest* request, JsonVariant& json) {
+  int x = json["x"] | -1;
+  int y = json["y"] | -1;
+  if (!json.is<JsonObject>() || !ui_remote_tap(x, y)) {
+    request->send(400, "application/json", "{\"error\":\"BAD_TAP\"}");
+    return;
+  }
+  request->send(200, "application/json", "{\"ok\":true}");
 }
 
 void WSoftStatusService::readHub(AsyncWebServerRequest* request) {

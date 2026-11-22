@@ -3,10 +3,12 @@ import { AxiosPromise } from 'axios';
 import { AXIOS, WEB_SOCKET_ROOT } from '../../api/endpoints';
 
 import {
-  WSoftDjbReply, WSoftDjbRequest, WSoftHub, WSoftLoadcell, WSoftLoadcellRequest, WSoftHubAction, WSoftPinReply, WSoftPinRequest, WSoftSave,
-  WSoftProductAction, WSoftProducts, WSoftRelayBoard, WSoftRelayStatus, WSoftScaleSetup, WSoftScaleSetupRequest, WSoftSettings, WSoftStatus, WSoftSwitches, WSoftSwitchRequest,
+  WSoftDjbReply, WSoftDjbRequest, WSoftHub, WSoftLoadcell, WSoftLoadcellRequest, WSoftHubAction, WSoftPinReply, WSoftPinRequest,
+  WSoftProductAction, WSoftProducts, WSoftRelayBoard, WSoftRelayStatus, WSoftScaleSetup, WSoftScaleSetupRequest,
+  WSoftSettings, WSoftStatus, WSoftSwitches,
   WSoftWifiUpdate, WSoftWifiUpdateRequest
 } from './types';
+import { WsoftScreenModel } from './gen/wsoftScreen';
 
 export const WSOFT_STATUS_WEBSOCKET_URL = WEB_SOCKET_ROOT + 'wsoftStatus';
 
@@ -25,18 +27,14 @@ export const readWSoftHub = (): AxiosPromise<WSoftHub> => AXIOS.get('/wsoftHub')
 /** Admin only. Connect with a pairing key, or disconnect. The board restarts on success. */
 export const updateWSoftHub = (action: WSoftHubAction): AxiosPromise<WSoftHub> => AXIOS.post('/wsoftHub', action);
 
-/** Logged-in users. Weighings waiting for the Hub and the last one saved. */
-export const readWSoftSave = (): AxiosPromise<WSoftSave> => AXIOS.get('/wsoftSave');
+/** Logged-in users. The words on the board's screen now (WsoftUiModel in the firmware). */
+export const readWSoftScreen = (): AxiosPromise<WsoftScreenModel> => AXIOS.get('/wsoftScreen');
 
-/** Logged-in users. Saves the load on the scale now; 409 with `result` when it cannot. */
-export const saveWSoftWeighing = (): AxiosPromise<WSoftSave> => AXIOS.post('/wsoftSave');
+/** Logged-in users. A tap on the board's screen, in its 320 x 240 layout. */
+export const tapWSoftScreen = (point: { x: number; y: number }): AxiosPromise<void> => AXIOS.post('/wsoftScreen', point);
 
 /** Logged-in users. Approval and Auto save as the board holds them, plus the approval log. */
 export const readWSoftSwitches = (): AxiosPromise<WSoftSwitches> => AXIOS.get('/wsoftSwitches');
-
-/** Admin only. Switches Approval or Auto save. 409 with a code when it cannot. */
-export const updateWSoftSwitch = (request: WSoftSwitchRequest): AxiosPromise<WSoftSwitches> =>
-  AXIOS.post('/wsoftSwitches', request);
 
 /** Admin only. Sets the screen Approval PIN (4 to 6 digits). The board never sends it back. */
 export const updateWSoftPin = (request: WSoftPinRequest): AxiosPromise<WSoftPinReply> => AXIOS.post('/wsoftPin', request);

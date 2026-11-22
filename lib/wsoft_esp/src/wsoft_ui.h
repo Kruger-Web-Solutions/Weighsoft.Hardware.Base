@@ -42,6 +42,16 @@ void ui_show(const WsoftUiView &view);
 // Every loop pass: taps, and the pages' way back to the live page when nobody taps.
 void ui_loop();
 
+// The copy of the screen in the browser (Rhyno, 22 Nov 2026: one screen, two places). Both are
+// safe to call from the web server's task.
+//   ui_model_json   the words on the screen now, as JSON (wsoft_ui_model_json). out needs
+//                   WSOFT_UI_JSON_MAX bytes. False before the first poll.
+//   ui_remote_tap   a tap at layout position x, y (320 x 240); the screen loop runs it like a
+//                   finger on the panel. False when x, y is off the screen.
+// A board with no panel still makes the words and takes the taps: the browser is its screen.
+bool ui_model_json(char *out, size_t size);
+bool ui_remote_tap(int x, int y);
+
 // USB technician commands, for checking a board without standing at it:
 //   SCREEN CRC        paints every test screen (gen/wsoft_ui_presets.h) and prints its CRC-32;
 //                     they must equal test/test_wsoft_ui/golden.h

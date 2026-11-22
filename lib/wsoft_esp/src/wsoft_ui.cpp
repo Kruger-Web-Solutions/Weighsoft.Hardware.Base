@@ -338,6 +338,13 @@ static uint32_t last_tap_ms = 0;
 static char zero_note[18] = "";
 static uint32_t zero_note_ms = 0;
 static bool wifi_dismissed = false;
+// The copy of the screen in the browser (one screen, two places): the web server's task reads
+// the words here and leaves its taps here; only this loop touches the pages.
+static portMUX_TYPE web_mux = portMUX_INITIALIZER_UNLOCKED;
+static WsoftUiModel web_model;
+static bool web_model_valid = false;
+static volatile bool web_tap_waiting = false;
+static volatile int16_t web_tap_x = 0, web_tap_y = 0;
 
 static bool wifi_up() {
   return WiFi.status() == WL_CONNECTED;
@@ -491,9 +498,14 @@ static void invalidate() {
 static void refresh() {
   static Facts facts;
   static WsoftUiModel next;
-  if (!ready) return;
   gather(&facts);
   wsoft_ui_model(facts.in, &next);
+  portENTER_CRITICAL(&web_mux);
+  web_model = next;
+  web_model_valid = true;
+  portEXIT_CRITICAL(&web_mux);
+  shown = next;
+  if (!ready) return;  // no panel: the browser copy is this board's only screen
   for (int row = 0; row < WSOFT_UI_ROW_COUNT; row++) {
     if (!wsoft_ui_row_on_page(row, next.page)) {
       shown_valid[row] = false;  // painted over by the other page: paint it when it is back
@@ -505,7 +517,6 @@ static void refresh() {
     shown_key[row] = key;
     shown_valid[row] = true;
   }
-  shown = next;
   gx_flush();
 }
 
@@ -730,13 +741,41 @@ void ui_show(const WsoftUiView &next) {
   refresh();
 }
 
+bool ui_model_json(char *out, size_t size) {
+  static WsoftUiModel copy;  // one web request at a time (the web server has one task)
+  portENTER_CRITICAL(&web_mux);
+  bool valid = web_model_valid;
+  if (valid) copy = web_model;
+  portEXIT_CRITICAL(&web_mux);
+  return valid && wsoft_ui_model_json(copy, out, size) > 0;
+}
+
+bool ui_remote_tap(int x, int y) {
+  if (x < 0 || x >= 320 || y < 0 || y >= 240) return false;
+  portENTER_CRITICAL(&web_mux);
+  web_tap_x = (int16_t)x;
+  web_tap_y = (int16_t)y;
+  web_tap_waiting = true;
+  portEXIT_CRITICAL(&web_mux);
+  return true;
+}
+
 void ui_loop() {
-  if (!ready) return;
+  // A tap from the browser copy: the same tap() the panel's touch calls.
+  if (web_tap_waiting) {
+    portENTER_CRITICAL(&web_mux);
+    int web_x = web_tap_x, web_y = web_tap_y;
+    web_tap_waiting = false;
+    portEXIT_CRITICAL(&web_mux);
+    WSOFT_LOG.printf("TOUCH web=%d,%d\n", web_x, web_y);
+    tap(web_x, web_y);
+    refresh();
+  }
   // One tap per press.
   static bool was_down = false;
   static uint32_t last_press = 0;
   int x = 0, y = 0;
-  bool down = gx_touch(&x, &y);
+  bool down = ready && gx_touch(&x, &y);
   if (down && !was_down && millis() - last_press > TAP_GAP_MS) {
     last_press = millis();
 #if WSOFT_BOARD_CYD
