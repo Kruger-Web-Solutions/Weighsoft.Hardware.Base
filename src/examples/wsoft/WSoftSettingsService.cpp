@@ -76,9 +76,12 @@ void WSoftSettingsService::pushAlarmTest() {
   weighings_set_alarm_test(on);
 }
 
-void WSoftSettingsService::relayConfig(bool* enabled, uint8_t* low, uint8_t* ok, uint8_t* high) {
+void WSoftSettingsService::relayConfig(bool* enabled, uint8_t* low, uint8_t* ok, uint8_t* high, bool* light) {
   read([&](const WSoftSettings& s) {
-    *enabled = FT_ENABLED(FT_WSOFT_RELAY) && s.data.relay_enabled && (!_writerMode || s.data.relay_writer_follow);
+    bool lightOn = WSOFT_HAS_RELAY_LIGHT && s.data.relay_light;
+    *enabled = FT_ENABLED(FT_WSOFT_RELAY) &&
+               wsoft_relay_drive(s.data.relay_enabled, _writerMode, s.data.relay_writer_follow, lightOn);
+    if (light) *light = lightOn;
     *low = s.data.relay_low;
     *ok = s.data.relay_ok;
     *high = s.data.relay_high;

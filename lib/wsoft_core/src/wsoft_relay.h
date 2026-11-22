@@ -66,3 +66,10 @@ uint8_t wsoft_relay_owned(uint8_t relay_low, uint8_t relay_ok, uint8_t relay_hig
 
 // "NONE" / "LOW" / "OK" / "HIGH" for the page and the log.
 const char *wsoft_relay_zone_text(WsoftRelayZone zone);
+
+// Do the Hi-Lo outputs follow the zone now?
+// - The relay switch: on, and in Writer mode only with "relays follow the weigh board" too.
+// - The Hi-Lo light (relay_light): on a board whose light sits on the relay pins (the yellow
+//   board's LED1), the light switch drives the same outputs by itself, in either role.
+// Both off = not driven: every Hi-Lo output is OFF and the light is dark.
+bool wsoft_relay_drive(bool relay_enabled, bool writer_mode, bool writer_follow, bool light_on);

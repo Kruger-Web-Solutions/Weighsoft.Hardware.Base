@@ -39,6 +39,14 @@
 #define WSOFT_HAS_ESP_LED 0
 #endif
 
+// Boards whose own light sits on the Hi-Lo relay pins (the yellow board's LED1): the "Hi-Lo
+// light" switch (relay_light) shows the zone on it. Needs the relay outputs.
+#if defined(WSOFT_RELAY_LIGHT) && FT_ENABLED(FT_WSOFT_RELAY)
+#define WSOFT_HAS_RELAY_LIGHT 1
+#else
+#define WSOFT_HAS_RELAY_LIGHT 0
+#endif
+
 class WSoftSettings {
  public:
   WSoftSettingsData data;
@@ -60,6 +68,7 @@ class WSoftSettings {
     root["relay_writer_follow"] = settings.data.relay_writer_follow;
     root["alarm_test_save"] = settings.data.alarm_test_save;
     root["esp_led"] = settings.data.esp_led;
+    root["relay_light"] = settings.data.relay_light;
   }
 
   // Stored fields plus the resolved status topic, for the settings page.
@@ -72,6 +81,7 @@ class WSoftSettings {
     root["loadcell_available"] = WSOFT_HAS_LOADCELL != 0;
     root["relay_available"] = FT_ENABLED(FT_WSOFT_RELAY) != 0;
     root["esp_led_available"] = WSOFT_HAS_ESP_LED != 0;
+    root["relay_light_available"] = WSOFT_HAS_RELAY_LIGHT != 0;
   }
 
   static StateUpdateResult update(JsonObject& root, WSoftSettings& settings) {
@@ -108,6 +118,12 @@ class WSoftSettings {
       in.has_esp_led = true;
       in.esp_led = root["esp_led"].as<bool>();
     }
+    if (root["relay_light"].is<bool>()) {
+      in.has_relay_light = true;
+      in.relay_light = root["relay_light"].as<bool>();
+    }
+    // This board's light is not on the relay pins: the switch stays off whatever is sent.
+    if (in.relay_light && !WSOFT_HAS_RELAY_LIGHT) return StateUpdateResult::ERROR;
     if (root["relay_writer_follow"].is<bool>()) {
       in.has_relay_writer_follow = true;
       in.relay_writer_follow = root["relay_writer_follow"].as<bool>();
@@ -163,7 +179,8 @@ class WSoftSettingsService : public StatefulService<WSoftSettings> {
   String mqttUniqueId();
   // Hi-Lo relay output: the switch and the relay (1..4, 0 = none) for each zone.
   // In Writer mode the output is on only when "relays follow the weigh board" is on too.
-  void relayConfig(bool* enabled, uint8_t* low, uint8_t* ok, uint8_t* high);
+  // The Hi-Lo light switch (yellow board) drives the same outputs by itself; *light says so.
+  void relayConfig(bool* enabled, uint8_t* low, uint8_t* ok, uint8_t* high, bool* light = nullptr);
   // The "ESP LED" switch (the board's RGB LED shows the Hi-Lo zone).
   bool espLed();
   // Set once at boot from the board's role (UartModeService): true = Writer mode.

@@ -60,8 +60,8 @@ void RelayBoardService::loop() {
   _settings->relayConfig(&enabled, &low, &ok, &high);
   uint8_t owned = wsoft_relay_owned(low, ok, high);
   if (!enabled) {
-    // Switched off: the Hi-Lo relays go OFF once, then the page may switch relays by hand
-    // (the bench click test).
+    // Switched off (the relay switch and the Hi-Lo light switch): the Hi-Lo outputs go OFF
+    // once, then the page may switch relays by hand (the bench click test).
     if (_driving) {
       setWeightBandRelays(low, ok, high, WSOFT_RELAY_NONE);
       _driving = false;
@@ -149,10 +149,12 @@ void RelayBoardService::registerStatusEndpoint() {
             pins["ry4"] = RELAY4_PIN;
 
             bool enabled = false;
+            bool light = false;
             uint8_t low = 0, ok = 0, high = 0;
-            _settings->relayConfig(&enabled, &low, &ok, &high);
+            _settings->relayConfig(&enabled, &low, &ok, &high, &light);
             JsonObject hilo = root.createNestedObject("hilo");
             hilo["enabled"] = enabled;
+            hilo["light"] = light;
             hilo["relay_low"] = low;
             hilo["relay_ok"] = ok;
             hilo["relay_high"] = high;

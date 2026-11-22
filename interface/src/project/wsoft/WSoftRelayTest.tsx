@@ -53,7 +53,9 @@ const WSoftRelayTest: FC<{ hiloOn: boolean }> = ({ hiloOn }) => {
       {errorMessage && <MessageBox level="error" message={errorMessage} my={1} />}
       <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
         {driven
-          ? `Hi-Lo is driving the relays now (zone ${status?.hilo.zone ?? '...'}). Switch Hi-Lo relays off above to test by hand.`
+          ? `Hi-Lo is driving the relays now (zone ${status?.hilo.zone ?? '...'}). Switch ${
+              status?.hilo.light ? 'the Hi-Lo light and the Hi-Lo relays' : 'Hi-Lo relays'
+            } off above to test by hand.`
           : 'Tap a relay to switch it. Listen for the click and check the light.'}
       </Typography>
       <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 1 }}>
