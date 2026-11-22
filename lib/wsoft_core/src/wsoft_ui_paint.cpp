@@ -28,6 +28,42 @@ enum {
 // Room for the longest text of the model, cut to fit its place (WsoftCanvas::fit).
 static const size_t CUT_SIZE = 72;
 
+// The Hi-Lo zone's fill and ink; `none` when there is no zone.
+static uint16_t zone_fill(const Theme &T, int zone, uint16_t none) {
+  return zone == WSOFT_UI_ZONE_LOW ? T.z_low : zone == WSOFT_UI_ZONE_OK ? T.z_ok : zone == WSOFT_UI_ZONE_HIGH ? T.z_high : none;
+}
+static uint16_t zone_ink(const Theme &T, int zone, uint16_t none) {
+  return zone == WSOFT_UI_ZONE_LOW    ? T.z_low_ink
+         : zone == WSOFT_UI_ZONE_OK   ? T.z_ok_ink
+         : zone == WSOFT_UI_ZONE_HIGH ? T.z_high_ink
+                                      : none;
+}
+
+// Text in `big` letters when it fits in `room`, else cut to fit in `small` letters.
+static void text_fit(WsoftCanvas &c, const char *text, double x, double y, int big, int small, double room,
+                     uint16_t ink, WsoftAlign align = WSOFT_LEFT) {
+  char cut[CUT_SIZE];
+  if (c.width(text, big) <= room) c.text(text, x, y, big, ink, align);
+  else c.text(c.fit(text, small, room, cut, sizeof cut), x, y, small, ink, align);
+}
+
+// The words on the bottom row's left button (ZERO, or the GROSS read-out) and on SAVE. The
+// classic and Full Colour screens draw the same words in their own colours.
+static void bottom_left_words(WsoftCanvas &c, const WsoftUiModel &m, uint16_t zero_ink, uint16_t gross_label,
+                              uint16_t gross_ink) {
+  if (m.zero_btn) {
+    c.text("ZERO", 60, 206, MID, zero_ink, WSOFT_CENTER);
+    text_fit(c, m.zero_line, 60, 225, SMALL, TINY, 96, zero_ink, WSOFT_CENTER);
+  } else {
+    c.text("GROSS", 17, 202, TINY, gross_label);
+    text_fit(c, m.gross, 17, 221, MID, SMALL, 88, gross_ink);
+  }
+}
+static void save_words(WsoftCanvas &c, const WsoftUiModel &m, uint16_t ink) {
+  c.text("SAVE", 256, 206, MID, ink, WSOFT_CENTER);
+  text_fit(c, m.save_line, 256, 225, SMALL, TINY, 104, ink, WSOFT_CENTER);
+}
+
 // The colour of a word, and of the dot beside it.
 static uint16_t tone(const Theme &T, int t) {
   return t == WSOFT_UI_TONE_OK ? T.ok_ink : t == WSOFT_UI_TONE_WAIT ? T.wait_ink : t == WSOFT_UI_TONE_BAD ? T.bad_ink : T.soft;
@@ -144,8 +180,8 @@ static void paint_weight(WsoftCanvas &c, const WsoftUiModel &m, const Theme &T) 
   c.rect(0, 62, 320, 60, T.bg);
   uint16_t ink = m.live ? T.ink : T.soft, soft = T.soft;
   if (m.zone != WSOFT_UI_ZONE_NONE) {
-    c.rect(6, 64, 308, 56, m.zone == WSOFT_UI_ZONE_LOW ? T.z_low : m.zone == WSOFT_UI_ZONE_OK ? T.z_ok : T.z_high, 8);
-    ink = soft = m.zone == WSOFT_UI_ZONE_LOW ? T.z_low_ink : m.zone == WSOFT_UI_ZONE_OK ? T.z_ok_ink : T.z_high_ink;
+    c.rect(6, 64, 308, 56, zone_fill(T, m.zone, T.z_high), 8);
+    ink = soft = zone_ink(T, m.zone, T.z_high_ink);
   }
   c.text(m.label, 14, 72, TINY, soft);
   c.text(m.weight, 268, 95, c.width(m.weight, HERO) <= 250 ? HERO : BIG, ink, WSOFT_RIGHT);
@@ -183,30 +219,21 @@ static void paint_hilo(WsoftCanvas &c, const WsoftUiModel &m, const Theme &T) {
 }
 
 static void paint_bottom(WsoftCanvas &c, const WsoftUiModel &m, const Theme &T) {
-  char cut[CUT_SIZE];
   c.rect(0, 188, 320, 52, T.bg);
   if (m.zero_btn) {
     // A board that weighs itself (load cell): ZERO takes the place of the GROSS read-out
     // (with no tare on, gross is the big number anyway).
     c.rect(8, 190, 104, 46, T.btn, 8);
-    c.text("ZERO", 60, 206, MID, T.btn_ink, WSOFT_CENTER);
-    if (c.width(m.zero_line, SMALL) <= 96) c.text(m.zero_line, 60, 225, SMALL, T.btn_ink, WSOFT_CENTER);
-    else c.text(c.fit(m.zero_line, TINY, 96, cut, sizeof cut), 60, 225, TINY, T.btn_ink, WSOFT_CENTER);
   } else {
     c.rect(8, 190, 104, 46, T.line, 8);
     c.rect(9, 191, 102, 44, T.panel, 7);
-    c.text("GROSS", 17, 202, TINY, T.soft);
-    if (c.width(m.gross, MID) <= 88) c.text(m.gross, 17, 221, MID, m.live ? T.ink : T.soft);
-    else c.text(c.fit(m.gross, SMALL, 88, cut, sizeof cut), 17, 221, SMALL, m.live ? T.ink : T.soft);
   }
+  bottom_left_words(c, m, T.btn_ink, T.soft, m.live ? T.ink : T.soft);
   c.rect(120, 190, 72, 46, T.btn, 8);
   for (int i = 0; i < 3; i++) c.rect(144, 200 + i * 6, 24, 3, T.btn_ink, 1);
   c.text("MENU", 156, 226, SMALL, T.btn_ink, WSOFT_CENTER);
   c.rect(200, 190, 112, 46, m.save_look == WSOFT_UI_LOOK_ON ? T.ok : m.save_look == WSOFT_UI_LOOK_BAD ? T.stop : T.btn, 8);
-  uint16_t ink = m.save_look == WSOFT_UI_LOOK_BTN ? T.btn_ink : WHITE;
-  c.text("SAVE", 256, 206, MID, ink, WSOFT_CENTER);
-  if (c.width(m.save_line, SMALL) <= 104) c.text(m.save_line, 256, 225, SMALL, ink, WSOFT_CENTER);
-  else c.text(c.fit(m.save_line, TINY, 104, cut, sizeof cut), 256, 225, TINY, ink, WSOFT_CENTER);
+  save_words(c, m, m.save_look == WSOFT_UI_LOOK_BTN ? T.btn_ink : WHITE);
 }
 
 // ---------- the Hi-Lo word's sign: a tick, or an arrow down (low) or up (high) ----------
@@ -252,8 +279,8 @@ struct ColourSet {
 
 static ColourSet colour_set(const WsoftUiModel &m, const Theme &T) {
   ColourSet P;
-  P.bg = m.zone == WSOFT_UI_ZONE_LOW ? T.z_low : m.zone == WSOFT_UI_ZONE_OK ? T.z_ok : T.z_high;
-  P.ink = m.zone == WSOFT_UI_ZONE_LOW ? T.z_low_ink : m.zone == WSOFT_UI_ZONE_OK ? T.z_ok_ink : T.z_high_ink;
+  P.bg = zone_fill(T, m.zone, T.z_high);
+  P.ink = zone_ink(T, m.zone, T.z_high_ink);
   bool pale = P.ink != WHITE;
   P.soft = wsoft_blend565(P.bg, P.ink, 184);
   P.shade = wsoft_blend565(P.bg, 0, 82);
@@ -364,27 +391,15 @@ static void paint_hilo_colour(WsoftCanvas &c, const WsoftUiModel &m, const Theme
 
 static void paint_bottom_colour(WsoftCanvas &c, const WsoftUiModel &m, const Theme &T) {
   if (m.zone == WSOFT_UI_ZONE_NONE) return paint_bottom(c, m, T);
-  char cut[CUT_SIZE];
   ColourSet P = colour_set(m, T);
   c.rect(0, 188, 320, 52, P.bg);
   c.rect(8, 190, 104, 46, P.shade, 8);
-  if (m.zero_btn) {
-    c.text("ZERO", 60, 206, MID, WHITE, WSOFT_CENTER);
-    if (c.width(m.zero_line, SMALL) <= 96) c.text(m.zero_line, 60, 225, SMALL, WHITE, WSOFT_CENTER);
-    else c.text(c.fit(m.zero_line, TINY, 96, cut, sizeof cut), 60, 225, TINY, WHITE, WSOFT_CENTER);
-  } else {
-    c.text("GROSS", 17, 202, TINY, WHITE);
-    if (c.width(m.gross, MID) <= 88) c.text(m.gross, 17, 221, MID, WHITE);
-    else c.text(c.fit(m.gross, SMALL, 88, cut, sizeof cut), 17, 221, SMALL, WHITE);
-  }
+  bottom_left_words(c, m, WHITE, WHITE, WHITE);
   c.rect(120, 190, 72, 46, P.shade, 8);
   for (int i = 0; i < 3; i++) c.rect(144, 200 + i * 6, 24, 3, WHITE, 1);
   c.text("MENU", 156, 226, SMALL, WHITE, WSOFT_CENTER);
   c.rect(200, 190, 112, 46, m.save_look == WSOFT_UI_LOOK_ON ? P.on : m.save_look == WSOFT_UI_LOOK_BAD ? DARK : P.shade, 8);
-  uint16_t ink = m.save_look == WSOFT_UI_LOOK_ON ? P.on_ink : WHITE;
-  c.text("SAVE", 256, 206, MID, ink, WSOFT_CENTER);
-  if (c.width(m.save_line, SMALL) <= 104) c.text(m.save_line, 256, 225, SMALL, ink, WSOFT_CENTER);
-  else c.text(c.fit(m.save_line, TINY, 104, cut, sizeof cut), 256, 225, TINY, ink, WSOFT_CENTER);
+  save_words(c, m, m.save_look == WSOFT_UI_LOOK_ON ? P.on_ink : WHITE);
 }
 
 // ---------- Dial: the Hi-Lo bar bent into a gauge over the weight ----------
@@ -433,8 +448,7 @@ static void paint_dial(WsoftCanvas &c, const WsoftUiModel &m, const Theme &T) {
   double mx = DIAL_X + d.x * mr * k, my = DIAL_Y + d.y * mr;
   c.disc(mx, my, 10, T.bg);
   c.disc(mx, my, 8, T.pointer);
-  c.disc(mx, my, 3.5,
-         m.zone == WSOFT_UI_ZONE_LOW ? T.z_low : m.zone == WSOFT_UI_ZONE_OK ? T.z_ok : m.zone == WSOFT_UI_ZONE_HIGH ? T.z_high : T.bg);
+  c.disc(mx, my, 3.5, zone_fill(T, m.zone, T.bg));
 }
 
 static void paint_top_dial(WsoftCanvas &c, const WsoftUiModel &m, const Theme &T) {
@@ -478,11 +492,8 @@ static void paint_hilo_dial(WsoftCanvas &c, const WsoftUiModel &m, const Theme &
   paint_dial(c, m, T);
   // The word in a pill of the zone's colour, with its sign.
   bool zoned = m.zone != WSOFT_UI_ZONE_NONE;
-  uint16_t fill = m.zone == WSOFT_UI_ZONE_LOW ? T.z_low : m.zone == WSOFT_UI_ZONE_OK ? T.z_ok : m.zone == WSOFT_UI_ZONE_HIGH ? T.z_high : T.btn;
-  uint16_t ink = m.zone == WSOFT_UI_ZONE_LOW    ? T.z_low_ink
-                 : m.zone == WSOFT_UI_ZONE_OK   ? T.z_ok_ink
-                 : m.zone == WSOFT_UI_ZONE_HIGH ? T.z_high_ink
-                                                : tone(T, m.word_tone);
+  uint16_t fill = zone_fill(T, m.zone, T.btn);
+  uint16_t ink = zone_ink(T, m.zone, tone(T, m.word_tone));
   // The word and what to do, in the biggest letters that fit.
   char words[40];
   hilo_words(m, words, sizeof words);
