@@ -512,21 +512,23 @@ const WsoftUi = (() => {
   const PLATE_LINE = c565('#C9D2DA'), SKY = c565('#1699D6'), SWOOSH = c565('#E4243B');
   // Full strength (Rhyno, 22 Nov 2026: "nice and bright", Ferrari red, no mustard).
   const VIVID_LOW = c565('#FF8C00'), VIVID_OK = c565('#00C853'), VIVID_HIGH = c565('#FF2800'), NIGHT = c565('#120D36');
+  // Full Colour is a status-band screen (Rhyno, 22 Nov 2026, design pass 1 "Status band"): a calm
+  // graphite screen, white numbers, and one bold full-width band in the zone's colour.
+  const GRAPH = c565('#0E1116'), GPANEL = c565('#1A1F27'), GLINE = c565('#2C3440'), GSOFT = c565('#9AA4B2');
+  const GBAR = c565('#07090C'), INK0 = c565('#0B0D10');
   function colourSet(m, T) {
     const low = m.zone === ZONE_LOW, ok = m.zone === ZONE_OK;
     if (m.style !== STYLE_COLOUR) {
       const z = low ? VIVID_LOW : ok ? VIVID_OK : VIVID_HIGH;
       const z_ink = low ? NIGHT : WHITE;
       return { bg: PLATE, ink: NAVY, soft: SLATE, shade: PLATE_LINE, btn: WHITE, btn_ink: NAVY, btn_soft: SLATE, bar: SKY, on: NAVY, on_ink: WHITE,
-        card: false, w_bg: PLATE, w_ink: NAVY, w_soft: SLATE, strip: SWOOSH,
+        band: false, border: false, btn_line: PLATE_LINE, w_bg: PLATE, w_ink: NAVY, w_soft: SLATE, strip: SWOOSH,
         pill: z, pill_ink: z_ink, out: blend(PLATE, VIVID_LOW, 130), mid: blend(PLATE, VIVID_OK, 130), over: blend(PLATE, VIVID_HIGH, 130), dot: z, mark: NAVY, m_dot: z };
     }
-    const bg = low ? VIVID_LOW : ok ? VIVID_OK : VIVID_HIGH;
-    // The numbers sit white on a night-blue card; the buttons are white.
-    const ink = low ? NIGHT : WHITE;
-    return { bg, ink, soft: blend(bg, ink, 215), shade: blend(bg, 0, 70), btn: WHITE, btn_ink: NIGHT, btn_soft: SLATE, bar: blend(bg, 0, 110), on: NIGHT, on_ink: WHITE,
-      card: true, w_bg: NIGHT, w_ink: WHITE, w_soft: blend(NIGHT, WHITE, 170), strip: bg,
-      pill: WHITE, pill_ink: low ? NIGHT : bg, out: blend(bg, 0, 70), mid: WHITE, over: blend(bg, 0, 70), dot: ink, mark: NIGHT, m_dot: WHITE };
+    const z = low ? VIVID_LOW : ok ? VIVID_OK : VIVID_HIGH;
+    return { bg: GRAPH, ink: WHITE, soft: GSOFT, shade: GLINE, btn: GPANEL, btn_ink: WHITE, btn_soft: GSOFT, bar: GBAR, on: SKY, on_ink: WHITE,
+      band: true, border: true, btn_line: GLINE, w_bg: GRAPH, w_ink: WHITE, w_soft: GSOFT, strip: GRAPH,
+      pill: z, pill_ink: low ? INK0 : WHITE, out: GLINE, mid: blend(GRAPH, VIVID_OK, 140), over: GLINE, dot: z, mark: WHITE, m_dot: z };
   }
   // Light mode on the live page draws with these looks too.
   const plateLook = (m, style) => style === STYLE_CLASSIC && !m.dark;
@@ -579,8 +581,7 @@ const WsoftUi = (() => {
     if (m.zone !== ZONE_NONE) {
       const P = colourSet(m, T);
       c.rect(0, 62, 320, 60, P.bg, 0);
-      if (P.card) c.rect(4, 62, 312, 60, P.w_bg, 10);
-      else c.rect(0, 64, 4, 56, P.strip, 0);
+      if (!P.band) c.rect(0, 64, 4, 56, P.strip, 0);
       ink = P.w_ink; soft = P.w_soft;
     } else {
       c.rect(0, 62, 320, 60, bg, 0);
@@ -607,7 +608,9 @@ const WsoftUi = (() => {
     if (role === MID && c.width(words, MID) + 52 > 304) role = SMALL;
     const wy = plateOn(m) ? 139 : 143;
     const pw = c.width(words, role) + 52, px = 160 - pw / 2;
-    c.rect(px, wy - 14, pw, 28, P.pill, -1);
+    // The band is as tall as the pill when the plate needs its line under it.
+    if (P.band) { const bh = plateOn(m) ? 28 : 34; c.rect(0, wy - bh / 2, 320, bh, P.pill, 0); }
+    else c.rect(px, wy - 14, pw, 28, P.pill, -1);
     paintSign(c, m.zone, px + 23, wy, P.pill_ink);
     c.text(words, px + 38, wy, role, P.pill_ink, LEFT);
     if (plateOn(m)) c.text(c.fit(m.product + '   ' + m.target, SMALL, 300), 160, 160, SMALL, P.soft, CENTER);
@@ -633,6 +636,7 @@ const WsoftUi = (() => {
     if (m.zone === ZONE_NONE) return paintBottom(c, m, T);
     const P = colourSet(m, T);
     c.rect(0, 188, 320, 52, P.bg, 0);
+    if (P.border) c.rect(7, 189, 106, 48, P.btn_line, 9);
     c.rect(8, 190, 104, 46, P.btn, 8);
     if (m.zero_btn) {
       c.text('ZERO', 60, 206, MID, P.btn_ink, CENTER);
@@ -643,6 +647,7 @@ const WsoftUi = (() => {
       if (c.width(m.gross, MID) <= 88) c.text(m.gross, 17, 221, MID, P.btn_ink, LEFT);
       else c.text(c.fit(m.gross, SMALL, 88), 17, 221, SMALL, P.btn_ink, LEFT);
     }
+    if (P.border) c.rect(119, 189, 74, 48, P.btn_line, 9);
     c.rect(120, 190, 72, 46, P.btn, 8);
     for (let i = 0; i < 3; i++) c.rect(144, 200 + i * 6, 24, 3, P.btn_ink, 1);
     c.text('MENU', 156, 226, SMALL, P.btn_ink, CENTER);
