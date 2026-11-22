@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **W-Soft: Wi-Fi update switch** (Rhyno, 14 Nov 2026). New software can go onto a board over
   Wi-Fi, so it does not have to be plugged into a laptop. W-Soft > Settings > Wi-Fi update
-  (admin): OFF by default, the board's own password (12 to 64 characters, never shown again, no
+  (admin): OFF by default, the board's own password (4 to 64 characters since PR #58, never shown again, no
   factory or shared password), blocked while Approval is ON, and every change and every
   installed update adds 1 to the Approval audit counter and a line to the Approval log.
   Waveshare and S3 boards can do it (two app slots). The yellow board (`wsoft_cyd28`) has room
