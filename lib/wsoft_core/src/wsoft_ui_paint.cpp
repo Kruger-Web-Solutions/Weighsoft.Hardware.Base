@@ -255,54 +255,72 @@ static const uint16_t SLATE = 0x5B0E;       // #5A6270
 static const uint16_t PLATE_LINE = 0xCE9B;  // #C9D2DA
 static const uint16_t SKY = 0x14DA;         // #1699D6
 static const uint16_t SWOOSH = 0xE127;      // #E4243B
-static const uint16_t VIVID_LOW = 0xF5A0;   // #F5B400
-static const uint16_t VIVID_OK = 0x1509;    // #16A34A
-static const uint16_t VIVID_HIGH = 0xE127;  // #E4243B
+// Full strength (Rhyno, 22 Nov 2026: "nice and bright", Ferrari red, no mustard).
+static const uint16_t VIVID_LOW = 0xFC60;   // #FF8C00
+static const uint16_t VIVID_OK = 0x064A;    // #00C853
+static const uint16_t VIVID_HIGH = 0xF940;  // #FF2800
+static const uint16_t NIGHT = 0x1066;       // #120D36
 
 struct ColourSet {
-  uint16_t bg, ink, soft, shade, btn, bar, on, on_ink, strip, pill, pill_ink, out, mid, over, dot, m_dot;
+  uint16_t bg, ink, soft, shade, btn, btn_ink, btn_soft, bar, on, on_ink;
+  bool card;
+  uint16_t w_bg, w_ink, w_soft, strip, pill, pill_ink, out, mid, over, dot, mark, m_dot;
 };
 
 static ColourSet colour_set(const WsoftUiModel &m, const Theme &) {
-  const Theme &D = WSOFT_UI_DARK;
   const bool low = m.zone == WSOFT_UI_ZONE_LOW, ok = m.zone == WSOFT_UI_ZONE_OK;
   ColourSet P;
   if (m.style != WSOFT_UI_STYLE_COLOUR) {
-    uint16_t z = low ? D.z_low : ok ? D.z_ok : D.z_high;
+    uint16_t z = low ? VIVID_LOW : ok ? VIVID_OK : VIVID_HIGH;
     P.bg = PLATE;
     P.ink = NAVY;
     P.soft = SLATE;
     P.shade = PLATE_LINE;
     P.btn = WHITE;
+    P.btn_ink = NAVY;
+    P.btn_soft = SLATE;
     P.bar = SKY;
     P.on = NAVY;
     P.on_ink = WHITE;
+    P.card = false;
+    P.w_bg = PLATE;
+    P.w_ink = NAVY;
+    P.w_soft = SLATE;
     P.strip = SWOOSH;
     P.pill = z;
-    P.pill_ink = low ? D.z_low_ink : ok ? D.z_ok_ink : D.z_high_ink;
-    P.out = wsoft_blend565(PLATE, D.z_low, 150);
-    P.mid = wsoft_blend565(PLATE, D.z_ok, 150);
-    P.over = wsoft_blend565(PLATE, D.z_high, 150);
+    P.pill_ink = low ? NIGHT : WHITE;
+    P.out = wsoft_blend565(PLATE, VIVID_LOW, 130);
+    P.mid = wsoft_blend565(PLATE, VIVID_OK, 130);
+    P.over = wsoft_blend565(PLATE, VIVID_HIGH, 130);
     P.dot = z;
+    P.mark = NAVY;
     P.m_dot = z;
     return P;
   }
+  // The numbers sit white on a night-blue card; the buttons are white.
   P.bg = low ? VIVID_LOW : ok ? VIVID_OK : VIVID_HIGH;
-  P.ink = low ? NAVY : WHITE;
-  P.soft = wsoft_blend565(P.bg, P.ink, 200);
-  P.shade = wsoft_blend565(P.bg, 0, 50);
-  P.btn = wsoft_blend565(P.bg, 0, 45);
-  P.bar = wsoft_blend565(P.bg, 0, 90);
-  P.on = P.ink;
-  P.on_ink = P.bg;
-  P.strip = P.ink;
-  P.pill = P.ink;
-  P.pill_ink = P.bg;
-  P.out = wsoft_blend565(P.bg, P.ink, 80);
-  P.mid = wsoft_blend565(P.bg, P.ink, 170);
-  P.over = wsoft_blend565(P.bg, P.ink, 80);
+  P.ink = low ? NIGHT : WHITE;
+  P.soft = wsoft_blend565(P.bg, P.ink, 215);
+  P.shade = wsoft_blend565(P.bg, 0, 70);
+  P.btn = WHITE;
+  P.btn_ink = NIGHT;
+  P.btn_soft = SLATE;
+  P.bar = wsoft_blend565(P.bg, 0, 110);
+  P.on = NIGHT;
+  P.on_ink = WHITE;
+  P.card = true;
+  P.w_bg = NIGHT;
+  P.w_ink = WHITE;
+  P.w_soft = wsoft_blend565(NIGHT, WHITE, 170);
+  P.strip = P.bg;
+  P.pill = WHITE;
+  P.pill_ink = low ? NIGHT : P.bg;
+  P.out = wsoft_blend565(P.bg, 0, 70);
+  P.mid = WHITE;
+  P.over = wsoft_blend565(P.bg, 0, 70);
   P.dot = P.ink;
-  P.m_dot = P.bg;
+  P.mark = NIGHT;
+  P.m_dot = WHITE;
   return P;
 }
 
@@ -322,17 +340,17 @@ static void paint_top_colour(WsoftCanvas &c, const WsoftUiModel &m, const Theme 
   c.rect(0, 20, 320, 42, P.bg);
   if (m.slot == WSOFT_UI_SLOT_WIFI) {
     c.rect(6, 22, 308, 40, P.btn, 8);
-    c.text("WI-FI IS OFF", 18, 42, MID, P.ink);
-    c.rect(160, 26, 100, 32, P.ink, 6);
+    c.text("WI-FI IS OFF", 18, 42, MID, P.btn_ink);
+    c.rect(160, 26, 100, 32, P.on, 6);
     c.text("CONNECT", 210, 42, SMALL, P.on_ink, WSOFT_CENTER);
-    c.rect(266, 26, 42, 32, P.ink, 6);
+    c.rect(266, 26, 42, 32, P.btn_ink, 6);
     c.rect(267.5, 27.5, 39, 29, P.btn, 5);
-    c.text("X", 287, 42, MID, P.ink, WSOFT_CENTER);
+    c.text("X", 287, 42, MID, P.btn_ink, WSOFT_CENTER);
     return;
   }
   if (m.slot != WSOFT_UI_SLOT_NONE) {
     bool stop = m.slot == WSOFT_UI_SLOT_STOP;
-    uint16_t sk = stop ? WHITE : P.ink;
+    uint16_t sk = stop ? WHITE : P.btn_ink;
     c.rect(6, 22, 308, 40, stop ? T.stop : P.btn, 8);
     if (c.width(m.slot_title, BIG) <= 292) c.text(m.slot_title, 160, 34, BIG, sk, WSOFT_CENTER);
     else c.text(c.fit(m.slot_title, MID, 296, cut, sizeof cut), 160, 34, MID, sk, WSOFT_CENTER);
@@ -344,7 +362,7 @@ static void paint_top_colour(WsoftCanvas &c, const WsoftUiModel &m, const Theme 
     const char *chip = "TRADE CHECKS ON";
     w = c.width(chip, SMALL) + 14;
     c.rect(8, 24, w, 17, P.btn, 4);
-    c.text(chip, 8 + w / 2, 32.5, SMALL, P.ink, WSOFT_CENTER);
+    c.text(chip, 8 + w / 2, 32.5, SMALL, P.btn_ink, WSOFT_CENTER);
   } else {
     c.star6(8 + w / 2, 32.5, 9, P.soft);
   }
@@ -365,12 +383,14 @@ static void paint_weight_colour(WsoftCanvas &c, const WsoftUiModel &m, const The
   uint16_t bg = T.bg, ink = m.live ? T.ink : T.soft, soft = T.soft;
   if (m.zone != WSOFT_UI_ZONE_NONE) {
     ColourSet P = colour_set(m, T);
-    bg = P.bg;
-    ink = P.ink;
-    soft = P.soft;
+    c.rect(0, 62, 320, 60, P.bg);
+    if (P.card) c.rect(4, 62, 312, 60, P.w_bg, 10);
+    else c.rect(0, 64, 4, 56, P.strip);
+    ink = P.w_ink;
+    soft = P.w_soft;
+  } else {
+    c.rect(0, 62, 320, 60, bg);
   }
-  c.rect(0, 62, 320, 60, bg);
-  if (m.zone != WSOFT_UI_ZONE_NONE) c.rect(0, 64, 4, 56, colour_set(m, T).strip);
   if (c.width(m.label, TINY) <= 24 && c.width(m.weight, HUGE_) <= 270) {
     c.text(m.label, 306, 74, TINY, soft, WSOFT_RIGHT);
     c.text(m.weight, 280, 92, HUGE_, ink, WSOFT_RIGHT);
@@ -413,7 +433,7 @@ static void paint_hilo_colour(WsoftCanvas &c, const WsoftUiModel &m, const Theme
   if (mx < bx + 7) mx = bx + 7;
   if (mx > bx + bw - 7) mx = bx + bw - 7;
   c.disc(mx, by + bh / 2, 8, P.bg);
-  c.disc(mx, by + bh / 2, 6.5, P.ink);
+  c.disc(mx, by + bh / 2, 6.5, P.mark);
   c.disc(mx, by + bh / 2, 3, P.m_dot);
 }
 
@@ -424,20 +444,20 @@ static void paint_bottom_colour(WsoftCanvas &c, const WsoftUiModel &m, const The
   c.rect(0, 188, 320, 52, P.bg);
   c.rect(8, 190, 104, 46, P.btn, 8);
   if (m.zero_btn) {
-    c.text("ZERO", 60, 206, MID, P.ink, WSOFT_CENTER);
-    if (c.width(m.zero_line, SMALL) <= 96) c.text(m.zero_line, 60, 225, SMALL, P.soft, WSOFT_CENTER);
-    else c.text(c.fit(m.zero_line, TINY, 96, cut, sizeof cut), 60, 225, TINY, P.soft, WSOFT_CENTER);
+    c.text("ZERO", 60, 206, MID, P.btn_ink, WSOFT_CENTER);
+    if (c.width(m.zero_line, SMALL) <= 96) c.text(m.zero_line, 60, 225, SMALL, P.btn_soft, WSOFT_CENTER);
+    else c.text(c.fit(m.zero_line, TINY, 96, cut, sizeof cut), 60, 225, TINY, P.btn_soft, WSOFT_CENTER);
   } else {
-    c.text("GROSS", 17, 202, TINY, P.soft);
-    if (c.width(m.gross, MID) <= 88) c.text(m.gross, 17, 221, MID, P.ink);
-    else c.text(c.fit(m.gross, SMALL, 88, cut, sizeof cut), 17, 221, SMALL, P.ink);
+    c.text("GROSS", 17, 202, TINY, P.btn_soft);
+    if (c.width(m.gross, MID) <= 88) c.text(m.gross, 17, 221, MID, P.btn_ink);
+    else c.text(c.fit(m.gross, SMALL, 88, cut, sizeof cut), 17, 221, SMALL, P.btn_ink);
   }
   c.rect(120, 190, 72, 46, P.btn, 8);
-  for (int i = 0; i < 3; i++) c.rect(144, 200 + i * 6, 24, 3, P.ink, 1);
-  c.text("MENU", 156, 226, SMALL, P.ink, WSOFT_CENTER);
+  for (int i = 0; i < 3; i++) c.rect(144, 200 + i * 6, 24, 3, P.btn_ink, 1);
+  c.text("MENU", 156, 226, SMALL, P.btn_ink, WSOFT_CENTER);
   bool on = m.save_look == WSOFT_UI_LOOK_ON, bad = m.save_look == WSOFT_UI_LOOK_BAD;
   c.rect(200, 190, 112, 46, on ? P.on : bad ? T.stop : P.btn, 8);
-  uint16_t ink = on ? P.on_ink : bad ? WHITE : P.ink;
+  uint16_t ink = on ? P.on_ink : bad ? WHITE : P.btn_ink;
   c.text("SAVE", 256, 206, MID, ink, WSOFT_CENTER);
   if (c.width(m.save_line, SMALL) <= 104) c.text(m.save_line, 256, 225, SMALL, ink, WSOFT_CENTER);
   else c.text(c.fit(m.save_line, TINY, 104, cut, sizeof cut), 256, 225, TINY, ink, WSOFT_CENTER);

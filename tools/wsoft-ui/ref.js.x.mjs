@@ -510,20 +510,23 @@ const WsoftUi = (() => {
   // the classic screen of their theme.
   const PLATE = c565('#E9EEF2'), NAVY = c565('#1B1446'), SLATE = c565('#5A6270');
   const PLATE_LINE = c565('#C9D2DA'), SKY = c565('#1699D6'), SWOOSH = c565('#E4243B');
-  const VIVID_LOW = c565('#F5B400'), VIVID_OK = c565('#16A34A'), VIVID_HIGH = c565('#E4243B');
+  // Full strength (Rhyno, 22 Nov 2026: "nice and bright", Ferrari red, no mustard).
+  const VIVID_LOW = c565('#FF8C00'), VIVID_OK = c565('#00C853'), VIVID_HIGH = c565('#FF2800'), NIGHT = c565('#120D36');
   function colourSet(m, T) {
-    const D = THEME.dark;
     const low = m.zone === ZONE_LOW, ok = m.zone === ZONE_OK;
     if (m.style !== STYLE_COLOUR) {
-      const z = low ? D.z_low : ok ? D.z_ok : D.z_high;
-      const z_ink = low ? D.z_low_ink : ok ? D.z_ok_ink : D.z_high_ink;
-      return { bg: PLATE, ink: NAVY, soft: SLATE, shade: PLATE_LINE, btn: WHITE, bar: SKY, on: NAVY, on_ink: WHITE, strip: SWOOSH,
-        pill: z, pill_ink: z_ink, out: blend(PLATE, D.z_low, 150), mid: blend(PLATE, D.z_ok, 150), over: blend(PLATE, D.z_high, 150), dot: z, m_dot: z };
+      const z = low ? VIVID_LOW : ok ? VIVID_OK : VIVID_HIGH;
+      const z_ink = low ? NIGHT : WHITE;
+      return { bg: PLATE, ink: NAVY, soft: SLATE, shade: PLATE_LINE, btn: WHITE, btn_ink: NAVY, btn_soft: SLATE, bar: SKY, on: NAVY, on_ink: WHITE,
+        card: false, w_bg: PLATE, w_ink: NAVY, w_soft: SLATE, strip: SWOOSH,
+        pill: z, pill_ink: z_ink, out: blend(PLATE, VIVID_LOW, 130), mid: blend(PLATE, VIVID_OK, 130), over: blend(PLATE, VIVID_HIGH, 130), dot: z, mark: NAVY, m_dot: z };
     }
     const bg = low ? VIVID_LOW : ok ? VIVID_OK : VIVID_HIGH;
-    const ink = low ? NAVY : WHITE;
-    return { bg, ink, soft: blend(bg, ink, 200), shade: blend(bg, 0, 50), btn: blend(bg, 0, 45), bar: blend(bg, 0, 90), on: ink, on_ink: bg, strip: ink,
-      pill: ink, pill_ink: bg, out: blend(bg, ink, 80), mid: blend(bg, ink, 170), over: blend(bg, ink, 80), dot: ink, m_dot: bg };
+    // The numbers sit white on a night-blue card; the buttons are white.
+    const ink = low ? NIGHT : WHITE;
+    return { bg, ink, soft: blend(bg, ink, 215), shade: blend(bg, 0, 70), btn: WHITE, btn_ink: NIGHT, btn_soft: SLATE, bar: blend(bg, 0, 110), on: NIGHT, on_ink: WHITE,
+      card: true, w_bg: NIGHT, w_ink: WHITE, w_soft: blend(NIGHT, WHITE, 170), strip: bg,
+      pill: WHITE, pill_ink: low ? NIGHT : bg, out: blend(bg, 0, 70), mid: WHITE, over: blend(bg, 0, 70), dot: ink, mark: NIGHT, m_dot: WHITE };
   }
   // Light mode on the live page draws with these looks too.
   const plateLook = (m, style) => style === STYLE_CLASSIC && !m.dark;
@@ -534,16 +537,16 @@ const WsoftUi = (() => {
     c.rect(0, 20, 320, 42, P.bg, 0);
     if (m.slot === SLOT_WIFI) {
       c.rect(6, 22, 308, 40, P.btn, 8);
-      c.text('WI-FI IS OFF', 18, 42, MID, P.ink, LEFT);
-      c.rect(160, 26, 100, 32, P.ink, 6);
+      c.text('WI-FI IS OFF', 18, 42, MID, P.btn_ink, LEFT);
+      c.rect(160, 26, 100, 32, P.on, 6);
       c.text('CONNECT', 210, 42, SMALL, P.on_ink, CENTER);
-      c.rect(266, 26, 42, 32, P.ink, 6);
+      c.rect(266, 26, 42, 32, P.btn_ink, 6);
       c.rect(267.5, 27.5, 39, 29, P.btn, 5);
-      c.text('X', 287, 42, MID, P.ink, CENTER);
+      c.text('X', 287, 42, MID, P.btn_ink, CENTER);
       return;
     }
     if (m.slot !== SLOT_NONE) {
-      const stop = m.slot === SLOT_STOP, sk = stop ? WHITE : P.ink;
+      const stop = m.slot === SLOT_STOP, sk = stop ? WHITE : P.btn_ink;
       c.rect(6, 22, 308, 40, stop ? T.stop : P.btn, 8);
       if (c.width(m.slot_title, BIG) <= 292) c.text(m.slot_title, 160, 34, BIG, sk, CENTER);
       else c.text(c.fit(m.slot_title, MID, 296), 160, 34, MID, sk, CENTER);
@@ -555,7 +558,7 @@ const WsoftUi = (() => {
       const chip = 'TRADE CHECKS ON';
       w = c.width(chip, SMALL) + 14;
       c.rect(8, 24, w, 17, P.btn, 4);
-      c.text(chip, 8 + w / 2, 32.5, SMALL, P.ink, CENTER);
+      c.text(chip, 8 + w / 2, 32.5, SMALL, P.btn_ink, CENTER);
     } else {
       c.star6(8 + w / 2, 32.5, 9, P.soft);
     }
@@ -575,10 +578,13 @@ const WsoftUi = (() => {
     let bg = T.bg, ink = m.live ? T.ink : T.soft, soft = T.soft;
     if (m.zone !== ZONE_NONE) {
       const P = colourSet(m, T);
-      bg = P.bg; ink = P.ink; soft = P.soft;
+      c.rect(0, 62, 320, 60, P.bg, 0);
+      if (P.card) c.rect(4, 62, 312, 60, P.w_bg, 10);
+      else c.rect(0, 64, 4, 56, P.strip, 0);
+      ink = P.w_ink; soft = P.w_soft;
+    } else {
+      c.rect(0, 62, 320, 60, bg, 0);
     }
-    c.rect(0, 62, 320, 60, bg, 0);
-    if (m.zone !== ZONE_NONE) c.rect(0, 64, 4, 56, colourSet(m, T).strip, 0);
     if (c.width(m.label, TINY) <= 24 && c.width(m.weight, HUGE) <= 270) {
       c.text(m.label, 306, 74, TINY, soft, RIGHT);
       c.text(m.weight, 280, 92, HUGE, ink, RIGHT);
@@ -619,7 +625,7 @@ const WsoftUi = (() => {
     if (mx < bx + 7) mx = bx + 7;
     if (mx > bx + bw - 7) mx = bx + bw - 7;
     c.disc(mx, by + bh / 2, 8, P.bg);
-    c.disc(mx, by + bh / 2, 6.5, P.ink);
+    c.disc(mx, by + bh / 2, 6.5, P.mark);
     c.disc(mx, by + bh / 2, 3, P.m_dot);
   }
 
@@ -629,20 +635,20 @@ const WsoftUi = (() => {
     c.rect(0, 188, 320, 52, P.bg, 0);
     c.rect(8, 190, 104, 46, P.btn, 8);
     if (m.zero_btn) {
-      c.text('ZERO', 60, 206, MID, P.ink, CENTER);
-      if (c.width(m.zero_line, SMALL) <= 96) c.text(m.zero_line, 60, 225, SMALL, P.soft, CENTER);
-      else c.text(c.fit(m.zero_line, TINY, 96), 60, 225, TINY, P.soft, CENTER);
+      c.text('ZERO', 60, 206, MID, P.btn_ink, CENTER);
+      if (c.width(m.zero_line, SMALL) <= 96) c.text(m.zero_line, 60, 225, SMALL, P.btn_soft, CENTER);
+      else c.text(c.fit(m.zero_line, TINY, 96), 60, 225, TINY, P.btn_soft, CENTER);
     } else {
-      c.text('GROSS', 17, 202, TINY, P.soft, LEFT);
-      if (c.width(m.gross, MID) <= 88) c.text(m.gross, 17, 221, MID, P.ink, LEFT);
-      else c.text(c.fit(m.gross, SMALL, 88), 17, 221, SMALL, P.ink, LEFT);
+      c.text('GROSS', 17, 202, TINY, P.btn_soft, LEFT);
+      if (c.width(m.gross, MID) <= 88) c.text(m.gross, 17, 221, MID, P.btn_ink, LEFT);
+      else c.text(c.fit(m.gross, SMALL, 88), 17, 221, SMALL, P.btn_ink, LEFT);
     }
     c.rect(120, 190, 72, 46, P.btn, 8);
-    for (let i = 0; i < 3; i++) c.rect(144, 200 + i * 6, 24, 3, P.ink, 1);
-    c.text('MENU', 156, 226, SMALL, P.ink, CENTER);
+    for (let i = 0; i < 3; i++) c.rect(144, 200 + i * 6, 24, 3, P.btn_ink, 1);
+    c.text('MENU', 156, 226, SMALL, P.btn_ink, CENTER);
     const on = m.save_look === LOOK_ON, bad = m.save_look === LOOK_BAD;
     c.rect(200, 190, 112, 46, on ? P.on : bad ? T.stop : P.btn, 8);
-    const ink = on ? P.on_ink : bad ? WHITE : P.ink;
+    const ink = on ? P.on_ink : bad ? WHITE : P.btn_ink;
     c.text('SAVE', 256, 206, MID, ink, CENTER);
     if (c.width(m.save_line, SMALL) <= 104) c.text(m.save_line, 256, 225, SMALL, ink, CENTER);
     else c.text(c.fit(m.save_line, TINY, 104), 256, 225, TINY, ink, CENTER);
