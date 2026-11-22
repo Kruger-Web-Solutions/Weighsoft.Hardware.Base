@@ -9,6 +9,9 @@
 // It runs gen.html in headless Edge or Chrome, because the letters are drawn by a browser's
 // font engine (Manrope and Sora from Google Fonts, so it needs the internet).
 //   node tools/wsoft-ui/gen.mjs
+// With WSOFT_UI_KEEP_FONTS=1 the letters are not drawn again: the ones in fonts.json are used
+// and the letter files are left alone. That needs no internet and gives the same result on any
+// computer, so use it when only the screens changed (ref.js), not the letters.
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
@@ -69,13 +72,13 @@ function colorsHeader(theme, bar) {
 // Room for each text in WsoftUiModel (lib/wsoft_core/src/wsoft_ui_paint.h), the ending 0 included.
 const ROOM = { ip: 16, hub: 14, link: 8, slot_title: 24, slot_detail: 36, reason: 18, steady: 10, plate_sa: 40, plate_limits: 56, audit: 18, label: 12,
   weight: 14, unit: 4, word: 14, product: 26, target: 26, low: 12, high: 12, gross: 22, save_line: 18, title: 12, message: 40,
-  address: 20, ap_name: 34, caption: 14, value: 26 };
+  address: 20, ap_name: 34, caption: 14, value: 26, zero_line: 18 };
 function checkRoom(title, key, text) {
   if (!(key in ROOM)) throw new Error('no room set for the text ' + key);
   if (text.length >= ROOM[key]) throw new Error(`test screen "${title}": ${key} is ${text.length} long, the model holds ${ROOM[key] - 1}`);
 }
 
-const TILE_ID = { approval: 'APPROVAL', auto: 'AUTO', tare: 'TARE', preset: 'PRESET', product: 'PRODUCT', theme: 'THEME', wifi: 'WIFI' };
+const TILE_ID = { approval: 'APPROVAL', auto: 'AUTO', tare: 'TARE', preset: 'PRESET', zero: 'ZERO', product: 'PRODUCT', theme: 'THEME', wifi: 'WIFI' };
 function presetsHeader(models) {
   let s = `${HEAD}// The test screens: what test/test_wsoft_ui draws and what SCREEN SHOT n draws on a board.\n#pragma once\n\n` +
     `#include <string.h>\n\n#include "../wsoft_ui_paint.h"\n\n#define WSOFT_UI_PRESET_SET(field, text) strncpy(field, text, sizeof(field) - 1)\n\n` +
@@ -115,15 +118,19 @@ function write(file, text) {
   console.log('wrote', file.slice(root.length + 1), text.length, 'bytes');
 }
 
+const KEEP_FONTS = process.env.WSOFT_UI_KEEP_FONTS === '1';
+
 function finish(data) {
   const one = fontsHeader('1X', data.roles, data.fonts.yellow), two = fontsHeader('2X', data.roles, data.fonts.wave);
-  write(join(root, 'lib/wsoft_core/src/gen/wsoft_ui_fonts_1x.h'), one.text);
-  write(join(root, 'lib/wsoft_core/src/gen/wsoft_ui_fonts_2x.h'), two.text);
+  if (!KEEP_FONTS) {
+    write(join(root, 'lib/wsoft_core/src/gen/wsoft_ui_fonts_1x.h'), one.text);
+    write(join(root, 'lib/wsoft_core/src/gen/wsoft_ui_fonts_2x.h'), two.text);
+  }
   write(join(root, 'lib/wsoft_core/src/gen/wsoft_ui_colors.h'), colorsHeader(data.theme, data.bar));
   write(join(root, 'lib/wsoft_core/src/gen/wsoft_ui_presets.h'), presetsHeader(data.models));
   write(join(root, 'test/test_wsoft_ui/golden.h'), goldenHeader(data.crc));
   const b64 = (f) => ({ first: f.first, count: f.count, cap: f.cap, track: f.track, glyphs: f.glyphs, b64: Buffer.from(f.bytes).toString('base64') });
-  write(join(here, 'fonts.json'), JSON.stringify({ yellow: data.fonts.yellow.map(b64), wave: data.fonts.wave.map(b64) }));
+  if (!KEEP_FONTS) write(join(here, 'fonts.json'), JSON.stringify({ yellow: data.fonts.yellow.map(b64), wave: data.fonts.wave.map(b64) }));
   for (const id of ['yellow', 'wave']) {
     data.png[id].forEach((url, n) => {
       const file = join(root, 'docs/img/wsoft-screen', `${id}-${String(n).padStart(2, '0')}.png`);
@@ -136,7 +143,7 @@ function finish(data) {
   console.log('mock-up:', buildMockup());
 }
 
-const TYPES = { '.html': 'text/html', '.js': 'text/javascript' };
+const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json' };
 const server = createServer((req, res) => {
   if (req.method === 'POST') {
     const chunks = [];
@@ -162,7 +169,10 @@ const server = createServer((req, res) => {
 });
 let child;
 server.listen(0, '127.0.0.1', () => {
-  const url = `http://127.0.0.1:${server.address().port}/gen.html`;
-  child = spawn(browser, ['--headless=new', '--disable-gpu', `--user-data-dir=${join(here, 'out', 'edge-profile')}`, url], { stdio: 'ignore' });
+  const url = `http://127.0.0.1:${server.address().port}/gen.html${KEEP_FONTS ? '?keep=1' : ''}`;
+  // A browser run as root (a build container) refuses to start with its sandbox on.
+  const flags = ['--headless=new', '--disable-gpu', `--user-data-dir=${join(here, 'out', 'edge-profile')}`];
+  if (process.getuid && process.getuid() === 0) flags.push('--no-sandbox');
+  child = spawn(browser, [...flags, url], { stdio: 'ignore' });
   setTimeout(() => { console.error('timed out waiting for the browser'); child.kill(); process.exit(1); }, 120000).unref();
 });

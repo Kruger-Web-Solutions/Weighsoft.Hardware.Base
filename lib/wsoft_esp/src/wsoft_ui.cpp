@@ -334,6 +334,9 @@ static WsoftPinPad pad;
 static bool pin_target = false;    // Approval ON (true) or OFF, once the PIN is right
 static char message[40] = "";      // the open page's top-right line
 static uint32_t last_tap_ms = 0;
+// What the last ZERO tap did, shown under ZERO on the live page for RESULT_MS.
+static char zero_note[18] = "";
+static uint32_t zero_note_ms = 0;
 static bool wifi_dismissed = false;
 
 static bool wifi_up() {
@@ -454,6 +457,7 @@ static void gather(Facts *f) {
   in.tare_value = tare.value;
   f->preset[0] = 0;
   in.zero = strcmp(view.source, "LOADCELL") == 0;
+  in.zero_note = zero_note[0] && millis() - zero_note_ms < RESULT_MS ? zero_note : "";
   in.preset_on = scale.setup.preset_tare_kg != WSOFT_KG_UNSET && scale.setup.preset_tare_kg > 0;
   if (in.preset_on) {
     char kg[16];
@@ -566,25 +570,22 @@ static void tare(bool preset) {
 // operator empties it and taps. The same zero as on the Calibrate tab, so it is kept over a
 // restart. Like Calibrate: not with Approval ON. Only on a steady reading, and not under a tare
 // (the tare was taken against the old zero).
+// What the tap did is said twice: in the menu's message line, and under ZERO on the live page
+// for a few seconds (short words: the button holds 17 letters).
 static void zero() {
-  if (approval_on()) {
-    say("APPROVAL IS ON");
-    return;
+  const char *result;
+  if (approval_on()) result = "APPROVAL IS ON";
+  else if (scale_tare().on) result = "CLEAR TARE FIRST";
+  else if (!view.linked) result = "CALIBRATE FIRST";
+  else if (!approval_stable() || view.hold == WSOFT_HOLD_NOT_STABLE) result = "NOT STEADY";
+  else {
+    WsoftLoadcellError error = loadcell_set_zero("screen");
+    result = error == WSOFT_LOADCELL_OK ? "ZERO SET" : wsoft_loadcell_error_code(error);
   }
-  if (scale_tare().on) {
-    say("CLEAR THE TARE FIRST");
-    return;
-  }
-  if (!view.linked) {
-    say("NO WEIGHT: CALIBRATE FIRST");
-    return;
-  }
-  if (!approval_stable() || view.hold == WSOFT_HOLD_NOT_STABLE) {
-    say("NOT STEADY: TRY AGAIN");
-    return;
-  }
-  WsoftLoadcellError error = loadcell_set_zero("screen");
-  say(error == WSOFT_LOADCELL_OK ? "ZERO SET" : wsoft_loadcell_error_code(error));
+  say(result);
+  strlcpy(zero_note, message, sizeof zero_note);
+  for (char *p = zero_note; *p; p++) *p = (char)toupper((unsigned char)*p);
+  zero_note_ms = millis();
 }
 
 // PRODUCT on the menu: the next Hi-Lo product (none, first, ..., last, none). The operator's
@@ -690,6 +691,9 @@ static void tap(int x, int y) {
         weighings_request_save();
       } else if (WSOFT_UI_BOX_MENU.hit(x, y)) {
         open_page(WSOFT_UI_PAGE_MENU);
+      } else if (shown.zero_btn && WSOFT_UI_BOX_ZERO.hit(x, y)) {
+        zero();
+        message[0] = 0;  // the live page has no message line; the button says it
       }
       return;
     case WSOFT_UI_PAGE_MENU:

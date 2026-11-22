@@ -556,6 +556,29 @@ void test_model_menu_tiles() {
   TEST_ASSERT_EQUAL(7, model.tile_count);
   TEST_ASSERT_EQUAL(WSOFT_UI_TILE_ZERO, model.tiles[3].id);
   TEST_ASSERT_EQUAL(WSOFT_UI_TILE_WIFI, model.tiles[6].id);
+  // On the live page ZERO takes the place of GROSS, and says what the last tap did.
+  in.page = WSOFT_UI_PAGE_LIVE;
+  in.tared = false;
+  in.source = "LOADCELL";
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_TRUE(model.zero_btn);
+  TEST_ASSERT_EQUAL_STRING("TAP: SET TO 0", model.zero_line);
+  TEST_ASSERT_EQUAL_STRING("CELL", model.link);  // the bar holds 7 letters
+  in.zero_note = "NOT STEADY";
+  uint32_t before = wsoft_ui_row_key(model, WSOFT_UI_ROW_BOTTOM);
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_EQUAL_STRING("NOT STEADY", model.zero_line);
+  TEST_ASSERT_NOT_EQUAL(before, wsoft_ui_row_key(model, WSOFT_UI_ROW_BOTTOM));  // the row is painted again
+  // Under a tare the gross is shown again (a zero is refused then anyway).
+  in.tared = true;
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_FALSE(model.zero_btn);
+  TEST_ASSERT_EQUAL_STRING("", model.zero_line);
+  TEST_ASSERT_TRUE(WSOFT_UI_BOX_ZERO.hit(60, 213));
+  TEST_ASSERT_FALSE(WSOFT_UI_BOX_ZERO.hit(118, 213));  // the gap before MENU
+  in.page = WSOFT_UI_PAGE_MENU;
+  in.source = "RS485";
+  in.zero_note = "";
   // No ZERO on a board that reads a scale (RS485, RS232): that scale keeps its own zero.
   in.zero = false;
   wsoft_ui_model(in, &model);

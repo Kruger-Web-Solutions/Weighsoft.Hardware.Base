@@ -14,7 +14,7 @@
 //                      yellow save notice, or the Wi-Fi alert
 //   weight 62-122      NET weight; the panel is yellow / green / red with the Hi-Lo relays
 //   Hi-Lo 122-188      the word, product and target, the LOW / OK / HIGH bar with its marker
-//   bottom 188-240     GROSS read-out, MENU, SAVE
+//   bottom 188-240     GROSS read-out (ZERO on a load cell board), MENU, SAVE
 // The menu pages (MENU, PIN pad, the no-PIN note, Wi-Fi) are the status bar plus one page row.
 
 #include <stddef.h>
@@ -100,6 +100,8 @@ struct WsoftUiModel {
   char gross[22];
   char save_line[18];
   uint8_t save_look;
+  bool zero_btn;      // ZERO takes the place of the GROSS read-out (a board that weighs itself)
+  char zero_line[18]; // under ZERO: "TAP: SET TO 0", or what the last tap did
   // menu pages
   char title[12];
   char message[40];
@@ -149,6 +151,7 @@ static const double WSOFT_UI_STAR_W = 20;
 static const WsoftUiBox WSOFT_UI_BOX_STAR = {0, 20, 40, 26};
 static const WsoftUiBox WSOFT_UI_BOX_CONNECT = {160, 26, 100, 32}; // on the Wi-Fi alert
 static const WsoftUiBox WSOFT_UI_BOX_DISMISS = {266, 26, 42, 32};
+static const WsoftUiBox WSOFT_UI_BOX_ZERO = {8, 190, 104, 46};     // where GROSS is, when the model has zero_btn
 static const WsoftUiBox WSOFT_UI_BOX_MENU = {120, 190, 72, 46};
 static const WsoftUiBox WSOFT_UI_BOX_SAVE = {200, 190, 112, 46};
 static const WsoftUiBox WSOFT_UI_BOX_BACK = {164, 190, 148, 44};   // bottom right of a page

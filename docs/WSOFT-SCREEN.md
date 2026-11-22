@@ -16,7 +16,7 @@ Pictures of every test screen on both panels: [img/wsoft-screen](img/wsoft-scree
 | The band | Takes the trade row's place when needed, first match wins: a red save notice (nothing saves until the person acts), the Wi-Fi alert, a yellow save notice. Same words as the Edge and the web page |
 | Weight | `NET` or `NET (TARE)`, the net weight, the unit. `----` when the reading is blanked or no weight arrives. **The panel is yellow, green or red with the Hi-Lo relay zone** (LOW, OK, HIGH) and plain when the relays are off |
 | Hi-Lo | The word (`TOO LOW`, `OK`, `TOO HIGH`; else `WAITING`, `ALARM`, `NO PRODUCT`, `OUT OF RANGE`, `EMPTY`), the product and its target, the LOW / OK / HIGH bar with the marker and both limits |
-| Bottom | `GROSS` read-out, **MENU**, **SAVE** with its result line (`SAVED #n`, `TAP AGAIN: SAVE`, `TAKE LOAD OFF`, `n TO SEND`, `AUTO SAVE ON`, `TAP TO SAVE`, `WRITER: NO SAVE`) |
+| Bottom | `GROSS` read-out (on a load cell board with no tare on: the **ZERO** button, with what the last tap did under it), **MENU**, **SAVE** with its result line (`SAVED #n`, `TAP AGAIN: SAVE`, `TAKE LOAD OFF`, `n TO SEND`, `AUTO SAVE ON`, `TAP TO SAVE`, `WRITER: NO SAVE`) |
 
 The weight panel and the word use `relay_zone()`, the zone the relays are driven with, so the
 screen and the relays always agree. The relays (and so the colour) are off unless a product is
@@ -86,7 +86,7 @@ line-for-line port.
 
 | Command | Does |
 |---|---|
-| `node tools/wsoft-ui/gen.mjs` | Runs `ref.js` in headless Edge or Chrome and writes the letters, colours, test screens, `test/test_wsoft_ui/golden.h` (the CRC-32 of every test screen), the pictures in `docs/img/wsoft-screen` and the mock-up page `tools/wsoft-ui/out/mockup.html`. Needs the internet for the fonts |
+| `node tools/wsoft-ui/gen.mjs` | Runs `ref.js` in headless Edge or Chrome and writes the letters, colours, test screens, `test/test_wsoft_ui/golden.h` (the CRC-32 of every test screen), the pictures in `docs/img/wsoft-screen` and the mock-up page `tools/wsoft-ui/out/mockup.html`. Needs the internet for the fonts. With `WSOFT_UI_KEEP_FONTS=1` it keeps the letters of `fonts.json` (no internet, the same on any computer): use that when only the screens changed |
 | `pio test -e native -f test_wsoft_ui` | Paints every test screen on both panel sizes, whole and in bands, and holds each to its CRC; tests the wording rules, the row keys, the tap boxes and the engine. Needs a host g++ on PATH (`%USERPROFILE%\.platformio\packages\toolchain-gccmingw32\bin` on the laptop) |
 | `powershell -File tools/wsoft-ui/shoot.ps1 0 1 2` | Pictures of test screens from the mock-up page, to look at |
 

@@ -90,7 +90,7 @@ static void bar(const WsoftUiInput &in, WsoftUiModel *m) {
     put(m->hub, in.wifi_up ? in.hub_text : "HUB");
     m->hub_tone = WSOFT_UI_TONE_BAD;
   }
-  put(m->link, in.source);
+  put(m->link, strcmp(in.source, "LOADCELL") == 0 ? "CELL" : in.source);
   m->link_tone = !in.linked ? WSOFT_UI_TONE_BAD : in.alarm ? WSOFT_UI_TONE_WAIT : WSOFT_UI_TONE_OK;
 }
 
@@ -145,6 +145,10 @@ static void weight(const WsoftUiInput &in, WsoftUiModel *m) {
   } else {
     put(m->gross, "----");
   }
+  // ZERO in the place of GROSS, on a board that weighs itself. Not under a tare: then the
+  // gross is worth showing and a zero is refused anyway.
+  m->zero_btn = in.zero && !in.tared;
+  if (m->zero_btn) put(m->zero_line, in.zero_note[0] ? in.zero_note : "TAP: SET TO 0");
 }
 
 static void kg_text(int32_t grams, char *out, size_t size) {

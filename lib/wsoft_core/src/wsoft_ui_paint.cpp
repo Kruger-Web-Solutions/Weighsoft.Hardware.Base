@@ -169,11 +169,20 @@ static void paint_hilo(WsoftCanvas &c, const WsoftUiModel &m, const Theme &T) {
 static void paint_bottom(WsoftCanvas &c, const WsoftUiModel &m, const Theme &T) {
   char cut[CUT_SIZE];
   c.rect(0, 188, 320, 52, T.bg);
-  c.rect(8, 190, 104, 46, T.line, 8);
-  c.rect(9, 191, 102, 44, T.panel, 7);
-  c.text("GROSS", 17, 202, TINY, T.soft);
-  if (c.width(m.gross, MID) <= 88) c.text(m.gross, 17, 221, MID, m.live ? T.ink : T.soft);
-  else c.text(c.fit(m.gross, SMALL, 88, cut, sizeof cut), 17, 221, SMALL, m.live ? T.ink : T.soft);
+  if (m.zero_btn) {
+    // A board that weighs itself (load cell): ZERO takes the place of the GROSS read-out
+    // (with no tare on, gross is the big number anyway).
+    c.rect(8, 190, 104, 46, T.btn, 8);
+    c.text("ZERO", 60, 206, MID, T.btn_ink, WSOFT_CENTER);
+    if (c.width(m.zero_line, SMALL) <= 96) c.text(m.zero_line, 60, 225, SMALL, T.btn_ink, WSOFT_CENTER);
+    else c.text(c.fit(m.zero_line, TINY, 96, cut, sizeof cut), 60, 225, TINY, T.btn_ink, WSOFT_CENTER);
+  } else {
+    c.rect(8, 190, 104, 46, T.line, 8);
+    c.rect(9, 191, 102, 44, T.panel, 7);
+    c.text("GROSS", 17, 202, TINY, T.soft);
+    if (c.width(m.gross, MID) <= 88) c.text(m.gross, 17, 221, MID, m.live ? T.ink : T.soft);
+    else c.text(c.fit(m.gross, SMALL, 88, cut, sizeof cut), 17, 221, SMALL, m.live ? T.ink : T.soft);
+  }
   c.rect(120, 190, 72, 46, T.btn, 8);
   for (int i = 0; i < 3; i++) c.rect(144, 200 + i * 6, 24, 3, T.btn_ink, 1);
   c.text("MENU", 156, 226, SMALL, T.btn_ink, WSOFT_CENTER);

@@ -29,7 +29,7 @@ struct WsoftUiInput {
   const char *hub_text = "";  // the Hub state in words (hub_state_text)
 
   // the scale
-  const char *source = "RS485";  // RS485, RS232 or WRITER
+  const char *source = "RS485";  // RS485, RS232, WRITER or LOADCELL (shown as CELL: the bar has room for 7 letters)
   bool linked = false;
   bool alarm = false;
   bool stable = false;
@@ -67,6 +67,7 @@ struct WsoftUiInput {
   int32_t tare_value = 0;     // in decimals and unit
   bool preset_on = false;     // the setup has a preset tare
   bool zero = false;          // the board weighs itself (load cell): ZERO is there
+  const char *zero_note = ""; // what the last ZERO tap did, while it is fresh ("ZERO SET", "NOT STEADY")
   const char *preset_text = "";  // "2.5 kg"
 
   // the pages

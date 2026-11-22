@@ -124,7 +124,10 @@ those rules in the place of the card's (`scale_set_card`). The g unit stops at 0
 those rules count in 0.00001 kg. The screen gets the TARE tiles and the plate line, as on RS485
 (not tried on a board yet).
 
-**ZERO on the screen** (MENU → **ZERO**, load cell only; Rhyno, 22 Nov 2026). The scale
+**ZERO on the screen** (load cell only; Rhyno, 22 Nov 2026). It is on the live page, where
+GROSS is on the other boards (with no tare on, gross is the big number anyway; under a tare
+the GROSS read-out is back), and in MENU → **ZERO**. Under the button the screen says what the
+tap did for 3 seconds (`ZERO SET`, `NOT STEADY`, `APPROVAL IS ON`). The status bar says `CELL`. The scale
 drifted off zero: empty it, tap ZERO. It is the same zero as on the Calibrate tab, kept over a
 restart. Refused with Approval ON (`APPROVAL IS ON`), while a tare is on, and while the reading
 is not steady. A board that reads a scale (RS485, RS232) has no ZERO tile: that scale keeps its

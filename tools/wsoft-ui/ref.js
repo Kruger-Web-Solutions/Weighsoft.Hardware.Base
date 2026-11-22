@@ -241,7 +241,7 @@ const WsoftUi = (() => {
   // Tappable boxes: x, y, w, h. The firmware uses the same numbers for its taps.
   const BOX = {
     wifiBar: [0, 0, 150, 20], slot: [6, 22, 308, 40], connect: [160, 26, 100, 32], dismiss: [266, 26, 42, 32],
-    gross: [8, 190, 104, 46], menu: [120, 190, 72, 46], save: [200, 190, 112, 46],
+    gross: [8, 190, 104, 46], zero: [8, 190, 104, 46], menu: [120, 190, 72, 46], save: [200, 190, 112, 46],
     back: [164, 190, 148, 44], wide: [8, 190, 304, 44],
   };
   const tileBox = (i) => [i % 2 ? 164 : 8, 46 + (i >> 1) * 48, 148, 44];
@@ -370,11 +370,20 @@ const WsoftUi = (() => {
 
   function paintBottom(c, m, T) {
     c.rect(0, 188, 320, 52, T.bg, 0);
-    c.rect(8, 190, 104, 46, T.line, 8);
-    c.rect(9, 191, 102, 44, T.panel, 7);
-    c.text('GROSS', 17, 202, TINY, T.soft, LEFT);
-    if (c.width(m.gross, MID) <= 88) c.text(m.gross, 17, 221, MID, m.live ? T.ink : T.soft, LEFT);
-    else c.text(c.fit(m.gross, SMALL, 88), 17, 221, SMALL, m.live ? T.ink : T.soft, LEFT);
+    if (m.zero_btn) {
+      // A board that weighs itself (load cell): ZERO takes the place of the GROSS read-out
+      // (with no tare on, gross is the big number anyway).
+      c.rect(8, 190, 104, 46, T.btn, 8);
+      c.text('ZERO', 60, 206, MID, T.btn_ink, CENTER);
+      if (c.width(m.zero_line, SMALL) <= 96) c.text(m.zero_line, 60, 225, SMALL, T.btn_ink, CENTER);
+      else c.text(c.fit(m.zero_line, TINY, 96), 60, 225, TINY, T.btn_ink, CENTER);
+    } else {
+      c.rect(8, 190, 104, 46, T.line, 8);
+      c.rect(9, 191, 102, 44, T.panel, 7);
+      c.text('GROSS', 17, 202, TINY, T.soft, LEFT);
+      if (c.width(m.gross, MID) <= 88) c.text(m.gross, 17, 221, MID, m.live ? T.ink : T.soft, LEFT);
+      else c.text(c.fit(m.gross, SMALL, 88), 17, 221, SMALL, m.live ? T.ink : T.soft, LEFT);
+    }
     c.rect(120, 190, 72, 46, T.btn, 8);
     for (let i = 0; i < 3; i++) c.rect(144, 200 + i * 6, 24, 3, T.btn_ink, 1);
     c.text('MENU', 156, 226, SMALL, T.btn_ink, CENTER);
@@ -517,7 +526,7 @@ const WsoftUi = (() => {
     const up = S.wifi.up, hub = up ? S.hub : 'nowifi', net = S.gross - S.tare, pr = S.product;
     m.wifi_up = up; m.wifi_bars = up ? S.wifi.bars : 0; m.ip = up ? S.wifi.ip : 'NO WI-FI';
     m.hub = HUB[hub]; m.hub_tone = hub === 'online' ? TONE_OK : hub === 'setup' ? TONE_SOFT : TONE_BAD;
-    m.link = S.source; m.link_tone = !S.linked ? TONE_BAD : S.alarm ? TONE_WAIT : TONE_OK;
+    m.link = S.source === 'LOADCELL' ? 'CELL' : S.source; m.link_tone = !S.linked ? TONE_BAD : S.alarm ? TONE_WAIT : TONE_OK;
     // The band above the weight: a red note first, then the Wi-Fi alert, then a yellow note.
     const n = NOTICES[S.waiting];
     m.slot = SLOT_NONE; m.slot_title = ''; m.slot_detail = '';
@@ -559,16 +568,19 @@ const WsoftUi = (() => {
     else if (S.waiting === 'ALREADY') { m.save_line = 'TAKE LOAD OFF'; m.save_look = LOOK_BTN; }
     else if (!writer && S.save.pending > 0) { m.save_line = S.save.pending + ' TO SEND'; m.save_look = LOOK_ON; }
     else { m.save_line = !writer && S.save.auto ? 'AUTO SAVE ON' : 'TAP TO SAVE'; m.save_look = LOOK_ON; }
+    m.zero_btn = S.source === 'LOADCELL' && !S.tare;
+    m.zero_line = m.zero_btn ? S.zeroNote || 'TAP: SET TO 0' : '';
     m.title = ['', 'MENU', 'ENTER PIN', 'APPROVAL', 'WI-FI'][m.page];
     m.message = S.message;
     m.tiles = [];
     const tile = (id, caption, value, look) => m.tiles.push({ id, caption, value, look });
     tile('approval', 'APPROVAL', S.approval ? 'ON' : 'OFF', S.approval ? LOOK_ON : LOOK_BTN);
     tile('auto', 'AUTO SAVE', S.save.auto ? 'ON' : 'OFF', S.save.auto ? LOOK_ON : LOOK_BTN);
-    if (S.source === 'RS485') {
+    if (S.source === 'RS485' || S.source === 'LOADCELL') {
       tile('tare', 'TARE', S.tare ? fmtW(S.tare, S.decimals) + ' ' + S.unit : 'OFF', S.tare ? LOOK_ON : LOOK_BTN);
       if (S.presetTare) tile('preset', 'PRESET TARE', fmtW(S.presetTare, S.decimals) + ' ' + S.unit, LOOK_BTN);
     }
+    if (S.source === 'LOADCELL') tile('zero', 'ZERO', 'SET TO 0', LOOK_BTN);
     tile('product', 'PRODUCT', !S.products.length ? 'NONE ON THE HUB' : pr ? pr.name.toUpperCase() : 'NONE', pr ? LOOK_ON : LOOK_BTN);
     tile('theme', 'SCREEN', S.dark ? 'DARK' : 'LIGHT', LOOK_BTN);
     tile('wifi', 'WI-FI', up ? S.wifi.ip : 'OFF', LOOK_BTN);
@@ -589,7 +601,7 @@ const WsoftUi = (() => {
       wifi: { up: true, ip: '192.168.0.142', bars: 3, ap: 'Weighsoft-Esp-NEW', apIp: '192.168.4.1', hotspot: true, dismissed: false },
       hub: 'online', source: 'RS232', linked: true, alarm: false, stable: true,
       gross: 50120, tare: 0, presetTare: 0, decimals: 3, unit: 'kg', hold: 'none',
-      approval: false, check: 'off', seq: 0, audit: 0, plate: null,
+      zeroNote: '', approval: false, check: 'off', seq: 0, audit: 0, plate: null,
       products: [MAIZE, SUGAR], product: MAIZE,
       save: { auto: true, pending: 0, recent: null }, waiting: 'NONE', nextSeq: 8,
     };
@@ -626,6 +638,9 @@ const WsoftUi = (() => {
     ['Wi-Fi page, hotspot off', 'No Wi-Fi and no hotspot: nothing to join.', state({ page: 'wifi', wifi: { up: false, hotspot: false } })],
     ['No PIN, no address', 'With neither Wi-Fi nor hotspot the note says to connect first.', state({ page: 'nopin', wifi: { up: false, hotspot: false } })],
     ['Longest status bar', 'The address is never cut: the Hub shows only its dot when the bar is full.', state({ source: 'WRITER', hub: 'rejected', wifi: { ip: '192.168.100.200', bars: 1 } })],
+    ['Load cell', 'A board that weighs itself has ZERO next to MENU: empty the scale and tap.', state({ source: 'LOADCELL', gross: 1254, product: null, products: [] })],
+    ['Load cell, ZERO refused', 'The button says why for a few seconds.', state({ source: 'LOADCELL', gross: 15, product: null, products: [], zeroNote: 'NOT STEADY', dark: false })],
+    ['Load cell menu', 'ZERO is in the menu too, after TARE.', state({ page: 'menu', source: 'LOADCELL' })],
   ];
 
   const BOARDS = {
