@@ -28,6 +28,42 @@ enum {
 // Room for the longest text of the model, cut to fit its place (WsoftCanvas::fit).
 static const size_t CUT_SIZE = 72;
 
+// The Hi-Lo zone's fill and ink; `none` when there is no zone.
+static uint16_t zone_fill(const Theme &T, int zone, uint16_t none) {
+  return zone == WSOFT_UI_ZONE_LOW ? T.z_low : zone == WSOFT_UI_ZONE_OK ? T.z_ok : zone == WSOFT_UI_ZONE_HIGH ? T.z_high : none;
+}
+static uint16_t zone_ink(const Theme &T, int zone, uint16_t none) {
+  return zone == WSOFT_UI_ZONE_LOW    ? T.z_low_ink
+         : zone == WSOFT_UI_ZONE_OK   ? T.z_ok_ink
+         : zone == WSOFT_UI_ZONE_HIGH ? T.z_high_ink
+                                      : none;
+}
+
+// Text in `big` letters when it fits in `room`, else cut to fit in `small` letters.
+static void text_fit(WsoftCanvas &c, const char *text, double x, double y, int big, int small, double room,
+                     uint16_t ink, WsoftAlign align = WSOFT_LEFT) {
+  char cut[CUT_SIZE];
+  if (c.width(text, big) <= room) c.text(text, x, y, big, ink, align);
+  else c.text(c.fit(text, small, room, cut, sizeof cut), x, y, small, ink, align);
+}
+
+// The words on the bottom row's left button (ZERO, or the GROSS read-out) and on SAVE. The
+// classic and Full Colour screens draw the same words in their own colours.
+static void bottom_left_words(WsoftCanvas &c, const WsoftUiModel &m, uint16_t zero_ink, uint16_t zero_line,
+                              uint16_t gross_label, uint16_t gross_ink) {
+  if (m.zero_btn) {
+    c.text("ZERO", 60, 206, MID, zero_ink, WSOFT_CENTER);
+    text_fit(c, m.zero_line, 60, 225, SMALL, TINY, 96, zero_line, WSOFT_CENTER);
+  } else {
+    c.text("GROSS", 17, 202, TINY, gross_label);
+    text_fit(c, m.gross, 17, 221, MID, SMALL, 88, gross_ink);
+  }
+}
+static void save_words(WsoftCanvas &c, const WsoftUiModel &m, uint16_t ink) {
+  c.text("SAVE", 256, 206, MID, ink, WSOFT_CENTER);
+  text_fit(c, m.save_line, 256, 225, SMALL, TINY, 104, ink, WSOFT_CENTER);
+}
+
 // The colour of a word, and of the dot beside it.
 static uint16_t tone(const Theme &T, int t) {
   return t == WSOFT_UI_TONE_OK ? T.ok_ink : t == WSOFT_UI_TONE_WAIT ? T.wait_ink : t == WSOFT_UI_TONE_BAD ? T.bad_ink : T.soft;
@@ -144,8 +180,8 @@ static void paint_weight(WsoftCanvas &c, const WsoftUiModel &m, const Theme &T) 
   c.rect(0, 62, 320, 60, T.bg);
   uint16_t ink = m.live ? T.ink : T.soft, soft = T.soft;
   if (m.zone != WSOFT_UI_ZONE_NONE) {
-    c.rect(6, 64, 308, 56, m.zone == WSOFT_UI_ZONE_LOW ? T.z_low : m.zone == WSOFT_UI_ZONE_OK ? T.z_ok : T.z_high, 8);
-    ink = soft = m.zone == WSOFT_UI_ZONE_LOW ? T.z_low_ink : m.zone == WSOFT_UI_ZONE_OK ? T.z_ok_ink : T.z_high_ink;
+    c.rect(6, 64, 308, 56, zone_fill(T, m.zone, T.z_high), 8);
+    ink = soft = zone_ink(T, m.zone, T.z_high_ink);
   }
   c.text(m.label, 14, 72, TINY, soft);
   c.text(m.weight, 268, 95, c.width(m.weight, HERO) <= 250 ? HERO : BIG, ink, WSOFT_RIGHT);
@@ -183,30 +219,21 @@ static void paint_hilo(WsoftCanvas &c, const WsoftUiModel &m, const Theme &T) {
 }
 
 static void paint_bottom(WsoftCanvas &c, const WsoftUiModel &m, const Theme &T) {
-  char cut[CUT_SIZE];
   c.rect(0, 188, 320, 52, T.bg);
   if (m.zero_btn) {
     // A board that weighs itself (load cell): ZERO takes the place of the GROSS read-out
     // (with no tare on, gross is the big number anyway).
     c.rect(8, 190, 104, 46, T.btn, 8);
-    c.text("ZERO", 60, 206, MID, T.btn_ink, WSOFT_CENTER);
-    if (c.width(m.zero_line, SMALL) <= 96) c.text(m.zero_line, 60, 225, SMALL, T.btn_ink, WSOFT_CENTER);
-    else c.text(c.fit(m.zero_line, TINY, 96, cut, sizeof cut), 60, 225, TINY, T.btn_ink, WSOFT_CENTER);
   } else {
     c.rect(8, 190, 104, 46, T.line, 8);
     c.rect(9, 191, 102, 44, T.panel, 7);
-    c.text("GROSS", 17, 202, TINY, T.soft);
-    if (c.width(m.gross, MID) <= 88) c.text(m.gross, 17, 221, MID, m.live ? T.ink : T.soft);
-    else c.text(c.fit(m.gross, SMALL, 88, cut, sizeof cut), 17, 221, SMALL, m.live ? T.ink : T.soft);
   }
+  bottom_left_words(c, m, T.btn_ink, T.btn_ink, T.soft, m.live ? T.ink : T.soft);
   c.rect(120, 190, 72, 46, T.btn, 8);
   for (int i = 0; i < 3; i++) c.rect(144, 200 + i * 6, 24, 3, T.btn_ink, 1);
   c.text("MENU", 156, 226, SMALL, T.btn_ink, WSOFT_CENTER);
   c.rect(200, 190, 112, 46, m.save_look == WSOFT_UI_LOOK_ON ? T.ok : m.save_look == WSOFT_UI_LOOK_BAD ? T.stop : T.btn, 8);
-  uint16_t ink = m.save_look == WSOFT_UI_LOOK_BTN ? T.btn_ink : WHITE;
-  c.text("SAVE", 256, 206, MID, ink, WSOFT_CENTER);
-  if (c.width(m.save_line, SMALL) <= 104) c.text(m.save_line, 256, 225, SMALL, ink, WSOFT_CENTER);
-  else c.text(c.fit(m.save_line, TINY, 104, cut, sizeof cut), 256, 225, TINY, ink, WSOFT_CENTER);
+  save_words(c, m, m.save_look == WSOFT_UI_LOOK_BTN ? T.btn_ink : WHITE);
 }
 
 // ---------- the Hi-Lo word's sign: a tick, or an arrow down (low) or up (high) ----------
@@ -263,18 +290,21 @@ static const uint16_t NIGHT = 0x1066;       // #120D36
 // Full Colour is "Aurora" (Rhyno, 22 Nov 2026): a night-blue screen that fades down to Bunting,
 // the weight in a banner filled with the zone's colour, and the word in black on a pill of the
 // same colour.
-static const uint16_t AUR_TOP = 0x0824;     // #0B0726
-static const uint16_t AUR_LOW = 0x18A8;     // #1B1446
-static const uint16_t AUR_SOFT = 0x9D9B;    // #9FB3D9
-static const uint16_t AUR_BTN = 0x20EA;     // #221C55
-static const uint16_t AUR_LINE = 0x39AF;    // #3A3478
-static const uint16_t AUR_BAR = 0x0023;     // #07051A
+// "Mini Edge" (Rhyno, 22 Nov 2026): the Edge Touch colours.
+static const uint16_t AUR_TOP = 0x08C5;     // #0d1b2a
+static const uint16_t AUR_LOW = 0x08A4;     // #0b1420
+static const uint16_t AUR_SOFT = 0xAE3A;    // #a9c4d4
+static const uint16_t AUR_BTN = 0x1105;     // #13212f
+static const uint16_t AUR_LINE = 0x3BF3;    // #3f7f98
+static const uint16_t AUR_BAR = 0x08E6;     // #0f1e33
+static const uint16_t EDGE_ON = 0x24B7;     // #2596be
+static const uint16_t EDGE_TEAL = 0x0C4F;   // #0e8a7d
 static const uint16_t INK0 = 0x0862;        // #0B0D10
 
 struct ColourSet {
   uint16_t bg, ink, soft, shade, btn, btn_ink, btn_soft, bar, on, on_ink;
   bool grad, band, card, border;
-  uint16_t btn_line;
+  uint16_t btn_line, bar_line;
   uint16_t w_bg, w_ink, w_soft, strip, pill, pill_ink, out, mid, over, dot, mark, m_dot;
 };
 
@@ -292,6 +322,7 @@ static ColourSet colour_set(const WsoftUiModel &m, const Theme &) {
     P.btn_soft = SLATE;
     P.bar = SKY;
     P.on = NAVY;
+    P.bar_line = SKY;
     P.on_ink = WHITE;
     P.grad = false;
     P.band = false;
@@ -322,7 +353,8 @@ static ColourSet colour_set(const WsoftUiModel &m, const Theme &) {
   P.btn_ink = WHITE;
   P.btn_soft = AUR_SOFT;
   P.bar = AUR_BAR;
-  P.on = SKY;
+  P.bar_line = EDGE_TEAL;
+  P.on = EDGE_ON;
   P.on_ink = WHITE;
   P.band = false;
   P.card = true;
@@ -415,18 +447,14 @@ static void paint_weight_colour(WsoftCanvas &c, const WsoftUiModel &m, const The
   if (m.zone != WSOFT_UI_ZONE_NONE) {
     ColourSet P = colour_set(m, T);
     ground(c, P, 62, 60);
-    if (P.card) {
-      // Aurora glass card (Rhyno picked A, 22 Nov 2026): a thin line round it and a zone-coloured bar on the left.
-      c.rect(6, 62, 308, 60, P.btn_line, 10);
-      c.rect(7, 63, 306, 58, P.w_bg, 9);
-      c.rect(11, 69, 5, 46, P.strip, 2);
-    } else if (!P.band) c.rect(0, 64, 4, 56, P.strip);
+    // Mini Edge: the weight floats on the ground, no box (Rhyno, 22 Nov 2026).
+    if (!P.card && !P.band) c.rect(0, 64, 4, 56, P.strip);
     ink = P.w_ink;
     soft = P.w_soft;
   } else {
     c.rect(0, 62, 320, 60, bg);
   }
-  // Aurora's card: the weight sits inside it with room to spare.
+  // Mini Edge: big numbers floating on the ground.
   if (m.zone != WSOFT_UI_ZONE_NONE && colour_set(m, T).card) {
     c.text(m.label, 302, 73, TINY, soft, WSOFT_RIGHT);
     // Big numbers with a thick outline in the full zone colour (Rhyno, 22 Nov 2026: "as big as
@@ -511,30 +539,18 @@ static void paint_hilo_colour(WsoftCanvas &c, const WsoftUiModel &m, const Theme
 
 static void paint_bottom_colour(WsoftCanvas &c, const WsoftUiModel &m, const Theme &T) {
   if (m.zone == WSOFT_UI_ZONE_NONE) return paint_bottom(c, m, T);
-  char cut[CUT_SIZE];
   ColourSet P = colour_set(m, T);
   ground(c, P, 188, 52);
   if (P.border) c.rect(7, 189, 106, 48, P.btn_line, 9);
   c.rect(8, 190, 104, 46, P.btn, 8);
-  if (m.zero_btn) {
-    c.text("ZERO", 60, 206, MID, P.btn_ink, WSOFT_CENTER);
-    if (c.width(m.zero_line, SMALL) <= 96) c.text(m.zero_line, 60, 225, SMALL, P.btn_soft, WSOFT_CENTER);
-    else c.text(c.fit(m.zero_line, TINY, 96, cut, sizeof cut), 60, 225, TINY, P.btn_soft, WSOFT_CENTER);
-  } else {
-    c.text("GROSS", 17, 202, TINY, P.btn_soft);
-    if (c.width(m.gross, MID) <= 88) c.text(m.gross, 17, 221, MID, P.btn_ink);
-    else c.text(c.fit(m.gross, SMALL, 88, cut, sizeof cut), 17, 221, SMALL, P.btn_ink);
-  }
+  bottom_left_words(c, m, P.btn_ink, P.btn_soft, P.btn_soft, P.btn_ink);
   if (P.border) c.rect(119, 189, 74, 48, P.btn_line, 9);
   c.rect(120, 190, 72, 46, P.btn, 8);
   for (int i = 0; i < 3; i++) c.rect(144, 200 + i * 6, 24, 3, P.btn_ink, 1);
   c.text("MENU", 156, 226, SMALL, P.btn_ink, WSOFT_CENTER);
   bool on = m.save_look == WSOFT_UI_LOOK_ON, bad = m.save_look == WSOFT_UI_LOOK_BAD;
   c.rect(200, 190, 112, 46, on ? P.on : bad ? T.stop : P.btn, 8);
-  uint16_t ink = on ? P.on_ink : bad ? WHITE : P.btn_ink;
-  c.text("SAVE", 256, 206, MID, ink, WSOFT_CENTER);
-  if (c.width(m.save_line, SMALL) <= 104) c.text(m.save_line, 256, 225, SMALL, ink, WSOFT_CENTER);
-  else c.text(c.fit(m.save_line, TINY, 104, cut, sizeof cut), 256, 225, TINY, ink, WSOFT_CENTER);
+  save_words(c, m, on ? P.on_ink : bad ? WHITE : P.btn_ink);
 }
 
 // ---------- Dial: the Hi-Lo bar bent into a gauge over the weight ----------
@@ -583,8 +599,7 @@ static void paint_dial(WsoftCanvas &c, const WsoftUiModel &m, const Theme &T) {
   double mx = DIAL_X + d.x * mr * k, my = DIAL_Y + d.y * mr;
   c.disc(mx, my, 10, T.bg);
   c.disc(mx, my, 8, T.pointer);
-  c.disc(mx, my, 3.5,
-         m.zone == WSOFT_UI_ZONE_LOW ? T.z_low : m.zone == WSOFT_UI_ZONE_OK ? T.z_ok : m.zone == WSOFT_UI_ZONE_HIGH ? T.z_high : T.bg);
+  c.disc(mx, my, 3.5, zone_fill(T, m.zone, T.bg));
 }
 
 static void paint_top_dial(WsoftCanvas &c, const WsoftUiModel &m, const Theme &T) {
@@ -628,11 +643,8 @@ static void paint_hilo_dial(WsoftCanvas &c, const WsoftUiModel &m, const Theme &
   paint_dial(c, m, T);
   // The word in a pill of the zone's colour, with its sign.
   bool zoned = m.zone != WSOFT_UI_ZONE_NONE;
-  uint16_t fill = m.zone == WSOFT_UI_ZONE_LOW ? T.z_low : m.zone == WSOFT_UI_ZONE_OK ? T.z_ok : m.zone == WSOFT_UI_ZONE_HIGH ? T.z_high : T.btn;
-  uint16_t ink = m.zone == WSOFT_UI_ZONE_LOW    ? T.z_low_ink
-                 : m.zone == WSOFT_UI_ZONE_OK   ? T.z_ok_ink
-                 : m.zone == WSOFT_UI_ZONE_HIGH ? T.z_high_ink
-                                                : tone(T, m.word_tone);
+  uint16_t fill = zone_fill(T, m.zone, T.btn);
+  uint16_t ink = zone_ink(T, m.zone, tone(T, m.word_tone));
   // The word and what to do, in the biggest letters that fit.
   char words[40];
   hilo_words(m, words, sizeof words);
@@ -817,8 +829,8 @@ void wsoft_ui_paint_row(WsoftCanvas &c, const WsoftUiModel &m, int row) {
   switch (row) {
     case WSOFT_UI_ROW_BAR:
       if (colour && m.zone != WSOFT_UI_ZONE_NONE) {
-        uint16_t bg = colour_set(m, T).bar;
-        paint_bar(c, m, bg, bg);
+        ColourSet P = colour_set(m, T);
+        paint_bar(c, m, P.bar, P.bar_line);
       } else {
         paint_bar(c, m, T.bar, T.bar_line);
       }

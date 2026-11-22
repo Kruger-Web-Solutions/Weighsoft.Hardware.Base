@@ -30,9 +30,8 @@ export const paintPicture = (model: WsoftScreenModel): Uint16Array => {
   return canvas.fb;
 };
 
-/** The dots as RGBA bytes for a browser canvas. */
-export const toRgba = (fb: Uint16Array): Uint8ClampedArray => {
-  const out = new Uint8ClampedArray(fb.length * 4);
+/** The dots as RGBA bytes for a browser canvas, written into `out` when given (no new buffer per frame). */
+export const toRgba = (fb: Uint16Array, out = new Uint8ClampedArray(fb.length * 4)): Uint8ClampedArray => {
   for (let i = 0; i < fb.length; i++) {
     const v = fb[i], r = v >> 11, g = (v >> 5) & 63, b = v & 31;
     out[i * 4] = (r << 3) | (r >> 2);
