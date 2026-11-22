@@ -99,6 +99,7 @@ struct WsoftUiModel {
   // Hi-Lo row
   char word[14];
   uint8_t word_tone;
+  char hint[18];      // what to do: "ADD MORE", "REMOVE PRODUCT", "HOLD STILL"; "" with no zone
   bool product_on;
   char product[26];
   char target[26];    // "TARGET 50 KG", or the hint when no product is picked

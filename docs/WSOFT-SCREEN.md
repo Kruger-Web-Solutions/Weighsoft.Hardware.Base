@@ -67,10 +67,23 @@ three; only what a row draws differs. The menu pages look the same in every look
 | SCREEN says | Look | Pictures |
 |---|---|---|
 | DARK / LIGHT | Classic: the five rows of section 1. The default | `yellow-00` to `yellow-27` |
-| COLOUR | Full Colour: the whole screen takes the colour of the Hi-Lo zone (yellow low, green OK, red high), with a bigger weight and a big word, and one line that says what to do: ADD MORE, INSIDE THE LIMITS, TAKE SOME OUT | `yellow-28` to `yellow-37` |
-| DIAL | The Hi-Lo bar bent into a gauge over the weight, with a marker that moves along it | `yellow-38` to `yellow-47` |
+| COLOUR | Full Colour: the whole screen takes the colour of the Hi-Lo zone (yellow low, green OK, red high), with a bigger weight and one big line | `yellow-28` to `yellow-37`, `yellow-47` |
+| DIAL | The Hi-Lo bar bent into a gauge over the weight, with a marker that moves along it | `yellow-38` to `yellow-46`, `yellow-48` to `yellow-50` |
 
 ![Full Colour](img/wsoft-screen/yellow-29.png) ![Dial](img/wsoft-screen/yellow-39.png)
+
+Both say what to do next to the word (Rhyno, 22 Nov 2026), with an arrow the way to go:
+
+| Weight | They say | Sign |
+|---|---|---|
+| Too low | TOO LOW  ADD MORE | arrow up |
+| Too high | TOO HIGH  REMOVE PRODUCT | arrow down |
+| Good, Auto save on | SAVING  HOLD STILL | tick |
+| Good and saved | DONE  TAKE IT OFF | tick |
+| Good, Auto save off or a Writer | GOOD  TAP SAVE | tick |
+
+The classic screen keeps its words (TOO LOW, OK, TOO HIGH). The words come from the model's
+`word` and `hint`.
 
 Colour and Dial are dark screens. With no Hi-Lo product picked they show a plain dark screen
 with the weight. Two letter sizes were added for them (HUGE: the weight's digits, XL: the

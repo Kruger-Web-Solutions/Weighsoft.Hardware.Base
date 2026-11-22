@@ -8,7 +8,7 @@
 
 #define WSOFT_UI_PRESET_SET(field, text) strncpy(field, text, sizeof(field) - 1)
 
-static const int WSOFT_UI_PRESET_COUNT = 48;
+static const int WSOFT_UI_PRESET_COUNT = 51;
 
 // Fills *m with test screen n. False when there is no such screen.
 inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
@@ -42,6 +42,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->gross, "50.120 kg");
       WSOFT_UI_PRESET_SET(m->save_line, "AUTO SAVE ON");
       m->save_look = 1;
+      WSOFT_UI_PRESET_SET(m->hint, "HOLD STILL");
       m->tiles[0].id = WSOFT_UI_TILE_APPROVAL;
       m->tiles[0].look = 0;
       WSOFT_UI_PRESET_SET(m->tiles[0].caption, "APPROVAL");
@@ -96,6 +97,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->gross, "47.350 kg");
       WSOFT_UI_PRESET_SET(m->save_line, "AUTO SAVE ON");
       m->save_look = 1;
+      WSOFT_UI_PRESET_SET(m->hint, "ADD MORE");
       m->tiles[0].id = WSOFT_UI_TILE_APPROVAL;
       m->tiles[0].look = 0;
       WSOFT_UI_PRESET_SET(m->tiles[0].caption, "APPROVAL");
@@ -151,6 +153,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->gross, "52.480 kg");
       WSOFT_UI_PRESET_SET(m->save_line, "AUTO SAVE ON");
       m->save_look = 1;
+      WSOFT_UI_PRESET_SET(m->hint, "REMOVE PRODUCT");
       m->tiles[0].id = WSOFT_UI_TILE_APPROVAL;
       m->tiles[0].look = 0;
       WSOFT_UI_PRESET_SET(m->tiles[0].caption, "APPROVAL");
@@ -202,6 +205,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->gross, "50.120 kg");
       WSOFT_UI_PRESET_SET(m->save_line, "AUTO SAVE ON");
       m->save_look = 1;
+      WSOFT_UI_PRESET_SET(m->hint, "HOLD STILL");
       m->tiles[0].id = WSOFT_UI_TILE_APPROVAL;
       m->tiles[0].look = 0;
       WSOFT_UI_PRESET_SET(m->tiles[0].caption, "APPROVAL");
@@ -254,6 +258,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->gross, "50.120 kg");
       WSOFT_UI_PRESET_SET(m->save_line, "SAVED #8");
       m->save_look = 1;
+      WSOFT_UI_PRESET_SET(m->hint, "TAKE IT OFF");
       m->tiles[0].id = WSOFT_UI_TILE_APPROVAL;
       m->tiles[0].look = 0;
       WSOFT_UI_PRESET_SET(m->tiles[0].caption, "APPROVAL");
@@ -354,6 +359,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->gross, "50.120 kg");
       WSOFT_UI_PRESET_SET(m->save_line, "AUTO SAVE ON");
       m->save_look = 1;
+      WSOFT_UI_PRESET_SET(m->hint, "HOLD STILL");
       m->tiles[0].id = WSOFT_UI_TILE_APPROVAL;
       m->tiles[0].look = 0;
       WSOFT_UI_PRESET_SET(m->tiles[0].caption, "APPROVAL");
@@ -406,6 +412,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->gross, "50.120 kg");
       WSOFT_UI_PRESET_SET(m->save_line, "AUTO SAVE ON");
       m->save_look = 1;
+      WSOFT_UI_PRESET_SET(m->hint, "HOLD STILL");
       WSOFT_UI_PRESET_SET(m->title, "WI-FI");
       m->tiles[0].id = WSOFT_UI_TILE_APPROVAL;
       m->tiles[0].look = 0;
@@ -516,6 +523,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->gross, "52.60 kg");
       WSOFT_UI_PRESET_SET(m->save_line, "AUTO SAVE ON");
       m->save_look = 1;
+      WSOFT_UI_PRESET_SET(m->hint, "HOLD STILL");
       m->tiles[0].id = WSOFT_UI_TILE_APPROVAL;
       m->tiles[0].look = 1;
       WSOFT_UI_PRESET_SET(m->tiles[0].caption, "APPROVAL");
@@ -623,6 +631,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->gross, "50.12 kg");
       WSOFT_UI_PRESET_SET(m->save_line, "AUTO SAVE ON");
       m->save_look = 1;
+      WSOFT_UI_PRESET_SET(m->hint, "HOLD STILL");
       WSOFT_UI_PRESET_SET(m->title, "MENU");
       WSOFT_UI_PRESET_SET(m->message, "AUTO SAVE ON");
       m->tiles[0].id = WSOFT_UI_TILE_APPROVAL;
@@ -686,6 +695,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->gross, "50.120 kg");
       WSOFT_UI_PRESET_SET(m->save_line, "AUTO SAVE ON");
       m->save_look = 1;
+      WSOFT_UI_PRESET_SET(m->hint, "HOLD STILL");
       WSOFT_UI_PRESET_SET(m->title, "ENTER PIN");
       m->tiles[0].id = WSOFT_UI_TILE_APPROVAL;
       m->tiles[0].look = 0;
@@ -741,6 +751,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->gross, "50.120 kg");
       WSOFT_UI_PRESET_SET(m->save_line, "AUTO SAVE ON");
       m->save_look = 1;
+      WSOFT_UI_PRESET_SET(m->hint, "HOLD STILL");
       WSOFT_UI_PRESET_SET(m->title, "APPROVAL");
       m->tiles[0].id = WSOFT_UI_TILE_APPROVAL;
       m->tiles[0].look = 0;
@@ -796,6 +807,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->gross, "52.480 kg");
       WSOFT_UI_PRESET_SET(m->save_line, "AUTO SAVE ON");
       m->save_look = 1;
+      WSOFT_UI_PRESET_SET(m->hint, "REMOVE PRODUCT");
       m->tiles[0].id = WSOFT_UI_TILE_APPROVAL;
       m->tiles[0].look = 0;
       WSOFT_UI_PRESET_SET(m->tiles[0].caption, "APPROVAL");
@@ -848,6 +860,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->gross, "50.120 kg");
       WSOFT_UI_PRESET_SET(m->save_line, "AUTO SAVE ON");
       m->save_look = 1;
+      WSOFT_UI_PRESET_SET(m->hint, "HOLD STILL");
       WSOFT_UI_PRESET_SET(m->title, "MENU");
       m->tiles[0].id = WSOFT_UI_TILE_APPROVAL;
       m->tiles[0].look = 0;
@@ -904,6 +917,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->gross, "12.700 kg");
       WSOFT_UI_PRESET_SET(m->save_line, "AUTO SAVE ON");
       m->save_look = 1;
+      WSOFT_UI_PRESET_SET(m->hint, "REMOVE PRODUCT");
       m->tiles[0].id = WSOFT_UI_TILE_APPROVAL;
       m->tiles[0].look = 0;
       WSOFT_UI_PRESET_SET(m->tiles[0].caption, "APPROVAL");
@@ -956,6 +970,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->gross, "50.120 kg");
       WSOFT_UI_PRESET_SET(m->save_line, "AUTO SAVE ON");
       m->save_look = 1;
+      WSOFT_UI_PRESET_SET(m->hint, "HOLD STILL");
       WSOFT_UI_PRESET_SET(m->title, "WI-FI");
       m->tiles[0].id = WSOFT_UI_TILE_APPROVAL;
       m->tiles[0].look = 0;
@@ -1010,6 +1025,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->gross, "50.120 kg");
       WSOFT_UI_PRESET_SET(m->save_line, "AUTO SAVE ON");
       m->save_look = 1;
+      WSOFT_UI_PRESET_SET(m->hint, "REMOVE PRODUCT");
       WSOFT_UI_PRESET_SET(m->title, "MENU");
       WSOFT_UI_PRESET_SET(m->message, "PRODUCT YELLOW MAIZE MEAL 12.5 KG BAG");
       m->tiles[0].id = WSOFT_UI_TILE_APPROVAL;
@@ -1068,6 +1084,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->gross, "50.120 kg");
       WSOFT_UI_PRESET_SET(m->save_line, "AUTO SAVE ON");
       m->save_look = 1;
+      WSOFT_UI_PRESET_SET(m->hint, "HOLD STILL");
       m->tiles[0].id = WSOFT_UI_TILE_APPROVAL;
       m->tiles[0].look = 1;
       WSOFT_UI_PRESET_SET(m->tiles[0].caption, "APPROVAL");
@@ -1129,6 +1146,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->gross, "50.120 kg");
       WSOFT_UI_PRESET_SET(m->save_line, "AUTO SAVE ON");
       m->save_look = 1;
+      WSOFT_UI_PRESET_SET(m->hint, "HOLD STILL");
       m->tiles[0].id = WSOFT_UI_TILE_APPROVAL;
       m->tiles[0].look = 1;
       WSOFT_UI_PRESET_SET(m->tiles[0].caption, "APPROVAL");
@@ -1186,6 +1204,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->gross, "50.120 kg");
       WSOFT_UI_PRESET_SET(m->save_line, "AUTO SAVE ON");
       m->save_look = 1;
+      WSOFT_UI_PRESET_SET(m->hint, "HOLD STILL");
       WSOFT_UI_PRESET_SET(m->title, "WI-FI");
       m->tiles[0].id = WSOFT_UI_TILE_APPROVAL;
       m->tiles[0].look = 0;
@@ -1239,6 +1258,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->gross, "50.120 kg");
       WSOFT_UI_PRESET_SET(m->save_line, "AUTO SAVE ON");
       m->save_look = 1;
+      WSOFT_UI_PRESET_SET(m->hint, "HOLD STILL");
       WSOFT_UI_PRESET_SET(m->title, "WI-FI");
       m->tiles[0].id = WSOFT_UI_TILE_APPROVAL;
       m->tiles[0].look = 0;
@@ -1290,6 +1310,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->gross, "50.120 kg");
       WSOFT_UI_PRESET_SET(m->save_line, "AUTO SAVE ON");
       m->save_look = 1;
+      WSOFT_UI_PRESET_SET(m->hint, "HOLD STILL");
       WSOFT_UI_PRESET_SET(m->title, "APPROVAL");
       m->tiles[0].id = WSOFT_UI_TILE_APPROVAL;
       m->tiles[0].look = 0;
@@ -1341,6 +1362,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->gross, "50.120 kg");
       WSOFT_UI_PRESET_SET(m->save_line, "TAP TO SAVE");
       m->save_look = 1;
+      WSOFT_UI_PRESET_SET(m->hint, "TAP SAVE");
       m->tiles[0].id = WSOFT_UI_TILE_APPROVAL;
       m->tiles[0].look = 0;
       WSOFT_UI_PRESET_SET(m->tiles[0].caption, "APPROVAL");
@@ -1505,6 +1527,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->gross, "50.120 kg");
       WSOFT_UI_PRESET_SET(m->save_line, "AUTO SAVE ON");
       m->save_look = 1;
+      WSOFT_UI_PRESET_SET(m->hint, "HOLD STILL");
       m->zero_btn = true;
       WSOFT_UI_PRESET_SET(m->zero_line, "TAP: SET TO 0");
       WSOFT_UI_PRESET_SET(m->title, "MENU");
@@ -1559,7 +1582,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->unit, "kg");
       m->zone = 2;
       m->product_on = true;
-      WSOFT_UI_PRESET_SET(m->word, "OK");
+      WSOFT_UI_PRESET_SET(m->word, "SAVING");
       m->word_tone = 1;
       WSOFT_UI_PRESET_SET(m->product, "MAIZE");
       WSOFT_UI_PRESET_SET(m->target, "TARGET 50 KG");
@@ -1569,6 +1592,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->gross, "50.120 kg");
       WSOFT_UI_PRESET_SET(m->save_line, "AUTO SAVE ON");
       m->save_look = 1;
+      WSOFT_UI_PRESET_SET(m->hint, "HOLD STILL");
       m->zero_btn = true;
       WSOFT_UI_PRESET_SET(m->zero_line, "TAP: SET TO 0");
       m->tiles[0].id = WSOFT_UI_TILE_APPROVAL;
@@ -1631,6 +1655,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->gross, "47.350 kg");
       WSOFT_UI_PRESET_SET(m->save_line, "AUTO SAVE ON");
       m->save_look = 1;
+      WSOFT_UI_PRESET_SET(m->hint, "ADD MORE");
       m->zero_btn = true;
       WSOFT_UI_PRESET_SET(m->zero_line, "TAP: SET TO 0");
       m->tiles[0].id = WSOFT_UI_TILE_APPROVAL;
@@ -1694,6 +1719,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->gross, "52.480 kg");
       WSOFT_UI_PRESET_SET(m->save_line, "AUTO SAVE ON");
       m->save_look = 1;
+      WSOFT_UI_PRESET_SET(m->hint, "REMOVE PRODUCT");
       m->tiles[0].id = WSOFT_UI_TILE_APPROVAL;
       m->tiles[0].look = 0;
       WSOFT_UI_PRESET_SET(m->tiles[0].caption, "APPROVAL");
@@ -1749,6 +1775,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->gross, "47.350 kg");
       WSOFT_UI_PRESET_SET(m->save_line, "AUTO SAVE ON");
       m->save_look = 1;
+      WSOFT_UI_PRESET_SET(m->hint, "ADD MORE");
       m->tiles[0].id = WSOFT_UI_TILE_APPROVAL;
       m->tiles[0].look = 0;
       WSOFT_UI_PRESET_SET(m->tiles[0].caption, "APPROVAL");
@@ -1795,7 +1822,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->unit, "kg");
       m->zone = 2;
       m->product_on = true;
-      WSOFT_UI_PRESET_SET(m->word, "OK");
+      WSOFT_UI_PRESET_SET(m->word, "GOOD");
       m->word_tone = 1;
       WSOFT_UI_PRESET_SET(m->product, "MAIZE");
       WSOFT_UI_PRESET_SET(m->target, "TARGET 50 KG");
@@ -1846,7 +1873,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->unit, "kg");
       m->zone = 2;
       m->product_on = true;
-      WSOFT_UI_PRESET_SET(m->word, "OK");
+      WSOFT_UI_PRESET_SET(m->word, "SAVING");
       m->word_tone = 1;
       WSOFT_UI_PRESET_SET(m->product, "MAIZE");
       WSOFT_UI_PRESET_SET(m->target, "TARGET 50 KG");
@@ -1856,6 +1883,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->gross, "50.120 kg");
       WSOFT_UI_PRESET_SET(m->save_line, "AUTO SAVE ON");
       m->save_look = 1;
+      WSOFT_UI_PRESET_SET(m->hint, "HOLD STILL");
       m->tiles[0].id = WSOFT_UI_TILE_APPROVAL;
       m->tiles[0].look = 0;
       WSOFT_UI_PRESET_SET(m->tiles[0].caption, "APPROVAL");
@@ -1954,7 +1982,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->unit, "kg");
       m->zone = 2;
       m->product_on = true;
-      WSOFT_UI_PRESET_SET(m->word, "OK");
+      WSOFT_UI_PRESET_SET(m->word, "SAVING");
       m->word_tone = 1;
       WSOFT_UI_PRESET_SET(m->product, "MAIZE");
       WSOFT_UI_PRESET_SET(m->target, "TARGET 50 KG");
@@ -1964,6 +1992,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->gross, "52.60 kg");
       WSOFT_UI_PRESET_SET(m->save_line, "AUTO SAVE ON");
       m->save_look = 1;
+      WSOFT_UI_PRESET_SET(m->hint, "HOLD STILL");
       m->tiles[0].id = WSOFT_UI_TILE_APPROVAL;
       m->tiles[0].look = 1;
       WSOFT_UI_PRESET_SET(m->tiles[0].caption, "APPROVAL");
@@ -2025,6 +2054,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->gross, "12.700 kg");
       WSOFT_UI_PRESET_SET(m->save_line, "AUTO SAVE ON");
       m->save_look = 1;
+      WSOFT_UI_PRESET_SET(m->hint, "REMOVE PRODUCT");
       m->tiles[0].id = WSOFT_UI_TILE_APPROVAL;
       m->tiles[0].look = 0;
       WSOFT_UI_PRESET_SET(m->tiles[0].caption, "APPROVAL");
@@ -2069,7 +2099,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->unit, "kg");
       m->zone = 2;
       m->product_on = true;
-      WSOFT_UI_PRESET_SET(m->word, "OK");
+      WSOFT_UI_PRESET_SET(m->word, "SAVING");
       m->word_tone = 1;
       WSOFT_UI_PRESET_SET(m->product, "MAIZE");
       WSOFT_UI_PRESET_SET(m->target, "TARGET 50 KG");
@@ -2079,6 +2109,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->gross, "50.120 kg");
       WSOFT_UI_PRESET_SET(m->save_line, "AUTO SAVE ON");
       m->save_look = 1;
+      WSOFT_UI_PRESET_SET(m->hint, "HOLD STILL");
       WSOFT_UI_PRESET_SET(m->title, "MENU");
       m->tiles[0].id = WSOFT_UI_TILE_APPROVAL;
       m->tiles[0].look = 0;
@@ -2123,7 +2154,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->unit, "kg");
       m->zone = 2;
       m->product_on = true;
-      WSOFT_UI_PRESET_SET(m->word, "OK");
+      WSOFT_UI_PRESET_SET(m->word, "SAVING");
       m->word_tone = 1;
       WSOFT_UI_PRESET_SET(m->product, "MAIZE");
       WSOFT_UI_PRESET_SET(m->target, "TARGET 50 KG");
@@ -2133,6 +2164,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->gross, "50.120 kg");
       WSOFT_UI_PRESET_SET(m->save_line, "AUTO SAVE ON");
       m->save_look = 1;
+      WSOFT_UI_PRESET_SET(m->hint, "HOLD STILL");
       m->zero_btn = true;
       WSOFT_UI_PRESET_SET(m->zero_line, "TAP: SET TO 0");
       m->tiles[0].id = WSOFT_UI_TILE_APPROVAL;
@@ -2195,6 +2227,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->gross, "47.350 kg");
       WSOFT_UI_PRESET_SET(m->save_line, "AUTO SAVE ON");
       m->save_look = 1;
+      WSOFT_UI_PRESET_SET(m->hint, "ADD MORE");
       m->zero_btn = true;
       WSOFT_UI_PRESET_SET(m->zero_line, "TAP: SET TO 0");
       m->tiles[0].id = WSOFT_UI_TILE_APPROVAL;
@@ -2258,6 +2291,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->gross, "52.480 kg");
       WSOFT_UI_PRESET_SET(m->save_line, "AUTO SAVE ON");
       m->save_look = 1;
+      WSOFT_UI_PRESET_SET(m->hint, "REMOVE PRODUCT");
       m->tiles[0].id = WSOFT_UI_TILE_APPROVAL;
       m->tiles[0].look = 0;
       WSOFT_UI_PRESET_SET(m->tiles[0].caption, "APPROVAL");
@@ -2313,6 +2347,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->gross, "47.350 kg");
       WSOFT_UI_PRESET_SET(m->save_line, "AUTO SAVE ON");
       m->save_look = 1;
+      WSOFT_UI_PRESET_SET(m->hint, "ADD MORE");
       m->tiles[0].id = WSOFT_UI_TILE_APPROVAL;
       m->tiles[0].look = 0;
       WSOFT_UI_PRESET_SET(m->tiles[0].caption, "APPROVAL");
@@ -2355,7 +2390,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->unit, "kg");
       m->zone = 2;
       m->product_on = true;
-      WSOFT_UI_PRESET_SET(m->word, "OK");
+      WSOFT_UI_PRESET_SET(m->word, "SAVING");
       m->word_tone = 1;
       WSOFT_UI_PRESET_SET(m->product, "MAIZE");
       WSOFT_UI_PRESET_SET(m->target, "TARGET 50 KG");
@@ -2365,6 +2400,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->gross, "50.120 kg");
       WSOFT_UI_PRESET_SET(m->save_line, "AUTO SAVE ON");
       m->save_look = 1;
+      WSOFT_UI_PRESET_SET(m->hint, "HOLD STILL");
       m->tiles[0].id = WSOFT_UI_TILE_APPROVAL;
       m->tiles[0].look = 0;
       WSOFT_UI_PRESET_SET(m->tiles[0].caption, "APPROVAL");
@@ -2513,7 +2549,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->unit, "kg");
       m->zone = 2;
       m->product_on = true;
-      WSOFT_UI_PRESET_SET(m->word, "OK");
+      WSOFT_UI_PRESET_SET(m->word, "SAVING");
       m->word_tone = 1;
       WSOFT_UI_PRESET_SET(m->product, "MAIZE");
       WSOFT_UI_PRESET_SET(m->target, "TARGET 50 KG");
@@ -2523,6 +2559,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->gross, "52.60 kg");
       WSOFT_UI_PRESET_SET(m->save_line, "AUTO SAVE ON");
       m->save_look = 1;
+      WSOFT_UI_PRESET_SET(m->hint, "HOLD STILL");
       m->tiles[0].id = WSOFT_UI_TILE_APPROVAL;
       m->tiles[0].look = 1;
       WSOFT_UI_PRESET_SET(m->tiles[0].caption, "APPROVAL");
@@ -2584,6 +2621,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->gross, "12.700 kg");
       WSOFT_UI_PRESET_SET(m->save_line, "AUTO SAVE ON");
       m->save_look = 1;
+      WSOFT_UI_PRESET_SET(m->hint, "REMOVE PRODUCT");
       m->tiles[0].id = WSOFT_UI_TILE_APPROVAL;
       m->tiles[0].look = 0;
       WSOFT_UI_PRESET_SET(m->tiles[0].caption, "APPROVAL");
@@ -2608,7 +2646,169 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->address, "192.168.4.1");
       WSOFT_UI_PRESET_SET(m->ap_name, "Weighsoft-Esp-NEW");
       return true;
-    case 47:  // Dial, six figures
+    case 47:  // Full Colour, saved
+      m->dark = true;
+      m->style = 1;
+      m->wifi_up = true;
+      m->wifi_bars = 3;
+      WSOFT_UI_PRESET_SET(m->ip, "192.168.0.142");
+      WSOFT_UI_PRESET_SET(m->hub, "HUB");
+      m->hub_tone = 1;
+      WSOFT_UI_PRESET_SET(m->link, "RS232");
+      m->link_tone = 1;
+      WSOFT_UI_PRESET_SET(m->steady, "STABLE");
+      m->steady_tone = 1;
+      WSOFT_UI_PRESET_SET(m->audit, "AUDIT 0");
+      WSOFT_UI_PRESET_SET(m->label, "NET");
+      m->live = true;
+      WSOFT_UI_PRESET_SET(m->weight, "50.120");
+      WSOFT_UI_PRESET_SET(m->unit, "kg");
+      m->zone = 2;
+      m->product_on = true;
+      WSOFT_UI_PRESET_SET(m->word, "DONE");
+      m->word_tone = 1;
+      WSOFT_UI_PRESET_SET(m->product, "MAIZE");
+      WSOFT_UI_PRESET_SET(m->target, "TARGET 50 KG");
+      WSOFT_UI_PRESET_SET(m->low, "49");
+      WSOFT_UI_PRESET_SET(m->high, "51");
+      m->pointer = 527;
+      WSOFT_UI_PRESET_SET(m->gross, "50.120 kg");
+      WSOFT_UI_PRESET_SET(m->save_line, "SAVED #8");
+      m->save_look = 1;
+      WSOFT_UI_PRESET_SET(m->hint, "TAKE IT OFF");
+      m->tiles[0].id = WSOFT_UI_TILE_APPROVAL;
+      m->tiles[0].look = 0;
+      WSOFT_UI_PRESET_SET(m->tiles[0].caption, "APPROVAL");
+      WSOFT_UI_PRESET_SET(m->tiles[0].value, "OFF");
+      m->tiles[1].id = WSOFT_UI_TILE_AUTO;
+      m->tiles[1].look = 1;
+      WSOFT_UI_PRESET_SET(m->tiles[1].caption, "AUTO SAVE");
+      WSOFT_UI_PRESET_SET(m->tiles[1].value, "ON");
+      m->tiles[2].id = WSOFT_UI_TILE_PRODUCT;
+      m->tiles[2].look = 1;
+      WSOFT_UI_PRESET_SET(m->tiles[2].caption, "PRODUCT");
+      WSOFT_UI_PRESET_SET(m->tiles[2].value, "MAIZE");
+      m->tiles[3].id = WSOFT_UI_TILE_THEME;
+      m->tiles[3].look = 0;
+      WSOFT_UI_PRESET_SET(m->tiles[3].caption, "SCREEN");
+      WSOFT_UI_PRESET_SET(m->tiles[3].value, "COLOUR");
+      m->tiles[4].id = WSOFT_UI_TILE_WIFI;
+      m->tiles[4].look = 0;
+      WSOFT_UI_PRESET_SET(m->tiles[4].caption, "WI-FI");
+      WSOFT_UI_PRESET_SET(m->tiles[4].value, "192.168.0.142");
+      m->tile_count = 5;
+      WSOFT_UI_PRESET_SET(m->address, "192.168.4.1");
+      WSOFT_UI_PRESET_SET(m->ap_name, "Weighsoft-Esp-NEW");
+      return true;
+    case 48:  // Dial, saved
+      m->dark = true;
+      m->style = 2;
+      m->wifi_up = true;
+      m->wifi_bars = 3;
+      WSOFT_UI_PRESET_SET(m->ip, "192.168.0.142");
+      WSOFT_UI_PRESET_SET(m->hub, "HUB");
+      m->hub_tone = 1;
+      WSOFT_UI_PRESET_SET(m->link, "RS232");
+      m->link_tone = 1;
+      WSOFT_UI_PRESET_SET(m->steady, "STABLE");
+      m->steady_tone = 1;
+      WSOFT_UI_PRESET_SET(m->audit, "AUDIT 0");
+      WSOFT_UI_PRESET_SET(m->label, "NET");
+      m->live = true;
+      WSOFT_UI_PRESET_SET(m->weight, "50.120");
+      WSOFT_UI_PRESET_SET(m->unit, "kg");
+      m->zone = 2;
+      m->product_on = true;
+      WSOFT_UI_PRESET_SET(m->word, "DONE");
+      m->word_tone = 1;
+      WSOFT_UI_PRESET_SET(m->product, "MAIZE");
+      WSOFT_UI_PRESET_SET(m->target, "TARGET 50 KG");
+      WSOFT_UI_PRESET_SET(m->low, "49");
+      WSOFT_UI_PRESET_SET(m->high, "51");
+      m->pointer = 527;
+      WSOFT_UI_PRESET_SET(m->gross, "50.120 kg");
+      WSOFT_UI_PRESET_SET(m->save_line, "SAVED #8");
+      m->save_look = 1;
+      WSOFT_UI_PRESET_SET(m->hint, "TAKE IT OFF");
+      m->tiles[0].id = WSOFT_UI_TILE_APPROVAL;
+      m->tiles[0].look = 0;
+      WSOFT_UI_PRESET_SET(m->tiles[0].caption, "APPROVAL");
+      WSOFT_UI_PRESET_SET(m->tiles[0].value, "OFF");
+      m->tiles[1].id = WSOFT_UI_TILE_AUTO;
+      m->tiles[1].look = 1;
+      WSOFT_UI_PRESET_SET(m->tiles[1].caption, "AUTO SAVE");
+      WSOFT_UI_PRESET_SET(m->tiles[1].value, "ON");
+      m->tiles[2].id = WSOFT_UI_TILE_PRODUCT;
+      m->tiles[2].look = 1;
+      WSOFT_UI_PRESET_SET(m->tiles[2].caption, "PRODUCT");
+      WSOFT_UI_PRESET_SET(m->tiles[2].value, "MAIZE");
+      m->tiles[3].id = WSOFT_UI_TILE_THEME;
+      m->tiles[3].look = 0;
+      WSOFT_UI_PRESET_SET(m->tiles[3].caption, "SCREEN");
+      WSOFT_UI_PRESET_SET(m->tiles[3].value, "DIAL");
+      m->tiles[4].id = WSOFT_UI_TILE_WIFI;
+      m->tiles[4].look = 0;
+      WSOFT_UI_PRESET_SET(m->tiles[4].caption, "WI-FI");
+      WSOFT_UI_PRESET_SET(m->tiles[4].value, "192.168.0.142");
+      m->tile_count = 5;
+      WSOFT_UI_PRESET_SET(m->address, "192.168.4.1");
+      WSOFT_UI_PRESET_SET(m->ap_name, "Weighsoft-Esp-NEW");
+      return true;
+    case 49:  // Dial, Auto save off
+      m->dark = true;
+      m->style = 2;
+      m->wifi_up = true;
+      m->wifi_bars = 3;
+      WSOFT_UI_PRESET_SET(m->ip, "192.168.0.142");
+      WSOFT_UI_PRESET_SET(m->hub, "HUB");
+      m->hub_tone = 1;
+      WSOFT_UI_PRESET_SET(m->link, "RS232");
+      m->link_tone = 1;
+      WSOFT_UI_PRESET_SET(m->steady, "STABLE");
+      m->steady_tone = 1;
+      WSOFT_UI_PRESET_SET(m->audit, "AUDIT 0");
+      WSOFT_UI_PRESET_SET(m->label, "NET");
+      m->live = true;
+      WSOFT_UI_PRESET_SET(m->weight, "50.120");
+      WSOFT_UI_PRESET_SET(m->unit, "kg");
+      m->zone = 2;
+      m->product_on = true;
+      WSOFT_UI_PRESET_SET(m->word, "GOOD");
+      m->word_tone = 1;
+      WSOFT_UI_PRESET_SET(m->product, "MAIZE");
+      WSOFT_UI_PRESET_SET(m->target, "TARGET 50 KG");
+      WSOFT_UI_PRESET_SET(m->low, "49");
+      WSOFT_UI_PRESET_SET(m->high, "51");
+      m->pointer = 527;
+      WSOFT_UI_PRESET_SET(m->gross, "50.120 kg");
+      WSOFT_UI_PRESET_SET(m->save_line, "TAP TO SAVE");
+      m->save_look = 1;
+      WSOFT_UI_PRESET_SET(m->hint, "TAP SAVE");
+      m->tiles[0].id = WSOFT_UI_TILE_APPROVAL;
+      m->tiles[0].look = 0;
+      WSOFT_UI_PRESET_SET(m->tiles[0].caption, "APPROVAL");
+      WSOFT_UI_PRESET_SET(m->tiles[0].value, "OFF");
+      m->tiles[1].id = WSOFT_UI_TILE_AUTO;
+      m->tiles[1].look = 0;
+      WSOFT_UI_PRESET_SET(m->tiles[1].caption, "AUTO SAVE");
+      WSOFT_UI_PRESET_SET(m->tiles[1].value, "OFF");
+      m->tiles[2].id = WSOFT_UI_TILE_PRODUCT;
+      m->tiles[2].look = 1;
+      WSOFT_UI_PRESET_SET(m->tiles[2].caption, "PRODUCT");
+      WSOFT_UI_PRESET_SET(m->tiles[2].value, "MAIZE");
+      m->tiles[3].id = WSOFT_UI_TILE_THEME;
+      m->tiles[3].look = 0;
+      WSOFT_UI_PRESET_SET(m->tiles[3].caption, "SCREEN");
+      WSOFT_UI_PRESET_SET(m->tiles[3].value, "DIAL");
+      m->tiles[4].id = WSOFT_UI_TILE_WIFI;
+      m->tiles[4].look = 0;
+      WSOFT_UI_PRESET_SET(m->tiles[4].caption, "WI-FI");
+      WSOFT_UI_PRESET_SET(m->tiles[4].value, "192.168.0.142");
+      m->tile_count = 5;
+      WSOFT_UI_PRESET_SET(m->address, "192.168.4.1");
+      WSOFT_UI_PRESET_SET(m->ap_name, "Weighsoft-Esp-NEW");
+      return true;
+    case 50:  // Dial, six figures
       m->dark = true;
       m->style = 2;
       m->wifi_up = true;
@@ -2627,7 +2827,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->unit, "kg");
       m->zone = 2;
       m->product_on = true;
-      WSOFT_UI_PRESET_SET(m->word, "OK");
+      WSOFT_UI_PRESET_SET(m->word, "SAVING");
       m->word_tone = 1;
       WSOFT_UI_PRESET_SET(m->product, "MAIZE");
       WSOFT_UI_PRESET_SET(m->target, "TARGET 982 KG");
@@ -2637,6 +2837,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       WSOFT_UI_PRESET_SET(m->gross, "983 kg");
       WSOFT_UI_PRESET_SET(m->save_line, "AUTO SAVE ON");
       m->save_look = 1;
+      WSOFT_UI_PRESET_SET(m->hint, "HOLD STILL");
       m->tiles[0].id = WSOFT_UI_TILE_APPROVAL;
       m->tiles[0].look = 0;
       WSOFT_UI_PRESET_SET(m->tiles[0].caption, "APPROVAL");

@@ -809,6 +809,59 @@ void test_the_style_of_the_live_page() {
   TEST_ASSERT_EQUAL_HEX32(wsoft_ui_row_key(a, WSOFT_UI_ROW_BAR), wsoft_ui_row_key(c, WSOFT_UI_ROW_BAR));
 }
 
+void test_what_to_do_next_to_the_hilo_word() {
+  WsoftUiInput in = weighing();
+  WsoftUiModel m;
+  // Too low: add more. Too high: remove product. In every style.
+  in.zone = WSOFT_RELAY_LOW;
+  wsoft_ui_model(in, &m);
+  TEST_ASSERT_EQUAL_STRING("TOO LOW", m.word);
+  TEST_ASSERT_EQUAL_STRING("ADD MORE", m.hint);
+  in.zone = WSOFT_RELAY_HIGH;
+  in.style = WSOFT_UI_STYLE_DIAL;
+  wsoft_ui_model(in, &m);
+  TEST_ASSERT_EQUAL_STRING("TOO HIGH", m.word);
+  TEST_ASSERT_EQUAL_STRING("REMOVE PRODUCT", m.hint);
+  // Inside the limits the classic screen keeps OK; the new screens say what the save does.
+  in.zone = WSOFT_RELAY_OK;
+  in.auto_save = true;
+  in.waiting = WSOFT_SAVE_NONE;
+  in.recent = WSOFT_SAVE_NONE;
+  in.style = WSOFT_UI_STYLE_CLASSIC;
+  wsoft_ui_model(in, &m);
+  TEST_ASSERT_EQUAL_STRING("OK", m.word);
+  in.style = WSOFT_UI_STYLE_COLOUR;
+  wsoft_ui_model(in, &m);
+  TEST_ASSERT_EQUAL_STRING("SAVING", m.word);
+  TEST_ASSERT_EQUAL_STRING("HOLD STILL", m.hint);
+  // Saved, and while the saved load is still on.
+  in.recent = WSOFT_SAVE_SAVED;
+  wsoft_ui_model(in, &m);
+  TEST_ASSERT_EQUAL_STRING("DONE", m.word);
+  TEST_ASSERT_EQUAL_STRING("TAKE IT OFF", m.hint);
+  in.recent = WSOFT_SAVE_NONE;
+  in.waiting = WSOFT_SAVE_ALREADY;
+  wsoft_ui_model(in, &m);
+  TEST_ASSERT_EQUAL_STRING("DONE", m.word);
+  // Auto save off, or a Writer: a tap saves.
+  in.waiting = WSOFT_SAVE_NONE;
+  in.auto_save = false;
+  wsoft_ui_model(in, &m);
+  TEST_ASSERT_EQUAL_STRING("GOOD", m.word);
+  TEST_ASSERT_EQUAL_STRING("TAP SAVE", m.hint);
+  // Something stops the save: never SAVING. The notice band says what.
+  in.auto_save = true;
+  in.waiting = WSOFT_SAVE_NEED_ZERO;
+  wsoft_ui_model(in, &m);
+  TEST_ASSERT_EQUAL_STRING("GOOD", m.word);
+  TEST_ASSERT_EQUAL_STRING("", m.hint);
+  // No zone, no hint.
+  in.zone = WSOFT_RELAY_NONE;
+  in.waiting = WSOFT_SAVE_NONE;
+  wsoft_ui_model(in, &m);
+  TEST_ASSERT_EQUAL_STRING("", m.hint);
+}
+
 void test_model_plate_line() {
   WsoftScaleSetup setup;
   WsoftCardFormat card;
@@ -969,6 +1022,7 @@ int main(int, char **) {
   RUN_TEST(test_model_same_facts_same_bytes);
   RUN_TEST(test_only_rows_that_changed_get_painted);
   RUN_TEST(test_the_style_of_the_live_page);
+  RUN_TEST(test_what_to_do_next_to_the_hilo_word);
   RUN_TEST(test_model_plate_line);
   RUN_TEST(test_a_plate_never_shows_a_cut_number);
   RUN_TEST(test_there_is_a_golden_for_every_screen);

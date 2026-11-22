@@ -216,12 +216,19 @@ static void paint_sign(WsoftCanvas &c, int zone, double x, double y, uint16_t in
     c.line(x - 8, y, x - 2.5, y + 5.5, 4, ink);
     c.line(x - 2.5, y + 5.5, x + 8, y - 6, 4, ink);
   } else if (zone == WSOFT_UI_ZONE_LOW) {
-    c.line(x - 7.5, y - 4, x, y + 4.5, 4, ink);
-    c.line(x, y + 4.5, x + 7.5, y - 4, 4, ink);
-  } else {
     c.line(x - 7.5, y + 4, x, y - 4.5, 4, ink);
     c.line(x, y - 4.5, x + 7.5, y + 4, 4, ink);
+  } else {
+    c.line(x - 7.5, y - 4, x, y + 4.5, 4, ink);
+    c.line(x, y + 4.5, x + 7.5, y - 4, 4, ink);
   }
+}
+
+// The Hi-Lo word and what to do, as one line: "TOO LOW  ADD MORE". out needs 40 bytes.
+static const char *hilo_words(const WsoftUiModel &m, char *out, size_t size) {
+  if (m.hint[0]) snprintf(out, size, "%s  %s", m.word, m.hint);
+  else snprintf(out, size, "%s", m.word);
+  return out;
 }
 
 // The plate and the audit counter belong on the screen when there is a plate or the trade checks are on.
@@ -329,17 +336,18 @@ static void paint_hilo_colour(WsoftCanvas &c, const WsoftUiModel &m, const Theme
   char cut[CUT_SIZE], line[CUT_SIZE];
   ColourSet P = colour_set(m, T);
   c.rect(0, 122, 320, 66, P.bg);
-  int role = c.width(m.word, XL) <= 250 ? XL : BIG;
-  double x0 = 160 - (c.width(m.word, role) + 26) / 2;
-  paint_sign(c, m.zone, x0 + 9, 139, P.ink);
-  c.text(m.word, x0 + 26, 139, role, P.ink);
-  // Under the word: what to do. The product moves here when the plate has its line.
-  if (plate_on(m)) {
-    c.text(c.fit(product_line(m, line, sizeof line), SMALL, 300, cut, sizeof cut), 160, 160, SMALL, P.soft, WSOFT_CENTER);
-  } else {
-    c.text(m.zone == WSOFT_UI_ZONE_LOW ? "ADD MORE" : m.zone == WSOFT_UI_ZONE_OK ? "INSIDE THE LIMITS" : "TAKE SOME OUT", 160, 160,
-           SMALL, P.soft, WSOFT_CENTER);
-  }
+  // The word and what to do on one line, in the biggest letters that fit.
+  char words[40];
+  hilo_words(m, words, sizeof words);
+  int role = XL;
+  if (c.width(words, XL) > 270) role = BIG;
+  if (role == BIG && c.width(words, BIG) > 270) role = MID;
+  double wy = plate_on(m) ? 139 : 144;
+  double x0 = 160 - (c.width(words, role) + 26) / 2;
+  paint_sign(c, m.zone, x0 + 9, wy, P.ink);
+  c.text(words, x0 + 26, wy, role, P.ink);
+  // The product moves under the word when the plate has its line.
+  if (plate_on(m)) c.text(c.fit(product_line(m, line, sizeof line), SMALL, 300, cut, sizeof cut), 160, 160, SMALL, P.soft, WSOFT_CENTER);
   const double bx = 12, bw = 296, by = 170, bh = 8;
   double lo = bx + bw * 6 / 22, hi = bx + bw * 16 / 22;
   c.rect(bx, by, bw, bh, P.shade, -1);
@@ -469,12 +477,17 @@ static void paint_hilo_dial(WsoftCanvas &c, const WsoftUiModel &m, const Theme &
                  : m.zone == WSOFT_UI_ZONE_OK   ? T.z_ok_ink
                  : m.zone == WSOFT_UI_ZONE_HIGH ? T.z_high_ink
                                                 : tone(T, m.word_tone);
-  int role = m.product_on ? BIG : MID;
+  // The word and what to do, in the biggest letters that fit.
+  char words[40];
+  hilo_words(m, words, sizeof words);
   double sign = zoned ? 24 : 0;
-  double pw = c.width(m.word, role) + sign + 28, px = 160 - pw / 2;
+  int role = m.product_on ? BIG : MID;
+  if (role == BIG && c.width(words, BIG) + sign + 28 > 304) role = MID;
+  if (role == MID && c.width(words, MID) + sign + 28 > 304) role = SMALL;
+  double pw = c.width(words, role) + sign + 28, px = 160 - pw / 2;
   c.rect(px, 141, pw, 25, fill, -1);
   if (zoned) paint_sign(c, m.zone, px + 23, 153.5, ink);
-  c.text(m.word, px + 14 + sign, 153.5, role, ink);
+  c.text(words, px + 14 + sign, 153.5, role, ink);
   // The plate takes the bottom line when it is there: the product line moves up in small letters.
   int role2 = plate_on(m) ? TINY : SMALL;
   double y2 = plate_on(m) ? 171.5 : 174;

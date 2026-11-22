@@ -448,17 +448,18 @@ const WsoftUi = (() => {
     else c.text(c.fit(m.save_line, TINY, 104), 256, 225, TINY, ink, CENTER);
   }
 
-  // ---------- the Hi-Lo word's sign: a tick, or an arrow down (low) or up (high) ----------
+  // ---------- the Hi-Lo word's sign: a tick, or the way to go: an arrow up (too low, add
+  // more) or down (too high, remove some) (Rhyno, 22 Nov 2026) ----------
   function paintSign(c, zone, x, y, ink) {
     if (zone === ZONE_OK) {
       c.line(x - 8, y, x - 2.5, y + 5.5, 4, ink);
       c.line(x - 2.5, y + 5.5, x + 8, y - 6, 4, ink);
     } else if (zone === ZONE_LOW) {
-      c.line(x - 7.5, y - 4, x, y + 4.5, 4, ink);
-      c.line(x, y + 4.5, x + 7.5, y - 4, 4, ink);
-    } else {
       c.line(x - 7.5, y + 4, x, y - 4.5, 4, ink);
       c.line(x, y - 4.5, x + 7.5, y + 4, 4, ink);
+    } else {
+      c.line(x - 7.5, y - 4, x, y + 4.5, 4, ink);
+      c.line(x, y + 4.5, x + 7.5, y - 4, 4, ink);
     }
   }
   // The plate and the audit counter belong on the screen when there is a plate or the trade checks are on.
@@ -538,13 +539,17 @@ const WsoftUi = (() => {
     if (m.zone === ZONE_NONE) return paintHilo(c, m, T);
     const P = colourSet(m, T);
     c.rect(0, 122, 320, 66, P.bg, 0);
-    const role = c.width(m.word, XL) <= 250 ? XL : BIG;
-    const x0 = 160 - (c.width(m.word, role) + 26) / 2;
-    paintSign(c, m.zone, x0 + 9, 139, P.ink);
-    c.text(m.word, x0 + 26, 139, role, P.ink, LEFT);
-    // Under the word: what to do. The product moves here when the plate has its line.
+    // The word and what to do on one line, in the biggest letters that fit.
+    const words = m.hint ? m.word + '  ' + m.hint : m.word;
+    let role = XL;
+    if (c.width(words, XL) > 270) role = BIG;
+    if (role === BIG && c.width(words, BIG) > 270) role = MID;
+    const wy = plateOn(m) ? 139 : 144;
+    const x0 = 160 - (c.width(words, role) + 26) / 2;
+    paintSign(c, m.zone, x0 + 9, wy, P.ink);
+    c.text(words, x0 + 26, wy, role, P.ink, LEFT);
+    // The product moves under the word when the plate has its line.
     if (plateOn(m)) c.text(c.fit(m.product + '   ' + m.target, SMALL, 300), 160, 160, SMALL, P.soft, CENTER);
-    else c.text(m.zone === ZONE_LOW ? 'ADD MORE' : m.zone === ZONE_OK ? 'INSIDE THE LIMITS' : 'TAKE SOME OUT', 160, 160, SMALL, P.soft, CENTER);
     const bx = 12, bw = 296, by = 170, bh = 8;
     const lo = bx + bw * 6 / 22, hi = bx + bw * 16 / 22;
     c.rect(bx, by, bw, bh, P.shade, -1);
@@ -650,11 +655,15 @@ const WsoftUi = (() => {
     const zoned = m.zone !== ZONE_NONE;
     const fill = m.zone === ZONE_LOW ? T.z_low : m.zone === ZONE_OK ? T.z_ok : m.zone === ZONE_HIGH ? T.z_high : T.btn;
     const ink = m.zone === ZONE_LOW ? T.z_low_ink : m.zone === ZONE_OK ? T.z_ok_ink : m.zone === ZONE_HIGH ? T.z_high_ink : tone(T, m.word_tone);
-    const role = m.product_on ? BIG : MID, sign = zoned ? 24 : 0;
-    const pw = c.width(m.word, role) + sign + 28, px = 160 - pw / 2;
+    // The word and what to do, in the biggest letters that fit.
+    const words = m.hint ? m.word + '  ' + m.hint : m.word, sign = zoned ? 24 : 0;
+    let role = m.product_on ? BIG : MID;
+    if (role === BIG && c.width(words, BIG) + sign + 28 > 304) role = MID;
+    if (role === MID && c.width(words, MID) + sign + 28 > 304) role = SMALL;
+    const pw = c.width(words, role) + sign + 28, px = 160 - pw / 2;
     c.rect(px, 141, pw, 25, fill, -1);
     if (zoned) paintSign(c, m.zone, px + 23, 153.5, ink);
-    c.text(m.word, px + 14 + sign, 153.5, role, ink, LEFT);
+    c.text(words, px + 14 + sign, 153.5, role, ink, LEFT);
     // The plate takes the bottom line when it is there: the product line moves up in small letters.
     const role2 = plateOn(m) ? TINY : SMALL, y2 = plateOn(m) ? 171.5 : 174;
     if (m.product_on) c.text(c.fit(m.product + '   ' + m.target, role2, 300), 160, y2, role2, T.soft, CENTER);
@@ -848,6 +857,17 @@ const WsoftUi = (() => {
     else if (S.waiting === 'ALREADY') { m.save_line = 'TAKE LOAD OFF'; m.save_look = LOOK_BTN; }
     else if (!writer && S.save.pending > 0) { m.save_line = S.save.pending + ' TO SEND'; m.save_look = LOOK_ON; }
     else { m.save_line = !writer && S.save.auto ? 'AUTO SAVE ON' : 'TAP TO SAVE'; m.save_look = LOOK_ON; }
+    // What to do, next to the Hi-Lo word (Rhyno, 22 Nov 2026). Inside the limits the Full Colour
+    // and Dial screens say what the save is doing instead of OK.
+    m.hint = '';
+    if (m.zone === ZONE_LOW) m.hint = 'ADD MORE';
+    else if (m.zone === ZONE_HIGH) m.hint = 'REMOVE PRODUCT';
+    else if (m.zone === ZONE_OK) {
+      const done = (r && r.result === 'SAVED') || S.waiting === 'ALREADY';
+      const saving = !done && !writer && S.save.auto && S.waiting === 'NONE';
+      m.hint = done ? 'TAKE IT OFF' : saving ? 'HOLD STILL' : S.waiting === 'NONE' ? 'TAP SAVE' : '';
+      if (m.style !== STYLE_CLASSIC) m.word = done ? 'DONE' : saving ? 'SAVING' : 'GOOD';
+    }
     m.zero_btn = S.source === 'LOADCELL' && !S.tare;
     m.zero_line = m.zero_btn ? S.zeroNote || 'TAP: SET TO 0' : '';
     m.title = ['', 'MENU', 'ENTER PIN', 'APPROVAL', 'WI-FI'][m.page];
@@ -923,8 +943,8 @@ const WsoftUi = (() => {
     ['Load cell menu', 'ZERO is in the menu too, after TARE.', state({ page: 'menu', source: 'LOADCELL' })],
     // Full Colour: the whole screen is the Hi-Lo colour (MENU > SCREEN steps to it).
     ['Full Colour, inside the limits', 'The whole screen is green. The weight is as big as it fits.', state({ style: STYLE_COLOUR, source: 'LOADCELL' })],
-    ['Full Colour, too low', 'The whole screen is yellow, with an arrow down.', state({ style: STYLE_COLOUR, source: 'LOADCELL', gross: 47350 })],
-    ['Full Colour, too high', 'The whole screen is red, with an arrow up.', state({ style: STYLE_COLOUR, gross: 52480 })],
+    ['Full Colour, too low', 'The whole screen is yellow: TOO LOW, ADD MORE, with an arrow up.', state({ style: STYLE_COLOUR, source: 'LOADCELL', gross: 47350 })],
+    ['Full Colour, too high', 'The whole screen is red: TOO HIGH, REMOVE PRODUCT, with an arrow down.', state({ style: STYLE_COLOUR, gross: 52480 })],
     ['Full Colour, a notice', 'A notice sits in a dark band over the colour.', state({ style: STYLE_COLOUR, gross: 47350, waiting: 'OUT_OF_LIMITS' })],
     ['Full Colour, take the load off', 'A red notice is the darkest band.', state({ style: STYLE_COLOUR, waiting: 'NEED_ZERO', save: { recent: { result: 'NEED_ZERO' } } })],
     ['Full Colour, Wi-Fi drops', 'CONNECT and X in the band.', state({ style: STYLE_COLOUR, wifi: { up: false } })],
@@ -942,6 +962,9 @@ const WsoftUi = (() => {
     ['Dial, scale unplugged', 'Dashes, never an old number.', state({ style: STYLE_DIAL, linked: false, waiting: 'NO_SIGNAL' })],
     ['Dial, Approval on with tare', 'The trade chip on two lines, the plate along the bottom.', state({ style: STYLE_DIAL, source: 'RS485', approval: true, check: 'ok', seq: 41, audit: 7, decimals: 2, gross: 52600, tare: 2500, presetTare: 2500, plate: { sa: '1234/56', max: '150', min: '1', e: '0.05' } })],
     ['Dial, long product name', 'The name is cut to its room.', state({ style: STYLE_DIAL, product: LONG, gross: 12700 })],
+    ['Full Colour, saved', 'DONE, and take it off.', state({ style: STYLE_COLOUR, save: { recent: { result: 'SAVED', seq: 8 } }, waiting: 'ALREADY' })],
+    ['Dial, saved', 'DONE, and take it off.', state({ style: STYLE_DIAL, save: { recent: { result: 'SAVED', seq: 8 } }, waiting: 'ALREADY' })],
+    ['Dial, Auto save off', 'GOOD, and tap SAVE.', state({ style: STYLE_DIAL, save: { auto: false } })],
     ['Dial, six figures', 'A long weight drops to the smaller letters.', state({ style: STYLE_DIAL, gross: 982760, decimals: 0, product: { name: 'Maize', low: 980000, target: 982000, high: 984000 } })],
   ];
 

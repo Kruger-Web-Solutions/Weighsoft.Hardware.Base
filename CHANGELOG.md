@@ -19,7 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **W-Soft: two more looks for the board screen, Full Colour and Dial** (Rhyno, 22 Nov 2026).
   MENU > SCREEN now steps DARK, LIGHT, COLOUR, DIAL. Full Colour turns the whole screen the
   colour of the Hi-Lo zone with a bigger weight; Dial bends the Hi-Lo bar into a gauge over the
-  weight. Same rows, taps and words; the browser's Live tab follows the board. Classic dark
+  weight. Both say what to do: TOO LOW ADD MORE (arrow up), TOO HIGH REMOVE PRODUCT (arrow
+  down), SAVING, DONE. Same rows and taps; the browser's Live tab follows the board. Classic dark
   stays the default. Host-tested dot for dot on both panels; **not flashed, not seen on a
   board yet**. See docs/WSOFT-SCREEN.md section 3a.
 - **W-Soft: Drift Guard for the load cell** (Rhyno, 22 Nov 2026: the zero floats in a slow

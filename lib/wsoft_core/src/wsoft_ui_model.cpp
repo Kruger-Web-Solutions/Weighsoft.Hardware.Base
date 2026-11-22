@@ -265,6 +265,21 @@ static void menu(const WsoftUiInput &in, WsoftUiModel *m) {
   tile(m, WSOFT_UI_TILE_WIFI, "WI-FI", in.wifi_up ? in.ip : "OFF", false);
 }
 
+// What to do, next to the Hi-Lo word (Rhyno, 22 Nov 2026). Inside the limits the Full Colour
+// and Dial screens say what the save is doing instead of OK.
+static void hint(const WsoftUiInput &in, WsoftUiModel *m) {
+  if (m->zone == WSOFT_UI_ZONE_LOW) {
+    put(m->hint, "ADD MORE");
+  } else if (m->zone == WSOFT_UI_ZONE_HIGH) {
+    put(m->hint, "REMOVE PRODUCT");
+  } else if (m->zone == WSOFT_UI_ZONE_OK) {
+    bool done = in.recent == WSOFT_SAVE_SAVED || in.waiting == WSOFT_SAVE_ALREADY;
+    bool saving = !done && !in.writer && in.auto_save && in.waiting == WSOFT_SAVE_NONE;
+    put(m->hint, done ? "TAKE IT OFF" : saving ? "HOLD STILL" : in.waiting == WSOFT_SAVE_NONE ? "TAP SAVE" : "");
+    if (m->style != WSOFT_UI_STYLE_CLASSIC) put(m->word, done ? "DONE" : saving ? "SAVING" : "GOOD");
+  }
+}
+
 void wsoft_ui_model(const WsoftUiInput &in, WsoftUiModel *m) {
   static const char *const TITLES[] = {"", "MENU", "ENTER PIN", "APPROVAL", "WI-FI"};
   memset(m, 0, sizeof *m);
@@ -277,6 +292,7 @@ void wsoft_ui_model(const WsoftUiInput &in, WsoftUiModel *m) {
   weight(in, m);
   hilo(in, m);
   save(in, m);
+  hint(in, m);
   menu(in, m);
   put(m->title, TITLES[m->page]);
   put(m->message, in.message);
@@ -374,6 +390,7 @@ size_t wsoft_ui_model_json(const WsoftUiModel &m, char *out, size_t size) {
   j.number("zone", m.zone);
   j.text("word", m.word);
   j.number("word_tone", m.word_tone);
+  j.text("hint", m.hint);
   j.flag("product_on", m.product_on);
   j.text("product", m.product);
   j.text("target", m.target);
