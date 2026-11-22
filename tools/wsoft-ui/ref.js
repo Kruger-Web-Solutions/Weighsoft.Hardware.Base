@@ -105,17 +105,17 @@ const WsoftUi = (() => {
       accent: '#2596be', btn: '#1e3654', btn_ink: '#f5f8fa', stop: '#c94545', pointer: '#f5f8fa',
       z_low: '#e2b84a', z_low_ink: '#1a2a33', z_ok: '#23965f', z_ok_ink: '#ffffff', z_high: '#c94545', z_high_ink: '#ffffff',
       bar: '#0f1e33', bar_line: '#24354d' },
-    // Light mode follows the Weighsoft brand palette (Rhyno, 22 Nov 2026; repo-review brand.md):
-    // Paper ground, white cards, Bunting ink, Slate second ink, Line dividers, Sky-200 buttons,
-    // Curious Deep accent, and the reserved status colours with their tints.
-    light: { bg: '#F7F8FC', panel: '#FFFFFF', line: '#DCDAE8', ink: '#1B1446', soft: '#4A4568',
+    // Light mode follows the Weighsoft faceplate and brand (Rhyno, 22 Nov 2026): plate grey ground,
+    // white cards and buttons, Bunting ink, slate second ink, the brand blue status bar, Curious
+    // Deep accent, and the reserved status colours with their tints.
+    light: { bg: '#E9EEF2', panel: '#FFFFFF', line: '#C9D2DA', ink: '#1B1446', soft: '#5A6270',
       ok: '#15803D', ok_ink: '#14532d', wait: '#B45309', wait_ink: '#7a3c06', bad: '#B60205', bad_ink: '#7f1d1d',
       chip_ok: '#DCFCE7', chip_bad: '#FEE2E2',
-      accent: '#1174A8', btn: '#BCE2F5', btn_ink: '#1B1446', stop: '#B60205', pointer: '#1B1446',
+      accent: '#1174A8', btn: '#FFFFFF', btn_ink: '#1B1446', stop: '#B60205', pointer: '#1B1446',
       z_low: '#B45309', z_low_ink: '#ffffff', z_ok: '#15803D', z_ok_ink: '#ffffff', z_high: '#B60205', z_high_ink: '#ffffff',
-      bar: '#1B1446', bar_line: '#27246B' },
+      bar: '#1699D6', bar_line: '#1174A8' },
   };
-  // The status bar is dark in both modes (navy, or the brand's Bunting on the light screen): its inks are these.
+  // The status bar is navy in dark mode and the brand blue in light mode: its inks are these.
   const BAR_HEX = { bg: '#0f1e33', line: '#24354d', ink: '#f5f8fa', mute: '#8fb8c8', dim: '#3a506b', ok: '#3dbe78', bad: '#ff8a8a', warn: '#f2c879' };
   const to565 = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, c565(v)]));
   const THEME = { dark: to565(THEME_HEX.dark), light: to565(THEME_HEX.light) };
@@ -132,6 +132,19 @@ const WsoftUi = (() => {
   }
 
   // ---------- the drawing engine ----------
+  // The box of a ring piece around its centre: the ends of the piece on both edges, and each
+  // of the four extremes (right, down, left, up) the piece passes. [x0, y0, x1, y1], y down.
+  function ringBox(R, I, ax, ay, bx, by) {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    const add = (x, y) => { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; };
+    const r = R + 1, i = I > 1 ? I - 1 : 0;
+    add(ax * r, ay * r); add(bx * r, by * r); add(ax * i, ay * i); add(bx * i, by * i);
+    for (const [dx, dy] of [[1, 0], [0, 1], [-1, 0], [0, -1]]) {
+      if (ax * dy - ay * dx >= 0 && dx * by - dy * bx >= 0) add(dx * r, dy * r);
+    }
+    return [x0, y0, x1, y1];
+  }
+
   class Canvas {
     constructor(W, H, sx, sy, fonts) {
       this.W = W; this.H = H; this.sx = sx; this.sy = sy; this.fonts = fonts;
@@ -203,8 +216,26 @@ const WsoftUi = (() => {
     ring(cx, cy, r, w, ax, ay, bx, by, c) {
       const X = cx * this.sx, Y = cy * this.sy, R = r * this.sy, I = R - w * this.sy;
       const far = (R + 1) * (R + 1), near = I > 1 ? (I - 1) * (I - 1) : 0;
-      for (let py = Math.max(Math.floor(Y - R - 1), this.c0); py <= Math.min(Math.floor(Y + R + 1), this.c1 - 1); py++) {
-        for (let px = Math.max(Math.floor(X - R - 1), 0); px <= Math.min(Math.floor(X + R + 1), this.W - 1); px++) {
+      // Only the dots that can be on the piece are looked at (Rhyno, 22 Nov 2026: the dial was
+      // sticky on the yellow board): the box of the piece, and on each line only the ring's own
+      // two short stretches. Each limit has a dot to spare, and every dot still passes the same
+      // test below, so the picture is the same dot for dot; only the work is less.
+      const box = ringBox(R, I, ax, ay, bx, by);
+      const top = Math.max(Math.floor(Y + box[1]) - 2, this.c0), bottom = Math.min(Math.floor(Y + box[3]) + 2, this.c1 - 1);
+      const left = Math.max(Math.floor(X + box[0]) - 2, 0), right = Math.min(Math.floor(X + box[2]) + 2, this.W - 1);
+      for (let py = top; py <= bottom; py++) {
+        const ey = py + 0.5 - Y, ey2 = ey * ey;
+        if (ey2 > far) continue;
+        const out = Math.sqrt(far - ey2);
+        const x0 = Math.max(Math.floor(X - out) - 1, left), x1 = Math.min(Math.floor(X + out) + 1, right);
+        let gap0 = x1 + 1, gap1 = x1;  // the dots inside the hole, skipped
+        if (ey2 < near) {
+          const hole = Math.sqrt(near - ey2);
+          gap0 = Math.ceil(X - hole + 0.5);
+          gap1 = Math.floor(X + hole - 1.5);
+        }
+        for (let px = x0; px <= x1; px++) {
+          if (px >= gap0 && px <= gap1) { px = gap1; continue; }
           const dx = px + 0.5 - X, dy = py + 0.5 - Y, d2 = dx * dx + dy * dy;
           if (d2 > far || d2 < near) continue;
           const d = Math.sqrt(d2);
@@ -470,48 +501,66 @@ const WsoftUi = (() => {
   // The plate and the audit counter belong on the screen when there is a plate or the trade checks are on.
   const plateOn = (m) => m.trade_ok || m.plate_sa.length > 0 || m.plate_limits.length > 0;
 
-  // ---------- Full Colour: the whole screen takes the colour of the Hi-Lo zone ----------
-  // With no zone (no product, empty scale, no signal) it is the classic dark screen with the
-  // bigger weight.
+  // ---------- Two looks share one layout: the word in a pill, a slim limits bar ----------
+  // Light mode is the faceplate look (Rhyno, 22 Nov 2026: the box's plate is light grey-white
+  // with a red swoosh): plate grey, the brand's blue bar, navy letters, a thin red strip by the
+  // weight, the word in a pill of the zone's colour. Full Colour is the bright look (Rhyno, same
+  // day: "make the colours brighter"): the whole screen in a vivid zone colour, the word in a
+  // white (or navy) pill. With no zone (no product, empty scale, no signal) both fall back to
+  // the classic screen of their theme.
+  const PLATE = c565('#E9EEF2'), NAVY = c565('#1B1446'), SLATE = c565('#5A6270');
+  const PLATE_LINE = c565('#C9D2DA'), SKY = c565('#1699D6'), SWOOSH = c565('#E4243B');
+  const VIVID_LOW = c565('#F5B400'), VIVID_OK = c565('#16A34A'), VIVID_HIGH = c565('#E4243B');
   function colourSet(m, T) {
-    const bg = m.zone === ZONE_LOW ? T.z_low : m.zone === ZONE_OK ? T.z_ok : T.z_high;
-    const ink = m.zone === ZONE_LOW ? T.z_low_ink : m.zone === ZONE_OK ? T.z_ok_ink : T.z_high_ink;
-    const pale = ink !== WHITE;
-    return { bg, ink, soft: blend(bg, ink, 184), shade: blend(bg, 0, 82), bar: blend(bg, 0, 115), on: pale ? DARK : WHITE, on_ink: pale ? WHITE : DARK };
+    const D = THEME.dark;
+    const low = m.zone === ZONE_LOW, ok = m.zone === ZONE_OK;
+    if (m.style !== STYLE_COLOUR) {
+      const z = low ? D.z_low : ok ? D.z_ok : D.z_high;
+      const z_ink = low ? D.z_low_ink : ok ? D.z_ok_ink : D.z_high_ink;
+      return { bg: PLATE, ink: NAVY, soft: SLATE, shade: PLATE_LINE, btn: WHITE, bar: SKY, on: NAVY, on_ink: WHITE, strip: SWOOSH,
+        pill: z, pill_ink: z_ink, out: blend(PLATE, D.z_low, 150), mid: blend(PLATE, D.z_ok, 150), over: blend(PLATE, D.z_high, 150), dot: z, m_dot: z };
+    }
+    const bg = low ? VIVID_LOW : ok ? VIVID_OK : VIVID_HIGH;
+    const ink = low ? NAVY : WHITE;
+    return { bg, ink, soft: blend(bg, ink, 200), shade: blend(bg, 0, 50), btn: blend(bg, 0, 45), bar: blend(bg, 0, 90), on: ink, on_ink: bg, strip: ink,
+      pill: ink, pill_ink: bg, out: blend(bg, ink, 80), mid: blend(bg, ink, 170), over: blend(bg, ink, 80), dot: ink, m_dot: bg };
   }
+  // Light mode on the live page draws with these looks too.
+  const plateLook = (m, style) => style === STYLE_CLASSIC && !m.dark;
 
   function paintTopColour(c, m, T) {
     if (m.zone === ZONE_NONE) return paintTop(c, m, T);
     const P = colourSet(m, T);
     c.rect(0, 20, 320, 42, P.bg, 0);
     if (m.slot === SLOT_WIFI) {
-      c.rect(6, 22, 308, 40, P.shade, 8);
-      c.text('WI-FI IS OFF', 18, 42, MID, WHITE, LEFT);
-      c.rect(160, 26, 100, 32, WHITE, 6);
-      c.text('CONNECT', 210, 42, SMALL, DARK, CENTER);
-      c.rect(266, 26, 42, 32, WHITE, 6);
-      c.rect(267.5, 27.5, 39, 29, P.shade, 5);
-      c.text('X', 287, 42, MID, WHITE, CENTER);
+      c.rect(6, 22, 308, 40, P.btn, 8);
+      c.text('WI-FI IS OFF', 18, 42, MID, P.ink, LEFT);
+      c.rect(160, 26, 100, 32, P.ink, 6);
+      c.text('CONNECT', 210, 42, SMALL, P.on_ink, CENTER);
+      c.rect(266, 26, 42, 32, P.ink, 6);
+      c.rect(267.5, 27.5, 39, 29, P.btn, 5);
+      c.text('X', 287, 42, MID, P.ink, CENTER);
       return;
     }
     if (m.slot !== SLOT_NONE) {
-      c.rect(6, 22, 308, 40, m.slot === SLOT_STOP ? DARK : P.shade, 8);
-      if (c.width(m.slot_title, BIG) <= 292) c.text(m.slot_title, 160, 34, BIG, WHITE, CENTER);
-      else c.text(c.fit(m.slot_title, MID, 296), 160, 34, MID, WHITE, CENTER);
-      c.text(c.fit(m.slot_detail, SMALL, 296), 160, 53, SMALL, WHITE, CENTER);
+      const stop = m.slot === SLOT_STOP, sk = stop ? WHITE : P.ink;
+      c.rect(6, 22, 308, 40, stop ? T.stop : P.btn, 8);
+      if (c.width(m.slot_title, BIG) <= 292) c.text(m.slot_title, 160, 34, BIG, sk, CENTER);
+      else c.text(c.fit(m.slot_title, MID, 296), 160, 34, MID, sk, CENTER);
+      c.text(c.fit(m.slot_detail, SMALL, 296), 160, 53, SMALL, sk, CENTER);
       return;
     }
     let w = STAR_W;
     if (m.trade_ok) {
       const chip = 'TRADE CHECKS ON';
       w = c.width(chip, SMALL) + 14;
-      c.rect(8, 24, w, 17, P.shade, 4);
-      c.text(chip, 8 + w / 2, 32.5, SMALL, WHITE, CENTER);
+      c.rect(8, 24, w, 17, P.btn, 4);
+      c.text(chip, 8 + w / 2, 32.5, SMALL, P.ink, CENTER);
     } else {
-      c.star6(8 + w / 2, 32.5, 9, P.ink);
+      c.star6(8 + w / 2, 32.5, 9, P.soft);
     }
-    const sw = c.text(m.steady, 312, 32.5, SMALL, P.ink, RIGHT);
-    c.disc(312 - sw - 8, 32.5, 4, P.ink);
+    const sw = c.text(m.steady, 312, 32.5, SMALL, P.soft, RIGHT);
+    c.disc(312 - sw - 8, 32.5, 4, P.dot);
     c.text(c.fit(m.reason, TINY, 312 - sw - 20 - (8 + w + 7)), 8 + w + 7, 32.5, TINY, P.soft, LEFT);
     if (plateOn(m)) {
       const aw = c.text(m.audit, 312, 52, TINY, P.soft, RIGHT);
@@ -529,13 +578,14 @@ const WsoftUi = (() => {
       bg = P.bg; ink = P.ink; soft = P.soft;
     }
     c.rect(0, 62, 320, 60, bg, 0);
-    if (c.width(m.label, TINY) <= 24 && c.width(m.weight, HUGE) <= 276) {
-      c.text(m.label, 312, 71, TINY, soft, RIGHT);
-      c.text(m.weight, 284, 92, HUGE, ink, RIGHT);
-      c.text(m.unit, 290, 109, MID, soft, LEFT);
+    if (m.zone !== ZONE_NONE) c.rect(0, 64, 4, 56, colourSet(m, T).strip, 0);
+    if (c.width(m.label, TINY) <= 24 && c.width(m.weight, HUGE) <= 270) {
+      c.text(m.label, 306, 74, TINY, soft, RIGHT);
+      c.text(m.weight, 280, 92, HUGE, ink, RIGHT);
+      c.text(m.unit, 286, 109, MID, soft, LEFT);
       return;
     }
-    c.text(m.label, 14, 72, TINY, soft, LEFT);
+    c.text(m.label, 16, 74, TINY, soft, LEFT);
     c.text(m.weight, 268, 95, c.width(m.weight, HERO) <= 250 ? HERO : BIG, ink, RIGHT);
     c.text(m.unit, 274, 106, MID, soft, LEFT);
   }
@@ -544,50 +594,55 @@ const WsoftUi = (() => {
     if (m.zone === ZONE_NONE) return paintHilo(c, m, T);
     const P = colourSet(m, T);
     c.rect(0, 122, 320, 66, P.bg, 0);
-    // The word and what to do on one line, in the biggest letters that fit.
+    // The word and what to do in a pill of the zone's own colour.
     const words = m.hint ? m.word + '  ' + m.hint : m.word;
-    let role = XL;
-    if (c.width(words, XL) > 270) role = BIG;
-    if (role === BIG && c.width(words, BIG) > 270) role = MID;
-    const wy = plateOn(m) ? 139 : 144;
-    const x0 = 160 - (c.width(words, role) + 26) / 2;
-    paintSign(c, m.zone, x0 + 9, wy, P.ink);
-    c.text(words, x0 + 26, wy, role, P.ink, LEFT);
-    // The product moves under the word when the plate has its line.
+    let role = BIG;
+    if (c.width(words, BIG) + 52 > 304) role = MID;
+    if (role === MID && c.width(words, MID) + 52 > 304) role = SMALL;
+    const wy = plateOn(m) ? 139 : 143;
+    const pw = c.width(words, role) + 52, px = 160 - pw / 2;
+    c.rect(px, wy - 14, pw, 28, P.pill, -1);
+    paintSign(c, m.zone, px + 23, wy, P.pill_ink);
+    c.text(words, px + 38, wy, role, P.pill_ink, LEFT);
     if (plateOn(m)) c.text(c.fit(m.product + '   ' + m.target, SMALL, 300), 160, 160, SMALL, P.soft, CENTER);
-    const bx = 12, bw = 296, by = 170, bh = 8;
+    // The limits as three soft bands, and the marker.
+    const bx = 14, bw = 292, by = 168, bh = 6;
     const lo = bx + bw * 6 / 22, hi = bx + bw * 16 / 22;
     c.rect(bx, by, bw, bh, P.shade, -1);
-    c.rect(lo, by, hi - lo, bh, P.soft, 0);
-    c.text(m.low, lo, 183.5, TINY, P.soft, CENTER);
-    c.text(m.high, hi, 183.5, TINY, P.soft, CENTER);
+    c.rect(bx, by, lo - bx, bh, P.out, -1);
+    c.rect(lo, by, hi - lo, bh, P.mid, 0);
+    c.rect(hi, by, bx + bw - hi, bh, P.over, -1);
+    c.text(m.low, lo, 182, TINY, P.soft, CENTER);
+    c.text(m.high, hi, 182, TINY, P.soft, CENTER);
     if (m.pointer < 0) return;
     let mx = bx + bw * m.pointer / 1000;
     if (mx < bx + 7) mx = bx + 7;
     if (mx > bx + bw - 7) mx = bx + bw - 7;
-    c.disc(mx, by + bh / 2, 7, P.on);
-    c.disc(mx, by + bh / 2, 3.5, P.bg);
+    c.disc(mx, by + bh / 2, 8, P.bg);
+    c.disc(mx, by + bh / 2, 6.5, P.ink);
+    c.disc(mx, by + bh / 2, 3, P.m_dot);
   }
 
   function paintBottomColour(c, m, T) {
     if (m.zone === ZONE_NONE) return paintBottom(c, m, T);
     const P = colourSet(m, T);
     c.rect(0, 188, 320, 52, P.bg, 0);
-    c.rect(8, 190, 104, 46, P.shade, 8);
+    c.rect(8, 190, 104, 46, P.btn, 8);
     if (m.zero_btn) {
-      c.text('ZERO', 60, 206, MID, WHITE, CENTER);
-      if (c.width(m.zero_line, SMALL) <= 96) c.text(m.zero_line, 60, 225, SMALL, WHITE, CENTER);
-      else c.text(c.fit(m.zero_line, TINY, 96), 60, 225, TINY, WHITE, CENTER);
+      c.text('ZERO', 60, 206, MID, P.ink, CENTER);
+      if (c.width(m.zero_line, SMALL) <= 96) c.text(m.zero_line, 60, 225, SMALL, P.soft, CENTER);
+      else c.text(c.fit(m.zero_line, TINY, 96), 60, 225, TINY, P.soft, CENTER);
     } else {
-      c.text('GROSS', 17, 202, TINY, WHITE, LEFT);
-      if (c.width(m.gross, MID) <= 88) c.text(m.gross, 17, 221, MID, WHITE, LEFT);
-      else c.text(c.fit(m.gross, SMALL, 88), 17, 221, SMALL, WHITE, LEFT);
+      c.text('GROSS', 17, 202, TINY, P.soft, LEFT);
+      if (c.width(m.gross, MID) <= 88) c.text(m.gross, 17, 221, MID, P.ink, LEFT);
+      else c.text(c.fit(m.gross, SMALL, 88), 17, 221, SMALL, P.ink, LEFT);
     }
-    c.rect(120, 190, 72, 46, P.shade, 8);
-    for (let i = 0; i < 3; i++) c.rect(144, 200 + i * 6, 24, 3, WHITE, 1);
-    c.text('MENU', 156, 226, SMALL, WHITE, CENTER);
-    c.rect(200, 190, 112, 46, m.save_look === LOOK_ON ? P.on : m.save_look === LOOK_BAD ? DARK : P.shade, 8);
-    const ink = m.save_look === LOOK_ON ? P.on_ink : WHITE;
+    c.rect(120, 190, 72, 46, P.btn, 8);
+    for (let i = 0; i < 3; i++) c.rect(144, 200 + i * 6, 24, 3, P.ink, 1);
+    c.text('MENU', 156, 226, SMALL, P.ink, CENTER);
+    const on = m.save_look === LOOK_ON, bad = m.save_look === LOOK_BAD;
+    c.rect(200, 190, 112, 46, on ? P.on : bad ? T.stop : P.btn, 8);
+    const ink = on ? P.on_ink : bad ? WHITE : P.ink;
     c.text('SAVE', 256, 206, MID, ink, CENTER);
     if (c.width(m.save_line, SMALL) <= 104) c.text(m.save_line, 256, 225, SMALL, ink, CENTER);
     else c.text(c.fit(m.save_line, TINY, 104), 256, 225, TINY, ink, CENTER);
@@ -761,18 +816,19 @@ const WsoftUi = (() => {
     // Full Colour and Dial are dark screens. A menu page looks the same in every style.
     const style = m.page === PAGE_LIVE ? m.style : STYLE_CLASSIC;
     const T = m.dark || m.style !== STYLE_CLASSIC ? THEME.dark : THEME.light;
+    const look = style === STYLE_COLOUR || plateLook(m, style);
     c.clip(ROWS[row][0], ROWS[row][1]);
     if (row === ROW_BAR) {
-      if (style === STYLE_COLOUR && m.zone !== ZONE_NONE) { const bg = colourSet(m, T).bar; paintBar(c, m, bg, bg); }
+      if (look && m.zone !== ZONE_NONE) { const bg = colourSet(m, T).bar; paintBar(c, m, bg, bg); }
       else paintBar(c, m, T.bar, T.bar_line);
     } else if (row === ROW_TOP) {
-      if (style === STYLE_COLOUR) paintTopColour(c, m, T); else if (style === STYLE_DIAL) paintTopDial(c, m, T); else paintTop(c, m, T);
+      if (look) paintTopColour(c, m, T); else if (style === STYLE_DIAL) paintTopDial(c, m, T); else paintTop(c, m, T);
     } else if (row === ROW_WEIGHT) {
-      if (style === STYLE_COLOUR) paintWeightColour(c, m, T); else if (style === STYLE_DIAL) paintWeightDial(c, m, T); else paintWeight(c, m, T);
+      if (look) paintWeightColour(c, m, T); else if (style === STYLE_DIAL) paintWeightDial(c, m, T); else paintWeight(c, m, T);
     } else if (row === ROW_HILO) {
-      if (style === STYLE_COLOUR) paintHiloColour(c, m, T); else if (style === STYLE_DIAL) paintHiloDial(c, m, T); else paintHilo(c, m, T);
+      if (look) paintHiloColour(c, m, T); else if (style === STYLE_DIAL) paintHiloDial(c, m, T); else paintHilo(c, m, T);
     } else if (row === ROW_BOTTOM) {
-      if (style === STYLE_COLOUR) paintBottomColour(c, m, T); else paintBottom(c, m, T);
+      if (look) paintBottomColour(c, m, T); else paintBottom(c, m, T);
     } else paintPage(c, m, T);
     c.clip(0, 240);
   }

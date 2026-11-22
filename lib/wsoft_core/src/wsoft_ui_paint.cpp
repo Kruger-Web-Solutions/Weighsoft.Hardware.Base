@@ -242,25 +242,73 @@ static const char *product_line(const WsoftUiModel &m, char *out, size_t size) {
   return out;
 }
 
-// ---------- Full Colour: the whole screen takes the colour of the Hi-Lo zone ----------
-// With no zone (no product, empty scale, no signal) it is the classic dark screen with the
-// bigger weight.
+// ---------- Two looks share one layout: the word in a pill, a slim limits bar ----------
+// Light mode is the faceplate look (Rhyno, 22 Nov 2026: the box's plate is light grey-white
+// with a red swoosh): plate grey, the brand's blue bar, navy letters, a thin red strip by the
+// weight, the word in a pill of the zone's colour. Full Colour is the bright look (Rhyno, same
+// day: "make the colours brighter"): the whole screen in a vivid zone colour, the word in a
+// white (or navy) pill. With no zone (no product, empty scale, no signal) both fall back to
+// the classic screen of their theme.
+static const uint16_t PLATE = 0xEF7E;       // #E9EEF2
+static const uint16_t NAVY = 0x18A8;        // #1B1446
+static const uint16_t SLATE = 0x5B0E;       // #5A6270
+static const uint16_t PLATE_LINE = 0xCE9B;  // #C9D2DA
+static const uint16_t SKY = 0x14DA;         // #1699D6
+static const uint16_t SWOOSH = 0xE127;      // #E4243B
+static const uint16_t VIVID_LOW = 0xF5A0;   // #F5B400
+static const uint16_t VIVID_OK = 0x1509;    // #16A34A
+static const uint16_t VIVID_HIGH = 0xE127;  // #E4243B
 
 struct ColourSet {
-  uint16_t bg, ink, soft, shade, bar, on, on_ink;
+  uint16_t bg, ink, soft, shade, btn, bar, on, on_ink, strip, pill, pill_ink, out, mid, over, dot, m_dot;
 };
 
-static ColourSet colour_set(const WsoftUiModel &m, const Theme &T) {
+static ColourSet colour_set(const WsoftUiModel &m, const Theme &) {
+  const Theme &D = WSOFT_UI_DARK;
+  const bool low = m.zone == WSOFT_UI_ZONE_LOW, ok = m.zone == WSOFT_UI_ZONE_OK;
   ColourSet P;
-  P.bg = m.zone == WSOFT_UI_ZONE_LOW ? T.z_low : m.zone == WSOFT_UI_ZONE_OK ? T.z_ok : T.z_high;
-  P.ink = m.zone == WSOFT_UI_ZONE_LOW ? T.z_low_ink : m.zone == WSOFT_UI_ZONE_OK ? T.z_ok_ink : T.z_high_ink;
-  bool pale = P.ink != WHITE;
-  P.soft = wsoft_blend565(P.bg, P.ink, 184);
-  P.shade = wsoft_blend565(P.bg, 0, 82);
-  P.bar = wsoft_blend565(P.bg, 0, 115);
-  P.on = pale ? DARK : WHITE;
-  P.on_ink = pale ? WHITE : DARK;
+  if (m.style != WSOFT_UI_STYLE_COLOUR) {
+    uint16_t z = low ? D.z_low : ok ? D.z_ok : D.z_high;
+    P.bg = PLATE;
+    P.ink = NAVY;
+    P.soft = SLATE;
+    P.shade = PLATE_LINE;
+    P.btn = WHITE;
+    P.bar = SKY;
+    P.on = NAVY;
+    P.on_ink = WHITE;
+    P.strip = SWOOSH;
+    P.pill = z;
+    P.pill_ink = low ? D.z_low_ink : ok ? D.z_ok_ink : D.z_high_ink;
+    P.out = wsoft_blend565(PLATE, D.z_low, 150);
+    P.mid = wsoft_blend565(PLATE, D.z_ok, 150);
+    P.over = wsoft_blend565(PLATE, D.z_high, 150);
+    P.dot = z;
+    P.m_dot = z;
+    return P;
+  }
+  P.bg = low ? VIVID_LOW : ok ? VIVID_OK : VIVID_HIGH;
+  P.ink = low ? NAVY : WHITE;
+  P.soft = wsoft_blend565(P.bg, P.ink, 200);
+  P.shade = wsoft_blend565(P.bg, 0, 50);
+  P.btn = wsoft_blend565(P.bg, 0, 45);
+  P.bar = wsoft_blend565(P.bg, 0, 90);
+  P.on = P.ink;
+  P.on_ink = P.bg;
+  P.strip = P.ink;
+  P.pill = P.ink;
+  P.pill_ink = P.bg;
+  P.out = wsoft_blend565(P.bg, P.ink, 80);
+  P.mid = wsoft_blend565(P.bg, P.ink, 170);
+  P.over = wsoft_blend565(P.bg, P.ink, 80);
+  P.dot = P.ink;
+  P.m_dot = P.bg;
   return P;
+}
+
+// Light mode on the live page draws with these looks too.
+static bool look_style(const WsoftUiModel &m, int style) {
+  return style == WSOFT_UI_STYLE_COLOUR || (style == WSOFT_UI_STYLE_CLASSIC && !m.dark);
 }
 
 static void paint_top(WsoftCanvas &c, const WsoftUiModel &m, const Theme &T);
@@ -273,33 +321,35 @@ static void paint_top_colour(WsoftCanvas &c, const WsoftUiModel &m, const Theme 
   ColourSet P = colour_set(m, T);
   c.rect(0, 20, 320, 42, P.bg);
   if (m.slot == WSOFT_UI_SLOT_WIFI) {
-    c.rect(6, 22, 308, 40, P.shade, 8);
-    c.text("WI-FI IS OFF", 18, 42, MID, WHITE);
-    c.rect(160, 26, 100, 32, WHITE, 6);
-    c.text("CONNECT", 210, 42, SMALL, DARK, WSOFT_CENTER);
-    c.rect(266, 26, 42, 32, WHITE, 6);
-    c.rect(267.5, 27.5, 39, 29, P.shade, 5);
-    c.text("X", 287, 42, MID, WHITE, WSOFT_CENTER);
+    c.rect(6, 22, 308, 40, P.btn, 8);
+    c.text("WI-FI IS OFF", 18, 42, MID, P.ink);
+    c.rect(160, 26, 100, 32, P.ink, 6);
+    c.text("CONNECT", 210, 42, SMALL, P.on_ink, WSOFT_CENTER);
+    c.rect(266, 26, 42, 32, P.ink, 6);
+    c.rect(267.5, 27.5, 39, 29, P.btn, 5);
+    c.text("X", 287, 42, MID, P.ink, WSOFT_CENTER);
     return;
   }
   if (m.slot != WSOFT_UI_SLOT_NONE) {
-    c.rect(6, 22, 308, 40, m.slot == WSOFT_UI_SLOT_STOP ? DARK : P.shade, 8);
-    if (c.width(m.slot_title, BIG) <= 292) c.text(m.slot_title, 160, 34, BIG, WHITE, WSOFT_CENTER);
-    else c.text(c.fit(m.slot_title, MID, 296, cut, sizeof cut), 160, 34, MID, WHITE, WSOFT_CENTER);
-    c.text(c.fit(m.slot_detail, SMALL, 296, cut, sizeof cut), 160, 53, SMALL, WHITE, WSOFT_CENTER);
+    bool stop = m.slot == WSOFT_UI_SLOT_STOP;
+    uint16_t sk = stop ? WHITE : P.ink;
+    c.rect(6, 22, 308, 40, stop ? T.stop : P.btn, 8);
+    if (c.width(m.slot_title, BIG) <= 292) c.text(m.slot_title, 160, 34, BIG, sk, WSOFT_CENTER);
+    else c.text(c.fit(m.slot_title, MID, 296, cut, sizeof cut), 160, 34, MID, sk, WSOFT_CENTER);
+    c.text(c.fit(m.slot_detail, SMALL, 296, cut, sizeof cut), 160, 53, SMALL, sk, WSOFT_CENTER);
     return;
   }
   double w = WSOFT_UI_STAR_W;
   if (m.trade_ok) {
     const char *chip = "TRADE CHECKS ON";
     w = c.width(chip, SMALL) + 14;
-    c.rect(8, 24, w, 17, P.shade, 4);
-    c.text(chip, 8 + w / 2, 32.5, SMALL, WHITE, WSOFT_CENTER);
+    c.rect(8, 24, w, 17, P.btn, 4);
+    c.text(chip, 8 + w / 2, 32.5, SMALL, P.ink, WSOFT_CENTER);
   } else {
-    c.star6(8 + w / 2, 32.5, 9, P.ink);
+    c.star6(8 + w / 2, 32.5, 9, P.soft);
   }
-  double sw = c.text(m.steady, 312, 32.5, SMALL, P.ink, WSOFT_RIGHT);
-  c.disc(312 - sw - 8, 32.5, 4, P.ink);
+  double sw = c.text(m.steady, 312, 32.5, SMALL, P.soft, WSOFT_RIGHT);
+  c.disc(312 - sw - 8, 32.5, 4, P.dot);
   c.text(c.fit(m.reason, TINY, 312 - sw - 20 - (8 + w + 7), cut, sizeof cut), 8 + w + 7, 32.5, TINY, P.soft);
   if (plate_on(m)) {
     double aw = c.text(m.audit, 312, 52, TINY, P.soft, WSOFT_RIGHT);
@@ -320,13 +370,14 @@ static void paint_weight_colour(WsoftCanvas &c, const WsoftUiModel &m, const The
     soft = P.soft;
   }
   c.rect(0, 62, 320, 60, bg);
-  if (c.width(m.label, TINY) <= 24 && c.width(m.weight, HUGE_) <= 276) {
-    c.text(m.label, 312, 71, TINY, soft, WSOFT_RIGHT);
-    c.text(m.weight, 284, 92, HUGE_, ink, WSOFT_RIGHT);
-    c.text(m.unit, 290, 109, MID, soft);
+  if (m.zone != WSOFT_UI_ZONE_NONE) c.rect(0, 64, 4, 56, colour_set(m, T).strip);
+  if (c.width(m.label, TINY) <= 24 && c.width(m.weight, HUGE_) <= 270) {
+    c.text(m.label, 306, 74, TINY, soft, WSOFT_RIGHT);
+    c.text(m.weight, 280, 92, HUGE_, ink, WSOFT_RIGHT);
+    c.text(m.unit, 286, 109, MID, soft);
     return;
   }
-  c.text(m.label, 14, 72, TINY, soft);
+  c.text(m.label, 16, 74, TINY, soft);
   c.text(m.weight, 268, 95, c.width(m.weight, HERO) <= 250 ? HERO : BIG, ink, WSOFT_RIGHT);
   c.text(m.unit, 274, 106, MID, soft);
 }
@@ -336,30 +387,34 @@ static void paint_hilo_colour(WsoftCanvas &c, const WsoftUiModel &m, const Theme
   char cut[CUT_SIZE], line[CUT_SIZE];
   ColourSet P = colour_set(m, T);
   c.rect(0, 122, 320, 66, P.bg);
-  // The word and what to do on one line, in the biggest letters that fit.
+  // The word and what to do in a pill of the zone's own colour.
   char words[40];
   hilo_words(m, words, sizeof words);
-  int role = XL;
-  if (c.width(words, XL) > 270) role = BIG;
-  if (role == BIG && c.width(words, BIG) > 270) role = MID;
-  double wy = plate_on(m) ? 139 : 144;
-  double x0 = 160 - (c.width(words, role) + 26) / 2;
-  paint_sign(c, m.zone, x0 + 9, wy, P.ink);
-  c.text(words, x0 + 26, wy, role, P.ink);
-  // The product moves under the word when the plate has its line.
+  int role = BIG;
+  if (c.width(words, BIG) + 52 > 304) role = MID;
+  if (role == MID && c.width(words, MID) + 52 > 304) role = SMALL;
+  double wy = plate_on(m) ? 139 : 143;
+  double pw = c.width(words, role) + 52, px = 160 - pw / 2;
+  c.rect(px, wy - 14, pw, 28, P.pill, -1);
+  paint_sign(c, m.zone, px + 23, wy, P.pill_ink);
+  c.text(words, px + 38, wy, role, P.pill_ink);
   if (plate_on(m)) c.text(c.fit(product_line(m, line, sizeof line), SMALL, 300, cut, sizeof cut), 160, 160, SMALL, P.soft, WSOFT_CENTER);
-  const double bx = 12, bw = 296, by = 170, bh = 8;
+  // The limits as three soft bands, and the marker.
+  const double bx = 14, bw = 292, by = 168, bh = 6;
   double lo = bx + bw * 6 / 22, hi = bx + bw * 16 / 22;
   c.rect(bx, by, bw, bh, P.shade, -1);
-  c.rect(lo, by, hi - lo, bh, P.soft);
-  c.text(m.low, lo, 183.5, TINY, P.soft, WSOFT_CENTER);
-  c.text(m.high, hi, 183.5, TINY, P.soft, WSOFT_CENTER);
+  c.rect(bx, by, lo - bx, bh, P.out, -1);
+  c.rect(lo, by, hi - lo, bh, P.mid);
+  c.rect(hi, by, bx + bw - hi, bh, P.over, -1);
+  c.text(m.low, lo, 182, TINY, P.soft, WSOFT_CENTER);
+  c.text(m.high, hi, 182, TINY, P.soft, WSOFT_CENTER);
   if (m.pointer < 0) return;
   double mx = bx + bw * m.pointer / 1000;
   if (mx < bx + 7) mx = bx + 7;
   if (mx > bx + bw - 7) mx = bx + bw - 7;
-  c.disc(mx, by + bh / 2, 7, P.on);
-  c.disc(mx, by + bh / 2, 3.5, P.bg);
+  c.disc(mx, by + bh / 2, 8, P.bg);
+  c.disc(mx, by + bh / 2, 6.5, P.ink);
+  c.disc(mx, by + bh / 2, 3, P.m_dot);
 }
 
 static void paint_bottom_colour(WsoftCanvas &c, const WsoftUiModel &m, const Theme &T) {
@@ -367,21 +422,22 @@ static void paint_bottom_colour(WsoftCanvas &c, const WsoftUiModel &m, const The
   char cut[CUT_SIZE];
   ColourSet P = colour_set(m, T);
   c.rect(0, 188, 320, 52, P.bg);
-  c.rect(8, 190, 104, 46, P.shade, 8);
+  c.rect(8, 190, 104, 46, P.btn, 8);
   if (m.zero_btn) {
-    c.text("ZERO", 60, 206, MID, WHITE, WSOFT_CENTER);
-    if (c.width(m.zero_line, SMALL) <= 96) c.text(m.zero_line, 60, 225, SMALL, WHITE, WSOFT_CENTER);
-    else c.text(c.fit(m.zero_line, TINY, 96, cut, sizeof cut), 60, 225, TINY, WHITE, WSOFT_CENTER);
+    c.text("ZERO", 60, 206, MID, P.ink, WSOFT_CENTER);
+    if (c.width(m.zero_line, SMALL) <= 96) c.text(m.zero_line, 60, 225, SMALL, P.soft, WSOFT_CENTER);
+    else c.text(c.fit(m.zero_line, TINY, 96, cut, sizeof cut), 60, 225, TINY, P.soft, WSOFT_CENTER);
   } else {
-    c.text("GROSS", 17, 202, TINY, WHITE);
-    if (c.width(m.gross, MID) <= 88) c.text(m.gross, 17, 221, MID, WHITE);
-    else c.text(c.fit(m.gross, SMALL, 88, cut, sizeof cut), 17, 221, SMALL, WHITE);
+    c.text("GROSS", 17, 202, TINY, P.soft);
+    if (c.width(m.gross, MID) <= 88) c.text(m.gross, 17, 221, MID, P.ink);
+    else c.text(c.fit(m.gross, SMALL, 88, cut, sizeof cut), 17, 221, SMALL, P.ink);
   }
-  c.rect(120, 190, 72, 46, P.shade, 8);
-  for (int i = 0; i < 3; i++) c.rect(144, 200 + i * 6, 24, 3, WHITE, 1);
-  c.text("MENU", 156, 226, SMALL, WHITE, WSOFT_CENTER);
-  c.rect(200, 190, 112, 46, m.save_look == WSOFT_UI_LOOK_ON ? P.on : m.save_look == WSOFT_UI_LOOK_BAD ? DARK : P.shade, 8);
-  uint16_t ink = m.save_look == WSOFT_UI_LOOK_ON ? P.on_ink : WHITE;
+  c.rect(120, 190, 72, 46, P.btn, 8);
+  for (int i = 0; i < 3; i++) c.rect(144, 200 + i * 6, 24, 3, P.ink, 1);
+  c.text("MENU", 156, 226, SMALL, P.ink, WSOFT_CENTER);
+  bool on = m.save_look == WSOFT_UI_LOOK_ON, bad = m.save_look == WSOFT_UI_LOOK_BAD;
+  c.rect(200, 190, 112, 46, on ? P.on : bad ? T.stop : P.btn, 8);
+  uint16_t ink = on ? P.on_ink : bad ? WHITE : P.ink;
   c.text("SAVE", 256, 206, MID, ink, WSOFT_CENTER);
   if (c.width(m.save_line, SMALL) <= 104) c.text(m.save_line, 256, 225, SMALL, ink, WSOFT_CENTER);
   else c.text(c.fit(m.save_line, TINY, 104, cut, sizeof cut), 256, 225, TINY, ink, WSOFT_CENTER);
@@ -620,31 +676,33 @@ uint32_t wsoft_ui_row_key(const WsoftUiModel &m, int row) {
   const size_t weight = offsetof(WsoftUiModel, label), hilo = offsetof(WsoftUiModel, word);
   const size_t bottom = offsetof(WsoftUiModel, gross), page = offsetof(WsoftUiModel, title);
   uint32_t key = stretch(0, m, 0, bar);  // dark, page, style
+  const bool look = look_style(m, style);
   switch (row) {
     case WSOFT_UI_ROW_BAR:
       key = stretch(key, m, bar, top);
-      // Full Colour: the bar is tinted with the zone.
-      return style == WSOFT_UI_STYLE_COLOUR ? FIELD(key, zone) : key;
+      // Full Colour and light mode: the bar takes the look's colour once there is a zone.
+      return look ? FIELD(key, zone) : key;
     case WSOFT_UI_ROW_TOP:
       key = stretch(key, m, top, weight);
-      // Full Colour: the zone's colour, and the product and target sit here.
-      if (style == WSOFT_UI_STYLE_COLOUR) key = FIELD(FIELD(FIELD(key, zone), product), target);
+      // Full Colour and light mode: the zone's colour, and the product and target sit here.
+      if (look) key = FIELD(FIELD(FIELD(key, zone), product), target);
       // Dial: the top of the arc, the limits and the marker.
       if (style == WSOFT_UI_STYLE_DIAL) key = FIELD(stretch(key, m, hilo, bottom), zone);
       return key;
     case WSOFT_UI_ROW_WEIGHT:
       key = stretch(key, m, weight, hilo);
+      if (look) key = FIELD(key, zone);
       return style == WSOFT_UI_STYLE_DIAL ? stretch(key, m, hilo, bottom) : key;
     case WSOFT_UI_ROW_HILO:
       key = stretch(key, m, hilo, bottom);
-      // Both new styles: the zone's colour, and the plate line or what it pushes aside.
-      if (style != WSOFT_UI_STYLE_CLASSIC) key = FIELD(FIELD(FIELD(FIELD(FIELD(key, zone), trade_ok), plate_sa), plate_limits), audit);
+      // The pill looks and Dial: the zone's colour, and the plate line or what it pushes aside.
+      if (look || style == WSOFT_UI_STYLE_DIAL) key = FIELD(FIELD(FIELD(FIELD(FIELD(key, zone), trade_ok), plate_sa), plate_limits), audit);
       return key;
     case WSOFT_UI_ROW_BOTTOM:
       // GROSS is greyed when no weight arrives.
       key = stretch(key, m, bottom, page);
       key = FIELD(key, live);
-      return style == WSOFT_UI_STYLE_COLOUR ? FIELD(key, zone) : key;
+      return look ? FIELD(key, zone) : key;
     case WSOFT_UI_ROW_PAGE:
       // The Wi-Fi page shows whether Wi-Fi is up and the address. Not the whole status bar:
       // a signal bar that flickers must not paint the page again.
@@ -658,7 +716,7 @@ uint32_t wsoft_ui_row_key(const WsoftUiModel &m, int row) {
 void wsoft_ui_paint_row(WsoftCanvas &c, const WsoftUiModel &m, int row) {
   // Full Colour and Dial are dark screens. A menu page looks the same in every style.
   const int style = m.page == WSOFT_UI_PAGE_LIVE ? m.style : WSOFT_UI_STYLE_CLASSIC;
-  const bool colour = style == WSOFT_UI_STYLE_COLOUR, dial = style == WSOFT_UI_STYLE_DIAL;
+  const bool colour = look_style(m, style), dial = style == WSOFT_UI_STYLE_DIAL;
   const Theme &T = m.dark || m.style != WSOFT_UI_STYLE_CLASSIC ? WSOFT_UI_DARK : WSOFT_UI_LIGHT;
   WsoftUiSpan span = wsoft_ui_row_span(row);
   c.clip(span.y0, span.y1);
