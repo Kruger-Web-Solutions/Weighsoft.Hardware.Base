@@ -45,6 +45,9 @@ const Step: FC<{ number: string; title: string; children: ReactNode }> = ({ numb
 
 const COUNT_REFRESH_MS = 250;
 
+/** A whole number with its sign: "+12", "0", "-3". */
+const signed = (n: number) => `${n >= 0 ? '+' : ''}${n}`;
+
 // The load cell board's own state. The internal count is not in the live status, so ask for it
 // about four times a second (Rhyno, 22 Nov 2026: show it in real time). The next ask starts
 // only when the last one is back, so a slow board is never asked twice at once.
@@ -59,7 +62,8 @@ const useLoadcell = (on: boolean) => {
       try {
         const next = (await WSoftApi.readWSoftLoadcell()).data;
         if (!stopped) {
-          setCell(next);
+          // A still scale answers the same every time: keep the old object so the page does not re-render.
+          setCell((old) => (old && JSON.stringify(old) === JSON.stringify(next) ? old : next));
           setError(undefined);
         }
       } catch (e) {
@@ -187,7 +191,7 @@ const WSoftCalibrate: FC = () => {
             Internal count: {!cell ? '...' : cell.raw !== null ? cell.raw : 'none'}
             {cell && cell.raw !== null && cell.zero_raw !== null && (
               <Typography component="span" variant="body1" sx={{ ml: 1.5 }}>
-                ({cell.raw - cell.zero_raw >= 0 ? '+' : ''}{cell.raw - cell.zero_raw} from zero)
+                ({signed(cell.raw - cell.zero_raw)} from zero)
               </Typography>
             )}
           </Typography>
@@ -195,38 +199,34 @@ const WSoftCalibrate: FC = () => {
         <Box display="flex" gap={1} justifyContent="center" flexWrap="wrap" mt={1}>
           {judged && <Chip size="small" color={steady ? 'success' : 'default'} label={steady ? 'Stable' : 'Not stable'} />}
           {onCell && cell && (
-            <Chip
-              size="small"
-              color={cell.calibrated ? 'success' : 'warning'}
-              label={cell.calibrated ? 'Calibrated' : 'Not calibrated yet'}
-            />
-          )}
-          {onCell && cell && (
-            <Chip size="small" variant="outlined" label={`Division ${digitsText(cell.step, cell.decimals)} ${cell.unit}`} />
-          )}
-          {onCell && cell && cell.rate > 0 && (
-            <Chip size="small" variant="outlined" label={`Chip speed ${cell.rate} a second`} />
-          )}
-          {onCell && cell && cell.zero_track > 0 && (
-            <Chip size="small" variant="outlined" label={`Auto zero ${cell.zero_offset >= 0 ? '+' : ''}${cell.zero_offset}`} />
-          )}
-          {onCell && cell && cell.drift_guard > 0 && (
-            <Chip
-              size="small"
-              variant="outlined"
-              color={cell.drift_holding ? 'success' : 'default'}
-              label={cell.drift_holding
-                ? `Drift Guard holding ${cell.drift_offset >= 0 ? '+' : ''}${cell.drift_offset}`
-                : 'Drift Guard waiting'}
-            />
-          )}
-          {onCell && cell && cell.noise_tenths !== null && (
-            <Chip
-              size="small"
-              variant="outlined"
-              color={cell.noise_tenths > 28 ? 'warning' : 'default'}
-              label={`Noise ${noiseText(cell.noise_tenths)} div`}
-            />
+            <>
+              <Chip
+                size="small"
+                color={cell.calibrated ? 'success' : 'warning'}
+                label={cell.calibrated ? 'Calibrated' : 'Not calibrated yet'}
+              />
+              <Chip size="small" variant="outlined" label={`Division ${digitsText(cell.step, cell.decimals)} ${cell.unit}`} />
+              {cell.rate > 0 && <Chip size="small" variant="outlined" label={`Chip speed ${cell.rate} a second`} />}
+              {cell.zero_track > 0 && (
+                <Chip size="small" variant="outlined" label={`Auto zero ${signed(cell.zero_offset)}`} />
+              )}
+              {cell.drift_guard > 0 && (
+                <Chip
+                  size="small"
+                  variant="outlined"
+                  color={cell.drift_holding ? 'success' : 'default'}
+                  label={cell.drift_holding ? `Drift Guard holding ${signed(cell.drift_offset)}` : 'Drift Guard waiting'}
+                />
+              )}
+              {cell.noise_tenths !== null && (
+                <Chip
+                  size="small"
+                  variant="outlined"
+                  color={cell.noise_tenths > 28 ? 'warning' : 'default'}
+                  label={`Noise ${noiseText(cell.noise_tenths)} div`}
+                />
+              )}
+            </>
           )}
           {!onCell && status.alarm && <Chip size="small" color="error" label="Junction box alarm" />}
           {!onCell && status.alarm_allowed && <Chip size="small" color="warning" label="Allowed alarm (monitoring)" />}

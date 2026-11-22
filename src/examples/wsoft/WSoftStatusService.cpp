@@ -415,6 +415,11 @@ void WSoftStatusService::readLoadcell(AsyncWebServerRequest* request) {
   sendLoadcell(request, 200, nullptr, nullptr);
 }
 
+// "kg" is 1, "g" is 3 (the card's unit codes); anything else is 0, which the load cell refuses.
+static int loadcell_unit_code(const char* unit) {
+  return strcmp(unit, "kg") == 0 ? 1 : strcmp(unit, "g") == 0 ? 3 : 0;
+}
+
 void WSoftStatusService::updateLoadcell(AsyncWebServerRequest* request, JsonVariant& json) {
   LoadcellInfo info;
   loadcell_info(&info);
@@ -442,7 +447,7 @@ void WSoftStatusService::updateLoadcell(AsyncWebServerRequest* request, JsonVari
     int32_t value = 0;
     int decimals = 0;
     const char* unit = body["unit"] | "kg";
-    int unit_code = strcmp(unit, "kg") == 0 ? 1 : strcmp(unit, "g") == 0 ? 3 : 0;
+    int unit_code = loadcell_unit_code(unit);
     if (!wsoft_parse_weight_text(body["weight"] | "", &value, &decimals)) error = WSOFT_LOADCELL_BAD_WEIGHT;
     else error = loadcell_set_span(value, decimals, unit_code, who.c_str());
   } else if (strcmp(action, "format") == 0) {
@@ -450,7 +455,7 @@ void WSoftStatusService::updateLoadcell(AsyncWebServerRequest* request, JsonVari
     // filter (0 off .. 3 high) and auto zero (0 off, 1..3 divisions); each left as it is when
     // the page does not send it.
     const char* unit = body["unit"] | "";
-    int unit_code = strcmp(unit, "kg") == 0 ? 1 : strcmp(unit, "g") == 0 ? 3 : 0;
+    int unit_code = loadcell_unit_code(unit);
     if (!body["decimals"].is<int>()) error = WSOFT_LOADCELL_BAD_DECIMALS;
     else if (!body["step"].is<int>()) error = WSOFT_LOADCELL_BAD_STEP;
     else if (!body["filter"].isNull() && !body["filter"].is<int>()) error = WSOFT_LOADCELL_BAD_FILTER;

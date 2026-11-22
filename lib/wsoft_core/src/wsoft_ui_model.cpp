@@ -204,6 +204,9 @@ static void hilo(const WsoftUiInput &in, WsoftUiModel *m) {
   }
 }
 
+// The auto save countdown as one digit: the screen has room for 9 at most.
+static int countdown_digit(const WsoftUiInput &in) { return in.countdown > 9 ? 9 : in.countdown; }
+
 // The SAVE button's second line: the last result for its 3 s, then "take it off", then the
 // queue, then whether a tap or Auto save does the saving. Capitals, like the rest.
 static void save(const WsoftUiInput &in, WsoftUiModel *m) {
@@ -221,7 +224,7 @@ static void save(const WsoftUiInput &in, WsoftUiModel *m) {
     put(m->save_line, "TAKE LOAD OFF");
     m->save_look = WSOFT_UI_LOOK_BTN;
   } else if (!in.writer && in.auto_save && in.countdown > 0) {
-    snprintf(m->save_line, sizeof m->save_line, "SAVING IN %d", in.countdown > 9 ? 9 : in.countdown);
+    snprintf(m->save_line, sizeof m->save_line, "SAVING IN %d", countdown_digit(in));
   } else if (!in.writer && in.pending > 0) {
     snprintf(m->save_line, sizeof m->save_line, "%u TO SEND", (unsigned)in.pending);
   } else {
@@ -278,7 +281,7 @@ static void hint(const WsoftUiInput &in, WsoftUiModel *m) {
     bool done = in.recent == WSOFT_SAVE_SAVED || in.waiting == WSOFT_SAVE_ALREADY;
     bool saving = !done && !in.writer && in.auto_save && in.waiting == WSOFT_SAVE_NONE;
     put(m->hint, done ? "TAKE IT OFF" : saving ? "HOLD STILL" : in.waiting == WSOFT_SAVE_NONE ? "TAP SAVE" : "");
-    if (saving && in.countdown > 0) snprintf(m->hint, sizeof m->hint, "IN %d", in.countdown > 9 ? 9 : in.countdown);
+    if (saving && in.countdown > 0) snprintf(m->hint, sizeof m->hint, "IN %d", countdown_digit(in));
     if (m->style != WSOFT_UI_STYLE_CLASSIC) put(m->word, done ? "DONE" : saving ? "SAVING" : "GOOD");
   }
 }
