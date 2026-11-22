@@ -59,6 +59,12 @@ struct WSoftSettingsData {
   // "ESP LED" (Rhyno, 21 Nov 2026): the board's own RGB LED shows the Hi-Lo zone (wsoft_led.h).
   // ON by default; OFF keeps the LED dark. Only does something on a board built with the LED.
   bool esp_led;
+  // "Hi-Lo light" (Rhyno, 22 Nov 2026): on a board whose own light sits on the relay pins
+  // (the yellow board's LED1), show the Hi-Lo zone on that light without the relay switch.
+  // OFF by default and its own field, not esp_led: esp_led is ON by default, and on these
+  // pins that would switch outputs after an update with nobody asking. A relay board wired
+  // to the same pads switches with the light, so the page says so.
+  bool relay_light;
 };
 
 // One field per option. A missing field (has_* false or a null string) takes its default:
@@ -88,6 +94,8 @@ struct WSoftSettingsInput {
   bool alarm_test_save = false;
   bool has_esp_led = false;
   bool esp_led = false;
+  bool has_relay_light = false;
+  bool relay_light = false;
 };
 
 enum WSoftSettingsResult { WSOFT_SETTINGS_UNCHANGED, WSOFT_SETTINGS_CHANGED, WSOFT_SETTINGS_ERROR };

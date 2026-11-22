@@ -69,6 +69,11 @@ uint8_t wsoft_relay_owned(uint8_t relay_low, uint8_t relay_ok_n, uint8_t relay_h
   return (uint8_t)(bit_of(relay_low) | bit_of(relay_ok_n) | bit_of(relay_high));
 }
 
+bool wsoft_relay_drive(bool relay_enabled, bool writer_mode, bool writer_follow, bool light_on) {
+  if (light_on) return true;
+  return relay_enabled && (!writer_mode || writer_follow);
+}
+
 const char *wsoft_relay_zone_text(WsoftRelayZone zone) {
   switch (zone) {
     case WSOFT_RELAY_LOW: return "LOW";

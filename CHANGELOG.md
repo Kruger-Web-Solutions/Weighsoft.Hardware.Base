@@ -24,6 +24,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   round it quietly. RS485 span with a real test weight is still **not bench-proven**.
 
 ### Added
+- **W-Soft: Hi-Lo light on the yellow board** (Rhyno, 22 Nov 2026). W-Soft > Settings has a new
+  switch "Hi-Lo light". LED1 shows the zone: blue under, green correct, red over, dark otherwise.
+  OFF by default; with it and the relay switch both off the light stays dark. LED1 sits on the
+  relay pins (GPIO17 / 16 / 4), so the relay service drives it (one writer, one output on at a
+  time) and a relay board wired to those pads switches with the light. Setting `relay_light`,
+  its own field: `esp_led` (the S3's light) is ON by default and is not used on these pins.
+  **Not flashed, not bench-tested.**
 - **W-Soft: two more looks for the board screen, Full Colour and Dial** (Rhyno, 22 Nov 2026).
   MENU > SCREEN now steps DARK, LIGHT, COLOUR, DIAL. Full Colour turns the whole screen the
   colour of the Hi-Lo zone with a bigger weight; Dial bends the Hi-Lo bar into a gauge over the

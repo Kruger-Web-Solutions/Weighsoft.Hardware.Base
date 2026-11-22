@@ -192,6 +192,22 @@ void test_relay_writer_follow_applies_and_an_old_page_turns_it_off() {
   TEST_ASSERT_FALSE(s.relay_writer_follow);
 }
 
+// The light on the relay pins never comes on by itself: off by default, and a save that
+// does not name it puts it back off (full replace).
+void test_relay_light_is_off_by_default_and_can_be_switched() {
+  WSoftSettingsData s;
+  wsoft_settings_defaults(&s);
+  TEST_ASSERT_FALSE(s.relay_light);
+  WSoftSettingsInput in;
+  in.has_relay_light = true;
+  in.relay_light = true;
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_CHANGED, wsoft_settings_update(in, &s));
+  TEST_ASSERT_TRUE(s.relay_light);
+  WSoftSettingsInput none;
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_CHANGED, wsoft_settings_update(none, &s));
+  TEST_ASSERT_FALSE(s.relay_light);
+}
+
 void test_esp_led_is_on_by_default_and_can_be_switched_off() {
   WSoftSettingsData s = defaults();
   TEST_ASSERT_TRUE(s.esp_led);
@@ -286,6 +302,7 @@ int main(int, char **) {
   RUN_TEST(test_relay_settings_apply_and_report_changed);
   RUN_TEST(test_relay_writer_follow_applies_and_an_old_page_turns_it_off);
   RUN_TEST(test_esp_led_is_on_by_default_and_can_be_switched_off);
+  RUN_TEST(test_relay_light_is_off_by_default_and_can_be_switched);
   RUN_TEST(test_alarm_test_switch_is_off_by_default_and_an_old_page_turns_it_off);
   RUN_TEST(test_bad_relay_numbers_are_rejected_without_change);
   return UNITY_END();

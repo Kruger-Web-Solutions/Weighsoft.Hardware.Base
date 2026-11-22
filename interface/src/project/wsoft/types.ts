@@ -124,6 +124,10 @@ export interface WSoftSettings {
   esp_led?: boolean;
   /** Read-only: true on boards built with the on-board RGB LED (the S3 without a screen). */
   esp_led_available?: boolean;
+  /** Hi-Lo light on the relay pins (yellow board LED1). Off by default. */
+  relay_light?: boolean;
+  /** Read-only: true on boards whose own light sits on the relay pins. */
+  relay_light_available?: boolean;
   /** Read-only: true on boards built with relay outputs (the yellow board). */
   relay_available?: boolean;
   /** Read-only: false on boards without RS232 wiring (the Waveshare). */
@@ -338,7 +342,7 @@ export interface WSoftRelayBoard {
 export interface WSoftRelayStatus {
   relay_active: 'low' | 'high';
   pins: { ry1: number; ry2: number; ry3: number; ry4: number };
-  hilo: { enabled: boolean; relay_low: number; relay_ok: number; relay_high: number; zone: string };
+  hilo: { enabled: boolean; light?: boolean; relay_low: number; relay_ok: number; relay_high: number; zone: string };
   relays: WSoftRelayBoard;
 }
 

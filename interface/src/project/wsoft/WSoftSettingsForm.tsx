@@ -125,6 +125,18 @@ const WSoftSettingsForm: FC = () => {
             />
           </>
         )}
+        {data.relay_light_available && (
+          <>
+            <BlockFormControlLabel
+              control={<Checkbox name="relay_light" checked={!!data.relay_light} onChange={updateFormValue} />}
+              label="Hi-Lo light: show Hi-Lo on the board's light (blue under, green correct, red over)?"
+            />
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              The light uses the relay pins. A relay board wired to the light switches with it. Untick to keep the
+              light dark.
+            </Typography>
+          </>
+        )}
         {data.esp_led_available && (
           <BlockFormControlLabel
             control={<Checkbox name="esp_led" checked={!!data.esp_led} onChange={updateFormValue} />}

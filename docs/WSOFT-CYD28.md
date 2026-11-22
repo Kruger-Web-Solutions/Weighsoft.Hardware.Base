@@ -276,6 +276,7 @@ An empty scale is OFF, not TOO LOW.
 | Field | Default | Meaning |
 |---|---|---|
 | `relay_enabled` | `false` | Switch the Hi-Lo relays. OFF until someone turns it on |
+| `relay_light` | `false` | Hi-Lo light: LED1 shows the zone (blue under, green correct, red over) without the relay switch. Same pins as the relays, so a relay board wired to LED1 switches with it. In Writer mode it follows the weigh board by itself |
 | `relay_low` / `relay_ok` / `relay_high` | 1 / 2 / 3 | Relay for each zone, 0 = none. No relay twice (the save is refused otherwise) |
 
 Rules in `lib/wsoft_core/src/wsoft_relay.*` and `wsoft_settings.*` (host tests
