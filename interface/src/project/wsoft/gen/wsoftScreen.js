@@ -602,7 +602,11 @@ const WsoftUi = (() => {
     // Aurora's card: the weight sits inside it with room to spare.
     if (m.zone !== ZONE_NONE && colourSet(m, T).card) {
       c.text(m.label, 302, 73, TINY, soft, RIGHT);
-      c.text(m.weight, 264, 94, c.width(m.weight, HERO) <= 236 ? HERO : BIG, ink, RIGHT);
+      // A soft glow of the zone colour round the numbers (Rhyno, 22 Nov 2026).
+      const role = c.width(m.weight, HERO) <= 236 ? HERO : BIG, P = colourSet(m, T), halo = blend(P.w_bg, P.strip, 55), core = blend(P.w_bg, P.strip, 120);
+      for (const [dx, dy] of [[-3, 0], [3, 0], [0, -3], [0, 3]]) c.text(m.weight, 264 + dx, 94 + dy, role, halo, RIGHT);
+      for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) c.text(m.weight, 264 + dx, 94 + dy, role, core, RIGHT);
+      c.text(m.weight, 264, 94, role, ink, RIGHT);
       c.text(m.unit, 270, 106, MID, soft, LEFT);
       return;
     }
@@ -630,7 +634,10 @@ const WsoftUi = (() => {
     const pw = c.width(words, role) + 52, px = 160 - pw / 2;
     // The band is as tall as the pill when the plate needs its line under it.
     if (P.band) { const bh = plateOn(m) ? 28 : 34; c.rect(0, wy - bh / 2, 320, bh, P.pill, 0); }
-    else c.rect(px, wy - 14, pw, 28, P.pill, -1);
+    else {
+      if (P.card) c.rect(px - 4, wy - 18, pw + 8, 36, blend(P.bg, P.pill, 70), -1);
+      c.rect(px, wy - 14, pw, 28, P.pill, -1);
+    }
     paintSign(c, m.zone, px + 23, wy, P.pill_ink);
     c.text(words, px + 38, wy, role, P.pill_ink, LEFT);
     if (plateOn(m)) c.text(c.fit(m.product + '   ' + m.target, SMALL, 300), 160, 160, SMALL, P.soft, CENTER);

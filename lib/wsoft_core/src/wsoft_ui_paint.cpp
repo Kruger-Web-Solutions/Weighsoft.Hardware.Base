@@ -429,7 +429,15 @@ static void paint_weight_colour(WsoftCanvas &c, const WsoftUiModel &m, const The
   // Aurora's card: the weight sits inside it with room to spare.
   if (m.zone != WSOFT_UI_ZONE_NONE && colour_set(m, T).card) {
     c.text(m.label, 302, 73, TINY, soft, WSOFT_RIGHT);
-    c.text(m.weight, 264, 94, c.width(m.weight, HERO) <= 236 ? HERO : BIG, ink, WSOFT_RIGHT);
+    // A soft glow of the zone colour round the numbers (Rhyno, 22 Nov 2026).
+    const int role = c.width(m.weight, HERO) <= 236 ? HERO : BIG;
+    const ColourSet P = colour_set(m, T);
+    const uint16_t halo = wsoft_blend565(P.w_bg, P.strip, 55), core = wsoft_blend565(P.w_bg, P.strip, 120);
+    static const int8_t outer[4][2] = {{-3, 0}, {3, 0}, {0, -3}, {0, 3}};
+    static const int8_t inner[4][2] = {{-1, -1}, {1, -1}, {-1, 1}, {1, 1}};
+    for (const auto &o : outer) c.text(m.weight, 264 + o[0], 94 + o[1], role, halo, WSOFT_RIGHT);
+    for (const auto &o : inner) c.text(m.weight, 264 + o[0], 94 + o[1], role, core, WSOFT_RIGHT);
+    c.text(m.weight, 264, 94, role, ink, WSOFT_RIGHT);
     c.text(m.unit, 270, 106, MID, soft);
     return;
   }
@@ -462,7 +470,10 @@ static void paint_hilo_colour(WsoftCanvas &c, const WsoftUiModel &m, const Theme
     double bh = plate_on(m) ? 28 : 34;
     c.rect(0, wy - bh / 2, 320, bh, P.pill);
   }
-  else c.rect(px, wy - 14, pw, 28, P.pill, -1);
+  else {
+    if (P.card) c.rect(px - 4, wy - 18, pw + 8, 36, wsoft_blend565(P.bg, P.pill, 70), -1);
+    c.rect(px, wy - 14, pw, 28, P.pill, -1);
+  }
   paint_sign(c, m.zone, px + 23, wy, P.pill_ink);
   c.text(words, px + 38, wy, role, P.pill_ink);
   if (plate_on(m)) c.text(c.fit(product_line(m, line, sizeof line), SMALL, 300, cut, sizeof cut), 160, 160, SMALL, P.soft, WSOFT_CENTER);
