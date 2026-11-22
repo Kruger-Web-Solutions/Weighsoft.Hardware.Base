@@ -56,9 +56,9 @@ board. The board then reads the load cell itself; nothing uses the UART on CN1, 
 no RS485 box and no RS232 scale on this board in that mode. The weight still goes to the
 screen, the web page, the Hub and a Writer over Wi-Fi, like any other source.
 
-> **Built, not bench-tested (22 Nov 2026).** No HX711 has been on a board with this code yet.
-> The host tests cover the sums; the pins and the timing are from the datasheet, not from a
-> bench run.
+> **On the bench 22 Nov 2026:** Rhyno's yellow board weighs with the HW-29 board on CN1
+> (commit c142c76), and the print next to the plug on his board reads GND, IO22, IO27, 3.3V.
+> Not measured yet: accuracy, drift, and the scale setup below (added after that run).
 
 **Wiring (CN1, 4 wires, no soldering).** Rhyno's board is the green `HW-29` HX711 module.
 
@@ -90,21 +90,31 @@ screen, the web page, the Hub and a Writer over Wi-Fi, like any other source.
 - Whether this module runs at 10 or 80 counts a second is set on its board and was not checked.
   The code works with either.
 
-**Calibrate** (W-Soft → **Calibrate**, admin; `GET` / `POST /rest/wsoftLoadcell`):
+**Scale setup and calibrate** (W-Soft → **Calibrate**, admin; `GET` / `POST /rest/wsoftLoadcell`).
+On RS232 the indicator holds the scale's setup and on RS485 the weighing card does. Here the
+board is the scale, so the Calibrate tab starts with the setup (Rhyno, 22 Nov 2026):
 
-1. **Zero**: scale empty, *Set zero*.
-2. **Test weight**: put a known weight on, type what it weighs, pick kg or g, *Set test weight*.
-   The digits typed after the point are the digits the scale shows (`2.000` = 3 decimals).
-3. **Check**: the big number shows the test weight, and 0 with the scale empty.
+1. **Scale setup**: *Unit* (kg or g), *Division size* (1, 2 or 5 in any digit from 0.0001 kg or
+   0.01 g up, then 10, 20, 50) and *Max capacity*. One range; a second range is not built.
+   `POST {"action":"format","decimals":3,"step":2,"unit":"kg"}` = 0.002 kg. Max is the board's
+   `max_kg` (`POST /rest/wsoftScaleSetup`), and must be a whole number of divisions.
+2. **Zero**: scale empty, *Set zero*.
+3. **Test weight**: put a known weight on, type what it weighs, *Set test weight*. It is kept in
+   the scale's own digits (`2` on a 0.001 kg scale = 2000); more digits than the division has
+   are refused. Changing the division later keeps the calibration when the test weight still
+   fits the new last digit, and is refused (`format_span`) when it does not.
 
 The page shows the **raw count** before any calibration: press on the load cell and it moves.
 That checks the wiring. Until zero and a test weight are set the board shows no weight at all.
-*Step* (1, 2, 5, 10, 20, 50) rounds the last digits. The calibration is kept on the board (NVS
-`loadcell`) and each change is one `LOADCELL ...` line in the USB log. Calibrating is refused
-while Approval is ON, like the junction box calibration.
+The calibration is kept on the board (NVS `loadcell`) and each change is one `LOADCELL ...`
+line in the USB log. All of it is refused while Approval is ON.
 
-The other scale rules are those of an RS232 scale: no card setup, no tare, no blanking, no
-junction box alarm. A weighing sent to the Hub carries `"source":"loadcell"`.
+**The rest of the setup is the RS485 one** (W-Soft → **Scale setup**, section 2c): Min, blanking
+below zero and above Max, stable samples, tare, the SA number, and "setup complete" before
+Approval can go ON. The board hands its own division, decimals and unit to those rules in the
+place of the weighing card's (`scale_set_card`). The g unit stops at 0.01 g because those rules
+count in 0.00001 kg. No junction box alarm. A weighing sent to the Hub carries
+`"source":"loadcell"`.
 
 ## 2. Screen (320 x 240)
 

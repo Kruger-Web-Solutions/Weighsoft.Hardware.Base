@@ -80,7 +80,9 @@ export interface WSoftLoadcell {
 export type WSoftLoadcellRequest =
   | { action: 'zero' }
   | { action: 'span'; weight: string; unit: 'kg' | 'g' }
-  | { action: 'step'; step: number };
+  | { action: 'step'; step: number }
+  /** The scale setup: unit, digits after the point, and the division in the last digit (0.002 kg = 3, 2). */
+  | { action: 'format'; decimals: number; step: number; unit: 'kg' | 'g' };
 
 // Mirrors src/examples/wsoft/WSoftSettingsService.h (WSoftSettings::read).
 export interface WSoftSettings {
@@ -271,7 +273,8 @@ export interface WSoftScaleSetup {
 
 // A5. POST /rest/wsoftScaleSetup (admin).
 export interface WSoftScaleSetupRequest {
-  board: WSoftScaleBoard;
+  /** A field that is left out keeps its stored value. */
+  board: Partial<WSoftScaleBoard>;
   reason: string;
 }
 

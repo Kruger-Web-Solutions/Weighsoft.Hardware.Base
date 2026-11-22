@@ -393,7 +393,7 @@ void wsoft_screen_setup(WsoftScreenSource source) {
 
   display_ready = ui_begin();
   log_line(display_ready ? "display ready" : WSOFT_BOARD_HEADLESS ? "no display (headless board)" : "display failed");
-  scale_begin(!line_mode);
+  scale_begin(!line_mode || loadcell_mode);
   pin_begin();
   approval_begin();
   weighings_begin(line_mode && !writer_mode);
@@ -480,6 +480,10 @@ static bool poll_loadcell(Reading *out) {
   int decimals;
   int unit;
   bool fresh = loadcell_weight(&value, &decimals, &unit);
+  // The board is its own "card" here: e, decimals and unit come from its calibration.
+  LoadcellInfo info;
+  loadcell_info(&info);
+  scale_set_card(info.cal.step, info.cal.decimals, info.cal.unit);
   out->alarm = false;
   out->alarm_allowed = false;
   out->alarm_word_valid = false;
@@ -527,7 +531,8 @@ void wsoft_screen_loop() {
     }
   }
 
-  // RS485 setup: blanking, below Min and the stable samples hold a reading back (NONE on RS232).
+  // Setup kept on the board (RS485, load cell): blanking, below Min and the stable samples hold
+  // a reading back (NONE on RS232).
   int32_t net = next.value;
   bool tared = scale_net(next.value, next.decimals, next.unit, &net);
   WsoftScaleHold hold = scale_hold(next.linked, fresh, next.value, net, next.decimals, next.unit);

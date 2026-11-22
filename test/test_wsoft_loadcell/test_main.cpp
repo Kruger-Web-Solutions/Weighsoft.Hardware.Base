@@ -11,6 +11,7 @@ void tearDown() {}
 static WsoftLoadcellCal calibrated(int32_t zero, int32_t at_weight, int32_t value, int decimals) {
   WsoftLoadcellCal cal;
   wsoft_loadcell_defaults(&cal);
+  TEST_ASSERT_EQUAL(WSOFT_LOADCELL_OK, wsoft_loadcell_set_format(&cal, decimals, 1, 1));
   TEST_ASSERT_EQUAL(WSOFT_LOADCELL_OK, wsoft_loadcell_set_zero(&cal, true, zero));
   TEST_ASSERT_EQUAL(WSOFT_LOADCELL_OK, wsoft_loadcell_set_span(&cal, true, at_weight, value, decimals, 1));
   return cal;
@@ -160,12 +161,74 @@ void test_grams_and_no_decimals() {
   WsoftLoadcellCal cal;
   wsoft_loadcell_defaults(&cal);
   wsoft_loadcell_set_zero(&cal, true, 0);
+  TEST_ASSERT_EQUAL(WSOFT_LOADCELL_OK, wsoft_loadcell_set_format(&cal, 0, 3, 1));
   TEST_ASSERT_EQUAL(WSOFT_LOADCELL_OK, wsoft_loadcell_set_span(&cal, true, 500000, 500, 0, 3));
   int32_t value;
   TEST_ASSERT_TRUE(wsoft_loadcell_weight(cal, 250000, &value));
   TEST_ASSERT_EQUAL_INT32(250, value);
   TEST_ASSERT_EQUAL(0, cal.decimals);
   TEST_ASSERT_EQUAL(3, cal.unit);
+}
+
+void test_the_test_weight_is_kept_in_the_scales_own_digits() {
+  // A new board shows 0.001 kg. "2" kg is stored as 2000, "2.5" as 2500, 500 g as 500.
+  WsoftLoadcellCal cal;
+  wsoft_loadcell_defaults(&cal);
+  wsoft_loadcell_set_zero(&cal, true, 0);
+  TEST_ASSERT_EQUAL(WSOFT_LOADCELL_OK, wsoft_loadcell_set_span(&cal, true, 400000, 2, 0, 1));
+  TEST_ASSERT_EQUAL_INT32(2000, cal.span_value);
+  TEST_ASSERT_EQUAL(3, cal.decimals);
+  TEST_ASSERT_EQUAL(WSOFT_LOADCELL_OK, wsoft_loadcell_set_span(&cal, true, 400000, 25, 1, 1));
+  TEST_ASSERT_EQUAL_INT32(2500, cal.span_value);
+  TEST_ASSERT_EQUAL(WSOFT_LOADCELL_OK, wsoft_loadcell_set_span(&cal, true, 400000, 500, 0, 3));
+  TEST_ASSERT_EQUAL_INT32(500, cal.span_value);
+  TEST_ASSERT_EQUAL(1, cal.unit);
+  // More digits than the scale shows: refused, nothing changed.
+  TEST_ASSERT_EQUAL(WSOFT_LOADCELL_BAD_DECIMALS, wsoft_loadcell_set_span(&cal, true, 400000, 20005, 4, 1));
+  TEST_ASSERT_EQUAL_INT32(500, cal.span_value);
+}
+
+void test_the_scale_setup_sets_unit_decimals_and_division() {
+  WsoftLoadcellCal cal = calibrated(0, 400000, 2000, 3);  // 2.000 kg
+  int32_t value;
+  // 0.002 kg division: the weight moves in twos.
+  TEST_ASSERT_EQUAL(WSOFT_LOADCELL_OK, wsoft_loadcell_set_format(&cal, 3, 1, 2));
+  TEST_ASSERT_TRUE(wsoft_loadcell_weight(cal, 200600, &value));  // 1.003 kg
+  TEST_ASSERT_EQUAL_INT32(1004, value);
+  // 0.01 kg: the span is re-written (2.00), the weight is still right.
+  TEST_ASSERT_EQUAL(WSOFT_LOADCELL_OK, wsoft_loadcell_set_format(&cal, 2, 1, 1));
+  TEST_ASSERT_EQUAL_INT32(200, cal.span_value);
+  TEST_ASSERT_TRUE(wsoft_loadcell_weight(cal, 200000, &value));
+  TEST_ASSERT_EQUAL_INT32(100, value);
+  // To grams, 1 g division: 2000 g.
+  TEST_ASSERT_EQUAL(WSOFT_LOADCELL_OK, wsoft_loadcell_set_format(&cal, 0, 3, 1));
+  TEST_ASSERT_EQUAL_INT32(2000, cal.span_value);
+  TEST_ASSERT_EQUAL(3, cal.unit);
+  TEST_ASSERT_TRUE(wsoft_loadcell_weight(cal, 200000, &value));
+  TEST_ASSERT_EQUAL_INT32(1000, value);
+  // And back to kg with no decimals: 2 kg.
+  TEST_ASSERT_EQUAL(WSOFT_LOADCELL_OK, wsoft_loadcell_set_format(&cal, 0, 1, 1));
+  TEST_ASSERT_EQUAL_INT32(2, cal.span_value);
+}
+
+void test_a_bad_scale_setup_changes_nothing() {
+  WsoftLoadcellCal cal = calibrated(0, 400000, 2500, 3);  // 2.500 kg
+  WsoftLoadcellCal before = cal;
+  // 2.5 kg is not a whole number of kg.
+  TEST_ASSERT_EQUAL(WSOFT_LOADCELL_FORMAT_SPAN, wsoft_loadcell_set_format(&cal, 0, 1, 1));
+  TEST_ASSERT_EQUAL(WSOFT_LOADCELL_BAD_DECIMALS, wsoft_loadcell_set_format(&cal, 5, 1, 1));
+  TEST_ASSERT_EQUAL(WSOFT_LOADCELL_BAD_DECIMALS, wsoft_loadcell_set_format(&cal, 3, 3, 1));  // 0.001 g is too fine
+  TEST_ASSERT_EQUAL(WSOFT_LOADCELL_BAD_UNIT, wsoft_loadcell_set_format(&cal, 3, 2, 1));
+  TEST_ASSERT_EQUAL(WSOFT_LOADCELL_BAD_STEP, wsoft_loadcell_set_format(&cal, 3, 1, 3));
+  TEST_ASSERT_EQUAL_INT32(before.span_value, cal.span_value);
+  TEST_ASSERT_EQUAL(before.decimals, cal.decimals);
+  TEST_ASSERT_EQUAL(before.unit, cal.unit);
+  TEST_ASSERT_EQUAL(before.step, cal.step);
+  // With no test weight yet, any valid setup goes.
+  WsoftLoadcellCal fresh;
+  wsoft_loadcell_defaults(&fresh);
+  TEST_ASSERT_EQUAL(WSOFT_LOADCELL_OK, wsoft_loadcell_set_format(&fresh, 0, 1, 50));
+  TEST_ASSERT_EQUAL(50, fresh.step);
 }
 
 void test_an_out_of_range_count_or_a_huge_weight_is_never_a_weight() {
@@ -207,7 +270,7 @@ void test_the_filter_holds_minus_counts() {
 }
 
 void test_every_error_has_a_code_and_a_sentence() {
-  for (int e = WSOFT_LOADCELL_OK; e <= WSOFT_LOADCELL_TOO_SMALL; e++) {
+  for (int e = WSOFT_LOADCELL_OK; e <= WSOFT_LOADCELL_FORMAT_SPAN; e++) {
     TEST_ASSERT_NOT_NULL(wsoft_loadcell_error_code((WsoftLoadcellError)e));
     TEST_ASSERT_TRUE(wsoft_loadcell_error_text((WsoftLoadcellError)e)[0] != '\0');
   }
@@ -230,6 +293,9 @@ int main() {
   RUN_TEST(test_zero_needs_a_real_reading);
   RUN_TEST(test_a_new_zero_keeps_the_span);
   RUN_TEST(test_grams_and_no_decimals);
+  RUN_TEST(test_the_test_weight_is_kept_in_the_scales_own_digits);
+  RUN_TEST(test_the_scale_setup_sets_unit_decimals_and_division);
+  RUN_TEST(test_a_bad_scale_setup_changes_nothing);
   RUN_TEST(test_an_out_of_range_count_or_a_huge_weight_is_never_a_weight);
   RUN_TEST(test_the_filter_averages_the_last_eight);
   RUN_TEST(test_the_filter_holds_minus_counts);

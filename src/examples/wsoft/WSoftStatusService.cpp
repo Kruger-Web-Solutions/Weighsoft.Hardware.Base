@@ -255,7 +255,7 @@ void WSoftStatusService::updateHub(AsyncWebServerRequest* request, JsonVariant& 
 }
 
 void WSoftStatusService::handleDjb(AsyncWebServerRequest* request, JsonVariant& json) {
-  if (!scale_rs485()) {
+  if (!scale_rs485() || strcmp(weighings_source(), "loadcell") == 0) {
     request->send(409,
                   "application/json",
                   "{\"error\":\"NO_CARD\",\"message\":\"No weighing card: the scale is not on the RS485 junction box.\"}");
@@ -392,6 +392,18 @@ void WSoftStatusService::updateLoadcell(AsyncWebServerRequest* request, JsonVari
     int unit_code = strcmp(unit, "kg") == 0 ? 1 : strcmp(unit, "g") == 0 ? 3 : 0;
     if (!wsoft_parse_weight_text(body["weight"] | "", &value, &decimals)) error = WSOFT_LOADCELL_BAD_WEIGHT;
     else error = loadcell_set_span(value, decimals, unit_code, who.c_str());
+  } else if (strcmp(action, "format") == 0) {
+    // The scale setup: unit, digits after the point and the division in the last digit.
+    const char* unit = body["unit"] | "";
+    int unit_code = strcmp(unit, "kg") == 0 ? 1 : strcmp(unit, "g") == 0 ? 3 : 0;
+    if (!body["decimals"].is<int>()) error = WSOFT_LOADCELL_BAD_DECIMALS;
+    else if (!body["step"].is<int>()) error = WSOFT_LOADCELL_BAD_STEP;
+    else error = loadcell_set_format(body["decimals"].as<int>(), unit_code, body["step"].as<int>(), who.c_str());
+    if (error == WSOFT_LOADCELL_OK) {
+      // Now, not at the next poll: a Max saved right after this is checked against the new e.
+      loadcell_info(&info);
+      scale_set_card(info.cal.step, info.cal.decimals, info.cal.unit);
+    }
   } else if (strcmp(action, "step") == 0) {
     error = body["step"].is<int>() ? loadcell_set_step(body["step"].as<int>(), who.c_str()) : WSOFT_LOADCELL_BAD_STEP;
   } else {

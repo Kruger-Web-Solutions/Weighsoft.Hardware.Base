@@ -61,7 +61,7 @@ void scale_begin(bool is_rs485) {
   stored_setup = loaded;
   audit = counter;
   portEXIT_CRITICAL(&lock);
-  WSOFT_LOG.printf("SETUP %s audit=%lu\n", is_rs485 ? "rs485 (kept on the board)" : "rs232 (set on the indicator)",
+  WSOFT_LOG.printf("SETUP %s audit=%lu\n", is_rs485 ? "kept on the board" : "rs232 (set on the indicator)",
                  (unsigned long)counter);
 }
 

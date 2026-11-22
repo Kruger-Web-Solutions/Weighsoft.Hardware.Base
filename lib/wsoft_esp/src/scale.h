@@ -14,7 +14,9 @@
 
 #include <wsoft_scale_setup.h>
 
-// Screen task, at boot. rs485 = the weight comes from our weighing card.
+// Screen task, at boot. rs485 = the setup is kept on this board: the weight comes from our
+// weighing card, or from a load cell this board reads itself (HX711, 22 Nov 2026). The name
+// is from before the load cell; false only for an RS232 scale and a Writer.
 void scale_begin(bool rs485);
 bool scale_rs485();
 
@@ -26,7 +28,9 @@ void scale_unlock();
 
 bool scale_setup_complete();
 
-// Screen task: the values just read from the card.
+// Screen task: the values just read from the card. With a load cell the board is its own
+// "card": the division, decimals and unit of its calibration (also set by the web task right
+// after a setup change, so the next save is checked against the new e).
 void scale_set_card(int32_t division, int decimal, int unit);
 // Screen task: a card register write went through (setup audit + 1).
 void scale_card_written();

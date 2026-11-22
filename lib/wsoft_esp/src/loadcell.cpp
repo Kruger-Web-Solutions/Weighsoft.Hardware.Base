@@ -192,3 +192,9 @@ WsoftLoadcellError loadcell_set_step(int step, const char *who) {
   return change_cal([=](WsoftLoadcellCal *c, bool, int32_t) { return wsoft_loadcell_set_step(c, step); }, "STEP",
                     who);
 }
+
+WsoftLoadcellError loadcell_set_format(int decimals, int unit, int step, const char *who) {
+  return change_cal(
+      [=](WsoftLoadcellCal *c, bool, int32_t) { return wsoft_loadcell_set_format(c, decimals, unit, step); },
+      "FORMAT", who);
+}

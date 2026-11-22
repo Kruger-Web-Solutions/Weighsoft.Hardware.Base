@@ -131,14 +131,10 @@ const WSoftScaleSetup: FC = () => {
       );
     }
 
-    if (setup.source === 'loadcell') {
-      return (
-        <Typography variant="body1">
-          This board weighs with a load cell on an HX711 board. Set zero and the test weight on the Calibrate tab.
-          The fields here are for the junction box only.
-        </Typography>
-      );
-    }
+    // A load cell on an HX711 board: the board is the scale, so the setup is kept here like on
+    // RS485. Only the unit and the division are set on the Calibrate tab, next to the calibration.
+    const loadcell = setup.source === 'loadcell';
+    const unitText = setup.card?.unit === 3 ? 'g' : 'kg';
 
     const canEdit = isAdmin && setup.editable && setup.locked === null;
     const change = (key: keyof BoardForm, value: string | boolean) => {
@@ -173,7 +169,7 @@ const WSoftScaleSetup: FC = () => {
 
     // Card first (decimal places, then e), so the board checks Max and Min against the new e.
     const writeCard = async () => {
-      if (!cardDiffers || step === undefined) return;
+      if (loadcell || !cardDiffers || step === undefined) return;
       for (const [field, value] of [['decimal', Number(cardForm.decimal)], ['division', step]] as const) {
         const reply = (await WSoftApi.djb({ op: 'write', field, value })).data;
         if (!reply.ok) throw new Error(reply.error ?? 'The weighing card did not answer.');
@@ -235,35 +231,50 @@ const WSoftScaleSetup: FC = () => {
         <Typography variant="h6">On this board</Typography>
         <Grid container columnSpacing={2}>
           {field('sa_number', 'SA approval number', 'Shown on the screen plate. 1 to 32 characters', false)}
-          <Grid item xs={12} sm={6}>
-            <TextField
-              select
-              label="Decimal places"
-              fullWidth
-              margin="dense"
-              value={cardForm.decimal}
-              disabled={!canEdit}
-              onChange={(event) => cardChanged('decimal', event.target.value)}
-              helperText="How many digits after the point. Saved on the weighing card"
-            >
-              {[0, 1, 2, 3, 4].map((value) => (
-                <MenuItem key={value} value={String(value)}>{value}</MenuItem>
-              ))}
-            </TextField>
-          </Grid>
-          <Grid item xs={12} sm={6}>
-            <TextField
-              label="e (kg)"
-              fullWidth
-              margin="dense"
-              value={cardForm.e_kg}
-              disabled={!canEdit}
-              onChange={(event) => cardChanged('e_kg', event.target.value)}
-              inputProps={{ inputMode: 'decimal' }}
-              error={!!eProblem}
-              helperText={eProblem ?? 'The scale step, like 1, 0.5 or 0.02. Saved on the weighing card'}
-            />
-          </Grid>
+          {loadcell ? (
+            <Grid item xs={12} sm={6}>
+              <TextField
+                label="Division size (e)"
+                fullWidth
+                margin="dense"
+                value={setup.card ? `${(setup.card.division / 10 ** setup.card.decimal).toFixed(setup.card.decimal)} ${unitText}` : ''}
+                disabled
+                helperText="Set on the Calibrate tab, with the unit"
+              />
+            </Grid>
+          ) : (
+            <>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                select
+                label="Decimal places"
+                fullWidth
+                margin="dense"
+                value={cardForm.decimal}
+                disabled={!canEdit}
+                onChange={(event) => cardChanged('decimal', event.target.value)}
+                helperText="How many digits after the point. Saved on the weighing card"
+              >
+                {[0, 1, 2, 3, 4].map((value) => (
+                  <MenuItem key={value} value={String(value)}>{value}</MenuItem>
+                ))}
+              </TextField>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                label="e (kg)"
+                fullWidth
+                margin="dense"
+                value={cardForm.e_kg}
+                disabled={!canEdit}
+                onChange={(event) => cardChanged('e_kg', event.target.value)}
+                inputProps={{ inputMode: 'decimal' }}
+                error={!!eProblem}
+                helperText={eProblem ?? 'The scale step, like 1, 0.5 or 0.02. Saved on the weighing card'}
+              />
+            </Grid>
+            </>
+          )}
           {field('max_kg', 'Max (kg)', 'More than e')}
           {field('min_kg', 'Min (kg)', 'At least e and less than Max')}
           {field('stable_samples', 'Stable samples', 'Readings in a row before the weight counts as stable. 3 to 20')}
@@ -314,7 +325,7 @@ const WSoftScaleSetup: FC = () => {
             </ButtonRow>
           </>
         )}
-        <WSoftCardSetup card={setup.card} canRead={isAdmin} canWrite={canEdit} onWritten={load} />
+        {!loadcell && <WSoftCardSetup card={setup.card} canRead={isAdmin} canWrite={canEdit} onWritten={load} />}
       </>
     );
   };

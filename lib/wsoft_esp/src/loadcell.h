@@ -13,7 +13,7 @@
 // pulse stays high at most 50 us (60 us or more puts the chip to sleep), so the 25 pulses run
 // with interrupts off.
 // Power the HX711 board from 3.3 V: its DT signal is at its supply voltage.
-// NOT bench-tested yet (22 Nov 2026): no HX711 has been on a board with this code.
+// On the bench 22 Nov 2026: Rhyno's yellow board weighs with an HW-29 HX711 board on CN1.
 
 #include <Arduino.h>
 
@@ -43,3 +43,5 @@ void loadcell_info(LoadcellInfo *out);
 WsoftLoadcellError loadcell_set_zero(const char *who);
 WsoftLoadcellError loadcell_set_span(int32_t value, int decimals, int unit, const char *who);
 WsoftLoadcellError loadcell_set_step(int step, const char *who);
+// The scale setup: digits after the point, unit (1 kg, 3 g) and the division in the last digit.
+WsoftLoadcellError loadcell_set_format(int decimals, int unit, int step, const char *who);

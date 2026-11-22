@@ -35,7 +35,7 @@ struct WsoftLoadcellCal {
   bool span_set;
   int32_t span_counts;  // count with the test weight on, less the zero count; never 0 when span_set
   int32_t span_value;   // the test weight in display digits (2.000 kg at 3 decimals = 2000)
-  int decimals;         // 0..4, taken from how the test weight was typed
+  int decimals;         // 0..4 digits after the point (the scale setup on the Calibrate tab)
   int unit;             // DJB unit code: 1 kg, 3 g
   int step;             // display step in digits: 1, 2, 5, 10, 20 or 50
 };
@@ -48,7 +48,8 @@ enum WsoftLoadcellError {
   WSOFT_LOADCELL_BAD_DECIMALS,
   WSOFT_LOADCELL_BAD_UNIT,
   WSOFT_LOADCELL_BAD_STEP,
-  WSOFT_LOADCELL_TOO_SMALL     // the count hardly moved: no test weight on the scale?
+  WSOFT_LOADCELL_TOO_SMALL,    // the count hardly moved: no test weight on the scale?
+  WSOFT_LOADCELL_FORMAT_SPAN   // the stored test weight is not a whole number of the new last digit
 };
 
 void wsoft_loadcell_defaults(WsoftLoadcellCal *cal);
@@ -57,10 +58,23 @@ bool wsoft_loadcell_calibrated(const WsoftLoadcellCal &cal);
 
 // Zero with the scale empty. A span that is already set stays (it is a difference of counts).
 WsoftLoadcellError wsoft_loadcell_set_zero(WsoftLoadcellCal *cal, bool have_raw, int32_t raw);
-// Span with the test weight on. value / decimals: the weight as typed. On an error *cal is unchanged.
+// Span with the test weight on. value / decimals / unit: the weight as typed. It is stored in
+// the scale's own decimals and unit (wsoft_loadcell_set_format), so "2" on a 0.001 kg scale is
+// 2000. BAD_DECIMALS when it has more digits than the scale shows. On an error *cal is unchanged.
 WsoftLoadcellError wsoft_loadcell_set_span(WsoftLoadcellCal *cal, bool have_raw, int32_t raw, int32_t value,
                                            int decimals, int unit);
 WsoftLoadcellError wsoft_loadcell_set_step(WsoftLoadcellCal *cal, int step);
+
+// The scale setup the weighing card holds on RS485: unit, digits after the point and the
+// division e (= step in the last digit: 0.002 kg is decimals 3, step 2). A span that is set is
+// kept and re-written in the new decimals and unit; FORMAT_SPAN when that is not exact (a
+// 2.5 kg test weight on a scale with no decimals). On an error *cal is unchanged.
+// g takes at most 2 decimals: the setup rules count in 0.00001 kg (wsoft_scale_setup.h).
+WsoftLoadcellError wsoft_loadcell_set_format(WsoftLoadcellCal *cal, int decimals, int unit, int step);
+// value at (from_decimals, from_unit) as digits at (to_decimals, to_unit). False when not exact
+// or outside 1..WSOFT_LOADCELL_MAX_VALUE. Units: 1 kg, 3 g.
+bool wsoft_loadcell_rescale(int32_t value, int from_decimals, int from_unit, int to_decimals, int to_unit,
+                            int32_t *out);
 bool wsoft_loadcell_step_valid(int step);
 
 // The weight for a count, rounded half away from zero to the display step. False when the
