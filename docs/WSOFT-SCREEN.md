@@ -144,18 +144,17 @@ not a second screen written for the browser.
 |---|---|---|
 | 1 | `wsoft_ui_model_json` (`wsoft_ui_model.*`) | The board's `WsoftUiModel` as JSON, the model's own field names |
 | 2 | `GET /rest/wsoftScreen` (logged in) | The words on the screen now. The page asks 4 times a second |
-| 3 | `interface/src/project/wsoft/gen/wsoftScreen.js` | `ref.js` as it is plus the yellow board's letters, written by `gen.mjs`. The page paints the words with it onto a 320 x 240 canvas |
+| 3 | `interface/src/project/wsoft/gen/wsoftScreen.js` | `ref.js` as it is plus the letters of both panels, written by `gen.mjs`. The page paints the words with the Waveshare's letters onto an 800 x 480 canvas, so the picture stays sharp on a big screen (Rhyno, 22 Nov 2026: the blocky 320 x 240 picture looked horrible) |
 | 4 | `POST /rest/wsoftScreen {x, y}` (logged in) | A click, in layout units. The screen loop runs the board's own `tap()`, like a finger on the panel (`TOUCH web=x,y` in the log) |
 
 Why not the same C++ in the browser: the browser cannot run the board's compiled code, so it
 runs the reference drawing the C++ is a port of. The host test holds the C++ to the checksums
-in `golden.h`; `screen.test.ts` holds the browser copy to the same checksums and checks that
+in `golden.h`; `screen.test.ts` holds the browser copy to the same checksums (both sizes) and checks that
 the copy in the page is `ref.js` itself. All the rules (what a tap does, what the
 screen says) stay on the board, once.
 
 A board with no panel (`wsoft_s3_headless`) still makes the words and takes the taps: the
-browser is its screen. Every board shows the 320 x 240 layout in the browser, the Waveshare
-too. The old Live page (weight, chips, Approval and Auto save switches, Save button, status
+browser is its screen. Every board shows the same layout in the browser, painted at the Waveshare's size. The old Live page (weight, chips, Approval and Auto save switches, Save button, status
 table) is gone; the firmware's `/rest/wsoftStatus`, `/rest/wsoftSwitches` and `/rest/wsoftSave`
 are unchanged. Not on the screen and so no longer on the Live tab: the approval log and the
 alarm test note. **Not tried on a board yet.**

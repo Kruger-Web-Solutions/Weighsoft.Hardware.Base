@@ -26,5 +26,7 @@ declare const WsoftUi: {
   modelOf: (state: unknown) => WsoftScreenModel;
   PRESETS: [string, string, unknown][];
 };
+/** The yellow board's letters (320 x 240) and the Waveshare's (800 x 480). */
 export const FONTS: WsoftScreenPacked[];
+export const FONTS_2X: WsoftScreenPacked[];
 export default WsoftUi;
