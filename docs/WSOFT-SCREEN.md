@@ -75,7 +75,8 @@ three; only what a row draws differs. The menu pages look the same in every look
 Colour and Dial are dark screens. With no Hi-Lo product picked they show a plain dark screen
 with the weight. Two letter sizes were added for them (HUGE: the weight's digits, XL: the
 Hi-Lo word): 27 KB on the yellow board, 104 KB on the Waveshare. The whole firmware is now
-2,386,184 bytes on the yellow board and 2,860,270 on the Waveshare (built 22 Nov 2026).
+2,386,184 bytes on the yellow board (58,920 more than before) and 2,860,270 on the Waveshare
+(136,696 more), built 22 Nov 2026 against `d07b1b0`.
 
 Not tried on a board yet (22 Nov 2026): how fast the dial repaints on the yellow board, which
 paints its arc dot by dot. A weight of 7 characters (100.000) is drawn in the smaller letters
