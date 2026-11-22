@@ -1,18 +1,31 @@
-import WsoftUi, { FONTS, WsoftScreenFont, WsoftScreenModel } from './gen/wsoftScreen';
+import WsoftUi, { FONTS, FONTS_2X, WsoftScreenFont, WsoftScreenModel } from './gen/wsoftScreen';
 
 // The board's screen in the browser (Rhyno, 22 Nov 2026: one screen, two places). The board
 // sends the words on its screen; this paints them with the board's own drawing and letters
 // (gen/wsoftScreen.js, made from tools/wsoft-ui/ref.js), so the two cannot drift apart.
 
+/** The screen's layout: taps are in these units on every panel. */
 export const SCREEN_W = 320;
 export const SCREEN_H = 240;
+/** The page's picture: the Waveshare's dots, sharp on a big screen. */
+export const PICTURE_W = 800;
+export const PICTURE_H = 480;
 
 let fonts: WsoftScreenFont[] | undefined;
+let fonts2x: WsoftScreenFont[] | undefined;
 
-/** The screen for these words as 16-bit dots (5-6-5), SCREEN_W x SCREEN_H. */
+/** The screen for these words as 16-bit dots (5-6-5), SCREEN_W x SCREEN_H, as the yellow board paints it. */
 export const paintScreen = (model: WsoftScreenModel): Uint16Array => {
   if (!fonts) fonts = FONTS.map(WsoftUi.unpackFont);
   const canvas = new WsoftUi.Canvas(SCREEN_W, SCREEN_H, 1, 1, fonts);
+  WsoftUi.paint(canvas, model);
+  return canvas.fb;
+};
+
+/** The same screen PICTURE_W x PICTURE_H, as the Waveshare paints it: what the page shows. */
+export const paintPicture = (model: WsoftScreenModel): Uint16Array => {
+  if (!fonts2x) fonts2x = FONTS_2X.map(WsoftUi.unpackFont);
+  const canvas = new WsoftUi.Canvas(PICTURE_W, PICTURE_H, PICTURE_W / SCREEN_W, PICTURE_H / SCREEN_H, fonts2x);
   WsoftUi.paint(canvas, model);
   return canvas.fb;
 };

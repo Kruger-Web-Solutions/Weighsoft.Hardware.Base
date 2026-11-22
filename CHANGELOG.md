@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **W-Soft: the browser's Live screen is sharp** (Rhyno, 22 Nov 2026). The page paints the
+  board's screen with the Waveshare's letters at 800 x 480 instead of blowing up the 320 x 240
+  picture, with round corners and a soft shadow. About 29 KB more firmware.
 - **W-Soft: auto save counts down 3, 2, 1** (Rhyno, 22 Nov 2026). Auto save now waits for 3
   still seconds (it was 1) and the screen and the browser copy show SAVING IN 3, 2, 1. A tap on
   SAVE saves as before.

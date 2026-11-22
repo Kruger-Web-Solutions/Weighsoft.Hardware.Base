@@ -5,7 +5,7 @@ import { Box } from '@mui/material';
 import { FormLoader, MessageBox, SectionContent } from '../../components';
 
 import * as WSoftApi from './api';
-import { paintScreen, tapPoint, toRgba, SCREEN_H, SCREEN_W } from './screen';
+import { paintPicture, tapPoint, toRgba, PICTURE_H, PICTURE_W } from './screen';
 
 const REFRESH_MS = 250;
 const LOST_AFTER = 8;  // misses in a row (about 2 s) before the page says the board is gone
@@ -34,8 +34,8 @@ const WSoftLive: FC = () => {
         const words = JSON.stringify(model);
         const context = canvas.current?.getContext('2d');
         if (context && words !== last) {
-          const picture = context.createImageData(SCREEN_W, SCREEN_H);
-          picture.data.set(toRgba(paintScreen(model)));
+          const picture = context.createImageData(PICTURE_W, PICTURE_H);
+          picture.data.set(toRgba(paintPicture(model)));
           context.putImageData(picture, 0, 0);
           last = words;
         }
@@ -62,15 +62,28 @@ const WSoftLive: FC = () => {
     <SectionContent title="W-Soft screen" titleGutter>
       {lost && <MessageBox level="error" message="No answer from the board. This picture is old." my={2} />}
       {!seen && !lost && <FormLoader message="Reading the board's screen…" />}
-      <Box sx={{ maxWidth: 640, mx: 'auto', display: seen ? 'block' : 'none', opacity: lost ? 0.4 : 1 }}>
+      {/* Painted with the Waveshare's dots, so it stays sharp on a big screen (Rhyno, 22 Nov 2026). */}
+      <Box
+        sx={{
+          maxWidth: 960,
+          mx: 'auto',
+          display: seen ? 'block' : 'none',
+          opacity: lost ? 0.4 : 1,
+          transition: 'opacity 0.3s',
+          borderRadius: 3,
+          overflow: 'hidden',
+          boxShadow: '0 12px 32px rgba(27, 20, 70, 0.25)',
+          lineHeight: 0
+        }}
+      >
         <canvas
           ref={canvas}
-          width={SCREEN_W}
-          height={SCREEN_H}
+          width={PICTURE_W}
+          height={PICTURE_H}
           onClick={onClick}
           role="img"
           aria-label="The board's screen. Click it like you tap the board."
-          style={{ width: '100%', height: 'auto', display: 'block', imageRendering: 'pixelated', cursor: 'pointer', touchAction: 'manipulation' }}
+          style={{ width: '100%', height: 'auto', display: 'block', cursor: 'pointer', touchAction: 'manipulation' }}
         />
       </Box>
     </SectionContent>

@@ -122,11 +122,14 @@ function write(file, text) {
 }
 
 // The copy of the screen in the browser (the board's own web page) paints with this very
-// drawing: ref.js as it is, and the yellow board's letters (320 x 240, one dot per unit).
+// drawing: ref.js as it is, and the letters of both panels: the yellow board's (320 x 240, one
+// dot per unit) and the Waveshare's (800 x 480), which the page paints with so it stays sharp
+// on a big screen (Rhyno, 22 Nov 2026: the blocky picture looked horrible).
 function screenModule() {
   const ref = readFileSync(join(here, 'ref.js'), 'utf8');
-  const fonts = JSON.parse(readFileSync(join(here, 'fonts.json'), 'utf8')).yellow;
-  return `/* eslint-disable */\n${HEAD}${ref}\nexport const FONTS = ${JSON.stringify(fonts)};\nexport default WsoftUi;\n`;
+  const saved = JSON.parse(readFileSync(join(here, 'fonts.json'), 'utf8'));
+  return `/* eslint-disable */\n${HEAD}${ref}\nexport const FONTS = ${JSON.stringify(saved.yellow)};\n` +
+    `export const FONTS_2X = ${JSON.stringify(saved.wave)};\nexport default WsoftUi;\n`;
 }
 
 const KEEP_FONTS = process.env.WSOFT_UI_KEEP_FONTS === '1';
