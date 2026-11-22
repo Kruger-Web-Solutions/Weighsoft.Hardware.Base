@@ -36,6 +36,8 @@ struct LoadcellInfo {
   int32_t value;    // the weight in display digits (with cal.decimals and cal.unit)
   uint32_t rate;         // counts a second from the chip, measured; 0 when silent
   int32_t zero_offset;   // counts auto zero has moved the zero by, since the last restart or zero
+  int32_t drift_offset;  // counts Drift Guard holds back right now
+  bool drift_holding;    // Drift Guard is holding the weight shown
   bool have_noise;
   int32_t noise_tenths;  // how far the last counts are apart, in tenths of a division (10 = one division)
   WsoftLoadcellCal cal;
@@ -48,7 +50,10 @@ void loadcell_info(LoadcellInfo *out);
 WsoftLoadcellError loadcell_set_zero(const char *who);
 WsoftLoadcellError loadcell_set_span(int32_t value, int decimals, int unit, const char *who);
 // The scale setup: digits after the point, unit (1 kg, 3 g), the division in the last digit,
-// the filter (WSOFT_LOADCELL_FILTER_OFF .. _HIGH) and auto zero (0 off, 1..3 divisions). All
-// of it or none of it.
+// the filter (WSOFT_LOADCELL_FILTER_OFF .. _HIGH), auto zero (0 off, 1..3 divisions) and
+// Drift Guard (0 off, 1..5 divisions). All of it or none of it.
 WsoftLoadcellError loadcell_set_format(int decimals, int unit, int step, int filter, int zero_track,
-                                       const char *who);
+                                       int drift_guard, const char *who);
+// Screen task, every poll: false while Approval is ON. Drift Guard rests then, whatever the
+// setup says, because it hides slow changes.
+void loadcell_allow_drift_guard(bool allowed);

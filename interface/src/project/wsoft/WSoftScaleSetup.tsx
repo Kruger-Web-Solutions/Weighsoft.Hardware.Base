@@ -9,7 +9,7 @@ import { AuthenticationContext } from '../../contexts/authentication';
 
 import WSoftCardSetup from './WSoftCardSetup';
 import * as WSoftApi from './api';
-import { divisionKey, LOADCELL_AUTO_ZERO, LOADCELL_FILTERS, loadcellDivisions, LoadcellUnit, noiseHint } from './calibrate';
+import { divisionKey, LOADCELL_AUTO_ZERO, LOADCELL_DRIFT_GUARD, LOADCELL_FILTERS, loadcellDivisions, LoadcellUnit, noiseHint } from './calibrate';
 import { boardErrorText } from './errors';
 import { WSoftLoadcell, WSoftScaleBoard, WSoftScaleCard, WSoftScaleSetup as WSoftScaleSetupState } from './types';
 import { REASON_MAX, reasonProblem } from './validators';
@@ -94,8 +94,8 @@ const WSoftScaleSetup: FC = () => {
   const [cardForm, setCardForm] = useState<CardForm>({ decimal: '', e_kg: '' });
   // Load cell: the board holds the unit and the division the card holds on RS485, and the filter.
   const [cell, setCell] = useState<WSoftLoadcell>();
-  const [cellForm, setCellForm] = useState<{ unit: LoadcellUnit; division: string; filter: number; zeroTrack: number }>(
-    { unit: 'kg', division: '', filter: 2, zeroTrack: 0 }
+  const [cellForm, setCellForm] = useState<{ unit: LoadcellUnit; division: string; filter: number; zeroTrack: number; driftGuard: number }>(
+    { unit: 'kg', division: '', filter: 2, zeroTrack: 0, driftGuard: 0 }
   );
   const [dirty, setDirty] = useState(false);
   const [reason, setReason] = useState('');
@@ -129,7 +129,8 @@ const WSoftScaleSetup: FC = () => {
           unit: setup.card.unit === 3 ? 'g' : 'kg',
           division: divisionKey(setup.card.decimal, setup.card.division),
           filter: cell ? cell.filter : 2,
-          zeroTrack: cell ? cell.zero_track : 0
+          zeroTrack: cell ? cell.zero_track : 0,
+          driftGuard: cell ? cell.drift_guard : 0
         });
       }
     }
@@ -162,7 +163,8 @@ const WSoftScaleSetup: FC = () => {
     };
     const cellDiffers = loadcell && !!division && (!setup.card || setup.card.decimal !== division.decimals
       || setup.card.division !== division.step || (setup.card.unit === 3 ? 'g' : 'kg') !== cellForm.unit
-      || (!!cell && (cell.filter !== cellForm.filter || cell.zero_track !== cellForm.zeroTrack)));
+      || (!!cell && (cell.filter !== cellForm.filter || cell.zero_track !== cellForm.zeroTrack
+        || cell.drift_guard !== cellForm.driftGuard)));
 
     const canEdit = isAdmin && setup.editable && setup.locked === null;
     const change = (key: keyof BoardForm, value: string | boolean) => {
@@ -208,7 +210,7 @@ const WSoftScaleSetup: FC = () => {
       if (!cellDiffers || !division) return;
       setCell((await WSoftApi.updateWSoftLoadcell({
         action: 'format', decimals: division.decimals, step: division.step, unit: cellForm.unit, filter: cellForm.filter,
-        zero_track: cellForm.zeroTrack
+        zero_track: cellForm.zeroTrack, drift_guard: cellForm.driftGuard
       })).data);
     };
 
@@ -324,6 +326,20 @@ const WSoftScaleSetup: FC = () => {
                   helperText="Pulls the empty scale back to 0 when it creeps a little"
                 >
                   {LOADCELL_AUTO_ZERO.map((z) => (<MenuItem key={z.value} value={z.value}>{z.text}</MenuItem>))}
+                </TextField>
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  select
+                  label="Drift Guard"
+                  fullWidth
+                  margin="dense"
+                  value={cellForm.driftGuard}
+                  disabled={!canEdit}
+                  onChange={(event) => cellChanged({ driftGuard: Number(event.target.value) })}
+                  helperText="Holds a steady weight still when it wanders slowly. A slow change smaller than this stays hidden"
+                >
+                  {LOADCELL_DRIFT_GUARD.map((d) => (<MenuItem key={d.value} value={d.value}>{d.text}</MenuItem>))}
                 </TextField>
               </Grid>
             </>

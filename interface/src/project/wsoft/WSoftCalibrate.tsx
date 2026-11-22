@@ -210,6 +210,16 @@ const WSoftCalibrate: FC = () => {
           {onCell && cell && cell.zero_track > 0 && (
             <Chip size="small" variant="outlined" label={`Auto zero ${cell.zero_offset >= 0 ? '+' : ''}${cell.zero_offset}`} />
           )}
+          {onCell && cell && cell.drift_guard > 0 && (
+            <Chip
+              size="small"
+              variant="outlined"
+              color={cell.drift_holding ? 'success' : 'default'}
+              label={cell.drift_holding
+                ? `Drift Guard holding ${cell.drift_offset >= 0 ? '+' : ''}${cell.drift_offset}`
+                : 'Drift Guard waiting'}
+            />
+          )}
           {onCell && cell && cell.noise_tenths !== null && (
             <Chip
               size="small"

@@ -78,6 +78,12 @@ export interface WSoftLoadcell {
   zero_track: number;
   /** Counts auto zero has moved the zero by since the last restart or zero. */
   zero_offset: number;
+  /** Drift Guard: 0 off, 1 to 5 = the most divisions of slow drift it holds back. */
+  drift_guard: number;
+  /** Counts Drift Guard holds back right now. */
+  drift_offset: number;
+  /** Drift Guard is holding the weight shown. */
+  drift_holding: boolean;
   /** Counts a second from the chip, measured (10 or 80 by its board); 0 when silent. */
   rate: number;
   /** How far the last raw counts are apart, in tenths of a division (10 = one division); null when not known. */
@@ -93,7 +99,7 @@ export type WSoftLoadcellRequest =
   | { action: 'zero' }
   | { action: 'span'; weight: string; unit: 'kg' | 'g' }
   /** The scale setup: unit, digits after the point, the division in the last digit (0.002 kg = 3, 2), the filter and auto zero. */
-  | { action: 'format'; decimals: number; step: number; unit: 'kg' | 'g'; filter: number; zero_track: number };
+  | { action: 'format'; decimals: number; step: number; unit: 'kg' | 'g'; filter: number; zero_track: number; drift_guard: number };
 
 // Mirrors src/examples/wsoft/WSoftSettingsService.h (WSoftSettings::read).
 export interface WSoftSettings {

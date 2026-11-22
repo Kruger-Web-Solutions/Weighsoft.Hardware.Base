@@ -73,6 +73,19 @@ export const LOADCELL_AUTO_ZERO = [
   { value: 3, text: 'On: within 3 divisions of zero' }
 ];
 
+/**
+ * Drift Guard choices: the most divisions of slow drift it holds back before it lets go
+ * (wsoft_loadcell.h). A slow real change smaller than this stays hidden, so keep it small.
+ */
+export const LOADCELL_DRIFT_GUARD = [
+  { value: 0, text: 'Off' },
+  { value: 1, text: 'On: holds up to 1 division' },
+  { value: 2, text: 'On: holds up to 2 divisions' },
+  { value: 3, text: 'On: holds up to 3 divisions' },
+  { value: 4, text: 'On: holds up to 4 divisions' },
+  { value: 5, text: 'On: holds up to 5 divisions' }
+];
+
 /** "0.4" divisions from the board's tenths. */
 export const noiseText = (tenths: number) => (tenths / 10).toFixed(1);
 

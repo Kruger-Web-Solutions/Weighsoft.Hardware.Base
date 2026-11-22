@@ -20,6 +20,9 @@ static WsoftLoadcellCal cal;
 static WsoftLoadcellBlock block;
 static WsoftLoadcellFilter filter;
 static WsoftLoadcellZeroTrack track;
+static WsoftLoadcellDriftGuard guard;
+// False while Approval is ON: Drift Guard hides slow changes, so it rests then.
+static bool guard_allowed = true;
 // Counts a second from the chip, measured (10 or 80 by its board).
 static uint32_t rate = 0;
 static uint32_t rate_count = 0;
@@ -39,6 +42,7 @@ static void cal_changed() {
   filter_jump = wsoft_loadcell_filter_jump(cal);
   have_shown = false;
   track.reset();
+  guard.reset();
 }
 
 static void load(WsoftLoadcellCal *c) {
@@ -55,6 +59,7 @@ static void load(WsoftLoadcellCal *c) {
   c->step = store.getInt("step", c->step);
   c->filter = store.getInt("flt", c->filter);
   c->zero_track = store.getInt("zt", c->zero_track);
+  c->drift_guard = store.getInt("dg", c->drift_guard);
   store.end();
   // A store that does not add up is treated as not calibrated, never as a weight.
   if (c->decimals < 0 || c->decimals > 4 || (c->unit != 1 && c->unit != 3) || c->span_counts == 0 ||
@@ -64,6 +69,7 @@ static void load(WsoftLoadcellCal *c) {
   if (!wsoft_loadcell_step_valid(c->step)) c->step = 1;
   if (!wsoft_loadcell_filter_valid(c->filter)) c->filter = WSOFT_LOADCELL_FILTER_MEDIUM;
   if (c->zero_track < 0 || c->zero_track > WSOFT_LOADCELL_ZERO_TRACK_MAX) c->zero_track = 0;
+  if (c->drift_guard < 0 || c->drift_guard > WSOFT_LOADCELL_DRIFT_GUARD_MAX) c->drift_guard = 0;
 }
 
 static void store_cal(const WsoftLoadcellCal &c) {
@@ -79,6 +85,7 @@ static void store_cal(const WsoftLoadcellCal &c) {
   store.putInt("step", c.step);
   store.putInt("flt", c.filter);
   store.putInt("zt", c.zero_track);
+  store.putInt("dg", c.drift_guard);
   store.end();
 }
 
@@ -116,13 +123,20 @@ static void reader_task(void *) {
         filter.reset();
         have_sample = false;
         have_shown = false;
+        guard.reset();
       } else {
         // The counts of each tenth of a second go to the filter as one.
         int32_t mean = 0;
         if (block.add(raw, now, &mean)) {
           filter.add(mean, filter_window, filter_jump);
           int32_t average = 0;
-          if (filter.average(&average)) track.update(cal, average);
+          if (filter.average(&average)) {
+            track.update(cal, average);
+            // Auto zero and Drift Guard keep what they hold in memory only: nothing is
+            // written to flash here.
+            if (guard_allowed) guard.update(cal, average, track.offset());
+            else guard.reset();
+          }
         }
         last_sample_ms = now;
         have_sample = true;
@@ -164,7 +178,10 @@ void loadcell_begin(int dt_pin, int sck_pin) {
 
 // Under the lock: the averaged count, when the chip answered within the live window.
 static bool live_raw(int32_t *raw) {
-  if (!started || !have_sample || millis() - last_sample_ms >= LOADCELL_STALE_MS) return false;
+  if (!started || !have_sample || millis() - last_sample_ms >= LOADCELL_STALE_MS) {
+    guard.reset();  // a silent chip: nothing held is carried over to what comes next
+    return false;
+  }
   return filter.average(raw);
 }
 
@@ -173,7 +190,7 @@ static bool live_raw(int32_t *raw) {
 static bool live_weight(int32_t raw, bool have_raw, int32_t *value) {
   // Auto zero moves the zero in memory only; the stored calibration stays as it was set.
   WsoftLoadcellCal now = cal;
-  now.zero_raw += track.offset();
+  now.zero_raw += track.offset() + guard.offset();
   have_shown = have_raw && wsoft_loadcell_weight_steady(now, raw, have_shown, shown, &shown);
   if (have_shown) *value = shown;
   return have_shown;
@@ -201,6 +218,8 @@ void loadcell_info(LoadcellInfo *out) {
   out->have_weight = live_weight(out->raw, out->have_raw, &out->value);
   out->rate = out->have_raw ? rate : 0;
   out->zero_offset = track.offset();
+  out->drift_offset = guard.offset();
+  out->drift_holding = guard.holding();
   int32_t spread = 0;
   bool have_spread = out->have_raw && filter.spread(&spread);
   portEXIT_CRITICAL(&lock);
@@ -230,9 +249,9 @@ static WsoftLoadcellError change_cal(Change change, const char *what, const char
   cal_changed();
   portEXIT_CRITICAL(&lock);
   WSOFT_LOG.printf(
-      "LOADCELL %s count=%ld zero=%ld span_counts=%ld span_value=%ld decimals=%d unit=%d step=%d filter=%d auto_zero=%d by=%s\n",
+      "LOADCELL %s count=%ld zero=%ld span_counts=%ld span_value=%ld decimals=%d unit=%d step=%d filter=%d auto_zero=%d drift_guard=%d by=%s\n",
       what, (long)raw, (long)next.zero_raw, (long)next.span_counts, (long)next.span_value, next.decimals, next.unit,
-      next.step, next.filter, next.zero_track, who ? who : "?");
+      next.step, next.filter, next.zero_track, next.drift_guard, who ? who : "?");
   return WSOFT_LOADCELL_OK;
 }
 
@@ -249,14 +268,21 @@ WsoftLoadcellError loadcell_set_span(int32_t value, int decimals, int unit, cons
       "SPAN", who);
 }
 
+void loadcell_allow_drift_guard(bool allowed) {
+  portENTER_CRITICAL(&lock);
+  guard_allowed = allowed;
+  portEXIT_CRITICAL(&lock);
+}
+
 WsoftLoadcellError loadcell_set_format(int decimals, int unit, int step, int filter, int zero_track,
-                                       const char *who) {
+                                       int drift_guard, const char *who) {
   return change_cal(
       [=](WsoftLoadcellCal *c, bool, int32_t) {
         // change_cal works on a copy, so a bad filter leaves the format as it was too.
         WsoftLoadcellError error = wsoft_loadcell_set_format(c, decimals, unit, step);
         if (error == WSOFT_LOADCELL_OK) error = wsoft_loadcell_set_filter(c, filter);
-        return error != WSOFT_LOADCELL_OK ? error : wsoft_loadcell_set_zero_track(c, zero_track);
+        if (error == WSOFT_LOADCELL_OK) error = wsoft_loadcell_set_zero_track(c, zero_track);
+        return error != WSOFT_LOADCELL_OK ? error : wsoft_loadcell_set_drift_guard(c, drift_guard);
       },
       "SETUP", who);
 }

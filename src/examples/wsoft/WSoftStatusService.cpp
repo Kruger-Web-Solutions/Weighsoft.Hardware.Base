@@ -374,7 +374,7 @@ void WSoftStatusService::handleDjb(AsyncWebServerRequest* request, JsonVariant& 
 void WSoftStatusService::sendLoadcell(AsyncWebServerRequest* request, int code, const char* error, const char* message) {
   LoadcellInfo info;
   loadcell_info(&info);
-  AsyncJsonResponse* response = new AsyncJsonResponse(false, 768);
+  AsyncJsonResponse* response = new AsyncJsonResponse(false, 1024);
   JsonObject root = response->getRoot().to<JsonObject>();
   root["ok"] = error == nullptr;
   if (error != nullptr) root["error"] = error;
@@ -393,6 +393,9 @@ void WSoftStatusService::sendLoadcell(AsyncWebServerRequest* request, int code, 
   root["step"] = info.cal.step;
   root["filter"] = info.cal.filter;
   root["zero_track"] = info.cal.zero_track;
+  root["drift_guard"] = info.cal.drift_guard;
+  root["drift_offset"] = (long)info.drift_offset;
+  root["drift_holding"] = info.drift_holding;
   root["zero_offset"] = (long)info.zero_offset;
   root["rate"] = (unsigned long)info.rate;
   // How far the last counts are apart, in tenths of a division: the page shows it as "Noise".
@@ -452,9 +455,11 @@ void WSoftStatusService::updateLoadcell(AsyncWebServerRequest* request, JsonVari
     else if (!body["step"].is<int>()) error = WSOFT_LOADCELL_BAD_STEP;
     else if (!body["filter"].isNull() && !body["filter"].is<int>()) error = WSOFT_LOADCELL_BAD_FILTER;
     else if (!body["zero_track"].isNull() && !body["zero_track"].is<int>()) error = WSOFT_LOADCELL_BAD_ZERO_TRACK;
+    else if (!body["drift_guard"].isNull() && !body["drift_guard"].is<int>()) error = WSOFT_LOADCELL_BAD_DRIFT_GUARD;
     else
       error = loadcell_set_format(body["decimals"].as<int>(), unit_code, body["step"].as<int>(),
                                   body["filter"] | info.cal.filter, body["zero_track"] | info.cal.zero_track,
+                                  body["drift_guard"] | info.cal.drift_guard,
                                   who.c_str());
     if (error == WSOFT_LOADCELL_OK) {
       // Now, not at the next poll: a Max saved right after this is checked against the new e.

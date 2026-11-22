@@ -519,8 +519,112 @@ void test_auto_zero_follows_a_small_creep_and_leaves_a_load_alone() {
   TEST_ASSERT_EQUAL_INT32(0, track.offset());
 }
 
+// The weight Drift Guard lets through, in counts from the zero: what is shown before rounding.
+static int32_t guarded(const WsoftLoadcellDriftGuard &guard, int32_t average) {
+  return average - 1000 - guard.offset();
+}
+
+void test_drift_guard_holds_a_slow_wander_and_lets_a_real_change_through() {
+  WsoftLoadcellCal cal = steady_cal(WSOFT_LOADCELL_FILTER_MEDIUM);  // zero 1000, 100 counts a division
+  WsoftLoadcellDriftGuard guard;
+  // Off: nothing is held.
+  for (int i = 0; i < 100; i++) guard.update(cal, 6000 + i, 0);
+  TEST_ASSERT_EQUAL_INT32(0, guard.offset());
+  TEST_ASSERT_FALSE(guard.holding());
+  TEST_ASSERT_EQUAL(WSOFT_LOADCELL_BAD_DRIFT_GUARD, wsoft_loadcell_set_drift_guard(&cal, 6));
+  TEST_ASSERT_EQUAL(WSOFT_LOADCELL_BAD_DRIFT_GUARD, wsoft_loadcell_set_drift_guard(&cal, -1));
+  TEST_ASSERT_EQUAL(WSOFT_LOADCELL_OK, wsoft_loadcell_set_drift_guard(&cal, 3));
+  // A load of 50 divisions, still for 2 seconds: now it holds.
+  for (int i = 0; i <= 20; i++) guard.update(cal, 6000, 0);
+  TEST_ASSERT_TRUE(guard.holding());
+  // The slow wave from the bench: up 2 divisions over 10 seconds, down 4, back up 2.
+  int32_t average = 6000;
+  for (int i = 0; i < 100; i++) {
+    guard.update(cal, average += 2, 0);
+    TEST_ASSERT_EQUAL_INT32(5000, guarded(guard, average));
+  }
+  for (int i = 0; i < 200; i++) {
+    guard.update(cal, average -= 2, 0);
+    TEST_ASSERT_EQUAL_INT32(5000, guarded(guard, average));
+  }
+  TEST_ASSERT_EQUAL_INT32(-200, guard.offset());
+  // Something is put on (1 division in one count): it lets go at once and shows all of it.
+  guard.update(cal, average += 100, 0);
+  TEST_ASSERT_EQUAL_INT32(0, guard.offset());
+  TEST_ASSERT_FALSE(guard.holding());
+  TEST_ASSERT_EQUAL_INT32(average - 1000, guarded(guard, average));
+  // It holds again only after 2 still seconds, at the new weight.
+  for (int i = 0; i < 20; i++) guard.update(cal, average, 0);
+  TEST_ASSERT_TRUE(guard.holding());
+  TEST_ASSERT_EQUAL_INT32(0, guard.offset());
+  // The scale is emptied: nothing held is carried to the empty scale.
+  guard.update(cal, average += 3, 0);
+  TEST_ASSERT_EQUAL_INT32(3, guard.offset());
+  guard.update(cal, 1000, 0);
+  TEST_ASSERT_EQUAL_INT32(0, guard.offset());
+}
+
+void test_drift_guard_never_hides_a_slow_top_up_past_its_limit() {
+  // Hi-Lo packing: product is added slowly. What is shown may lag, never by more than the
+  // limit (3 divisions = 300 counts), and it catches up in full every time it lets go.
+  WsoftLoadcellCal cal = steady_cal(WSOFT_LOADCELL_FILTER_MEDIUM);
+  cal.drift_guard = 3;
+  WsoftLoadcellDriftGuard guard;
+  int32_t average = 6000;
+  for (int i = 0; i <= 20; i++) guard.update(cal, average, 0);
+  TEST_ASSERT_TRUE(guard.holding());
+  int releases = 0;
+  bool was_holding = true;
+  for (int i = 0; i < 3000; i++) {  // 5 minutes, 0.3 of a division a second: 90 divisions added
+    guard.update(cal, average += 3, 0);
+    int32_t hidden = guard.offset();
+    TEST_ASSERT_TRUE(hidden >= 0 && hidden <= 300);
+    if (was_holding && !guard.holding()) {
+      releases++;
+      TEST_ASSERT_EQUAL_INT32(average - 1000, guarded(guard, average));
+    }
+    was_holding = guard.holding();
+  }
+  TEST_ASSERT_TRUE(releases >= 20);
+  // A faster top-up (more than half a division a count) is never held at all.
+  for (int i = 0; i < 100; i++) {
+    guard.update(cal, average += 60, 0);
+    TEST_ASSERT_EQUAL_INT32(0, guard.offset());
+  }
+}
+
+void test_drift_guard_leaves_zero_to_auto_zero_and_forgets_on_reset() {
+  WsoftLoadcellCal cal = steady_cal(WSOFT_LOADCELL_FILTER_MEDIUM);
+  cal.drift_guard = 3;
+  cal.zero_track = 2;
+  WsoftLoadcellDriftGuard guard;
+  // Empty, inside auto zero's band (2 divisions), creeping: Drift Guard holds nothing.
+  int32_t average = 1000;
+  for (int i = 0; i < 100; i++) {
+    guard.update(cal, ++average, 0);
+    TEST_ASSERT_EQUAL_INT32(0, guard.offset());
+    TEST_ASSERT_FALSE(guard.holding());
+  }
+  // Auto zero off: the empty scale is held like any other steady weight.
+  cal.zero_track = 0;
+  guard.reset();
+  for (int i = 0; i <= 21; i++) guard.update(cal, 1100, 0);
+  for (int i = 0; i < 50; i++) guard.update(cal, 1100 + i, 0);
+  TEST_ASSERT_EQUAL_INT32(49, guard.offset());
+  // ZERO, a new calibration, a silent chip: reset, and nothing held is left.
+  guard.reset();
+  TEST_ASSERT_EQUAL_INT32(0, guard.offset());
+  TEST_ASSERT_FALSE(guard.holding());
+  // Not calibrated: never holds.
+  WsoftLoadcellCal blank;
+  wsoft_loadcell_defaults(&blank);
+  blank.drift_guard = 3;
+  for (int i = 0; i < 100; i++) guard.update(blank, 5 + i, 0);
+  TEST_ASSERT_EQUAL_INT32(0, guard.offset());
+}
+
 void test_every_error_has_a_code_and_a_sentence() {
-  for (int e = WSOFT_LOADCELL_OK; e <= WSOFT_LOADCELL_BAD_ZERO_TRACK; e++) {
+  for (int e = WSOFT_LOADCELL_OK; e <= WSOFT_LOADCELL_BAD_DRIFT_GUARD; e++) {
     TEST_ASSERT_NOT_NULL(wsoft_loadcell_error_code((WsoftLoadcellError)e));
     TEST_ASSERT_TRUE(wsoft_loadcell_error_text((WsoftLoadcellError)e)[0] != '\0');
   }
@@ -558,6 +662,9 @@ int main() {
   RUN_TEST(test_the_noise_is_the_spread_of_the_counts_in_divisions);
   RUN_TEST(test_a_fast_chip_gives_the_filter_ten_counts_a_second);
   RUN_TEST(test_auto_zero_follows_a_small_creep_and_leaves_a_load_alone);
+  RUN_TEST(test_drift_guard_holds_a_slow_wander_and_lets_a_real_change_through);
+  RUN_TEST(test_drift_guard_never_hides_a_slow_top_up_past_its_limit);
+  RUN_TEST(test_drift_guard_leaves_zero_to_auto_zero_and_forgets_on_reset);
   RUN_TEST(test_every_error_has_a_code_and_a_sentence);
   return UNITY_END();
 }

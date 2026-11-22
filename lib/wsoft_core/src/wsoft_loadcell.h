@@ -40,6 +40,7 @@ struct WsoftLoadcellCal {
   int step;             // display step in digits: 1, 2, 5, 10, 20 or 50
   int filter;           // WSOFT_LOADCELL_FILTER_OFF .. _HIGH: how hard the reading is steadied
   int zero_track;       // auto zero: 0 off, 1..WSOFT_LOADCELL_ZERO_TRACK_MAX divisions around zero
+  int drift_guard;      // Drift Guard: 0 off, 1..WSOFT_LOADCELL_DRIFT_GUARD_MAX divisions it may hold back
 };
 
 // The filter on the Scale setup tab (Rhyno, 22 Nov 2026: the HX711 is not steady).
@@ -66,7 +67,8 @@ enum WsoftLoadcellError {
   WSOFT_LOADCELL_TOO_SMALL,    // the count hardly moved: no test weight on the scale?
   WSOFT_LOADCELL_FORMAT_SPAN,  // the stored test weight is not a whole number of the new last digit
   WSOFT_LOADCELL_BAD_FILTER,
-  WSOFT_LOADCELL_BAD_ZERO_TRACK
+  WSOFT_LOADCELL_BAD_ZERO_TRACK,
+  WSOFT_LOADCELL_BAD_DRIFT_GUARD
 };
 
 void wsoft_loadcell_defaults(WsoftLoadcellCal *cal);
@@ -94,6 +96,7 @@ bool wsoft_loadcell_rescale(int32_t value, int from_decimals, int from_unit, int
 bool wsoft_loadcell_step_valid(int step);
 WsoftLoadcellError wsoft_loadcell_set_filter(WsoftLoadcellCal *cal, int filter);
 WsoftLoadcellError wsoft_loadcell_set_zero_track(WsoftLoadcellCal *cal, int divisions);
+WsoftLoadcellError wsoft_loadcell_set_drift_guard(WsoftLoadcellCal *cal, int divisions);
 
 // The weight for a count, rounded half away from zero to the display step. False when the
 // board is not calibrated or the result does not fit: never a weight then.
@@ -152,6 +155,41 @@ class WsoftLoadcellZeroTrack {
 
  private:
   int32_t _offset = 0;
+  int _still = 0;
+};
+
+// Drift Guard (Rhyno, 22 Nov 2026: the zero floats, about 12 g in a slow wave, the same with
+// the scale empty and loaded). With a load on, the board sees one number, so it cannot tell
+// the zero floating from a slow real change. What it can do: once the count has stayed within
+// one division for WSOFT_LOADCELL_DRIFT_GUARD_STILL filtered counts (2 seconds), every slow
+// movement after that is taken as drift and held back, so the weight shown stands still.
+// It lets go, and shows the whole weight again, when
+//   - one count moves more than half a division from the last (a load put on or taken off), or
+//   - the drift held back would pass cal.drift_guard divisions (a slow real change, like a
+//     pack being topped up: never hidden by more than that limit).
+// Near zero with auto zero on it does nothing: that is auto zero's job. The amount held back
+// is kept in memory only and starts from 0 at every release, so it can never pile up.
+// The price, by design: a slow change smaller than the limit stays hidden until the next
+// release. Our own choices, not from a standard.
+static const int WSOFT_LOADCELL_DRIFT_GUARD_MAX = 5;
+static const int WSOFT_LOADCELL_DRIFT_GUARD_STILL = 20;
+
+class WsoftLoadcellDriftGuard {
+ public:
+  void reset();
+  // Counts held back: take them off the filtered count (or add them to the zero).
+  int32_t offset() const { return _offset; }
+  // True while the weight shown is being held.
+  bool holding() const { return _still >= WSOFT_LOADCELL_DRIFT_GUARD_STILL; }
+  // One filtered count (10 a second). zero_offset: what auto zero has moved the zero by.
+  void update(const WsoftLoadcellCal &cal, int32_t average, int32_t zero_offset);
+
+ private:
+  void release(int32_t average);
+  int32_t _offset = 0;
+  int32_t _last = 0;
+  int32_t _ref = 0;
+  bool _have = false;
   int _still = 0;
 };
 

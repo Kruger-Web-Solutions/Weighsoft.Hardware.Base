@@ -23,6 +23,7 @@ void wsoft_loadcell_defaults(WsoftLoadcellCal *cal) {
   cal->step = 1;
   cal->filter = WSOFT_LOADCELL_FILTER_MEDIUM;
   cal->zero_track = 0;
+  cal->drift_guard = 0;
 }
 
 bool wsoft_loadcell_calibrated(const WsoftLoadcellCal &cal) {
@@ -55,6 +56,12 @@ WsoftLoadcellError wsoft_loadcell_set_filter(WsoftLoadcellCal *cal, int filter) 
 WsoftLoadcellError wsoft_loadcell_set_zero_track(WsoftLoadcellCal *cal, int divisions) {
   if (divisions < 0 || divisions > WSOFT_LOADCELL_ZERO_TRACK_MAX) return WSOFT_LOADCELL_BAD_ZERO_TRACK;
   cal->zero_track = divisions;
+  return WSOFT_LOADCELL_OK;
+}
+
+WsoftLoadcellError wsoft_loadcell_set_drift_guard(WsoftLoadcellCal *cal, int divisions) {
+  if (divisions < 0 || divisions > WSOFT_LOADCELL_DRIFT_GUARD_MAX) return WSOFT_LOADCELL_BAD_DRIFT_GUARD;
+  cal->drift_guard = divisions;
   return WSOFT_LOADCELL_OK;
 }
 
@@ -197,6 +204,7 @@ const char *wsoft_loadcell_error_code(WsoftLoadcellError error) {
     case WSOFT_LOADCELL_FORMAT_SPAN: return "format_span";
     case WSOFT_LOADCELL_BAD_FILTER: return "bad_filter";
     case WSOFT_LOADCELL_BAD_ZERO_TRACK: return "bad_zero_track";
+    case WSOFT_LOADCELL_BAD_DRIFT_GUARD: return "bad_drift_guard";
   }
   return "error";
 }
@@ -216,6 +224,7 @@ const char *wsoft_loadcell_error_text(WsoftLoadcellError error) {
       return "The test weight used last time does not fit this division size. Pick a finer one, or set the test weight again after.";
     case WSOFT_LOADCELL_BAD_FILTER: return "Pick a filter from the list.";
     case WSOFT_LOADCELL_BAD_ZERO_TRACK: return "Pick an auto zero choice from the list.";
+    case WSOFT_LOADCELL_BAD_DRIFT_GUARD: return "Pick a Drift Guard choice from the list.";
   }
   return "Something went wrong.";
 }
@@ -266,6 +275,58 @@ void WsoftLoadcellZeroTrack::update(const WsoftLoadcellCal &cal, int32_t average
   int64_t next = _offset + step;
   if (next > reach) next = reach;
   if (next < -reach) next = -reach;
+  _offset = (int32_t)next;
+}
+
+void WsoftLoadcellDriftGuard::reset() {
+  _offset = 0;
+  _still = 0;
+  _have = false;
+}
+
+void WsoftLoadcellDriftGuard::release(int32_t average) {
+  _offset = 0;
+  _still = 0;
+  _ref = average;
+}
+
+void WsoftLoadcellDriftGuard::update(const WsoftLoadcellCal &cal, int32_t average, int32_t zero_offset) {
+  int64_t division = division_counts_x10(cal);
+  if (cal.drift_guard <= 0 || division <= 0) {
+    reset();
+    return;
+  }
+  if (!_have) {
+    _have = true;
+    _last = average;
+    release(average);
+    return;
+  }
+  int64_t delta = (int64_t)average - _last;
+  _last = average;
+  // Near zero with auto zero on: auto zero keeps the zero, nothing is held here.
+  int64_t load = (int64_t)average - cal.zero_raw - zero_offset;
+  if (cal.zero_track > 0 && (load < 0 ? -load : load) * 10 <= division * cal.zero_track) {
+    release(average);
+    return;
+  }
+  // More than half a division in one count: a load went on or came off.
+  if ((delta < 0 ? -delta : delta) * 20 > division) {
+    release(average);
+    return;
+  }
+  if (_still < WSOFT_LOADCELL_DRIFT_GUARD_STILL) {
+    // Settling: it must stay within one division of where it began to settle.
+    int64_t away = (int64_t)average - _ref;
+    if ((away < 0 ? -away : away) * 10 > division) release(average);
+    else _still++;
+    return;
+  }
+  int64_t next = _offset + delta;
+  if ((next < 0 ? -next : next) * 10 > division * cal.drift_guard) {
+    release(average);  // past the limit: a real change, show all of it
+    return;
+  }
   _offset = (int32_t)next;
 }
 

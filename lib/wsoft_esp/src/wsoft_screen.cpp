@@ -479,6 +479,7 @@ static bool poll_loadcell(Reading *out) {
   int32_t value;
   int decimals;
   int unit;
+  loadcell_allow_drift_guard(!approval_on());
   bool fresh = loadcell_weight(&value, &decimals, &unit);
   // The board is its own "card" here: e, decimals and unit come from its calibration.
   LoadcellInfo info;
