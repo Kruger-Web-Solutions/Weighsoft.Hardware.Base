@@ -5,19 +5,30 @@
 This repository uses `master` as the shared framework baseline and keeps major hardware integrations on their own long-lived branches.
 
 Current integration branches: see **[BRANCH-MAP.md](BRANCH-MAP.md)** for every branch, the device it
-targets, its build env, its web menu and its state (updated 31 October 2026).
+targets, its build env and its state (updated 22 November 2026).
 
-The branches `serial2` and `display35` named in earlier versions of this file do not exist.
+There is no `serial2` or `display35` branch. Serial work starts from `SerialReaderWriter`.
+3.5 inch display work is the `esp32dev_tft` board on that line. New 16x2 LCD work is
+`lcddisplay` on `SerialReaderWriter`. Older lines (`serial`, `serialWriter`,
+`espReadWriteRHYNO`) still exist; [BRANCH-MAP.md](BRANCH-MAP.md) and [../ROADMAP.md](../ROADMAP.md)
+say what each one holds.
 
-W-Soft (the weigh screen boards) is its own line: `wsoft-esp32s3` (it was
-`claude/project-thread-9f4l7x`; the 2 Nov Waveshare line `wsoft-waveshare43` is merged into it).
-Its rules, including the check that stacked PRs reached that line, are in
+W-Soft (the weigh screen boards) is on `master` from 22 Nov 2026 and on `wsoft-esp32s3`
+(it was `claude/project-thread-9f4l7x`; the 2 Nov Waveshare line `wsoft-waveshare43` is merged
+into it). Its rules, including the check that stacked PRs reached that line, are in
 [WSOFT-WAVESHARE43.md section 0](WSOFT-WAVESHARE43.md).
+
+Other long-lived lines:
+
+- `RelayBoardEspBuildIn` - ESP8266 relay board and Live Weight
+- `SerialReaderWriter` - serial Reader / Writer / Diagnostics, TFT (`esp32dev_tft`), 16x2 LCD (`lcddisplay`), remote weight
+- `weighingboard` - load-cell / weighing
+- `display` - the original 16x2 LCD code, before it was ported to `SerialReaderWriter` as `lcddisplay`
 
 ## Working Rules
 
 1. Do not implement directly on `master`.
-2. Do not implement directly on `serial2`, `display`, `weighingboard`, or `display35`.
+2. Do not implement directly on `RelayBoardEspBuildIn`, `SerialReaderWriter`, `weighingboard`, or `display`.
 3. Choose the branch that already matches the integration you want to extend.
 4. Create a separate working branch from that base branch for each task.
 5. Merge the task branch back into the matching integration branch when the work is complete.
@@ -54,7 +65,7 @@ git pull
 git switch -c feature/weighingboard-calibration-audit
 ```
 
-Use the same pattern for `serial2`, `display`, or `display35`.
+Use the same pattern for `RelayBoardEspBuildIn`, `SerialReaderWriter`, or `display`.
 
 ## Documentation Expectations
 
@@ -79,7 +90,7 @@ Examples:
 - `docs/repo-workflow`
 - `feature/display-brightness-controls`
 - `feature/weighingboard-stability-fix`
-- `fix/serial2-buffering`
+- `fix/serialreaderwriter-buffering`
 
 Keep the branch name tied to the target integration when the work is not shared.
 

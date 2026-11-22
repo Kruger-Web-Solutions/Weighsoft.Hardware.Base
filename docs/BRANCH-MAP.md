@@ -1,18 +1,20 @@
 # Branch map: one Base, many devices
 
-Snapshot: **18 November 2026**, after a branch clean-up. Every branch below was checked one by
-one. Update this file when a branch is added, merged or retired.
+Snapshot: **22 November 2026**. The W-Soft line (PRs #58–#70: HX711 load cell, Hi-Lo light,
+Aurora / Dial / mini Edge screen looks, board naming) is on `master`, brought across from
+`wsoft-esp32s3` together with `feat/wsoft-hx711-loadcell`. Other device types still live on
+their own branches. Update this file when a branch is added, merged or retired.
 
 ## How it works
 
-`master` is the shared ESP8266-React framework (Wi-Fi, hotspot, login, MQTT, OTA, web UI).
-Each device type lives on its own long-lived branch that adds services under
-`src/examples/<name>/`, web pages under `interface/src/project/`, and its board in
-`platformio.ini`. Same base, different device. **Device code is never on `master`.**
+`master` is the shared ESP8266-React framework (Wi-Fi, hotspot, login, MQTT, OTA, web UI)
+and, from 22 Nov 2026, the W-Soft line. Other device types live on their own long-lived
+branches that add services under `src/examples/<name>/`, web pages under
+`interface/src/project/`, and a board in `platformio.ini`. Same base, different device.
 
 ```mermaid
 flowchart LR
-  master["master<br/>framework + LED example"]
+  master["master<br/>framework + W-Soft"]
   master --> growbox["growbox<br/>grow-box monitor"]
   master --> display["display<br/>I2C character LCD"]
   master --> weighing["weighingboard<br/>load-cell weighing"]
@@ -31,8 +33,8 @@ flowchart LR
 
 | Branch | Device / purpose | Build envs | Last commit |
 |---|---|---|---|
-| `master` | Framework baseline. Start new device branches here. | `node32s` (also `esp12e`, `esp32dev`) | 4 Nov 2026 |
-| `wsoft-esp32s3` | **W-Soft** (the main W-Soft line). Screenless ESP32-S3 N16R8 with web page, CYD 2.8" and Waveshare 4.3 screens, RS485 or RS232 scale, Hub pairing, Hi-Lo, Weigh/Writer roles. Carries every all-in-one serial feature. Was `claude/project-thread-9f4l7x` (renamed 18 Nov 2026). Docs: `docs/WSOFT-SCREEN.md`, `WSOFT-CYD28.md`, `WSOFT-WAVESHARE43.md` on that branch. | `wsoft_s3_headless`, `wsoft_cyd28`, `wsoft_waveshare43`, `native` tests (+ all-in-one envs) | 15 Nov 2026 |
+| `master` | Framework plus the W-Soft line (landed 22 Nov 2026). Start a shared change here. | `node32s` and `esp12e` (CI). W-Soft: `wsoft_s3_headless`, `wsoft_cyd28`, `wsoft_waveshare43`. | 22 Nov 2026 |
+| `wsoft-esp32s3` | **W-Soft** device branch, same line as `master` after 22 Nov 2026. Screenless ESP32-S3 N16R8 with web page, CYD 2.8" and Waveshare 4.3 screens, RS485 or RS232 scale, Hub pairing, Hi-Lo, Weigh/Writer roles. Was `claude/project-thread-9f4l7x` (renamed 18 Nov 2026, PR #56). Docs: `docs/WSOFT-SCREEN.md`, `WSOFT-CYD28.md`, `WSOFT-WAVESHARE43.md`. | `wsoft_s3_headless`, `wsoft_cyd28`, `wsoft_waveshare43`, `native` tests (+ all-in-one envs) | 22 Nov 2026 (PRs #58–#70) |
 | `wsoft-waveshare43` | W-Soft on the Waveshare 4.3 screen, 31 Oct work (PR #30). **Merged into `wsoft-esp32s3`** (18 Nov 2026); see `docs/WSOFT-WAVESHARE43.md` section 7 for where each feature went. Kept for history. | `wsoft_waveshare43` (+ all-in-one envs) | 2 Nov 2026 |
 | `SerialReaderWriter` | All-in-one serial device: read a scale, forward weight, TFT or character-LCD screen per board. | `nodemcu_esp32` (+ firebeetle32, esp32s3, CYD, TFT, LCD envs) | 16 Jul 2026 |
 | `pi-usb-reader-and-dashboard` | `SerialReaderWriter` + an archived Raspberry Pi USB scale reader and Node-RED dashboard (`pi-usb-reader-dashboard/`, Python, archive only). | as above | 15 Jul 2026 |
@@ -40,7 +42,7 @@ flowchart LR
 | `weighingboard` | Load-cell weighing board, OIML type-approval logic, zero/calibrate, PCB docs. | `node32s` | 29 Apr 2026 |
 | `growbox` | Grow-box monitor: sensors + relays, Home Assistant MQTT. | `esp32s3` | 31 Mar 2026 |
 | `display` | I2C character LCD, Wi-Fi auto-reconnect. | `node32s` | 29 Apr 2026 |
-| `serialReader` | Read a scale over serial, forward weight. Base of the all-in-one line. | `esp32s3` | 29 Apr 2026 |
+| `serialReader` | Read a scale over serial, forward weight. Base of the all-in-one line. | `esp32s3` | 18 Nov 2026 (PR #55: Wi-Fi default blank, July Pi hotspot write-up) |
 | `serialWriter` | Write weight out over serial; serial Wi-Fi bridge. | `esp32s3` | 29 Apr 2026 |
 | `espReadWriteRHYNO` | Early serial + TFT work plus Rhyno's bench boards (FireBeetle, CYD 2.8", DevKit V1) and OTA targets. Holds the old `serial` branch. | `firebeetle32` | 2 May 2026 |
 
@@ -77,8 +79,8 @@ flowchart LR
 3. **The ESP32 relay board firmware lives in a separate repo**:
    `Kruger-Web-Solutions/Weighsoft-Relay-Control` (`main`, env `node32s`). `RelayBoardEspBuildIn`
    here is the ESP8266 relay board.
-4. `master` is behind several device branches' merge base, so device branches miss the latest
-   CI changes until they merge `master`.
+4. Device branches other than W-Soft are still behind `master`'s CI and platform pin until
+   they merge `master`. W-Soft on `master` includes that pin (`espressif32@6.13.0`, PR #57).
 
 ## Rules for new work
 

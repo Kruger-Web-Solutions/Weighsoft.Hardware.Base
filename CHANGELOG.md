@@ -100,9 +100,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   OFF with no signal, an alarm, no product or an empty scale. Settings and a relay test on
   W-Soft > Settings. Guide: `docs/WSOFT-CYD28.md` section 2d. Not bench-tested yet.
 
-### Changed
+### Fixed
+- CI: install `intelhex` so the `node32s` (ESP32) build can finish.
+- Build: pin the ESP32 platform to `espressif32@6.13.0` (same as the device branches). Unpinned, it moved to 8.0.0 (Arduino core 3.x) and `node32s` stopped compiling.
+- Docs: branch lists now name branches that exist (there is no `serial2` or `display35`).
+- Docs: `node32s` partition and OTA notes now match `platformio.ini` and `partitions_ble.csv`.
 
-- (Future changes will be listed here)
+### Security
+- `.gitignore`: `data/config/` (device runtime config) and `compile_commands.json` (generated build file).
+- `docs/SECURITY.md`: never commit device config; what to do when a password reaches history.
+
+### Note
+- W-Soft through 22 Nov 2026 (PRs #58–#70) is on `master`. Other device lines are still on their own branches and are not fully logged here:
+  - `RelayBoardEspBuildIn` - relay board and Live Weight screens (last commit 2026-08-10).
+  - `SerialReaderWriter` - serial Reader / Writer / Diagnostics, TFT screen, LCD, remote weight (last commit 2026-07-16).
+- Status of each line and the open decisions: [ROADMAP.md](ROADMAP.md). Branch list: [docs/BRANCH-MAP.md](docs/BRANCH-MAP.md).
 
 ## [0.7.0] - 2026-02-17
 
