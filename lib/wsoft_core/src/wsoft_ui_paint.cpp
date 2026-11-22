@@ -287,10 +287,21 @@ static const uint16_t VIVID_LOW = 0xFC60;   // #FF8C00
 static const uint16_t VIVID_OK = 0x064A;    // #00C853
 static const uint16_t VIVID_HIGH = 0xF940;  // #FF2800
 static const uint16_t NIGHT = 0x1066;       // #120D36
+// Full Colour is "Aurora" (Rhyno, 22 Nov 2026): a night-blue screen that fades down to Bunting,
+// the weight in a banner filled with the zone's colour, and the word in black on a pill of the
+// same colour.
+static const uint16_t AUR_TOP = 0x0824;     // #0B0726
+static const uint16_t AUR_LOW = 0x18A8;     // #1B1446
+static const uint16_t AUR_SOFT = 0x9D9B;    // #9FB3D9
+static const uint16_t AUR_BTN = 0x20EA;     // #221C55
+static const uint16_t AUR_LINE = 0x39AF;    // #3A3478
+static const uint16_t AUR_BAR = 0x0023;     // #07051A
+static const uint16_t INK0 = 0x0862;        // #0B0D10
 
 struct ColourSet {
   uint16_t bg, ink, soft, shade, btn, btn_ink, btn_soft, bar, on, on_ink;
-  bool card;
+  bool grad, band, card, border;
+  uint16_t btn_line;
   uint16_t w_bg, w_ink, w_soft, strip, pill, pill_ink, out, mid, over, dot, mark, m_dot;
 };
 
@@ -309,7 +320,11 @@ static ColourSet colour_set(const WsoftUiModel &m, const Theme &) {
     P.bar = SKY;
     P.on = NAVY;
     P.on_ink = WHITE;
+    P.grad = false;
+    P.band = false;
     P.card = false;
+    P.border = false;
+    P.btn_line = PLATE_LINE;
     P.w_bg = PLATE;
     P.w_ink = NAVY;
     P.w_soft = SLATE;
@@ -324,31 +339,47 @@ static ColourSet colour_set(const WsoftUiModel &m, const Theme &) {
     P.m_dot = z;
     return P;
   }
-  // The numbers sit white on a night-blue card; the buttons are white.
-  P.bg = low ? VIVID_LOW : ok ? VIVID_OK : VIVID_HIGH;
-  P.ink = low ? NIGHT : WHITE;
-  P.soft = wsoft_blend565(P.bg, P.ink, 215);
-  P.shade = wsoft_blend565(P.bg, 0, 70);
-  P.btn = WHITE;
-  P.btn_ink = NIGHT;
-  P.btn_soft = SLATE;
-  P.bar = wsoft_blend565(P.bg, 0, 110);
-  P.on = NIGHT;
+  uint16_t z = low ? VIVID_LOW : ok ? VIVID_OK : VIVID_HIGH;
+  P.bg = wsoft_blend565(AUR_TOP, AUR_LOW, 174);
+  P.grad = true;
+  P.ink = WHITE;
+  P.soft = AUR_SOFT;
+  P.shade = wsoft_blend565(P.bg, WHITE, 30);
+  P.btn = AUR_BTN;
+  P.btn_ink = WHITE;
+  P.btn_soft = AUR_SOFT;
+  P.bar = AUR_BAR;
+  P.on = SKY;
   P.on_ink = WHITE;
+  P.band = false;
   P.card = true;
-  P.w_bg = NIGHT;
+  P.border = true;
+  P.btn_line = AUR_LINE;
+  P.w_bg = AUR_BTN;
   P.w_ink = WHITE;
-  P.w_soft = wsoft_blend565(NIGHT, WHITE, 170);
-  P.strip = P.bg;
-  P.pill = WHITE;
-  P.pill_ink = low ? NIGHT : P.bg;
-  P.out = wsoft_blend565(P.bg, 0, 70);
-  P.mid = WHITE;
-  P.over = wsoft_blend565(P.bg, 0, 70);
-  P.dot = P.ink;
-  P.mark = NIGHT;
-  P.m_dot = WHITE;
+  P.w_soft = AUR_SOFT;
+  P.strip = z;
+  P.pill = z;
+  P.pill_ink = INK0;
+  P.out = wsoft_blend565(P.bg, VIVID_LOW, 110);
+  P.mid = wsoft_blend565(P.bg, VIVID_OK, 110);
+  P.over = wsoft_blend565(P.bg, VIVID_HIGH, 110);
+  P.dot = z;
+  P.mark = WHITE;
+  P.m_dot = z;
   return P;
+}
+
+// The ground: flat, or Aurora's fade in 6-line steps (y 20 is the top colour, y 240 the bottom).
+static void ground(WsoftCanvas &c, const ColourSet &P, int y0, int h) {
+  if (!P.grad) {
+    c.rect(0, y0, 320, h, P.bg);
+    return;
+  }
+  for (int y = y0; y < y0 + h; y += 6) {
+    int step = y0 + h - y < 6 ? y0 + h - y : 6;
+    c.rect(0, y, 320, step, wsoft_blend565(AUR_TOP, AUR_LOW, (y - 20) * 255 / 220));
+  }
 }
 
 // Light mode on the live page draws with these looks too.
@@ -364,7 +395,7 @@ static void paint_top_colour(WsoftCanvas &c, const WsoftUiModel &m, const Theme 
   if (m.zone == WSOFT_UI_ZONE_NONE) return paint_top(c, m, T);
   char cut[CUT_SIZE];
   ColourSet P = colour_set(m, T);
-  c.rect(0, 20, 320, 42, P.bg);
+  ground(c, P, 20, 42);
   if (m.slot == WSOFT_UI_SLOT_WIFI) {
     c.rect(6, 22, 308, 40, P.btn, 8);
     c.text("WI-FI IS OFF", 18, 42, MID, P.btn_ink);
@@ -410,13 +441,24 @@ static void paint_weight_colour(WsoftCanvas &c, const WsoftUiModel &m, const The
   uint16_t bg = T.bg, ink = m.live ? T.ink : T.soft, soft = T.soft;
   if (m.zone != WSOFT_UI_ZONE_NONE) {
     ColourSet P = colour_set(m, T);
-    c.rect(0, 62, 320, 60, P.bg);
-    if (P.card) c.rect(4, 62, 312, 60, P.w_bg, 10);
-    else c.rect(0, 64, 4, 56, P.strip);
+    ground(c, P, 62, 60);
+    if (P.card) {
+      // Aurora glass card (Rhyno picked A, 22 Nov 2026): a thin line round it and a zone-coloured bar on the left.
+      c.rect(6, 62, 308, 60, P.btn_line, 10);
+      c.rect(7, 63, 306, 58, P.w_bg, 9);
+      c.rect(11, 69, 5, 46, P.strip, 2);
+    } else if (!P.band) c.rect(0, 64, 4, 56, P.strip);
     ink = P.w_ink;
     soft = P.w_soft;
   } else {
     c.rect(0, 62, 320, 60, bg);
+  }
+  // Aurora's card: the weight sits inside it with room to spare.
+  if (m.zone != WSOFT_UI_ZONE_NONE && colour_set(m, T).card) {
+    c.text(m.label, 302, 73, TINY, soft, WSOFT_RIGHT);
+    c.text(m.weight, 264, 94, c.width(m.weight, HERO) <= 236 ? HERO : BIG, ink, WSOFT_RIGHT);
+    c.text(m.unit, 270, 106, MID, soft);
+    return;
   }
   if (c.width(m.label, TINY) <= 24 && c.width(m.weight, HUGE_) <= 270) {
     c.text(m.label, 306, 74, TINY, soft, WSOFT_RIGHT);
@@ -433,7 +475,7 @@ static void paint_hilo_colour(WsoftCanvas &c, const WsoftUiModel &m, const Theme
   if (m.zone == WSOFT_UI_ZONE_NONE) return paint_hilo(c, m, T);
   char cut[CUT_SIZE], line[CUT_SIZE];
   ColourSet P = colour_set(m, T);
-  c.rect(0, 122, 320, 66, P.bg);
+  ground(c, P, 122, 66);
   // The word and what to do in a pill of the zone's own colour.
   char words[40];
   hilo_words(m, words, sizeof words);
@@ -442,23 +484,42 @@ static void paint_hilo_colour(WsoftCanvas &c, const WsoftUiModel &m, const Theme
   if (role == MID && c.width(words, MID) + 52 > 304) role = SMALL;
   double wy = plate_on(m) ? 139 : 143;
   double pw = c.width(words, role) + 52, px = 160 - pw / 2;
-  c.rect(px, wy - 14, pw, 28, P.pill, -1);
+  // The band is as tall as the pill when the plate needs its line under it.
+  if (P.band) {
+    double bh = plate_on(m) ? 28 : 34;
+    c.rect(0, wy - bh / 2, 320, bh, P.pill);
+  }
+  else c.rect(px, wy - 14, pw, 28, P.pill, -1);
   paint_sign(c, m.zone, px + 23, wy, P.pill_ink);
   c.text(words, px + 38, wy, role, P.pill_ink);
   if (plate_on(m)) c.text(c.fit(product_line(m, line, sizeof line), SMALL, 300, cut, sizeof cut), 160, 160, SMALL, P.soft, WSOFT_CENTER);
   // The limits as three soft bands, and the marker.
   const double bx = 14, bw = 292, by = 168, bh = 6;
   double lo = bx + bw * 6 / 22, hi = bx + bw * 16 / 22;
-  c.rect(bx, by, bw, bh, P.shade, -1);
-  c.rect(bx, by, lo - bx, bh, P.out, -1);
-  c.rect(lo, by, hi - lo, bh, P.mid);
-  c.rect(hi, by, bx + bw - hi, bh, P.over, -1);
+  if (P.card) {
+    // Aurora: forty short segments, and the marker a white bar.
+    const double sw = bw / 40;
+    for (int i = 0; i < 40; i++) {
+      double t = (i + 0.5) / 40;
+      c.rect(bx + i * sw, by, sw - 2, bh, t < 6.0 / 22 ? P.out : t < 16.0 / 22 ? P.mid : P.over);
+    }
+  } else {
+    c.rect(bx, by, bw, bh, P.shade, -1);
+    c.rect(bx, by, lo - bx, bh, P.out, -1);
+    c.rect(lo, by, hi - lo, bh, P.mid);
+    c.rect(hi, by, bx + bw - hi, bh, P.over, -1);
+  }
   c.text(m.low, lo, 182, TINY, P.soft, WSOFT_CENTER);
   c.text(m.high, hi, 182, TINY, P.soft, WSOFT_CENTER);
   if (m.pointer < 0) return;
   double mx = bx + bw * m.pointer / 1000;
   if (mx < bx + 7) mx = bx + 7;
   if (mx > bx + bw - 7) mx = bx + bw - 7;
+  if (P.card) {
+    c.rect(mx - 3.5, by - 6, 7, bh + 12, P.bg, 2);
+    c.rect(mx - 2.5, by - 5, 5, bh + 10, P.mark, 2);
+    return;
+  }
   c.disc(mx, by + bh / 2, 8, P.bg);
   c.disc(mx, by + bh / 2, 6.5, P.mark);
   c.disc(mx, by + bh / 2, 3, P.m_dot);
@@ -467,9 +528,11 @@ static void paint_hilo_colour(WsoftCanvas &c, const WsoftUiModel &m, const Theme
 static void paint_bottom_colour(WsoftCanvas &c, const WsoftUiModel &m, const Theme &T) {
   if (m.zone == WSOFT_UI_ZONE_NONE) return paint_bottom(c, m, T);
   ColourSet P = colour_set(m, T);
-  c.rect(0, 188, 320, 52, P.bg);
+  ground(c, P, 188, 52);
+  if (P.border) c.rect(7, 189, 106, 48, P.btn_line, 9);
   c.rect(8, 190, 104, 46, P.btn, 8);
   bottom_left_words(c, m, P.btn_ink, P.btn_soft, P.btn_soft, P.btn_ink);
+  if (P.border) c.rect(119, 189, 74, 48, P.btn_line, 9);
   c.rect(120, 190, 72, 46, P.btn, 8);
   for (int i = 0; i < 3; i++) c.rect(144, 200 + i * 6, 24, 3, P.btn_ink, 1);
   c.text("MENU", 156, 226, SMALL, P.btn_ink, WSOFT_CENTER);
