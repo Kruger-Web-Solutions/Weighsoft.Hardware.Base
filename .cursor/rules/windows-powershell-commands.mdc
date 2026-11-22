@@ -15,6 +15,7 @@ When running commands on Windows (OS: win32), follow these guidelines.
 PowerShell does NOT support bash heredoc syntax (`<<EOF`).
 
 **❌ WRONG - Will fail on Windows:**
+
 ```bash
 git commit -m "$(cat <<'EOF'
 Multi-line
@@ -24,6 +25,7 @@ EOF
 ```
 
 **✅ CORRECT - Use file-based approach:**
+
 ```powershell
 # 1. Write message to file
 Write-File commit_msg.txt "Multi-line`ncommit message"
@@ -36,6 +38,7 @@ Remove-Item commit_msg.txt
 ```
 
 **✅ CORRECT - Use single-line with `n:**
+
 ```powershell
 git commit -m "Multi-line`ncommit message"
 ```
@@ -43,6 +46,7 @@ git commit -m "Multi-line`ncommit message"
 ### ❌ Redirection Operators
 
 **❌ WRONG - Bash redirection:**
+
 ```bash
 cat <<EOF > file.txt
 content
@@ -50,6 +54,7 @@ EOF
 ```
 
 **✅ CORRECT - PowerShell:**
+
 ```powershell
 @"
 content
@@ -59,11 +64,13 @@ content
 ### ❌ Process Substitution
 
 **❌ WRONG - Not supported:**
+
 ```bash
 diff <(cmd1) <(cmd2)
 ```
 
 **✅ CORRECT - Use intermediate files:**
+
 ```powershell
 cmd1 > temp1.txt
 cmd2 > temp2.txt
@@ -80,6 +87,7 @@ Shell: powershell
 ```
 
 If `Shell: powershell` or `OS: win32`:
+
 - ❌ No heredoc (`<<EOF`)
 - ❌ No process substitution (`<()`)
 - ❌ No bash redirection (`<`, `>` in compound commands)
@@ -91,6 +99,7 @@ If `Shell: powershell` or `OS: win32`:
 ### For Multi-line Commit Messages
 
 **Best Practice:**
+
 ```powershell
 # 1. Write to temporary file using Write tool
 Write-File commit_msg.txt "..."
@@ -103,6 +112,7 @@ Remove-Item commit_msg.txt
 ```
 
 **Alternative (inline with backtick-n):**
+
 ```powershell
 git commit -m "First line`n`nSecond paragraph`n- Bullet point"
 ```
@@ -116,6 +126,7 @@ git commit -m "Simple commit message"
 ## Common Windows Command Patterns
 
 ### File Operations
+
 ```powershell
 # ✅ Read file
 Get-Content file.txt
@@ -129,6 +140,7 @@ Add-Content file.txt "more content"
 ```
 
 ### String Handling
+
 ```powershell
 # ✅ Multi-line strings
 @"
@@ -143,6 +155,7 @@ Line 2
 ## Quick Reference
 
 When you see PowerShell or win32:
+
 1. **No heredoc** - Use file or `n for newlines
 2. **Use Shell tool with Write/Delete** - For multi-line content
 3. **Test incrementally** - PowerShell syntax differs from bash
@@ -150,6 +163,7 @@ When you see PowerShell or win32:
 ## Examples from Codebase
 
 ### ❌ Failed Pattern (Don't repeat)
+
 ```bash
 git commit -m "$(cat <<'EOF'
 docs: improve device project extension workflow
@@ -161,6 +175,7 @@ EOF
 ```
 
 ### ✅ Correct Pattern (Use this)
+
 ```powershell
 # Use Write tool
 Write-File commit_msg.txt "docs: improve device project extension workflow`n`nAdd comprehensive documentation..."
@@ -175,6 +190,7 @@ Delete commit_msg.txt
 ## Summary
 
 **Remember**: PowerShell is NOT bash. Always check OS/Shell before using:
+
 - Heredoc syntax
 - Process substitution  
 - Complex redirection

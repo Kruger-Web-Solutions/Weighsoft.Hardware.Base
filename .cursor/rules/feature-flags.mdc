@@ -19,6 +19,7 @@ Feature flags = Compile-time switches for substantial framework components.
 Reference: @features.ini
 
 Current framework flags:
+
 - `FT_PROJECT` (0) - Project demo code
 - `FT_SECURITY` (1) - Authentication and authorization
 - `FT_MQTT` (1) - MQTT client integration
@@ -28,36 +29,42 @@ Current framework flags:
 
 ## When to Add Feature Flags
 
-### ✅ DO Add Feature Flags For:
+### ✅ DO Add Feature Flags For
 
 **Large optional framework features:**
+
 - New communication protocols (like MQTT, CoAP)
 - Major infrastructure services (like NTP, OTA)
 - Significant security modules
 - Optional hardware support
 
 **Features with significant binary size impact:**
+
 - Large libraries (>50KB)
 - Multiple services as a unit
 - Heavy protocol implementations
 
 **Platform-specific major features:**
+
 - Bluetooth (ESP32 only)
 - Camera support
 - Display drivers
 
-### ❌ DON'T Add Feature Flags For:
+### ❌ DON'T Add Feature Flags For
 
 **Individual application services:**
+
 - Single sensor services
 - Individual control services
 - Small custom features
 
 **Runtime configuration:**
+
 - Use `StatefulService` with `FSPersistence` instead
 - Settings should be configurable without recompilation
 
 **Minor functionality:**
+
 - Small helper functions
 - UI tweaks
 - Single endpoints
@@ -124,6 +131,7 @@ void ESP8266React::begin() {
 ### Step 6: Document in Configuration
 
 Update @docs/CONFIGURATION.md with:
+
 - Flag name and purpose
 - Default value
 - Binary size impact
@@ -165,19 +173,22 @@ void SecurityManager::authenticate(/* ... */) {
 
 ## Feature Flag vs Settings Service
 
-### Use Feature Flag When:
+### Use Feature Flag When
+
 - Removing feature saves significant binary size
 - Feature requires compile-time dependencies
 - Feature is platform-specific
 - Feature is rarely changed
 
-### Use Settings Service When:
+### Use Settings Service When
+
 - Feature should be user-configurable
 - No significant binary size impact
 - Runtime enable/disable makes sense
 - User needs flexibility
 
 **Example:**
+
 - ❌ Feature flag for "enable LED" - Use settings service
 - ✅ Feature flag for MQTT protocol - Binary size impact
 - ❌ Feature flag for WiFi SSID - Runtime config needed
@@ -186,6 +197,7 @@ void SecurityManager::authenticate(/* ... */) {
 ## What NOT to Do
 
 ❌ **Add flags for every service:**
+
 ```cpp
 // Wrong: Too granular
 #define FT_LIGHT_SERVICE 1
@@ -194,6 +206,7 @@ void SecurityManager::authenticate(/* ... */) {
 ```
 
 ❌ **Nest feature flags deeply:**
+
 ```cpp
 // Wrong: Complex nesting
 #if FT_ENABLED(FT_MQTT)
@@ -206,12 +219,14 @@ void SecurityManager::authenticate(/* ... */) {
 ```
 
 ❌ **Use for runtime configuration:**
+
 ```cpp
 // Wrong: Should be in settings
 #define WIFI_SSID "MyNetwork"  // Use WiFiSettingsService instead
 ```
 
 ❌ **Forget to update documentation:**
+
 ```cpp
 // Wrong: New flag not documented in @docs/CONFIGURATION.md
 ```

@@ -65,6 +65,7 @@ graph TB
 ### 1. React SPA (Single Page Application)
 
 **Technology Stack**:
+
 - React 18.1.0
 - TypeScript 4.6.4
 - Material-UI 5.8.0
@@ -73,6 +74,7 @@ graph TB
 - Sockette (WebSocket client)
 
 **Responsibilities**:
+
 - Render responsive user interface
 - Handle user interactions
 - Manage client-side state (React Context + Hooks)
@@ -83,6 +85,7 @@ graph TB
 - Error handling and notifications
 
 **Key Features**:
+
 - **Authentication UI**: Sign-in form, token management
 - **WiFi Management**: Network scanner, connection settings
 - **MQTT Configuration**: Broker settings, topic configuration
@@ -91,12 +94,14 @@ graph TB
 - **Real-time Updates**: WebSocket integration for live data
 
 **Build Process**:
+
 - Compiled by react-scripts with react-app-rewired
 - Gzipped for size optimization
 - Source maps excluded in production
 - Built by PlatformIO pre-build script (`scripts/build_interface.py`)
 
 **Deployment**:
+
 - **Option 1 (Default)**: Compiled into C++ byte arrays (PROGMEM_WWW)
 - **Option 2**: Served from LittleFS filesystem (`/www/` directory)
 
@@ -105,11 +110,13 @@ graph TB
 ### 2. AsyncWebServer
 
 **Technology Stack**:
+
 - ESPAsyncWebServer library
 - ESP8266WebServer / ESP32 WebServer SDK
 - C++ (non-blocking, callback-based)
 
 **Responsibilities**:
+
 - Handle HTTP requests (GET, POST, OPTIONS)
 - Manage WebSocket connections
 - Route requests to handlers
@@ -119,18 +126,21 @@ graph TB
 - Manage connection limits
 
 **Endpoints**:
+
 - `/rest/*` - REST API endpoints
 - `/ws/*` - WebSocket endpoints  
 - `/` - Serves React application (index.html)
 - `/js/*`, `/css/*`, `/fonts/*`, `/app/*` - Static assets
 
 **Security**:
+
 - JWT token validation via SecurityManager
 - Request filtering callbacks
 - WebSocket authentication predicates
 - Optional CORS support
 
 **Performance**:
+
 - Async, non-blocking I/O
 - Event-driven architecture
 - Concurrent connection handling
@@ -145,6 +155,7 @@ graph TB
 **Location**: `lib/framework/`
 
 **Key Classes**:
+
 - `ESP8266React` - Main framework coordinator
 - `StatefulService<T>` - State management template
 - `SecurityManager` - Authentication and authorization interface
@@ -154,6 +165,7 @@ graph TB
 - `FSPersistence<T>` - Filesystem persistence
 
 **Responsibilities**:
+
 - Initialize all framework services
 - Provide accessor methods to services
 - Coordinate service lifecycle (begin/loop)
@@ -162,12 +174,14 @@ graph TB
 - Handle feature flag-based conditional compilation
 
 **Initialization Flow**:
+
 1. Mount filesystem (LittleFS)
 2. Begin all enabled services
 3. Register WWW routes
 4. Services load configuration from filesystem
 
 **Loop Flow**:
+
 - Call loop() on services that need periodic execution
 - WiFi management (connection monitoring)
 - MQTT client maintenance
@@ -215,16 +229,19 @@ graph TB
    - Persisted to `/config/otaSettings.json`
 
 **Status Services** (read-only):
+
 - WiFiStatus, APStatus, MqttStatus, NTPStatus, SystemStatus
 - Expose current state via REST endpoints
 - No persistence required
 
 **System Services**:
+
 - RestartService - Triggers device restart
 - FactoryResetService - Erases configuration, restores defaults
 - UploadFirmwareService - Manual firmware upload via HTTP
 
 **Custom Services** (example in `src/`):
+
 - LightStateService - Controls LED, integrates with MQTT
 - LightMqttSettingsService - MQTT topic configuration for light
 
@@ -237,6 +254,7 @@ graph TB
 **Partition**: Configurable in platformio.ini (typically 1-3MB)
 
 **Directory Structure**:
+
 ```
 /config/                      # Configuration files (JSON)
   ├── wifiSettings.json
@@ -254,17 +272,20 @@ graph TB
 ```
 
 **Operations**:
+
 - Read: Load configuration on service initialization
 - Write: Save configuration on state updates (FSPersistence)
 - Create: Automatic directory creation (mkdir)
 - Format: Factory reset erases all files
 
 **Access Pattern**:
+
 - Synchronous file I/O (blocking)
 - JSON serialization/deserialization
 - Wear-leveling handled by LittleFS
 
 **Factory Reset**:
+
 - Deletes all files in `/config/`
 - Triggers re-initialization with defaults
 - Filesystem remains mounted
@@ -276,6 +297,7 @@ graph TB
 **Protocol**: MQTT v3.1.1 over TCP
 
 **Responsibilities**:
+
 - Connect to MQTT broker
 - Maintain keep-alive connection
 - Publish messages to topics
@@ -284,6 +306,7 @@ graph TB
 - Buffer outgoing messages
 
 **Connection Parameters**:
+
 - Host (IP or hostname)
 - Port (1883 standard, 8883 for TLS)
 - Client ID (supports placeholders)
@@ -292,11 +315,13 @@ graph TB
 - Clean session flag
 
 **Integration**:
+
 - Managed by MqttSettingsService
 - Exposed via `ESP8266React::getMqttClient()`
 - Used by MqttPubSub<T> for service integration
 
 **Events**:
+
 - onConnect - Triggers service registrations
 - onDisconnect - Connection lost
 - onMessage - Incoming message on subscribed topics
@@ -308,17 +333,20 @@ graph TB
 **Protocol**: NTP over UDP (port 123)
 
 **Responsibilities**:
+
 - Query NTP server for current time
 - Synchronize device RTC
 - Apply timezone offset
 - Handle daylight saving time
 
 **Configuration**:
+
 - Server hostname (e.g., time.google.com)
 - Timezone label and POSIX format
 - Sync interval (hourly by default)
 
 **Integration**:
+
 - Managed by NTPSettingsService
 - Provides time to other services via SDK functions
 - Status exposed via NTPStatus service
@@ -328,11 +356,13 @@ graph TB
 **Technology**: ESP8266/ESP32 WiFi SDK
 
 **Modes**:
+
 1. **Station (STA)** - Client mode, connects to existing WiFi
 2. **Access Point (AP)** - Creates WiFi network
 3. **STA+AP** - Both modes simultaneously
 
 **Responsibilities**:
+
 - Scan for available networks
 - Connect to configured SSID
 - Maintain connection with auto-reconnect
@@ -341,11 +371,13 @@ graph TB
 - Handle DHCP client (STA mode)
 
 **Integration**:
+
 - Managed by WiFiSettingsService and APSettingsService
 - Status exposed via WiFiStatus and APStatus
 - Network scanning via WiFiScanner
 
 **Connection Management**:
+
 - Automatic reconnection on disconnect
 - Fallback to AP mode (if configured)
 - Connection timeout handling
@@ -360,12 +392,14 @@ graph TB
 
 **Content Type**: `application/json`
 
-**Authentication**: 
+**Authentication**:
+
 - Bearer token in Authorization header
 - JWT format: `eyJ0eXAi...`
 - Optional per endpoint (configured via AuthenticationPredicate)
 
 **Request Flow**:
+
 1. Browser sends HTTP request
 2. WebServer receives and routes to handler
 3. SecurityManager validates JWT (if required)
@@ -375,6 +409,7 @@ graph TB
 7. WebServer sends response
 
 **Response Codes**:
+
 - 200 - Success
 - 400 - Bad request (invalid JSON)
 - 401 - Unauthorized (missing/invalid token)
@@ -389,6 +424,7 @@ graph TB
 **Base Path**: `/ws/`
 
 **Connection**:
+
 1. HTTP upgrade request
 2. SecurityManager filters connection (if required)
 3. Connection established
@@ -396,12 +432,14 @@ graph TB
 5. Bidirectional message exchange
 
 **Message Format**:
+
 ```json
 {
   "type": "id",
   "id": "websocket:12345"
 }
 ```
+
 ```json
 {
   "type": "payload",
@@ -411,6 +449,7 @@ graph TB
 ```
 
 **Update Flow**:
+
 1. State changes in service
 2. Update handlers triggered
 3. WebSocketTx serializes state
@@ -418,6 +457,7 @@ graph TB
 5. Clients update UI
 
 **Client Tracking**:
+
 - Each client assigned unique ID
 - Origin ID sent with updates
 - Clients ignore their own updates
@@ -431,6 +471,7 @@ graph TB
 **QoS Levels**: 0 (at most once), 1 (at least once), 2 (exactly once)
 
 **Flow**:
+
 1. Device connects to broker
 2. Device subscribes to command topics
 3. Device publishes state to state topics
@@ -438,6 +479,7 @@ graph TB
 5. Device receives and processes commands
 
 **Home Assistant Integration**:
+
 - Discovery config published to `{basePath}/config`
 - State updates to `{basePath}/state`
 - Commands received on `{basePath}/set`
@@ -447,6 +489,7 @@ graph TB
 **Pattern**: Synchronous file operations
 
 **Read Flow**:
+
 1. Service calls FSPersistence::readFromFS()
 2. Open file for reading
 3. Deserialize JSON
@@ -454,6 +497,7 @@ graph TB
 5. Apply defaults if file missing
 
 **Write Flow**:
+
 1. State update occurs
 2. Update handler triggered
 3. FSPersistence::writeToFS() called
@@ -509,6 +553,7 @@ MQTT Broker → MQTTClient → MqttSub → StatefulService → Update Handlers
 ## Deployment Configuration
 
 ### PROGMEM WWW Mode (Default)
+
 ```
 [React Build] → [Gzip] → [Byte Arrays] → [Compiled into Firmware] → [PROGMEM]
                                                 ↓
@@ -516,6 +561,7 @@ MQTT Broker → MQTTClient → MqttSub → StatefulService → Update Handlers
 ```
 
 ### Filesystem WWW Mode
+
 ```
 [React Build] → [Gzip] → [Copy to data/] → [Upload to LittleFS] → [/www/ directory]
                                                 ↓
@@ -525,16 +571,19 @@ MQTT Broker → MQTTClient → MqttSub → StatefulService → Update Handlers
 ## Scalability and Limits
 
 ### Memory Constraints
+
 - **Flash**: 512KB-4MB (depends on board)
 - **RAM**: 80KB (ESP8266) / 520KB (ESP32)
 - **Heap**: ~40-50KB available for framework + app
 
 ### Connection Limits
+
 - **WebSocket**: 4-5 concurrent clients
 - **HTTP**: Limited by async server queue
 - **MQTT**: Single connection to broker
 
 ### Performance
+
 - **Request Latency**: <50ms (typical REST request)
 - **WebSocket Latency**: <10ms (local network)
 - **MQTT Latency**: Network dependent

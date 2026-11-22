@@ -1,0 +1,9 @@
+Vendored Windows USB driver archives — download provenance (2026-04-24)
+
+1) ESP32.USB.JTAG-v6.1.7600.16386.zip
+   https://github.com/espressif/esp-win-usb-drivers/releases/download/ESP32-USB-JTAG_v6.1.7600.16386/ESP32.USB.JTAG-v6.1.7600.16386.zip
+   Release: ESP32 USB JTAG driver 6.1.7600.16386 (esp-win-usb-drivers)
+
+2) CP210x_Universal_Windows_Driver.zip
+   https://www.silabs.com/documents/public/software/CP210x_Universal_Windows_Driver.zip
+   Silicon Labs CP210x VCP (USB-to-UART)

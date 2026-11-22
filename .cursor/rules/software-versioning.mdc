@@ -1,0 +1,360 @@
+---
+description: Semantic versioning strategy for software releases
+alwaysApply: true
+globs: ["interface/package.json", "src/version.h", "platformio.ini"]
+---
+
+# Software Versioning Rule
+
+**Purpose:** Track and increment software versions using Semantic Versioning (SemVer).
+
+## Current Version Locations
+
+### Frontend Version
+
+**File:** `interface/package.json`
+
+```json
+{
+  "version": "0.1.0"
+}
+```
+
+### Backend Version
+
+**File:** `src/version.h` (to be created)
+
+```cpp
+#define VERSION_MAJOR 0
+#define VERSION_MINOR 1
+#define VERSION_PATCH 0
+#define VERSION_STRING "0.1.0"
+```
+
+## Semantic Versioning Rules
+
+Format: `MAJOR.MINOR.PATCH` (e.g., `1.2.3`)
+
+### When to Increment
+
+**MAJOR** (1.0.0 → 2.0.0) - Breaking changes:
+
+- API endpoint changes that break existing clients
+- Removed features or deprecated APIs removed
+- Backend/Frontend incompatible changes
+- Major architecture changes requiring reconfiguration
+
+**MINOR** (0.1.0 → 0.2.0) - New features (backward compatible):
+
+- New device projects added (like Diagnostics)
+- New REST/WebSocket endpoints
+- New UI features or pages
+- Enhanced functionality without breaking existing code
+
+**PATCH** (0.1.0 → 0.1.1) - Bug fixes (backward compatible):
+
+- Bug fixes
+- Performance improvements
+- Documentation updates
+- Dependency updates
+- Code refactoring without behavior changes
+
+### Pre-release Versions
+
+For development builds:
+
+- Alpha: `0.1.0-alpha.1`
+- Beta: `0.1.0-beta.1`
+- Release Candidate: `0.1.0-rc.1`
+
+## Version Increment Workflow
+
+### Automatic Version Bumping
+
+When completing a major feature or fix:
+
+1. **Determine version type:**
+   - Breaking change? → MAJOR
+   - New feature? → MINOR
+   - Bug fix? → PATCH
+
+2. **Update version files:**
+
+   ```bash
+   # Frontend
+   cd interface && npm version [major|minor|patch]
+   
+   # Backend (manual edit src/version.h)
+   # Update VERSION_MAJOR/MINOR/PATCH and VERSION_STRING
+   ```
+
+3. **Create git tag:**
+
+   ```bash
+   git tag -a v0.2.0 -m "Release v0.2.0: Add UART Diagnostics"
+   git push origin v0.2.0
+   ```
+
+4. **Update CHANGELOG.md** (if exists)
+
+## Version File Structure
+
+### Create Backend Version File
+
+**File:** `src/version.h`
+
+```cpp
+#ifndef VERSION_H
+#define VERSION_H
+
+// Software version
+#define VERSION_MAJOR 0
+#define VERSION_MINOR 1
+#define VERSION_PATCH 0
+#define VERSION_STRING "0.1.0"
+
+// Build information (optional)
+#define BUILD_DATE __DATE__
+#define BUILD_TIME __TIME__
+
+// Feature version (for API compatibility)
+#define API_VERSION "v1"
+
+#endif
+```
+
+**Usage in code:**
+
+```cpp
+#include "version.h"
+
+void setup() {
+  Serial.printf("Weighsoft Serial v%s\n", VERSION_STRING);
+  Serial.printf("API Version: %s\n", API_VERSION);
+}
+```
+
+## Versioning Strategy
+
+### Current Stage: Pre-1.0 (0.x.x)
+
+**Definition:** Initial development, API not stable
+
+**Rules:**
+
+- MINOR version for new features (0.1.0 → 0.2.0)
+- PATCH version for bug fixes (0.1.0 → 0.1.1)
+- Breaking changes allowed in MINOR versions
+- Version 0.x.x = "use at your own risk"
+
+**Examples:**
+
+- `0.1.0` - Initial serial monitoring
+- `0.2.0` - Add UART diagnostics ← We are here
+- `0.3.0` - Add scale calibration feature
+- `0.4.0` - Add data logging
+
+### Moving to 1.0.0
+
+Release `1.0.0` when:
+
+- API is stable and well-documented
+- Core features complete and tested
+- Ready for production use
+- No major breaking changes planned
+
+## Version Decision Matrix
+
+| Change Type | Current: 0.1.0 | After 1.0 |
+|-------------|----------------|-----------|
+| New device project (Diagnostics) | 0.2.0 | 1.1.0 |
+| Bug fix (Serial not starting) | 0.1.1 | 1.0.1 |
+| Breaking API change | 0.2.0 | 2.0.0 |
+| New endpoint (same API) | 0.2.0 | 1.1.0 |
+| Documentation update | 0.1.1 | 1.0.1 |
+| Refactoring (no behavior change) | 0.1.1 | 1.0.1 |
+
+## Git Tag Conventions
+
+**Format:** `vMAJOR.MINOR.PATCH`
+
+**Examples:**
+
+```bash
+git tag -a v0.2.0 -m "feat: add UART diagnostics project"
+git tag -a v0.2.1 -m "fix: resolve loopback test timing issue"
+git tag -a v1.0.0 -m "Release 1.0.0: Production ready"
+```
+
+**List tags:**
+
+```bash
+git tag -l
+```
+
+**Checkout specific version:**
+
+```bash
+git checkout v0.2.0
+```
+
+## When to Version
+
+### Always increment version when
+
+- Merging feature branches to main/master
+- Creating releases
+- Deploying to production
+- Publishing firmware binaries
+
+### Don't increment version for
+
+- Work in progress on feature branches
+- Experimental changes
+- Documentation typos (unless releasing)
+- CI/CD configuration changes
+
+## Automatic Versioning Integration
+
+Add to commit workflow for MAJOR/MINOR changes:
+
+```bash
+# After implementing new feature
+npm version minor --prefix interface
+# Creates commit: "0.1.0 → 0.2.0"
+
+# Update backend version.h manually
+# Commit with version tag
+git tag -a v0.2.0 -m "Release v0.2.0"
+git push --follow-tags
+```
+
+## Version Display
+
+### Add version to UI
+
+**File:** `interface/src/App.tsx`
+
+```typescript
+import packageJson from '../package.json';
+
+// Display in footer or about page
+<Typography variant="caption">
+  Version {packageJson.version}
+</Typography>
+```
+
+### Add version to backend logs
+
+**File:** `src/main.cpp`
+
+```cpp
+#include "version.h"
+
+void setup() {
+  Serial.println(F("=== Weighsoft Serial ==="));
+  Serial.printf("Version: %s\n", VERSION_STRING);
+  Serial.printf("Build: %s %s\n", BUILD_DATE, BUILD_TIME);
+}
+```
+
+## Release Checklist
+
+When bumping to new MINOR/MAJOR version:
+
+- [ ] Update `interface/package.json` version
+- [ ] Update `src/version.h` version
+- [ ] Update README.md if version mentioned
+- [ ] Update CHANGELOG.md (create if not exists)
+- [ ] Commit: `chore: bump version to X.Y.Z`
+- [ ] Create git tag: `git tag -a vX.Y.Z -m "Release X.Y.Z"`
+- [ ] Push with tags: `git push --follow-tags`
+- [ ] Create GitHub release (if using releases)
+
+## Version History Tracking
+
+### Create CHANGELOG.md
+
+```markdown
+# Changelog
+
+## [0.2.0] - 2024-01-15
+
+### Added
+- UART Diagnostics project with loopback test, baud detection, signal quality
+- REST endpoint /rest/diagnostics
+- WebSocket endpoint /ws/diagnostics
+- Comprehensive diagnostics UI with Material-UI
+
+### Changed
+- Updated main.cpp boot sequence to [x/8]
+
+### Fixed
+- None
+
+## [0.1.0] - 2024-01-10
+
+### Added
+- Initial serial monitoring service
+- Serial configuration UI
+- Regex weight extraction
+```
+
+## Examples from This Project
+
+### Current State (0.1.0)
+
+- Serial monitoring exists
+- LED example exists
+- Basic framework operational
+
+### Proposed Version Bump (0.1.0 → 0.2.0)
+
+**Reason:** Added UART Diagnostics (new feature, backward compatible)
+
+**Changes:**
+
+```bash
+# Update versions
+cd interface && npm version minor  # 0.1.0 → 0.2.0
+
+# Edit src/version.h
+VERSION_MINOR 1 → 2
+VERSION_STRING "0.1.0" → "0.2.0"
+
+# Commit and tag
+git add interface/package.json src/version.h
+git commit -m "chore: bump version to 0.2.0"
+git tag -a v0.2.0 -m "Release 0.2.0: UART Diagnostics"
+git push --follow-tags
+```
+
+## Quick Reference
+
+**Check current version:**
+
+```bash
+grep '"version"' interface/package.json
+```
+
+**Bump version (frontend):**
+
+```bash
+cd interface
+npm version patch  # 0.1.0 → 0.1.1
+npm version minor  # 0.1.0 → 0.2.0
+npm version major  # 0.1.0 → 1.0.0
+```
+
+**Create tag:**
+
+```bash
+git tag -a v0.2.0 -m "Release message"
+git push origin v0.2.0
+```
+
+**List all versions:**
+
+```bash
+git tag -l
+```

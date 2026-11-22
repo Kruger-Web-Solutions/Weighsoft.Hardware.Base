@@ -52,6 +52,14 @@ export function readWeightForwarder(): AxiosPromise<WeightForwarderData> {
 - Check existing examples (Serial, LED) for correct pattern
 - Never use `fetch()` for backend API communication
 
+### 1b. HTTP 401 when forwarding to display device
+
+**Issue**: Weight forwarder shows "HTTP 401" and "Last Forward Time: Never" when target is a display device (e.g. `http://192.168.3.100/rest/display`).
+
+**Root Cause**: The display REST API (and other framework endpoints) require authentication. Unauthenticated POSTs return 401.
+
+**Solution**: In the forwarder configuration, set **Target login (username)** and **Target login (password)** to the display device's admin credentials. The forwarder will sign in to the target's `/rest/signIn`, receive a JWT, and send `Authorization: Bearer <token>` with each POST. Leave these fields empty if the target does not require login.
+
 ### 2. Feature Flags: Using import.meta.env Instead of FeaturesContext
 
 **Issue**: TypeScript compilation error: `Property 'env' does not exist on type 'ImportMeta'`

@@ -113,6 +113,7 @@ sequenceDiagram
 ### Data Transformation (Serialization)
 
 **State Object → JSON**:
+
 ```cpp
 // Input: WiFiSettings object
 {
@@ -132,6 +133,7 @@ sequenceDiagram
 ```
 
 **JSON → State Object**:
+
 ```cpp
 // Input: JsonObject
 {
@@ -208,6 +210,7 @@ flowchart TB
 ### Message Format
 
 **Type 1: Client ID**
+
 ```json
 {
     "type": "id",
@@ -216,6 +219,7 @@ flowchart TB
 ```
 
 **Type 2: Payload Update**
+
 ```json
 {
     "type": "payload",
@@ -317,6 +321,7 @@ sequenceDiagram
 ### Home Assistant Data Format
 
 **Standard Format (REST/WebSocket)**:
+
 ```json
 {
     "led_on": true
@@ -324,6 +329,7 @@ sequenceDiagram
 ```
 
 **Home Assistant Format (MQTT)**:
+
 ```json
 {
     "state": "ON"
@@ -331,6 +337,7 @@ sequenceDiagram
 ```
 
 **Conversion in Code**:
+
 ```cpp
 // Standard read
 static void read(LightState& state, JsonObject& root) {
@@ -413,6 +420,7 @@ flowchart TB
 ### JSON File Example
 
 `/config/wifiSettings.json`:
+
 ```json
 {
   "ssid": "MyHomeWiFi",
@@ -614,6 +622,7 @@ schema.validate(formData, (errors) => {
 ### Throttling and Debouncing
 
 **WebSocket Updates** (100ms throttle):
+
 ```typescript
 // Throttle rapid updates
 const throttledUpdate = throttle((data) => {
@@ -622,6 +631,7 @@ const throttledUpdate = throttle((data) => {
 ```
 
 **Network Scanning** (debounce):
+
 ```typescript
 // Debounce scan requests
 const debouncedScan = debounce(() => {
@@ -632,6 +642,7 @@ const debouncedScan = debounce(() => {
 ### Buffer Sizing
 
 **Backend JSON Buffers**:
+
 ```cpp
 // Default buffer size: 1024 bytes
 #define DEFAULT_BUFFER_SIZE 1024
@@ -647,6 +658,7 @@ HttpEndpoint<Settings> endpoint(
 ### Memory Management
 
 **ArduinoJson Memory**:
+
 ```cpp
 // Dynamic allocation for variable-sized data
 DynamicJsonDocument doc(1024);

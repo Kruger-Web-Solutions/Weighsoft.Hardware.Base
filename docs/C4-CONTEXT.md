@@ -45,6 +45,7 @@ graph TB
 **Purpose**: A configurable embedded web server running on ESP8266 or ESP32 microcontrollers that provides a responsive web interface for device management and custom IoT functionality.
 
 **Key Responsibilities**:
+
 - Hosts a React-based web application for configuration and monitoring
 - Manages WiFi connectivity (station and access point modes)
 - Provides secure authentication and authorization
@@ -53,7 +54,8 @@ graph TB
 - Supports over-the-air firmware updates
 - Exposes REST and WebSocket APIs for real-time communication
 
-**Technology**: 
+**Technology**:
+
 - C++ backend on Arduino framework
 - React + TypeScript frontend
 - LittleFS filesystem
@@ -66,6 +68,7 @@ graph TB
 **Description**: Regular users who interact with the IoT device for day-to-day operations.
 
 **Use Cases**:
+
 - Configure WiFi network credentials
 - Monitor device status (WiFi, MQTT, system info)
 - Control IoT features (e.g., lights, sensors)
@@ -75,6 +78,7 @@ graph TB
 **Access Level**: Authenticated user (guest or admin)
 
 **Interaction Methods**:
+
 - **HTTP REST API**: Configuration requests (GET/POST)
 - **WebSocket**: Real-time status updates
 - **Web Browser**: React-based UI for all interactions
@@ -84,6 +88,7 @@ graph TB
 **Description**: Privileged users who manage security, system configuration, and firmware updates.
 
 **Use Cases**:
+
 - Manage user accounts and credentials
 - Configure security settings (JWT secret)
 - Upload and apply firmware updates
@@ -95,6 +100,7 @@ graph TB
 **Access Level**: Admin role required
 
 **Interaction Methods**:
+
 - **HTTP REST API**: Administrative endpoints
 - **WebSocket**: Real-time system status
 - **Web Browser**: Admin-only UI sections
@@ -105,13 +111,15 @@ graph TB
 
 **Description**: Message broker that enables integration with home automation systems like Home Assistant.
 
-**Examples**: 
+**Examples**:
+
 - Mosquitto
 - Home Assistant MQTT broker
 - HiveMQ
 - CloudMQTT
 
 **Interaction Pattern**:
+
 - **Protocol**: MQTT v3.1.1
 - **Direction**: Bidirectional
 - **Topics**:
@@ -120,12 +128,14 @@ graph TB
   - `{basePath}/config` - Home Assistant discovery
 
 **Use Cases**:
+
 - Publish device state changes to home automation
 - Receive commands from automation rules
 - Support Home Assistant auto-discovery
 - Enable remote monitoring
 
 **Configuration**:
+
 - Broker hostname/IP
 - Port (typically 1883 or 8883 for TLS)
 - Optional authentication (username/password)
@@ -138,22 +148,26 @@ graph TB
 **Description**: Network Time Protocol server that provides accurate time synchronization.
 
 **Examples**:
+
 - time.google.com
 - pool.ntp.org
 - time.nist.gov
 
 **Interaction Pattern**:
+
 - **Protocol**: NTP (UDP port 123)
 - **Direction**: Unidirectional (device queries server)
 - **Frequency**: Periodic synchronization (default every hour)
 
 **Use Cases**:
+
 - Synchronize device clock on boot
 - Maintain accurate timestamps for logs
 - Schedule time-based automation
 - Provide timezone-aware time display
 
 **Configuration**:
+
 - NTP server hostname
 - Timezone label and POSIX format
 - Sync interval
@@ -164,16 +178,19 @@ graph TB
 **Description**: Network infrastructure that provides internet connectivity and local network access.
 
 **Interaction Pattern**:
+
 - **Protocol**: WiFi 802.11 b/g/n (2.4GHz)
 - **Mode**: Station mode (client) or AP mode (access point)
 - **Security**: WPA/WPA2-PSK
 
 **Use Cases**:
+
 - **Station Mode**: Device connects to existing WiFi network
 - **Access Point Mode**: Device creates its own WiFi network for configuration
 - **Fallback Mode**: Automatically enables AP when station connection fails
 
 **Configuration**:
+
 - **Station Settings**:
   - SSID and password
   - Static IP or DHCP
@@ -195,13 +212,15 @@ graph TB
 
 **Methods**: GET, POST, OPTIONS
 
-**Authentication**: 
+**Authentication**:
+
 - Bearer token (JWT) in Authorization header
 - Optional (depends on endpoint security configuration)
 
 **Content Type**: `application/json`
 
 **Use Cases**:
+
 - Read current configuration
 - Update device settings
 - Authenticate users
@@ -216,6 +235,7 @@ graph TB
 **Protocol**: WebSocket (ws:// or wss://)
 
 **Message Format**:
+
 ```json
 {
   "type": "id" | "payload",
@@ -225,11 +245,13 @@ graph TB
 }
 ```
 
-**Authentication**: 
+**Authentication**:
+
 - Query parameter or initial handshake
 - Filter applied at connection time
 
 **Use Cases**:
+
 - Real-time state synchronization
 - Live status updates
 - Bidirectional control without polling
@@ -244,11 +266,13 @@ graph TB
 **QoS Levels**: 0, 1, 2 (configurable)
 
 **Topics**:
+
 - Custom prefix per feature
 - Separate pub and sub topics
 - Home Assistant discovery support
 
 **Use Cases**:
+
 - Integration with home automation
 - Remote monitoring
 - Command and control
@@ -263,6 +287,7 @@ graph TB
 **Port**: 123
 
 **Use Cases**:
+
 - Time synchronization on boot
 - Periodic clock adjustment
 - Timezone conversion
@@ -270,6 +295,7 @@ graph TB
 ## System Boundaries
 
 ### Inside the System
+
 - Web server (HTTP/WebSocket)
 - Filesystem (configuration persistence)
 - MQTT client
@@ -279,6 +305,7 @@ graph TB
 - Application services (user-defined)
 
 ### Outside the System
+
 - Web browsers (user interface)
 - MQTT brokers (message routing)
 - NTP servers (time source)
@@ -289,6 +316,7 @@ graph TB
 ## Network Topology
 
 ### Development Environment
+
 ```
 [Developer PC] <--WiFi--> [Router] <--WiFi--> [ESP8266 Device]
                                                     |
@@ -298,6 +326,7 @@ graph TB
 ```
 
 ### Production Environment
+
 ```
 [Internet] <---> [Router/Firewall] <--WiFi--> [ESP8266 Device]
                        |                              |
@@ -306,6 +335,7 @@ graph TB
 ```
 
 ### Isolated Environment
+
 ```
 [ESP8266 Device (AP Mode)] <--WiFi--> [Configuration Client]
 No internet required for basic configuration
@@ -337,24 +367,28 @@ No internet required for basic configuration
 ## Deployment Scenarios
 
 ### 1. Home Automation Hub
+
 - Connected to home WiFi
 - Integrated with Home Assistant via MQTT
 - Controlled by family members
 - Scheduled automation based on time
 
 ### 2. Standalone IoT Device
+
 - Creates own access point
 - No internet required
 - Direct mobile app connection
 - Isolated operation
 
 ### 3. Industrial Sensor Node
+
 - Connected to enterprise WiFi
 - MQTT to central monitoring system
 - Admin-only access
 - OTA updates from management server
 
 ### 4. Development/Testing
+
 - Connected to dev network
 - Hot-reload frontend development
 - Direct serial console access
@@ -363,12 +397,14 @@ No internet required for basic configuration
 ## Scalability Considerations
 
 ### Single Device Constraints
+
 - **Concurrent Connections**: ~4-5 WebSocket clients
 - **HTTP Requests**: Limited by available memory
 - **MQTT Messages**: AsyncMqttClient queue depth
 - **Filesystem**: LittleFS partition size
 
 ### Multiple Device Architecture
+
 - Each device independent
 - MQTT broker coordinates state
 - No direct device-to-device communication

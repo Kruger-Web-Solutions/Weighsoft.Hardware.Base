@@ -1,0 +1,97 @@
+#pragma once
+
+// Live W-Soft view for the web page, WebSocket and MQTT. Pure C++ (no Arduino or
+// framework headers) so host tests can pin the JSON field by field.
+//
+// The screen task fills a WSoftSnapshot after every scale poll; the services copy it
+// and turn it into JSON through wsoft_view_write(). Rules that must not drift:
+// - weight_g is whole grams, or null when the scale is not linked or the last poll
+//   failed. A failed poll is never a weight.
+// - approval is read-only here. Nothing in this view can switch it.
+
+#include <stddef.h>
+#include <stdint.h>
+
+#include "trade_logic.h"
+#include "wsoft_weighing.h"
+
+static const size_t WSOFT_HUB_TEXT_SIZE = 20;
+
+struct WSoftSnapshot {
+  bool valid = false;          // false until the screen task has published once
+  bool display_ready = false;  // the RGB panel and frame buffers came up
+  bool linked = false;         // DJB answered recently (fewer than 3 failed polls in a row)
+  bool fresh = false;          // the most recent poll answered
+  bool alarm = false;          // DJB blocking alarm bits set (allowed bits not counted)
+  // Allowed alarm (wsoft_djb.h): flagged, never blocking. alarm_word is the raw DJB alarm state
+  // of the last fresh read; alarm_changes counts changes since boot (Rhyno, 14 Nov 2026).
+  bool alarm_allowed = false;
+  bool alarm_word_valid = false;
+  uint32_t alarm_word = 0;
+  uint32_t alarm_changes = 0;
+  int32_t value = 0;           // raw DJB value, scaled by decimals
+  int decimals = 3;
+  int unit = 1;                // DJB unit code: 0 none, 1 kg, 2 t, 3 g
+  bool approval_on = false;
+  bool stable = false;
+  TradeCheck trade_check = TRADE_OFF;
+  uint32_t audit_counter = 0;
+  uint32_t last_trade_seq = 0;
+  uint32_t trade_queue = 0;    // trade weights waiting for the Hub
+  bool hub_online = false;
+  char hub_text[WSOFT_HUB_TEXT_SIZE] = "HUB SETUP";
+  uint32_t polls = 0;
+  uint32_t updated_ms = 0;     // millis() of the poll this snapshot came from
+  bool rs232 = false;          // weight from an RS232 scale line, not the DJB junction box
+  bool loadcell = false;       // weight from a load cell on an HX711 board (rs232 is false then)
+  bool writer = false;         // Writer mode: weight from a weigh board over Wi-Fi, never saved
+  // A tare is on: net_value is the net (value minus tare), same decimals and unit. The feed to
+  // a Writer sends the net, as the screen shows it (Rhyno, 14 Nov 2026). value stays the gross.
+  bool tared = false;
+  int32_t net_value = 0;
+  // What stops a save right now (WsoftWeighingSaver::waiting). The view writes it as the
+  // notice_* fields: the big message over the weight, the same words as the board's screen.
+  WsoftSaveResult save_waiting = WSOFT_SAVE_NONE;
+  // The alarm test switch is on (WSoftSettingsData.alarm_test_save). It only acts while
+  // Approval is OFF; the web page warns about it either way.
+  bool alarm_test = false;
+};
+
+// Parses the weight text an RS232 scale sends (after the Serial reader's pattern):
+// optional spaces, optional sign, digits, optional '.' or ',' and up to 4 decimals,
+// optional trailing spaces. value is scaled by decimals, like a DJB reading.
+// Anything else (letters, two signs, empty, too long) is false: never a weight.
+bool wsoft_parse_weight_text(const char *text, int32_t *value, int *decimals);
+
+// Where the view writes its fields. The ESP service maps this onto an ArduinoJson
+// object; the host tests build a JSON string.
+class WSoftJsonSink {
+ public:
+  virtual ~WSoftJsonSink() {}
+  virtual void put_null(const char *key) = 0;
+  virtual void put_bool(const char *key, bool value) = 0;
+  virtual void put_int(const char *key, int64_t value) = 0;
+  virtual void put_str(const char *key, const char *value) = 0;
+};
+
+// Converts a DJB reading to whole grams. Returns false when the unit has no gram
+// meaning (code 0 or unknown) or the decimals are out of range. Sub-gram readings
+// round half away from zero.
+bool wsoft_weight_grams(int32_t value, int decimals, int unit, int64_t *grams);
+
+// True when the snapshot carries a weight that may be shown as a number.
+bool wsoft_has_weight(const WSoftSnapshot &s);
+
+// The weight a Writer gets from this board: the number as shown ("12.345"), without the unit.
+// The net weight when a tare is on, else the gross (they are the same). False when there is
+// no live weight: then nothing is sent.
+bool wsoft_feed_weight(const WSoftSnapshot &s, char *weight, size_t size);
+
+// The weigh board's open weight feed for a Writer (/ws/wsoftFeed, /rest/wsoftFeed). The same
+// keys a Writer already reads from the Serial reader (last_line, weight, timestamp), plus
+// unit and stable. last_line is the weight with its unit ("12.345 kg"), net when a tare is on.
+// No live weight:
+// last_line "" and weight null, so a Writer sends nothing.
+void wsoft_feed_write(const WSoftSnapshot &s, WSoftJsonSink &out);
+
+void wsoft_view_write(const WSoftSnapshot &s, WSoftJsonSink &out);

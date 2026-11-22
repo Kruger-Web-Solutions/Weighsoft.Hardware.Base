@@ -1,0 +1,69 @@
+#pragma once
+
+// Load cell on an HX711 amplifier board (Rhyno, 22 Nov 2026): the board reads the chip itself
+// on two pins (DT = data from the chip, SCK = clock to the chip) and keeps the calibration in
+// NVS (namespace "loadcell"). The rules are wsoft_loadcell (wsoft_core, host-tested).
+//
+// Tasks: a small task of its own reads the chip whenever a count is ready, gathers the counts
+// of each tenth of a second into one and keeps a moving average of those (the filter); the screen task asks for the weight once per poll; the web task reads the state and
+// sets zero, span and the scale setup (unit, decimals, division). Everything shared is under one spinlock.
+//
+// Timing, from the HX711 datasheet: DT low = a count is ready; 24 clock pulses read it, most
+// significant bit first; a 25th pulse picks channel A at gain 128 for the next count. A clock
+// pulse stays high at most 50 us (60 us or more puts the chip to sleep), so the 25 pulses run
+// with interrupts off.
+// Power the HX711 board from 3.3 V: its DT signal is at its supply voltage.
+// On the bench 22 Nov 2026: Rhyno's yellow board weighs with an HW-29 HX711 board on CN1.
+
+#include <Arduino.h>
+
+#include <wsoft_loadcell.h>
+
+// Starts the reader task. Call once, from the screen task's setup.
+void loadcell_begin(int dt_pin, int sck_pin);
+
+// Screen task, once per poll: the calibrated weight. False when the chip is silent (no count
+// for a second), out of range, or the board is not calibrated yet: never a weight then.
+bool loadcell_weight(int32_t *value, int *decimals, int *unit);
+
+struct LoadcellInfo {
+  bool started;     // loadcell_begin ran (the source is the load cell)
+  bool present;     // a count arrived in the last second
+  bool have_raw;    // the average below is usable
+  int32_t raw;      // the averaged count
+  bool calibrated;
+  bool have_weight;
+  int32_t value;    // the weight in display digits (with cal.decimals and cal.unit)
+  uint32_t rate;         // counts a second from the chip, measured; 0 when silent
+  int32_t zero_offset;   // counts auto zero has moved the zero by, since the last restart or zero
+  int32_t drift_offset;  // counts Drift Guard holds back right now
+  bool drift_holding;    // Drift Guard is holding the weight shown
+  uint32_t drift_holds, drift_jumps, drift_limits;  // WsoftLoadcellDriftGuard counters
+  bool have_noise;
+  int32_t noise_tenths;  // how far the last counts are apart, in tenths of a division (10 = one division)
+  WsoftLoadcellCal cal;
+};
+void loadcell_info(LoadcellInfo *out);
+
+// Web task (admin); zero also from the ZERO tile on the screen. Each uses the averaged count of
+// this moment and stores the result.
+// who is the signed-in name, for the USB log line.
+WsoftLoadcellError loadcell_set_zero(const char *who);
+WsoftLoadcellError loadcell_set_span(int32_t value, int decimals, int unit, const char *who);
+// The scale setup: digits after the point, unit (1 kg, 3 g), the division in the last digit,
+// the filter (WSOFT_LOADCELL_FILTER_OFF .. _HIGH), auto zero (0 off, 1..3 divisions) and
+// Drift Guard (0 off, 1..20 divisions). All of it or none of it.
+WsoftLoadcellError loadcell_set_format(int decimals, int unit, int step, int filter, int zero_track,
+                                       int drift_guard, const char *who);
+// USB technician commands (the cable, like SCREEN and APPROVAL):
+//   LOADCELL INFO                 one line: the setup and what the filter, auto zero and Drift
+//                                 Guard are doing right now
+//   LOADCELL SET key=value ...    changes the setup like the Scale setup tab does. Keys: dec
+//                                 (0..4), step (1 2 5 10 20 50), filter (0..3), auto_zero (0..3),
+//                                 drift_guard (0..20). Keys left out stay as they are. Refused
+//                                 while Approval is ON (approval_on), like the web page.
+void loadcell_handle_command(const String &command, Stream &port, bool approval_on);
+
+// Screen task, every poll: false while Approval is ON. Drift Guard rests then, whatever the
+// setup says, because it hides slow changes.
+void loadcell_allow_drift_guard(bool allowed);

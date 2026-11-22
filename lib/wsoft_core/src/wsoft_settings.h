@@ -1,0 +1,120 @@
+#pragma once
+
+// Options owned by the W-Soft web services (not by the W-Soft firmware itself).
+// Pure C++ so the defaults and validation run in host tests; WSoftSettingsService
+// maps JSON to WSoftSettingsInput and back.
+//
+// Deliberately NOT here: the Approval and Auto save switches (NVS, through switches.h:
+// screen, browser, Hub and USB), the Hub pairing code (NVS, via USB or the Hub tab:
+// wsoft_hub_code.h / hub_web.h), Wi-Fi and OTA (framework pages).
+
+#include <stddef.h>
+#include <stdint.h>
+
+#include "wsoft_relay.h"
+
+static const uint32_t WSOFT_PUBLISH_MIN_MS = 250;  // the screen polls the DJB every 250 ms
+static const uint32_t WSOFT_PUBLISH_MAX_MS = 60000;
+static const uint32_t WSOFT_PUBLISH_DEFAULT_MS = 1000;
+
+static const size_t WSOFT_MQTT_PATH_MAX = 96;  // + "/status" stays under the framework's 128-byte topic cap
+static const size_t WSOFT_MQTT_ID_MAX = 48;
+
+// Defaults may hold #{unique_id} / #{platform}; the service expands them when it uses them.
+static const char *const WSOFT_DEFAULT_MQTT_BASE_PATH = "weighsoft/wsoft/#{unique_id}";
+static const char *const WSOFT_DEFAULT_MQTT_NAME = "wsoft-#{unique_id}";
+static const char *const WSOFT_DEFAULT_MQTT_UNIQUE_ID = "wsoft-#{unique_id}";
+
+// Where the weight comes from. RS485 = the DJB junction box over Modbus (default).
+// RS232 = a scale indicator that sends a text line; the existing Serial reader service
+// reads it (its own page sets baud and the weight pattern). Both use the same UART, so a
+// board has one or the other, and a change takes effect after a restart.
+// LOADCELL = a load cell on an HX711 amplifier board, read by the board itself on the same
+// plug (two data pins instead of the UART); calibrated on the board (wsoft_loadcell.h).
+enum WSoftSource { WSOFT_SOURCE_RS485 = 0, WSOFT_SOURCE_RS232 = 1, WSOFT_SOURCE_LOADCELL = 2 };
+
+struct WSoftSettingsData {
+  uint32_t publish_interval_ms;
+  bool mqtt_enabled;
+  char mqtt_base_path[WSOFT_MQTT_PATH_MAX + 1];
+  char mqtt_name[WSOFT_MQTT_ID_MAX + 1];
+  char mqtt_unique_id[WSOFT_MQTT_ID_MAX + 1];
+  WSoftSource source;
+  // Hi-Lo relay outputs (boards built with a relay, WSOFT_HAS_RELAY). OFF by default.
+  // relay_low / relay_ok / relay_high: the relay (1..4) for each zone, 0 = none.
+  bool relay_enabled;
+  uint8_t relay_low;
+  uint8_t relay_ok;
+  uint8_t relay_high;
+  // Writer mode only (Rhyno, 12 Nov 2026): the relays follow the weigh board's weight.
+  // OFF by default: a Writer's relays stay off.
+  bool relay_writer_follow;
+  // TEST SWITCH (Rhyno, 14 Nov 2026; first built on the 2 Nov Waveshare branch as
+  // save_ignore_alarm). OFF by default. When ON, a junction box alarm that would block a save
+  // (ADC failure, over range) no longer stops Save or Auto save, so a bench with a faulty box can
+  // still be tested. Never with Approval ON (wsoft_alarm_test_gate), never for trade, and every
+  // weighing saved through an alarm is marked "alarm_test_override": true for the Hub.
+  // The allowed-alarm list (wsoft_djb_alarm_check: the EEPROM factory flag) needs no switch.
+  bool alarm_test_save;
+  // "ESP LED" (Rhyno, 21 Nov 2026): the board's own RGB LED shows the Hi-Lo zone (wsoft_led.h).
+  // ON by default; OFF keeps the LED dark. Only does something on a board built with the LED.
+  bool esp_led;
+  // "Hi-Lo light" (Rhyno, 22 Nov 2026): on a board whose own light sits on the relay pins
+  // (the yellow board's LED1), show the Hi-Lo zone on that light without the relay switch.
+  // OFF by default and its own field, not esp_led: esp_led is ON by default, and on these
+  // pins that would switch outputs after an update with nobody asking. A relay board wired
+  // to the same pads switches with the light, so the page says so.
+  bool relay_light;
+};
+
+// One field per option. A missing field (has_* false or a null string) takes its default:
+// the update is a full replace, like the framework's own settings services.
+struct WSoftSettingsInput {
+  bool has_publish_interval_ms = false;
+  int64_t publish_interval_ms = 0;
+  bool has_mqtt_enabled = false;
+  bool mqtt_enabled = false;
+  const char *mqtt_base_path = nullptr;
+  const char *mqtt_name = nullptr;
+  const char *mqtt_unique_id = nullptr;
+  // "rs485", "rs232" or "loadcell"; anything else is an ERROR.
+  const char *source = nullptr;
+  bool has_relay_enabled = false;
+  bool relay_enabled = false;
+  // 0..4 each, no relay twice (wsoft_relay_map_valid); anything else is an ERROR.
+  bool has_relay_low = false;
+  int64_t relay_low = 0;
+  bool has_relay_ok = false;
+  int64_t relay_ok = 0;
+  bool has_relay_high = false;
+  int64_t relay_high = 0;
+  bool has_relay_writer_follow = false;
+  bool relay_writer_follow = false;
+  bool has_alarm_test_save = false;
+  bool alarm_test_save = false;
+  bool has_esp_led = false;
+  bool esp_led = false;
+  bool has_relay_light = false;
+  bool relay_light = false;
+};
+
+enum WSoftSettingsResult { WSOFT_SETTINGS_UNCHANGED, WSOFT_SETTINGS_CHANGED, WSOFT_SETTINGS_ERROR };
+
+void wsoft_settings_defaults(WSoftSettingsData *s);
+
+// Validates and applies. On ERROR nothing in *s changes. The publish interval is
+// clamped into [MIN, MAX] (the branch's style for numbers); a bad topic or name is
+// an ERROR because there is no safe value to clamp it to.
+WSoftSettingsResult wsoft_settings_update(const WSoftSettingsInput &in, WSoftSettingsData *s);
+
+// MQTT base path: 1..96 chars, printable ASCII, no spaces, no '+', and '#' only as the
+// start of a #{...} placeholder; must not start or end with '/'.
+bool wsoft_settings_valid_topic(const char *topic);
+// Unique id: 1..48 printable ASCII chars, no spaces.
+bool wsoft_settings_valid_id(const char *id);
+// Display name: 1..48 printable ASCII chars; inner spaces allowed, no leading/trailing space.
+bool wsoft_settings_valid_name(const char *name);
+
+// "rs485" / "rs232" / "loadcell" for the JSON field and the page.
+const char *wsoft_source_text(WSoftSource source);
+bool wsoft_source_parse(const char *text, WSoftSource *source);

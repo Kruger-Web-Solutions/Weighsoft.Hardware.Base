@@ -9,6 +9,8 @@
 
 A professional hardware interface framework for weighbridge and IoT projects built on ESP8266/ESP32 platforms with responsive React front-end and Material-UI. Designed for Weighsoft solutions requiring reliable, secure, and scalable hardware control.
 
+> **New here (human or AI agent)?** Read [AGENTS.md](AGENTS.md) and [docs/BRANCH-MAP.md](docs/BRANCH-MAP.md) first. Each device has its own branch; `master` is only the framework.
+
 Designed to work with the PlatformIO IDE with [limited setup](#getting-started). Please read below for setup, build and upload instructions.
 
 > **Project status (2026-09-24):** see [ROADMAP.md](ROADMAP.md). `master` holds the shared framework and the LED demo only. Device work lives on the `RelayBoardEspBuildIn` and `SerialReaderWriter` branches, which are not merged into `master`.
@@ -44,6 +46,7 @@ Designed to work with the PlatformIO IDE with [limited setup](#getting-started).
 ## Features
 
 ### Core Capabilities
+
 - 🔒 **Security First** - JWT authentication, protected endpoints, role-based access
 - 📡 **Network Management** - WiFi scanner, configurable Access Point with auto-failover
 - ⏰ **Time Synchronization** - NTP integration for accurate timestamps
@@ -53,6 +56,7 @@ Designed to work with the PlatformIO IDE with [limited setup](#getting-started).
 - 🎨 **Light & Dark Mode** - Theme preferences saved per user on ESP device
 
 ### Technical Highlights
+
 - ⚡ Responsive React UI with Material-UI components
 - 🎨 Weighsoft branding with professional color scheme (Curious Blue & Bunting)
 - 💾 Persistent configuration storage
@@ -67,15 +71,18 @@ All features are [configurable at compile-time](#selecting-features) to optimize
 ### Prerequisites
 
 **Required:**
+
 - [PlatformIO](https://platformio.org/) >= 6.0 - Development platform
 - [Node.js](https://nodejs.org) >= 14.x - For building the React interface
 - [Python](https://python.org) >= 3.7 - For PlatformIO and build scripts
 
 **Hardware:**
+
 - ESP8266 (min 4MB flash) or ESP32 module
 - USB-to-serial adapter (for initial programming)
 
 **Optional:**
+
 - [Git](https://git-scm.com/) - Version control
 - [VS Code](https://code.visualstudio.com/) - Recommended IDE with PlatformIO extension
 
@@ -100,14 +107,15 @@ For detailed instructions, see the sections below.
 
 ### Repository Workflow
 
-`master` is the shared framework baseline (framework + LED demo). Integration implementations live on dedicated long-lived branches. These are the integration branches the docs point to (they exist on GitHub as of 2026-09-24; whether each is still in active use is not recorded):
+`master` holds the shared framework and, from 22 Nov 2026, the W-Soft line. Other integrations still live on dedicated long-lived branches. The full list is [docs/BRANCH-MAP.md](docs/BRANCH-MAP.md). The ones the older docs point at:
 
-- `RelayBoardEspBuildIn` - relay board (4 relays, 2 inputs) and Live Weight operator screens. Last commit 2026-08-10.
+- `wsoft-esp32s3` - W-Soft device branch. The same line is on `master` after 22 Nov 2026.
+- `RelayBoardEspBuildIn` - ESP8266 relay board (4 relays, 2 inputs) and Live Weight operator screens. Last commit 2026-08-10.
 - `SerialReaderWriter` - serial Reader / Writer / Diagnostics firmware, plus the TFT screen (including the 3.5 inch `esp32dev_tft` board), the 16x2 character LCD (`lcddisplay`) and remote-weight options. Last commit 2026-07-16.
 - `weighingboard` - load-cell weighing board. Last commit 2026-04-29.
 - `display` - the original 16x2 LCD code, before it was ported to `SerialReaderWriter` as `lcddisplay`. Last commit 2026-04-29.
 
-There is no `serial2` or `display35` branch. Other branches exist too. `serialReader` and `ALLinOneEspSerialdevice` are fully inside `SerialReaderWriter`. `serial`, `serialWriter` and `espReadWriteRHYNO` hold work that `SerialReaderWriter` does not have; they are not merged and their status is not decided. The full list with dates is in [ROADMAP.md](ROADMAP.md#every-branch-on-github).
+There is no `serial2` or `display35` branch. Older lines (`serial`, `serialReader`, `serialWriter`, `espReadWriteRHYNO`) still exist; the branch map and [ROADMAP.md](ROADMAP.md) say what each one holds.
 
 When you need to extend one of these integrations, branch from the matching integration branch and do the implementation on a separate task branch. Do not implement directly on `master` or directly on the long-lived integration branch.
 
@@ -135,15 +143,16 @@ Resource                         | Description
 -------------------------------- | ----------------------------------------------------------------------
 [interface/](interface)          | React based front end
 [lib/framework/](lib/framework)  | C++ back end for the ESP8266/ESP32 device
-[src/](src)                      | The main.cpp and demo project to get you started
-[scripts/](scripts)              | Scripts that build the React interface as part of the platformio build
+[src/](src)                      | The main.cpp and example projects (LED, Serial, Diagnostics, Weight Forwarder)
+[scripts/](scripts)              | Build scripts (React interface for PlatformIO); [kill-for-test.ps1](scripts/kill-for-test.ps1) frees COM port before upload
 [platformio.ini](platformio.ini) | PlatformIO project configuration file
+[features.ini](features.ini)     | Compile-time feature flags (MQTT, NTP, OTA, BLE, etc.)
 
 On `master`, this repository contains the shared framework baseline and starter example code. Integration-specific implementations such as serial, display, and weighing are maintained on their own branches rather than inside `master`.
 
 ### Building the firmware
 
-Once the platform and libraries are downloaded the back end should successfully build within PlatformIO. 
+Once the platform and libraries are downloaded the back end should successfully build within PlatformIO.
 
 The firmware may be built by pressing the "Build" button:
 
@@ -157,7 +166,7 @@ platformio run
 
 #### Uploading the firmware
 
-The project is configured to upload over a serial connection by default. You can change this to use OTA updates by uncommenting the relevant lines in ['platformio.ini'](platformio.ini). 
+The project is configured to upload over a serial connection by default. You can change this to use OTA updates by uncommenting the relevant lines in ['platformio.ini'](platformio.ini).
 
 The firmware may be uploaded to the device by pressing the "Upload" button:
 
@@ -177,14 +186,13 @@ The interface will be automatically built by PlatformIO before it builds the fir
 
 #### Serving the interface from PROGMEM
 
-By default, the project is configured to serve the interface from PROGMEM. 
+By default, the project is configured to serve the interface from PROGMEM.
 
 > **Tip**: You do not need to upload a file system image unless you configure the framework to [serve the interface from the filesystem](#serving-the-interface-from-the-filesystem).
 
 The interface will consume ~150k of program space which can be problematic if you already have a large binary artefact or if you have added large dependencies to the interface. The ESP32 binaries are fairly large in there simplest form so the addition of the interface resources requires us to use special partitioning for the ESP32.
 
-When building using the "node32s" profile, the project uses the custom [partitions_ble.csv](partitions_ble.csv) layout: one 3.25MB app slot and a 640KB filesystem, with **no OTA slot** (so node32s firmware cannot be updated over the air). You may want to change this if you are manually uploading the file system image:
-
+When building using the "node32s" profile, the project uses the custom [partitions_ble.csv](partitions_ble.csv) layout: one 3.25MB app slot and a 640KB filesystem, with **no OTA slot** (so node32s firmware cannot be updated over the air). Other ESP32 environments use that same single-app layout, or `partitions_ble_ota.csv` where the board has room for two app slots (for example `esp32s3`). See [Configuration](docs/CONFIGURATION.md).
 
 ```ini
 [env:node32s]
@@ -195,7 +203,7 @@ board = node32s
 
 #### Serving the interface from the filesystem
 
-If you choose to serve the interface from the filesystem you will need to change the default configuration and upload the file system image manually. 
+If you choose to serve the interface from the filesystem you will need to change the default configuration and upload the file system image manually.
 
 Disable `-D PROGMEM_WWW build` flag in ['platformio.ini'](platformio.ini) and re-build the firmware. The build process will now copy the compiled interface to the `data/` directory and it may be uploaded to the device by pressing the "Upload File System image" button:
 
@@ -244,6 +252,7 @@ Install the npm dependencies, if required and start the development server:
 npm install
 npm start
 ```
+
 > **Tip**: You can (optionally) speed up the build by commenting out the call to build_interface.py under "extra scripts" during local development. This will prevent the npm process from building the production release every time the firmware is compiled significantly decreasing the build time.
 
 ## Selecting features
@@ -259,6 +268,7 @@ Customize the settings as you see fit. A value of 0 will disable the specified f
   -D FT_NTP=1
   -D FT_OTA=1
   -D FT_UPLOAD_FIRMWARE=1
+  -D FT_BLE=1
 ```
 
 Flag               | Description
@@ -268,7 +278,8 @@ FT_SECURITY        | Controls whether the [security features](#security-features
 FT_MQTT            | Controls whether the MQTT features are enabled. Disable this if your project does not require MQTT support.
 FT_NTP             | Controls whether network time protocol synchronization features are enabled. Disable this if your project does not require accurate time.
 FT_OTA             | Controls whether OTA update support is enabled. Disable this if you won't be using the remote update feature.
-FT_UPLOAD_FIRMWARE | Controls the whether the manual upload firmware feature is enabled. Disable this if you won't be manually uploading firmware.
+FT_UPLOAD_FIRMWARE | Controls whether the manual upload firmware feature is enabled. Disable this if you won't be manually uploading firmware.
+FT_BLE             | Controls whether BLE (Bluetooth Low Energy) is enabled. Required for Serial/Weight Forwarder BLE features. See [CONFIGURATION](docs/CONFIGURATION.md) for OTA limitations when BLE is enabled on 4MB flash.
 
 ## Factory settings
 
@@ -286,14 +297,14 @@ Customize the settings as you see fit, for example you might configure your home
 
 By default, the factory settings configure the device to bring up an access point on start up which can be used to configure the device:
 
-* SSID: Weighsoft-HW
-* Password: esp-react
+- SSID: Weighsoft-HW
+- Password: esp-react
 
 **Note:** The actual AP SSID is configured in [factory_settings.ini](factory_settings.ini)
 
 ### Security settings and user credentials
 
-By default, the factory settings configure two user accounts with the following credentials: 
+By default, the factory settings configure two user accounts with the following credentials:
 
 Username | Password
 -------- | --------
@@ -315,11 +326,14 @@ Changing factory time zone setting is a common requirement. This requires a litt
 
 Various settings support placeholder substitution, indicated by comments in [factory_settings.ini](factory_settings.ini). This can be particularly useful where settings need to be unique, such as the Access Point SSID or MQTT client id. The following placeholders are supported:
 
-Placeholder  | Substituted value 
+Placeholder  | Substituted value
 -----------  | -----------------
-#{platform}  | The microcontroller platform, e.g. "esp32" or "esp8266"
-#{unique_id} | A unique identifier derived from the MAC address, e.g. "0b0a859d6816"
-#{random}    | A random number encoded as a hex string, e.g. "55722f94"
+
+# {platform}  | The microcontroller platform, e.g. "esp32" or "esp8266"
+
+# {unique_id} | A unique identifier derived from the MAC address, e.g. "0b0a859d6816"
+
+# {random}    | A random number encoded as a hex string, e.g. "55722f94"
 
 You may use SettingValue::format in your own code if you require the use of these placeholders. This is demonstrated in the demo project:
 
@@ -335,31 +349,32 @@ You may use SettingValue::format in your own code if you require the use of thes
 
 ## Building for different devices
 
-This project supports ESP8266 and ESP32 platforms. To support OTA programming, enough free space to upload the new sketch and file system image will be required. It is recommended that a board with at least 2mb of flash is used.
+This project supports ESP8266 and ESP32 platforms. To support OTA programming, enough free space to upload the new sketch and file system image will be required. It is recommended that a board with at least 2MB of flash is used.
 
-The pre-configured environments are "esp12e" and "node32s". These are common ESP8266/ESP32 variants with 4mb of flash:
+Pre-configured environments in ['platformio.ini'](platformio.ini):
 
-![ESP12E](/media/esp12e.jpg?raw=true "ESP12E") ![ESP32](/media/esp32.jpg?raw=true "ESP32")
+| Environment | Board | Flash | Notes |
+|-------------|-------|-------|-------|
+| **nodemcu_esp32** (default) | Ai-Thinker NodeMCU-32 (`board = node32s`) | 4MB | Bench ESP32. Platform pinned to `espressif32@6.13.0`. Single-app `partitions_ble.csv` (no OTA). |
+| node32s | Node32s (ESP32) | 4MB | CI env. Same pin and partition. BLE on. No OTA slot (see [CONFIGURATION](docs/CONFIGURATION.md)). |
+| esp32s3 | ESP32-S3 DevKitC-1 N16R8 | 16MB | All-in-one serial line. `partitions_ble_ota.csv`. |
+| esp32dev | Generic ESP32 | 4MB | Troubleshooting. Single-app layout so the large firmware fits. |
+| esp12e | ESP8266 | 4MB | ESP8266 variant |
 
-The settings file ['platformio.ini'](platformio.ini) configures the supported environments. Modify these, or add new environments for the devides you need to support. The default environments are as follows:
+W-Soft boards are `wsoft_s3_headless`, `wsoft_cyd28` and `wsoft_waveshare43` in the same file. The shared ESP32 platform is pinned to `espressif32@6.13.0` (Arduino core 2.0.17, PR #57). An unpinned `espressif32` moved to 8.0.0 in November 2026 and `node32s` stopped compiling.
 
 ```ini
-[env:esp12e]
-platform = espressif8266
-board = esp12e
-board_build.f_cpu = 160000000L
-
 [env:node32s]
 platform = espressif32@6.13.0
 board = node32s
+board_build.partitions = partitions_ble.csv
 ```
 
-If you want to build for a different device, all you need to do is re-configure ['platformio.ini'](platformio.ini) and select an alternative environment by modifying the default_envs variable. Building for the common esp32 "node32s" board for example:
+Select an environment with `default_envs`:
 
 ```ini
 [platformio]
-;default_envs = esp12e
-default_envs = node32s
+default_envs = nodemcu_esp32
 ```
 
 ## Customizing and theming
@@ -408,7 +423,6 @@ const theme = responsiveFontSizes(
 
 You can replace the app icon is located at ['interface/public/app/icon.png'](interface/public/app/icon.png) with one of your preference. A 256 x 256 PNG is recommended for best compatibility.
 
-
 ### Changing the app name
 
 The app name displayed on the sign in page and on the menu bar can be modified by editing the REACT_APP_NAME property in ['interface/.env'](interface/.env)
@@ -441,14 +455,20 @@ The back end is a set of REST endpoints hosted by a [ESPAsyncWebServer](https://
 The framework's source is split up by feature, for example [WiFiScanner.h](lib/framework/WiFiScanner.h) implements the end points for scanning for available networks where as [WiFiSettingsService.h](lib/framework/WiFiSettingsService.h) handles configuring the WiFi settings and managing the WiFi connection.
 
 For detailed architecture documentation, see:
+
 - [Architecture Overview](docs/ARCHITECTURE.md)
 - [C4 Diagrams](docs/C4-CONTEXT.md)
 - [Design Patterns](docs/DESIGN-PATTERNS.md)
 - [API Reference](docs/API-REFERENCE.md)
+- [Configuration](docs/CONFIGURATION.md) - Partitions, OTA, upload methods, feature flags
+- [LED Example](docs/LED-EXAMPLE.md) - Simple LED control demo
+- [Serial Example](docs/SERIAL-EXAMPLE.md) - Serial port monitoring service
+- [Diagnostics Example](docs/DIAGNOSTICS-EXAMPLE.md) - UART diagnostics (loopback, baud scan, signal quality)
+- [Weight Forwarder](docs/WEIGHT-FORWARDER-LESSONS.md) - Weight stream forwarding (WebSocket, HTTP, MQTT, BLE)
 
 ### Initializing the framework
 
-The ['src/main.cpp'](src/main.cpp) file constructs the webserver and initializes the framework. You can add endpoints to the server here to support your IoT project. The main loop is also accessable so you can run your own code easily. 
+The ['src/main.cpp'](src/main.cpp) file constructs the webserver and initializes the framework. You can add endpoints to the server here to support your IoT project. The main loop is also accessable so you can run your own code easily.
 
 The following code creates the web server and esp8266React framework:
 
@@ -566,7 +586,6 @@ Callback         | Signature                                                | Pu
 JsonStateReader  | void read(T& settings, JsonObject& root)                 | Reading the state object into a JsonObject
 JsonStateUpdater | StateUpdateResult update(JsonObject& root, T& settings)  | Updating the state from a JsonObject, returning the appropriate StateUpdateResult
 
-
 The static functions below can be used to facilitate the serialization/deserialization of the light state:
 
 ```cpp
@@ -606,7 +625,7 @@ lightStateService->update(jsonObject, LightState::update, "timer");
 
 #### Endpoints
 
-The framework provides an [HttpEndpoint.h](lib/framework/HttpEndpoint.h) class which may be used to register GET and POST handlers to read and update the state over HTTP. You may construct an HttpEndpoint as a part of the StatefulService or separately if you prefer. 
+The framework provides an [HttpEndpoint.h](lib/framework/HttpEndpoint.h) class which may be used to register GET and POST handlers to read and update the state over HTTP. You may construct an HttpEndpoint as a part of the StatefulService or separately if you prefer.
 
 The code below demonstrates how to extend the LightStateService class to provide an unsecured endpoint:
 
@@ -768,17 +787,21 @@ esp8266React.getWiFiSettingsService()->addUpdateHandler(
 ### Common Issues
 
 **Build Errors:**
+
 - Ensure PlatformIO is up to date: `pio upgrade`
 - Clean build: `pio run -t clean`
 - Check [platformio.ini](platformio.ini) for correct board configuration
 - ESP32 build stops with `No module named 'intelhex'`: newer ESP32 platform versions need this Python package. Install it into the Python that runs PlatformIO: `pip install intelhex` (PlatformIO IDE: `~/.platformio/penv/bin/python -m pip install intelhex`; on Windows `%USERPROFILE%\.platformio\penv\Scripts\python.exe -m pip install intelhex`)
 
 **Upload Errors:**
-- Verify USB connection and correct port in PlatformIO
-- Hold BOOT button on ESP8266 during upload
+
+- **COM port busy**: Serial monitors or Python/PlatformIO can hold the port. Run [scripts/kill-for-test.ps1](scripts/kill-for-test.ps1) to stop Python and other PowerShell processes, then upload again. On Windows you can also run: `taskkill /F /IM python.exe`
+- Verify USB connection and correct port in PlatformIO (`upload_port` in platformio.ini)
+- Hold BOOT button on ESP8266/ESP32 during upload if the device does not enter bootloader
 - Check power supply (min 500mA)
 
 **WiFi Connection Issues:**
+
 - Reset to factory defaults via serial: `factory reset`
 - Check WiFi credentials in [factory_settings.ini](factory_settings.ini)
 - Verify 2.4GHz network (5GHz not supported)
@@ -816,9 +839,9 @@ This project is licensed under the MIT License - see the [LICENSE.txt](LICENSE.t
 
 ## Libraries Used
 
-* [React](https://reactjs.org/)
-* [Material-UI](https://mui.com/)
-* [notistack](https://github.com/iamhosseindhv/notistack)
-* [ArduinoJson](https://github.com/bblanchon/ArduinoJson)
-* [ESPAsyncWebServer](https://github.com/me-no-dev/ESPAsyncWebServer)
-* [AsyncMqttClient](https://github.com/marvinroger/async-mqtt-client)
+- [React](https://reactjs.org/)
+- [Material-UI](https://mui.com/)
+- [notistack](https://github.com/iamhosseindhv/notistack)
+- [ArduinoJson](https://github.com/bblanchon/ArduinoJson)
+- [ESPAsyncWebServer](https://github.com/me-no-dev/ESPAsyncWebServer)
+- [AsyncMqttClient](https://github.com/marvinroger/async-mqtt-client)

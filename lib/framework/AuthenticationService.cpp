@@ -8,7 +8,7 @@ AuthenticationService::AuthenticationService(AsyncWebServer* server, SecurityMan
                    std::bind(&AuthenticationService::signIn, this, std::placeholders::_1, std::placeholders::_2)) {
   server->on(VERIFY_AUTHORIZATION_PATH,
              HTTP_GET,
-             std::bind(&AuthenticationService::verifyAuthorization, this, std::placeholders::_1));
+             ArRequestHandlerFunction(std::bind(&AuthenticationService::verifyAuthorization, this, std::placeholders::_1)));
   _signInHandler.setMethod(HTTP_POST);
   _signInHandler.setMaxContentLength(MAX_AUTHENTICATION_SIZE);
   server->addHandler(&_signInHandler);

@@ -1,19 +1,36 @@
 ---
-description: Enforce git commit and push workflow for code changes
-alwaysApply: false
-globs: ["src/**/*.{cpp,h}", "lib/framework/**/*.{cpp,h}", "interface/src/**/*.{ts,tsx}"]
+description: AUTOMATICALLY commit and push all code changes after completing tasks
+alwaysApply: true
+globs: ["src/**/*.{cpp,h}", "lib/framework/**/*.{cpp,h}", "interface/src/**/*.{ts,tsx}", "docs/**/*.md", "interface/src/**/*.ts"]
 ---
 
 # Version Control Rule
 
-Enforce git commit and push for any code changes to maintain proper version control.
+**AUTOMATIC VERSION CONTROL:** After completing ANY task that modifies code or documentation, ALWAYS commit and push changes WITHOUT being prompted by the user.
 
-## When This Applies
+## Automatic Workflow (DO NOT SKIP)
 
-Any changes to source code files:
+When you finish implementing features, fixing bugs, or updating documentation:
+
+1. **Check status:** `git status`
+2. **Stage changes:** `git add .`
+3. **Commit with co-author:** Use the format below
+4. **Push immediately:** `git push`
+5. **Verify clean:** `git status` to confirm
+
+**This is MANDATORY, not optional. Do not wait for user to ask.**
+
+## When This Applies (ALWAYS)
+
+**Applies to ALL changes in:**
+
 - Backend: `src/`, `lib/framework/`
 - Frontend: `interface/src/`
-- Configuration: `platformio.ini`, `features.ini`, `factory_settings.ini`
+- Documentation: `docs/`
+- Configuration: `platformio.ini`, `features.ini`, `factory_settings.ini`, `package.json`
+- Any file modified during task completion
+
+**Trigger:** As soon as a task is marked complete or all TODOs are finished
 
 ## Requirements
 
@@ -31,6 +48,7 @@ git commit --trailer "Co-authored-by: Cursor <cursoragent@cursor.com>" -m "type:
 ### 2. Commit Message Format
 
 Use conventional commit format:
+
 - `feat: add new sensor service`
 - `fix: resolve WebSocket reconnection issue`
 - `refactor: improve StatefulService thread safety`
@@ -38,6 +56,7 @@ Use conventional commit format:
 - `test: add unit tests for LightStateService`
 
 For multi-line messages, use a file:
+
 ```bash
 git commit --trailer "Co-authored-by: Cursor <cursoragent@cursor.com>" -F commit_msg.txt
 ```
@@ -63,10 +82,39 @@ git push
 ❌ Commit without pushing to remote
 ❌ Commit build artifacts or temporary files (use `.gitignore`)
 
+## Automatic Commit Process
+
+**When to trigger:** Immediately after:
+
+- All TODOs marked complete
+- Feature implementation finished
+- Bug fix applied
+- Documentation updated
+- Any code changes made
+
+**Commit message template:**
+
+```bash
+git commit --trailer "Co-authored-by: Cursor <cursoragent@cursor.com>" -m "type(scope): description
+
+- Key change 1
+- Key change 2
+- Key change 3
+
+Builds: ✅ Frontend / ✅ Backend
+Tests: [status]"
+```
+
+**DO THIS WITHOUT BEING ASKED** - Version control is mandatory for every session.
+
 ## Quick Workflow
 
-1. Make code changes
-2. Test changes locally
-3. `git add .`
-4. `git commit -m "type: clear description"`
-5. `git push`
+1. Complete task implementation
+2. Run builds/tests if applicable
+3. **AUTOMATICALLY execute:**
+   - `git status` (show user what changed)
+   - `git add .`
+   - `git commit --trailer "Co-authored-by: Cursor <cursoragent@cursor.com>" -m "..."`
+   - `git push`
+   - `git status` (confirm clean)
+4. Report commit hash and push status to user

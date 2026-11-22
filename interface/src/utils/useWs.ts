@@ -35,11 +35,15 @@ export const useWs = <D>(wsUrl: string, wsThrottle: number = 100) => {
         case "id":
           clientId.current = message.id;
           break;
-        case "payload":
-          if (clientId.current) {
-            setData((existingData) => (clientId.current === message.origin_id && existingData) || message.payload);
+        case "payload": {
+          // Server sends origin_id "websocket" (initial snapshot), "serial_hw", "mqtt", etc. — not the client's
+          // "websocket:<id>" except when echoing our own WS write. Ignore only that self-echo; apply all other payloads.
+          const applies = !clientId.current || message.origin_id !== clientId.current;
+          if (applies) {
+            setData(message.payload);
           }
           break;
+        }
       }
     }
   }, []);

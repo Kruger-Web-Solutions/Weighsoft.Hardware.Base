@@ -47,6 +47,7 @@ private:
 ### Complete Example: @src/LightStateService.h
 
 Reference this canonical example for:
+
 - State class structure
 - StatefulService inheritance
 - Service composition
@@ -57,11 +58,13 @@ Reference this canonical example for:
 ### 1. NEVER Access _state Directly
 
 ❌ **WRONG:**
+
 ```cpp
 _state.value = "new";  // NOT THREAD-SAFE
 ```
 
 ✅ **CORRECT:**
+
 ```cpp
 update([](MyState& state) {
   state.value = "new";
@@ -118,6 +121,7 @@ Reference: @docs/EXTENSION-GUIDE.md for complete implementation steps.
 ### HttpEndpoint<T>
 
 Exposes REST API:
+
 ```cpp
 HttpEndpoint<MyState> _httpEndpoint(
   this,                      // StatefulService
@@ -131,6 +135,7 @@ HttpEndpoint<MyState> _httpEndpoint(
 ### FSPersistence<T>
 
 Persists to filesystem:
+
 ```cpp
 FSPersistence<MyState> _fsPersistence(
   this,                      // StatefulService
@@ -141,6 +146,7 @@ FSPersistence<MyState> _fsPersistence(
 ### WebSocketTxRx<T>
 
 WebSocket communication:
+
 ```cpp
 WebSocketTxRx<MyState> _webSocket(
   this,                      // StatefulService
@@ -154,6 +160,7 @@ WebSocketTxRx<MyState> _webSocket(
 ### MqttPubSub<T>
 
 MQTT integration:
+
 ```cpp
 MqttPubSub<MyState> _mqttPubSub(
   this,                      // StatefulService
@@ -180,11 +187,13 @@ addUpdateHandler(
 ## ANTI-PATTERNS TO AVOID
 
 ❌ **Direct State Access**
+
 ```cpp
 _state.value = "bad";  // NOT thread-safe
 ```
 
 ❌ **Ignoring StateUpdateResult**
+
 ```cpp
 static StateUpdateResult update(JsonObject& root, MyState& state) {
   state.value = root["value"];
@@ -193,6 +202,7 @@ static StateUpdateResult update(JsonObject& root, MyState& state) {
 ```
 
 ❌ **Update Loops Without Origin Check**
+
 ```cpp
 void onUpdate(const String& originId) {
   // Missing origin check
@@ -201,12 +211,14 @@ void onUpdate(const String& originId) {
 ```
 
 ❌ **Patchy Workarounds**
+
 ```cpp
 // DON'T bypass patterns for "quick fixes"
 // ALWAYS use StatefulService even if it seems "overkill"
 ```
 
 ❌ **Breaking Service Composition**
+
 ```cpp
 class MyService : public HttpEndpoint<MyState> {  // WRONG
   // Don't inherit infrastructure, compose it
@@ -214,6 +226,7 @@ class MyService : public HttpEndpoint<MyState> {  // WRONG
 ```
 
 ❌ **Missing JSON Methods**
+
 ```cpp
 class MyState {
   String value;

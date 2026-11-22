@@ -1,7 +1,7 @@
 import { useEffect, FC, useState, useCallback, useRef } from 'react';
 import { useSnackbar } from 'notistack';
 
-import { Button, } from '@mui/material';
+import { Alert, Button, } from '@mui/material';
 import PermScanWifiIcon from '@mui/icons-material/PermScanWifi';
 
 import * as WiFiApi from "../../api/wifi";
@@ -11,8 +11,10 @@ import { extractErrorMessage } from '../../utils';
 
 import WiFiNetworkSelector from './WiFiNetworkSelector';
 
-const NUM_POLLS = 10;
-const POLLING_FREQUENCY = 500;
+// 20 polls × 750 ms = 15 s. Backend scan with 300 ms-per-channel dwell takes
+// ~4 s, so 15 s gives plenty of headroom even when the radio is busy.
+const NUM_POLLS = 20;
+const POLLING_FREQUENCY = 750;
 
 const compareNetworks = (network1: WiFiNetwork, network2: WiFiNetwork) => {
   if (network1.rssi < network2.rssi)
@@ -37,14 +39,20 @@ const WiFiNetworkScanner: FC = () => {
   }, [enqueueSnackbar]);
 
   const pollNetworkList = useCallback(async () => {
+    // Each poll uses one of NUM_POLLS. Returns true while there is time to try again.
+    const pollAgain = () => {
+      const completedPollCount = pollCount.current + 1;
+      if (completedPollCount >= NUM_POLLS) {
+        return false;
+      }
+      pollCount.current = completedPollCount;
+      setTimeout(pollNetworkList, POLLING_FREQUENCY);
+      return true;
+    };
     try {
       const response = await WiFiApi.listNetworks();
       if (response.status === 202) {
-        const completedPollCount = pollCount.current + 1;
-        if (completedPollCount < NUM_POLLS) {
-          pollCount.current = completedPollCount;
-          setTimeout(pollNetworkList, POLLING_FREQUENCY);
-        } else {
+        if (!pollAgain()) {
           finishedWithError("Device did not return network list in timely manner");
         }
       } else {
@@ -53,7 +61,14 @@ const WiFiNetworkScanner: FC = () => {
         setNetworkList(newNetworkList);
       }
     } catch (error: any) {
-      finishedWithError(extractErrorMessage(error, 'Problem listing WiFi networks'));
+      // While the board scans, its radio leaves the hotspot's channel, so a phone on the
+      // hotspot loses some requests. One lost poll used to end the whole scan with an
+      // error (14 Nov 2026: "it doesn't always pick up the Wi-Fi"). Keep polling instead;
+      // a 401/403 is a real answer and still ends it.
+      const status = error?.response?.status;
+      if ((status === 401 || status === 403) || !pollAgain()) {
+        finishedWithError(extractErrorMessage(error, 'Problem listing WiFi networks'));
+      }
     }
   }, [finishedWithError]);
 
@@ -74,6 +89,14 @@ const WiFiNetworkScanner: FC = () => {
   const renderNetworkScanner = () => {
     if (!networkList) {
       return (<FormLoader message="Scanning&hellip;" errorMessage={errorMessage} />);
+    }
+    if (networkList.networks.length === 0) {
+      return (
+        <Alert severity="info" sx={{ mt: 2 }}>
+          No WiFi networks found. The radio occasionally misses networks while connected to WiFi —
+          click <strong>Scan again</strong> to retry.
+        </Alert>
+      );
     }
     return (
       <WiFiNetworkSelector networkList={networkList} />

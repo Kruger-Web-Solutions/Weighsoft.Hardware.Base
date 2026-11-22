@@ -130,16 +130,19 @@ void callUpdateHandlers(const String& originId);
 ```
 
 **State Update Results**:
+
 - `StateUpdateResult::CHANGED` - State modified, propagate updates
 - `StateUpdateResult::UNCHANGED` - No changes, skip propagation
 - `StateUpdateResult::ERROR` - Update failed, skip propagation
 
 **Thread Safety**:
+
 - ESP32: Uses recursive mutex (`xSemaphoreCreateRecursiveMutex`)
 - ESP8266: No mutex (single-threaded)
 - All state access wrapped in `beginTransaction()`/`endTransaction()`
 
 **Update Handler Pattern**:
+
 ```cpp
 // Handlers stored in std::list
 std::list<StateUpdateHandlerInfo_t> _updateHandlers;
@@ -153,6 +156,7 @@ struct StateUpdateHandlerInfo {
 ```
 
 **Usage Example**:
+
 ```cpp
 class WiFiSettings {
     String ssid;
@@ -181,6 +185,7 @@ class WiFiSettingsService : public StatefulService<WiFiSettings> {
 **Template Parameter**: `T` - The state class
 
 **Constructor Parameters**:
+
 ```cpp
 HttpEndpoint(
     JsonStateReader<T> stateReader,      // Serialize state to JSON
@@ -195,6 +200,7 @@ HttpEndpoint(
 ```
 
 **GET Flow**:
+
 1. Request received on configured path
 2. Security check (if SecurityManager provided)
 3. Create AsyncJsonResponse
@@ -202,6 +208,7 @@ HttpEndpoint(
 5. Send JSON response
 
 **POST Flow**:
+
 1. Parse JSON body (AsyncCallbackJsonWebHandler)
 2. Security check (if SecurityManager provided)
 3. Call `updateWithoutPropagation()` with `stateUpdater`
@@ -211,11 +218,13 @@ HttpEndpoint(
 **Origin ID**: "http"
 
 **Security**:
+
 - Optional SecurityManager parameter
 - AuthenticationPredicate controls access level
 - Request wrapping: `securityManager->wrapRequest(...)`
 
 **Example**:
+
 ```cpp
 HttpEndpoint<WiFiSettings> _httpEndpoint(
     WiFiSettings::read,           // JsonStateReader
@@ -239,6 +248,7 @@ HttpEndpoint<WiFiSettings> _httpEndpoint(
 **Template Parameter**: `T` - The state class
 
 **Constructor Parameters**:
+
 ```cpp
 FSPersistence(
     JsonStateReader<T> stateReader,      // Serialize to JSON
@@ -251,6 +261,7 @@ FSPersistence(
 ```
 
 **Key Methods**:
+
 ```cpp
 void readFromFS();           // Load from file
 bool writeToFS();            // Save to file
@@ -259,12 +270,14 @@ void disableUpdateHandler(); // Manual save only
 ```
 
 **Read Flow**:
+
 1. Open file for reading
 2. Parse JSON (ArduinoJson)
 3. Call `updateWithoutPropagation()` with parsed data
 4. If file missing or parse error: apply defaults
 
 **Write Flow**:
+
 1. Create JSON document
 2. Call `stateReader` to serialize state
 3. Create directories if needed (`mkdirs()`)
@@ -273,11 +286,13 @@ void disableUpdateHandler(); // Manual save only
 6. Close file
 
 **Auto-Save**:
+
 - Registers update handler in constructor
 - Writes to filesystem on every state change
 - Can be disabled for manual control
 
 **Directory Creation**:
+
 ```cpp
 // Automatically creates parent directories
 // E.g., for "/config/wifi/settings.json":
@@ -286,6 +301,7 @@ void mkdirs();
 ```
 
 **Example**:
+
 ```cpp
 FSPersistence<WiFiSettings> _fsPersistence(
     WiFiSettings::read,
@@ -305,6 +321,7 @@ FSPersistence<WiFiSettings> _fsPersistence(
 **Purpose**: Real-time bidirectional communication
 
 **Variants**:
+
 1. **WebSocketTx<T>** - Transmit only
 2. **WebSocketRx<T>** - Receive only
 3. **WebSocketTxRx<T>** - Both (inherits from both)
@@ -312,6 +329,7 @@ FSPersistence<WiFiSettings> _fsPersistence(
 **Template Parameter**: `T` - The state class
 
 **Constructor Parameters**:
+
 ```cpp
 WebSocketTxRx(
     JsonStateReader<T> stateReader,
@@ -326,16 +344,20 @@ WebSocketTxRx(
 ```
 
 **Client ID Tracking**:
+
 - Each client assigned unique ID: "websocket:{clientId}"
 - ID message sent on connection:
+
   ```json
   {"type": "id", "id": "websocket:12345"}
   ```
 
 **Transmit (Tx) Flow**:
+
 1. State change occurs
 2. Update handler triggered
 3. Create payload message:
+
    ```json
    {
      "type": "payload",
@@ -343,9 +365,11 @@ WebSocketTxRx(
      "payload": { /* state data */ }
    }
    ```
+
 4. Broadcast to all clients except origin
 
 **Receive (Rx) Flow**:
+
 1. Client sends JSON message
 2. Parse message
 3. Call `update()` with client ID as origin
@@ -354,12 +378,14 @@ WebSocketTxRx(
 **Origin ID**: "websocket:{clientId}"
 
 **Connection Events**:
+
 - **WS_EVT_CONNECT**: Send client ID, send current state
 - **WS_EVT_DATA**: Parse and process update
 
 **Security**: WebSocket filter applied at connection time
 
 **Example**:
+
 ```cpp
 WebSocketTxRx<LightState> _webSocket(
     LightState::read,
@@ -380,6 +406,7 @@ WebSocketTxRx<LightState> _webSocket(
 **Purpose**: MQTT pub/sub integration
 
 **Variants**:
+
 1. **MqttPub<T>** - Publish only
 2. **MqttSub<T>** - Subscribe only
 3. **MqttPubSub<T>** - Both (inherits from both)
@@ -387,6 +414,7 @@ WebSocketTxRx<LightState> _webSocket(
 **Template Parameter**: `T` - The state class
 
 **Constructor Parameters**:
+
 ```cpp
 MqttPubSub(
     JsonStateReader<T> stateReader,
@@ -401,12 +429,14 @@ MqttPubSub(
 ```
 
 **Publish (Pub) Flow**:
+
 1. State change occurs
 2. Update handler triggered
 3. Serialize state to JSON
 4. Publish to pubTopic with retain flag
 
 **Subscribe (Sub) Flow**:
+
 1. On MQTT connect, subscribe to subTopic
 2. On message received:
    - Filter by topic
@@ -414,6 +444,7 @@ MqttPubSub(
    - Call `update()` with origin "mqtt"
 
 **Topic Reconfiguration**:
+
 ```cpp
 void configureTopics(const String& pubTopic, const String& subTopic);
 ```
@@ -425,6 +456,7 @@ void configureTopics(const String& pubTopic, const String& subTopic);
 **Retain**: Configurable per topic
 
 **Example**:
+
 ```cpp
 MqttPubSub<LightState> _mqttPubSub(
     LightState::read,
@@ -447,6 +479,7 @@ MqttPubSub<LightState> _mqttPubSub(
 **Implemented By**: `SecuritySettingsService`
 
 **Key Methods**:
+
 ```cpp
 // Request wrapping
 ArRequestHandlerFunction wrapRequest(
@@ -467,6 +500,7 @@ AwsTemplateProcessor filterRequest(
 ```
 
 **Authentication Predicates**:
+
 ```cpp
 namespace AuthenticationPredicates {
     // No authentication required
@@ -481,12 +515,14 @@ namespace AuthenticationPredicates {
 ```
 
 **JWT Validation**:
+
 - Extract token from Authorization header
 - Decode and verify signature
 - Check expiration
 - Extract user information
 
 **User Model**:
+
 ```cpp
 class User {
     String username;
@@ -504,6 +540,7 @@ class User {
 **Purpose**: Manage WiFi station connection
 
 **State Class**:
+
 ```cpp
 class WiFiSettings {
     String ssid;
@@ -519,11 +556,13 @@ class WiFiSettings {
 ```
 
 **Composition**:
+
 - `HttpEndpoint<WiFiSettings>` at `/rest/wifiSettings`
 - `FSPersistence<WiFiSettings>` to `/config/wifiSettings.json`
 - Update handler for connection management
 
 **Responsibilities**:
+
 - Connect to WiFi network
 - Monitor connection status
 - Auto-reconnect on disconnect
@@ -531,6 +570,7 @@ class WiFiSettings {
 - Configure static IP or DHCP
 
 **Loop Method**:
+
 - Check connection status
 - Trigger reconnection if needed
 
@@ -541,6 +581,7 @@ class WiFiSettings {
 **Purpose**: Manage MQTT broker connection
 
 **State Class**:
+
 ```cpp
 class MqttSettings {
     bool enabled;
@@ -556,18 +597,21 @@ class MqttSettings {
 ```
 
 **Composition**:
+
 - `HttpEndpoint<MqttSettings>` at `/rest/mqttSettings`
 - `FSPersistence<MqttSettings>` to `/config/mqttSettings.json`
 - Manages `AsyncMqttClient` instance
 - Update handler for reconnection
 
 **Responsibilities**:
+
 - Connect to MQTT broker
 - Maintain connection
 - Handle reconnection
 - Expose MqttClient for service use
 
 **Loop Method**:
+
 - Check connection status
 - Trigger reconnection if needed
 
@@ -580,6 +624,7 @@ class MqttSettings {
 **Implements**: `SecurityManager` interface
 
 **State Class**:
+
 ```cpp
 class SecuritySettings {
     std::list<User> users;
@@ -588,10 +633,12 @@ class SecuritySettings {
 ```
 
 **Composition**:
+
 - `HttpEndpoint<SecuritySettings>` at `/rest/securitySettings` (admin only)
 - `FSPersistence<SecuritySettings>` to `/config/securitySettings.json`
 
 **Responsibilities**:
+
 - Store user accounts
 - Hash passwords
 - Generate JWT tokens
@@ -599,6 +646,7 @@ class SecuritySettings {
 - Apply authentication predicates
 
 **JWT Structure**:
+
 ```json
 {
   "username": "admin",
@@ -628,6 +676,7 @@ class SecuritySettings {
 **Security**: Admin only
 
 **Implementation**:
+
 1. Delete all files in `/config/`
 2. Trigger restart
 3. Services reload with factory defaults
@@ -641,6 +690,7 @@ class SecuritySettings {
 **Security**: Admin only
 
 **Response**:
+
 ```json
 {
   "networks": [
@@ -654,10 +704,12 @@ class SecuritySettings {
 **Purpose**: JWT generation and validation
 
 **Endpoints**:
+
 - POST `/rest/signIn` - Generate JWT
 - GET `/rest/verifyAuthorization` - Validate JWT
 
 **Sign In Flow**:
+
 1. Receive credentials
 2. Validate against SecuritySettings
 3. Generate JWT with expiration
@@ -672,6 +724,7 @@ class SecuritySettings {
 **Endpoint**: GET `/rest/wifiStatus`
 
 **Response**:
+
 ```json
 {
   "status": "connected",
@@ -692,6 +745,7 @@ class SecuritySettings {
 **Endpoint**: GET `/rest/mqttStatus`
 
 **Response**:
+
 ```json
 {
   "enabled": true,
@@ -705,6 +759,7 @@ class SecuritySettings {
 **Endpoint**: GET `/rest/systemStatus`
 
 **Response**:
+
 ```json
 {
   "esp_platform": "esp8266",

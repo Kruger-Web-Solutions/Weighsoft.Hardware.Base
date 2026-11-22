@@ -51,6 +51,7 @@ const { connected, updateData, data } = useWs<MyState>(WEBSOCKET_URL);
 ```
 
 **Decision Rule:**
+
 - Configuration/Settings → `useRest` (manual save)
 - Live Status/Monitoring → `useWs` (auto-sync)
 
@@ -59,6 +60,7 @@ const { connected, updateData, data } = useWs<MyState>(WEBSOCKET_URL);
 ### API Imports
 
 **AXIOS instance:**
+
 ```typescript
 // ✅ CORRECT
 import { AXIOS } from './endpoints';
@@ -70,6 +72,7 @@ import axios from 'axios';              // Don't use raw axios
 ```
 
 **WebSocket base URLs:**
+
 ```typescript
 // ✅ CORRECT
 import { WEB_SOCKET_ROOT, WS_BASE_URL } from '../../api/endpoints';
@@ -81,6 +84,7 @@ export const MY_SOCKET_PATH = `${WS_BASE_URL}mydevice`;
 ### Hook Imports
 
 **Location:** `utils/` directory
+
 ```typescript
 // ✅ CORRECT
 import { useRest, useWs } from '../../utils';
@@ -92,6 +96,7 @@ import { useRest, useWs } from '../../components';
 ### Component Imports
 
 **Location:** `components/` directory
+
 ```typescript
 // ✅ CORRECT
 import { 
@@ -108,6 +113,7 @@ import {
 ### useRest Hook
 
 **Signature:**
+
 ```typescript
 const { 
   loadData,      // () => Promise<void>
@@ -118,6 +124,7 @@ const {
 ```
 
 **Loading state:**
+
 ```typescript
 if (!data) {
   return <FormLoader />;
@@ -125,6 +132,7 @@ if (!data) {
 ```
 
 **❌ Common mistake:**
+
 ```typescript
 // 'loading' doesn't exist
 const { data, loading } = useRest<T>({ read });
@@ -133,6 +141,7 @@ const { data, loading } = useRest<T>({ read });
 ### useWs Hook
 
 **Signature:**
+
 ```typescript
 const { 
   connected,     // boolean
@@ -142,6 +151,7 @@ const {
 ```
 
 **❌ Common mistake:**
+
 ```typescript
 // Wrong: Don't pass object
 const { data } = useWs<T>({ url: WEBSOCKET_URL });
@@ -153,6 +163,7 @@ const { data } = useWs<T>(WEBSOCKET_URL);
 ## WebSocket URL Construction
 
 **Pattern:**
+
 ```typescript
 import { WEB_SOCKET_ROOT } from '../../api/endpoints';
 
@@ -164,6 +175,7 @@ const { connected, data } = useWs<MyData>(MY_WEBSOCKET_URL);
 ```
 
 **In endpoints.ts:**
+
 ```typescript
 // ✅ CORRECT - Use WS_BASE_URL
 export const MY_SOCKET_PATH = `${WS_BASE_URL}mydevice`;
@@ -175,6 +187,7 @@ export const MY_SOCKET_PATH = '/ws/mydevice';
 ## Device Project Component Structure
 
 **Standard 5-file pattern:**
+
 ```
 examples/mydevice/
 ├── MyDevice.tsx          # Main router with tabs
@@ -185,12 +198,14 @@ examples/mydevice/
 ```
 
 **Plus API layer:**
+
 ```
 api/mydevice.ts           # API functions
 types/mydevice.ts         # TypeScript interfaces
 ```
 
 **Typical MyDevice.tsx structure:**
+
 ```typescript
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { Tab } from '@mui/material';
@@ -229,11 +244,13 @@ export default MyDevice;
 ### Use Material-UI Components
 
 ✅ Already included:
+
 ```typescript
 import { Button, TextField, Switch, Grid } from '@mui/material';
 ```
 
 ❌ Don't add:
+
 - Heavy UI libraries (Bootstrap, Ant Design, etc.)
 - Duplicate functionality already in Material-UI
 
@@ -257,6 +274,7 @@ Reference: @interface/src/project/LightStateWebSocketForm.tsx
 ### React Context for Global State
 
 Use Context API for:
+
 - Authentication: `AuthenticationContext`
 - Feature flags: `FeaturesContext`
 - Layout settings: `LayoutContext`
@@ -278,6 +296,7 @@ const [formData, setFormData] = useState<MySettings>(DEFAULT_SETTINGS);
 ### Strict Typing
 
 ✅ **ALWAYS:**
+
 ```typescript
 interface LightState {
   led_on: boolean;
@@ -289,6 +308,7 @@ const updateData = (data: LightState) => {
 ```
 
 ❌ **NEVER:**
+
 ```typescript
 const updateData = (data: any) => {  // No 'any' types
   // Not type-safe
@@ -323,6 +343,7 @@ const schema = new Schema({
 ### 1. Avoid Heavy Dependencies
 
 ❌ Don't add without justification:
+
 - Lodash (use native JS)
 - Moment.js (use date-fns or native)
 - Heavy charting libraries
@@ -420,6 +441,7 @@ Use `RequireAuthentication` wrapper:
 Reference: @interface/src/project/LightStateWebSocketForm.tsx
 
 Shows:
+
 - useWs hook usage
 - Material-UI components
 - Loading states

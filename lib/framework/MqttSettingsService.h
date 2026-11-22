@@ -2,6 +2,10 @@
 #define MqttSettingsService_h
 
 #include <StatefulService.h>
+// The ESP32Async web server (core 3.x) no longer pulls in WiFi.h for us.
+#ifdef ESP32
+#include <WiFi.h>
+#endif
 #include <HttpEndpoint.h>
 #include <FSPersistence.h>
 #include <AsyncMqttClient.h>

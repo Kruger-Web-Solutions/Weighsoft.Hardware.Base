@@ -91,7 +91,7 @@ class APSettings {
   static StateUpdateResult update(JsonObject& root, APSettings& settings) {
     APSettings newSettings = {};
     newSettings.provisionMode = root["provision_mode"] | FACTORY_AP_PROVISION_MODE;
-    switch (settings.provisionMode) {
+    switch (newSettings.provisionMode) {
       case AP_MODE_ALWAYS:
       case AP_MODE_DISCONNECTED:
       case AP_MODE_NEVER:

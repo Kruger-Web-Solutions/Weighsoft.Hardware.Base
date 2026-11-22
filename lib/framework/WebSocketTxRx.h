@@ -10,6 +10,14 @@
 #define WEB_SOCKET_ORIGIN "websocket"
 #define WEB_SOCKET_ORIGIN_CLIENT_ID_PREFIX "websocket:"
 
+#ifndef WEB_SOCKET_MAX_CLIENTS
+#define WEB_SOCKET_MAX_CLIENTS DEFAULT_MAX_WS_CLIENTS
+#endif
+
+#ifndef WEB_SOCKET_KEEP_ALIVE_PERIOD_SEC
+#define WEB_SOCKET_KEEP_ALIVE_PERIOD_SEC 15
+#endif
+
 template <class T>
 class WebSocketConnector {
  protected:
@@ -36,7 +44,9 @@ class WebSocketConnector {
                                  std::placeholders::_5,
                                  std::placeholders::_6));
     _server->addHandler(&_webSocket);
-    _server->on(webSocketPath, HTTP_GET, std::bind(&WebSocketConnector::forbidden, this, std::placeholders::_1));
+    _server->on(webSocketPath,
+                HTTP_GET,
+                ArRequestHandlerFunction(std::bind(&WebSocketConnector::forbidden, this, std::placeholders::_1)));
   }
 
   WebSocketConnector(StatefulService<T>* statefulService,
@@ -64,6 +74,15 @@ class WebSocketConnector {
 
   String clientId(AsyncWebSocketClient* client) {
     return WEB_SOCKET_ORIGIN_CLIENT_ID_PREFIX + String(client->id());
+  }
+
+ public:
+  void cleanupClients(uint16_t maxClients = WEB_SOCKET_MAX_CLIENTS) {
+    _webSocket.cleanupClients(maxClients);
+  }
+
+  size_t countClients() const {
+    return _webSocket.count();
   }
 
  private:
@@ -112,6 +131,8 @@ class WebSocketTx : virtual public WebSocketConnector<T> {
                          uint8_t* data,
                          size_t len) {
     if (type == WS_EVT_CONNECT) {
+      client->setCloseClientOnQueueFull(false);
+      client->keepAlivePeriod(WEB_SOCKET_KEEP_ALIVE_PERIOD_SEC);
       Serial.printf("[WS] Client connected: %u\n", client->id());
       // when a client connects, we transmit it's id and the current payload
       transmitId(client);
@@ -138,6 +159,7 @@ class WebSocketTx : virtual public WebSocketConnector<T> {
     if (buffer) {
       serializeJson(jsonDocument, (char*)buffer->get(), len + 1);
       client->text((char*)buffer->get(), len);
+      delete buffer;
     }
   }
 
@@ -149,6 +171,13 @@ class WebSocketTx : virtual public WebSocketConnector<T> {
    * simplifies the client and the server implementation but may not be sufficent for all use-cases.
    */
   void transmitData(AsyncWebSocketClient* client, const String& originId) {
+    if (!client) {
+      WebSocketConnector<T>::cleanupClients();
+      if (WebSocketConnector<T>::countClients() == 0) {
+        return;
+      }
+    }
+
     DynamicJsonDocument jsonDocument = DynamicJsonDocument(WebSocketConnector<T>::_bufferSize);
     JsonObject root = jsonDocument.to<JsonObject>();
     root["type"] = "payload";
@@ -167,6 +196,7 @@ class WebSocketTx : virtual public WebSocketConnector<T> {
       } else {
         WebSocketConnector<T>::_webSocket.textAll((char*)buffer->get(), len);
       }
+      delete buffer;  // char* overload copies only; makeBuffer() is not adopted
     }
   }
 };

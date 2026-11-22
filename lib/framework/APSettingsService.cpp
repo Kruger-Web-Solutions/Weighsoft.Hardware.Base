@@ -1,4 +1,7 @@
 #include <APSettingsService.h>
+#ifdef ESP32
+#include <WiFi.h>
+#endif
 
 APSettingsService::APSettingsService(AsyncWebServer* server, FS* fs, SecurityManager* securityManager) :
     _httpEndpoint(APSettings::read, APSettings::update, this, server, AP_SETTINGS_SERVICE_PATH, securityManager),
@@ -45,6 +48,18 @@ void APSettingsService::manageAP() {
 
 void APSettingsService::startAP() {
   Serial.println(F("Starting software access point"));
+#ifdef ESP32
+  // ESP32/ESP32-S3: soft AP while STA is (or will be) active requires explicit AP+STA mode.
+  // Otherwise softAP from a pure STA mode can fail to bring up the AP or breaks STA routing.
+  {
+    wifi_mode_t mode = WiFi.getMode();
+    if (mode == WIFI_STA) {
+      WiFi.mode(WIFI_AP_STA);
+    } else if (mode != WIFI_AP_STA && mode != WIFI_AP) {
+      WiFi.mode(WIFI_AP);
+    }
+  }
+#endif
   WiFi.softAPConfig(_state.localIP, _state.gatewayIP, _state.subnetMask);
   WiFi.softAP(_state.ssid.c_str(), _state.password.c_str(), _state.channel, _state.ssidHidden, _state.maxClients);
   if (!_dnsServer) {

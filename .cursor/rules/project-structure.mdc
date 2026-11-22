@@ -11,7 +11,7 @@ Keep the root directory clean and follow the established folder organization.
 
 Reference: @docs/FILE-REFERENCE.md
 
-```
+```txt
 Project Root/
 ├── src/                    # Application code
 ├── lib/framework/          # Framework code
@@ -27,33 +27,40 @@ Project Root/
 ## Where to Put Files
 
 ### Backend Code
+
 - **Framework code**: `lib/framework/` (StatefulService, HttpEndpoint, etc.)
 - **Application code**: `src/` (main.cpp, services like LightStateService)
 
 ### Frontend Code
+
 - **React components**: `interface/src/components/`
 - **Feature UI**: `interface/src/project/`, `interface/src/ap/`, `interface/src/wifi/`, etc.
 - **API clients**: `interface/src/api/`
 - **Utilities**: `interface/src/utils/`
 
 ### Documentation
+
 - **All docs**: `docs/` (no exceptions)
 
 ### Configuration
+
 - **Build settings**: Root level (platformio.ini, features.ini, factory_settings.ini)
 
 ### Build Artifacts
+
 - **Never commit**: `.pio/`, `.pioenvs/`, `interface/build/`, `interface/node_modules/`
 - Use `.gitignore` for these
 
 ## Root Directory Rules
 
 ✅ **ALLOWED in root:**
+
 - Configuration files: `platformio.ini`, `features.ini`, `factory_settings.ini`
 - Project metadata: `README.md`, `LICENSE`, `.gitignore`
 - Hidden folders: `.cursor/`, `.git/`, `.vscode/`
 
 ❌ **NOT ALLOWED in root:**
+
 - Source code files (`.cpp`, `.h`, `.ts`, `.tsx`)
 - Build artifacts
 - Temporary files
@@ -66,25 +73,29 @@ Project Root/
 ### ✅ Correct Placement
 
 **New sensor service:**
-```
+
+```cpp
 src/SensorService.h
 src/SensorService.cpp
 ```
 
 **New React component:**
-```
+
+```cpp
 interface/src/components/SensorDisplay.tsx
 ```
 
 **New documentation:**
-```
+
+```cpp
 docs/SENSOR-INTEGRATION.md
 ```
 
 ### ❌ Incorrect Placement
 
 **Don't put in root:**
-```
+
+```txt
 ❌ SensorService.cpp          # Should be in src/
 ❌ helper.py                  # Create scripts/ folder
 ❌ SENSOR-NOTES.md            # Should be in docs/
@@ -101,6 +112,7 @@ docs/SENSOR-INTEGRATION.md
 ## File Organization Patterns
 
 Reference patterns in existing code:
+
 - Backend services: Follow @src/LightStateService.h pattern
 - Frontend components: Follow @interface/src/project/LightStateWebSocketForm.tsx pattern
 - Infrastructure: Follow @lib/framework/StatefulService.h pattern

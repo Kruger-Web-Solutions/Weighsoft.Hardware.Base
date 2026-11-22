@@ -1,0 +1,412 @@
+import React, { FC, useContext, useEffect } from 'react';
+import { useSnackbar } from 'notistack';
+import {
+  Box,
+  Card,
+  CardContent,
+  TextField,
+  MenuItem,
+  FormControl,
+  FormLabel,
+  RadioGroup,
+  FormControlLabel,
+  Radio,
+  Switch,
+  Button,
+  Alert,
+  Typography,
+  Chip,
+  CircularProgress,
+} from '@mui/material';
+import SaveIcon from '@mui/icons-material/Save';
+import CableIcon from '@mui/icons-material/Cable';
+import UsbIcon from '@mui/icons-material/Usb';
+import RadarIcon from '@mui/icons-material/Radar';
+import { SectionContent, FormLoader, ButtonRow } from '../../components';
+import { useRest, extractErrorMessage } from '../../utils';
+import { readSerialWriter, updateSerialWriter, readWriterSource, updateWriterSource } from '../../api/serialWriter';
+import { readDiscovered } from '../../api/discovered';
+import { SerialWriterData, SerialWriterForwarderData } from '../../types/serialWriter';
+import { DiscoveredDevice } from '../../types/discovered';
+import { FeaturesContext } from '../../contexts/features';
+import {
+  connectionMethodLabel,
+  normalizeReaderSourceUrlForPersistence,
+  OUTPUT_FORMAT_DEFAULT,
+  OUTPUT_FORMAT_MAX,
+  readerConnectionState,
+  readerHostFromSourceUrl,
+} from './serialWriterSource';
+
+const BAUDRATES = [1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200, 230400];
+
+const WriterSettings: FC = () => {
+  const { enqueueSnackbar } = useSnackbar();
+  // A W-Soft Writer follows a W-Soft weigh board (its weight feed), and sends out of the board's
+  // one scale port; its USB port keeps the logs and the HUB / APPROVAL commands.
+  const { features } = useContext(FeaturesContext);
+  const wsoft = !!features.wsoft;
+  const source = wsoft ? 'weigh board' : 'Reader';
+  const { data, loadData, saveData, saving, setData, errorMessage } = useRest<SerialWriterData>({
+    read: readSerialWriter,
+    update: updateSerialWriter,
+  });
+  const [src, setSrc] = React.useState<SerialWriterForwarderData | null>(null);
+  const [savingSrc, setSavingSrc] = React.useState(false);
+  const [testingSrc, setTestingSrc] = React.useState(false);
+  const [testMessage, setTestMessage] = React.useState<{
+    severity: 'success' | 'warning' | 'error' | 'info';
+    text: string;
+  } | null>(null);
+
+  const refreshSrc = React.useCallback(() => {
+    readWriterSource().then((r) => setSrc(r.data)).catch(() => {});
+  }, []);
+
+  useEffect(() => { refreshSrc(); }, [refreshSrc]);
+
+  // Phase D: poll the device's mDNS-browser cache for nearby Readers so the
+  // user can pick one from a dropdown instead of typing IPs.
+  const [discoveredReaders, setDiscoveredReaders] = React.useState<DiscoveredDevice[]>([]);
+  useEffect(() => {
+    const tick = () =>
+      readDiscovered()
+        .then((r) => setDiscoveredReaders((r.data.devices || []).filter((d) => d.mode === 'reader')))
+        .catch(() => {});
+    tick();
+    const id = setInterval(tick, 10000);
+    return () => clearInterval(id);
+  }, []);
+
+  if (!data) {
+    return (
+      <SectionContent title="Settings" titleGutter>
+        <FormLoader onRetry={loadData} errorMessage={errorMessage} />
+      </SectionContent>
+    );
+  }
+
+  const setField = <K extends keyof SerialWriterData>(k: K) => (v: SerialWriterData[K]) =>
+    setData((p) => p ? { ...p, [k]: v } : p);
+
+  const setSrcField = <K extends keyof SerialWriterForwarderData>(k: K) => (v: SerialWriterForwarderData[K]) =>
+    setSrc((p) => p ? { ...p, [k]: v } : p);
+
+  const waitForReaderConnection = async (previousLastReceivedAt: number): Promise<SerialWriterForwarderData> => {
+    let latest = src;
+    for (let i = 0; i < 8; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      latest = (await readWriterSource()).data;
+      setSrc(latest);
+      if (latest.connected || latest.last_received_at !== previousLastReceivedAt) {
+        return latest;
+      }
+    }
+    return latest || (await readWriterSource()).data;
+  };
+
+  const saveSrc = async (testAfterSave = false) => {
+    if (!src) return;
+    setSavingSrc(true);
+    setTestMessage(null);
+    const previousLastReceivedAt = src.last_received_at;
+    try {
+      // Send only the persisted fields; leave runtime fields out of the body
+      // so the backend update() doesn't have to ignore stray keys.
+      const normalizedSourceUrl = normalizeReaderSourceUrlForPersistence(
+        src.source_url,
+        src.connection_method as 0 | 1,
+        wsoft ? 'wsoft' : 'serial',
+      );
+      const response = await updateWriterSource({
+        source_url: normalizedSourceUrl,
+        connection_method: src.connection_method,
+        auto_reconnect: src.auto_reconnect,
+        enabled: testAfterSave ? true : src.enabled,
+        output_format: src.output_format ?? OUTPUT_FORMAT_DEFAULT,
+      });
+      setSrc(response.data);
+      enqueueSnackbar('Saved', { variant: 'success' });
+      if (testAfterSave) {
+        setTestingSrc(true);
+        setTestMessage({ severity: 'info', text: 'Saved. Testing the Reader connection now...' });
+        const tested = await waitForReaderConnection(previousLastReceivedAt);
+        if (tested.connected) {
+          setTestMessage({
+            severity: 'success',
+            text: `Connected to the ${source} at ${readerHostFromSourceUrl(tested.source_url)}.`,
+          });
+        } else if (tested.last_received_at !== previousLastReceivedAt) {
+          setTestMessage({ severity: 'success', text: `Data received: ${tested.last_received}` });
+        } else {
+          setTestMessage({
+            severity: 'warning',
+            text: tested.last_error ||
+              `Saved, but this Writer is still waiting for the ${source}. Check it is on, on the same Wi-Fi, and the address.`,
+          });
+        }
+      } else {
+        refreshSrc();
+      }
+    } catch (error: any) {
+      const message = extractErrorMessage(error, 'Could not save');
+      enqueueSnackbar(message, { variant: 'error' });
+      setTestMessage({ severity: 'error', text: message });
+    } finally {
+      setSavingSrc(false);
+      setTestingSrc(false);
+    }
+  };
+
+  const sourceState = readerConnectionState(src);
+  const readerHost = readerHostFromSourceUrl(src?.source_url || '');
+
+  return (
+    <SectionContent title="Settings" titleGutter>
+      <Alert severity="warning" sx={{ mb: 2 }}>Changing serial port settings restarts the connection.</Alert>
+
+      <Card sx={{ mb: 2 }}>
+        <CardContent>
+          <Typography variant="h6" gutterBottom>Step 1: Data in (from the {source})</Typography>
+          <Typography color="text.secondary" paragraph>
+            {wsoft
+              ? 'Writer = this board has no scale. It gets the weight over Wi-Fi from the weigh board (the W-Soft board '
+                + 'with the scale). Pick the weigh board below or type its address, then press Save and Test Connection. '
+                + 'Both boards must be on the same Wi-Fi.'
+              : 'Writer = data out. This ESP has no scale. It gets each line over Wi-Fi from the Reader (the ESP that has '
+                + 'the scale wired to it). Pick the Reader below or paste its web address, then press Save Reader and '
+                + 'Test Connection. Both ESPs must be on the same Wi-Fi.'}
+          </Typography>
+          {src && (
+            <>
+              <Box display="flex" flexWrap="wrap" gap={1} mb={2}>
+                <Chip
+                  color={sourceState === 'connected' ? 'success' : sourceState === 'error' ? 'error' : 'default'}
+                  label={sourceState === 'connected' ? 'Connected' : sourceState === 'not_configured' ? 'Not set up' : sourceState}
+                />
+                {readerHost && <Chip variant="outlined" label={readerHost} />}
+                <Chip variant="outlined" label={connectionMethodLabel(src.connection_method)} />
+              </Box>
+              {discoveredReaders.length > 0 && (
+                <Box sx={{ mb: 2 }}>
+                  <TextField
+                    select
+                    fullWidth
+                    label={`Pick a ${source} nearby`}
+                    value=""
+                    SelectProps={{ displayEmpty: true, IconComponent: RadarIcon }}
+                    InputLabelProps={{ shrink: true }}
+                    onChange={(e) => {
+                      const ip = e.target.value as string;
+                      if (ip) setSrcField('source_url')(`http://${ip}/`);
+                    }}
+                    helperText={`${discoveredReaders.length} found on this Wi-Fi. Picking one fills the address below.`}
+                  >
+                    <MenuItem value=""><em>Type the address manually below</em></MenuItem>
+                    {discoveredReaders.map((d) => (
+                      <MenuItem key={d.id || d.ip} value={d.ip}>
+                        {d.name || d.hostname || d.ip} &nbsp;<small style={{ color: '#888' }}>({d.ip})</small>
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                </Box>
+              )}
+              <TextField
+                fullWidth
+                label={`${wsoft ? 'Weigh board' : 'Reader'} web address`}
+                placeholder="http://192.168.2.60/"
+                value={src.source_url}
+                onChange={(e) => setSrcField('source_url')(e.target.value)}
+                helperText={wsoft
+                  ? 'Type http://192.168.2.60/ (the weigh board\'s address). It becomes ws://…/ws/wsoftFeed when saved.'
+                  : 'You can paste http://192.168.2.60/ or ws://192.168.2.60/ws/serial. It will be normalized when saved.'}
+                sx={{ mb: 2 }}
+              />
+              <FormControl component="fieldset" sx={{ mb: 2 }}>
+                <FormLabel>Source protocol</FormLabel>
+                <RadioGroup
+                  row
+                  value={String(src.connection_method)}
+                  onChange={(e) => setSrcField('connection_method')(Number(e.target.value) as 0 | 1)}
+                >
+                  <FormControlLabel value="0" control={<Radio />} label="WebSocket live stream" />
+                  <FormControlLabel value="1" disabled control={<Radio />} label="HTTP polling (coming later)" />
+                </RadioGroup>
+              </FormControl>
+              <FormControlLabel
+                control={
+                  <Switch checked={src.enabled} onChange={(e) => setSrcField('enabled')(e.target.checked)} />
+                }
+                label={`Take data from this ${source}`}
+              />
+              <FormControlLabel
+                control={
+                  <Switch checked={src.auto_reconnect} onChange={(e) => setSrcField('auto_reconnect')(e.target.checked)} />
+                }
+                label="Auto-reconnect"
+              />
+              {testMessage && <Alert severity={testMessage.severity} sx={{ mt: 2 }}>{testMessage.text}</Alert>}
+              <ButtonRow mt={1}>
+                <Button
+                  startIcon={testingSrc ? <CircularProgress size={16} color="inherit" /> : <CableIcon />}
+                  variant="contained"
+                  disabled={savingSrc || testingSrc || !src.source_url.trim()}
+                  onClick={() => saveSrc(true)}
+                >
+                  Save and Test Connection
+                </Button>
+                <Button startIcon={<SaveIcon />} disabled={savingSrc || testingSrc} onClick={() => saveSrc(false)}>Save only</Button>
+              </ButtonRow>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {src && (
+        <Card sx={{ mb: 2 }}>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>Step 2: How the weight looks</Typography>
+            <Typography color="text.secondary" paragraph>
+              Shape the line this Writer sends, so the printer, big display or PC gets the format it expects. Leave it
+              as {OUTPUT_FORMAT_DEFAULT} to send the line exactly as received.
+            </Typography>
+            <TextField
+              fullWidth
+              label="Weight format"
+              value={src.output_format ?? OUTPUT_FORMAT_DEFAULT}
+              onChange={(e) => setSrcField('output_format')(e.target.value)}
+              inputProps={{ maxLength: OUTPUT_FORMAT_MAX }}
+              helperText={'Fields: {line} the whole line, {weight} the number, {unit} kg/g/t, {stable} ST or US. '
+                + 'Example: {stable},GS,{weight} {unit}'}
+              sx={{ mb: 1 }}
+            />
+            {src.last_sent && (
+              <Typography variant="body2" color="text.secondary">
+                Last sent: <code>{src.last_sent}</code>
+              </Typography>
+            )}
+            <ButtonRow mt={1}>
+              <Button startIcon={<SaveIcon />} disabled={savingSrc || testingSrc} onClick={() => saveSrc(false)}>
+                Save format
+              </Button>
+            </ButtonRow>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardContent>
+          <Typography variant="h6" gutterBottom>Step 3: Data out (wiring)</Typography>
+          <Typography color="text.secondary" paragraph>
+            {!wsoft
+              ? 'The ESP talks, your device listens. Cross the wires: ESP TX (GPIO17) goes to the device RX. Join GND to '
+                + 'GND. The ESP RX pin (GPIO18) is not needed. An RS232 device needs a 3.3 V RS232-to-TTL converter '
+                + '(MAX3232) in between. Set the speed and format below to match the device.'
+              : features.wsoft_rs232
+                ? 'The Writer sends out of the same CN1 plug a scale would use: GPIO27 (TX) through the MAX3232 to the '
+                  + 'device RX, GND to GND. Set the speed and format below to match the device.'
+                : 'The Writer sends out of the RS485 terminals (A to A, B to B, GND to GND). Set the speed and format '
+                  + 'below to match the device.'}
+          </Typography>
+
+          {!wsoft && (
+          <FormControl component="fieldset" sx={{ mb: 2 }}>
+            <FormLabel>Output port</FormLabel>
+            <RadioGroup
+              row
+              value={String(data.output_port)}
+              onChange={(e) => setField('output_port')(Number(e.target.value) as 0 | 1)}
+            >
+              <FormControlLabel value="0" control={<Radio />} label="GPIO pins (Serial1 TX/RX)" />
+              <FormControlLabel
+                value="1"
+                control={<Radio />}
+                label={<><UsbIcon fontSize="small" sx={{ mr: 0.5, verticalAlign: 'middle' }} />USB Serial</>}
+              />
+            </RadioGroup>
+          </FormControl>
+          )}
+
+          {!wsoft && data.output_port === 1 && (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              Scale data will be sent over the USB port (same as debug logs).
+              Baud rate and data bits settings below only apply when using GPIO pins.
+            </Alert>
+          )}
+
+          <TextField
+            select
+            fullWidth
+            label="Baud rate"
+            value={data.baud_rate}
+            onChange={(e) => setField('baud_rate')(Number(e.target.value))}
+            sx={{ mb: 2 }}
+          >
+            {BAUDRATES.map((r) => <MenuItem key={r} value={r}>{r}</MenuItem>)}
+          </TextField>
+
+          <FormControl component="fieldset" sx={{ mb: 2 }}>
+            <FormLabel>Data bits</FormLabel>
+            <RadioGroup row value={String(data.data_bits)} onChange={(e) => setField('data_bits')(Number(e.target.value))}>
+              {[5, 6, 7, 8].map((n) => <FormControlLabel key={n} value={String(n)} control={<Radio />} label={String(n)} />)}
+            </RadioGroup>
+          </FormControl>
+
+          <FormControl component="fieldset" sx={{ mb: 2 }}>
+            <FormLabel>Stop bits</FormLabel>
+            <RadioGroup row value={String(data.stop_bits)} onChange={(e) => setField('stop_bits')(Number(e.target.value))}>
+              <FormControlLabel value="1" control={<Radio />} label="1" />
+              <FormControlLabel value="2" control={<Radio />} label="2" />
+            </RadioGroup>
+          </FormControl>
+
+          <FormControl component="fieldset" sx={{ mb: 2 }}>
+            <FormLabel>Parity</FormLabel>
+            <RadioGroup row value={String(data.parity)} onChange={(e) => setField('parity')(Number(e.target.value))}>
+              <FormControlLabel value="0" control={<Radio />} label="None" />
+              <FormControlLabel value="1" control={<Radio />} label="Even" />
+              <FormControlLabel value="2" control={<Radio />} label="Odd" />
+            </RadioGroup>
+          </FormControl>
+
+          <TextField
+            select
+            fullWidth
+            label="Line ending"
+            value={data.line_ending}
+            onChange={(e) => setField('line_ending')(Number(e.target.value) as any)}
+            sx={{ mb: 2 }}
+          >
+            <MenuItem value={0}>None</MenuItem>
+            <MenuItem value={1}>{'CR (\\r)'}</MenuItem>
+            <MenuItem value={2}>{'LF (\\n)'}</MenuItem>
+            <MenuItem value={3}>{'CRLF (\\r\\n)'}</MenuItem>
+          </TextField>
+
+          <TextField
+            fullWidth
+            type="number"
+            label="Transmit interval (ms)"
+            value={data.transmit_interval_ms ?? 0}
+            onChange={(e) => {
+              const v = Math.max(0, Math.min(60000, Number(e.target.value) || 0));
+              setField('transmit_interval_ms')(v);
+            }}
+            disabled={saving}
+            inputProps={{ min: 0, max: 60000, step: 100 }}
+            helperText={
+              'Throttle how often data is written to the serial output. 0 = transmit every received line. ' +
+              'e.g. 1000 = at most one frame per second (latest data wins).'
+            }
+          />
+
+          <ButtonRow mt={2}>
+            <Button startIcon={<SaveIcon />} variant="contained" disabled={saving} onClick={saveData}>Save serial port</Button>
+          </ButtonRow>
+        </CardContent>
+      </Card>
+    </SectionContent>
+  );
+};
+
+export default WriterSettings;

@@ -2,6 +2,10 @@
 #define OTASettingsService_h
 
 #include <HttpEndpoint.h>
+// The ESP32Async web server (core 3.x) no longer pulls in WiFi.h for us.
+#ifdef ESP32
+#include <WiFi.h>
+#endif
 #include <FSPersistence.h>
 
 #ifdef ESP32
@@ -27,6 +31,8 @@
 
 #define OTA_SETTINGS_FILE "/config/otaSettings.json"
 #define OTA_SETTINGS_SERVICE_PATH "/rest/otaSettings"
+
+extern volatile bool framework_ota_busy;
 
 class OTASettings {
  public:

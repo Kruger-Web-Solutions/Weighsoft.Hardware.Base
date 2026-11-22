@@ -1,0 +1,309 @@
+// Host tests for the W-Soft web options (lib/wsoft_core/src/wsoft_settings.cpp).
+// Run: pio test -e native   (needs a host g++ on PATH)
+
+#include <unity.h>
+
+#include <string.h>
+
+#include "wsoft_settings.h"
+
+static WSoftSettingsData defaults() {
+  WSoftSettingsData s;
+  wsoft_settings_defaults(&s);
+  return s;
+}
+
+void setUp() {}
+void tearDown() {}
+
+void test_defaults() {
+  WSoftSettingsData s = defaults();
+  TEST_ASSERT_EQUAL_UINT32(1000, s.publish_interval_ms);
+  TEST_ASSERT_TRUE(s.mqtt_enabled);
+  TEST_ASSERT_EQUAL_STRING("weighsoft/wsoft/#{unique_id}", s.mqtt_base_path);
+  TEST_ASSERT_EQUAL_STRING("wsoft-#{unique_id}", s.mqtt_name);
+  TEST_ASSERT_EQUAL_STRING("wsoft-#{unique_id}", s.mqtt_unique_id);
+}
+
+void test_empty_input_restores_defaults_and_reports_unchanged() {
+  WSoftSettingsData s = defaults();
+  WSoftSettingsInput in;
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_UNCHANGED, wsoft_settings_update(in, &s));
+  TEST_ASSERT_EQUAL_UINT32(1000, s.publish_interval_ms);
+}
+
+void test_missing_field_falls_back_to_default() {
+  WSoftSettingsData s = defaults();
+  s.publish_interval_ms = 5000;
+  s.mqtt_enabled = false;
+  WSoftSettingsInput in;
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_CHANGED, wsoft_settings_update(in, &s));
+  TEST_ASSERT_EQUAL_UINT32(1000, s.publish_interval_ms);
+  TEST_ASSERT_TRUE(s.mqtt_enabled);
+}
+
+void test_valid_update_applies_every_field() {
+  WSoftSettingsData s = defaults();
+  WSoftSettingsInput in;
+  in.has_publish_interval_ms = true;
+  in.publish_interval_ms = 2500;
+  in.has_mqtt_enabled = true;
+  in.mqtt_enabled = false;
+  in.mqtt_base_path = "site/line1/#{unique_id}";
+  in.mqtt_name = "Line 1 screen";
+  in.mqtt_unique_id = "line1-screen";
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_CHANGED, wsoft_settings_update(in, &s));
+  TEST_ASSERT_EQUAL_UINT32(2500, s.publish_interval_ms);
+  TEST_ASSERT_FALSE(s.mqtt_enabled);
+  TEST_ASSERT_EQUAL_STRING("site/line1/#{unique_id}", s.mqtt_base_path);
+  TEST_ASSERT_EQUAL_STRING("Line 1 screen", s.mqtt_name);
+  TEST_ASSERT_EQUAL_STRING("line1-screen", s.mqtt_unique_id);
+}
+
+void test_same_values_are_unchanged() {
+  WSoftSettingsData s = defaults();
+  WSoftSettingsInput in;
+  in.has_publish_interval_ms = true;
+  in.publish_interval_ms = 1000;
+  in.mqtt_base_path = "weighsoft/wsoft/#{unique_id}";
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_UNCHANGED, wsoft_settings_update(in, &s));
+}
+
+void test_interval_is_clamped_both_ways() {
+  WSoftSettingsData s = defaults();
+  WSoftSettingsInput in;
+  in.has_publish_interval_ms = true;
+  in.publish_interval_ms = 10;
+  wsoft_settings_update(in, &s);
+  TEST_ASSERT_EQUAL_UINT32(WSOFT_PUBLISH_MIN_MS, s.publish_interval_ms);
+  in.publish_interval_ms = -5;
+  wsoft_settings_update(in, &s);
+  TEST_ASSERT_EQUAL_UINT32(WSOFT_PUBLISH_MIN_MS, s.publish_interval_ms);
+  in.publish_interval_ms = 99999999;
+  wsoft_settings_update(in, &s);
+  TEST_ASSERT_EQUAL_UINT32(WSOFT_PUBLISH_MAX_MS, s.publish_interval_ms);
+}
+
+static void expect_topic_rejected(const char *topic) {
+  WSoftSettingsData s = defaults();
+  s.publish_interval_ms = 4000;
+  WSoftSettingsInput in;
+  in.has_publish_interval_ms = true;
+  in.publish_interval_ms = 2000;
+  in.mqtt_base_path = topic;
+  TEST_ASSERT_EQUAL_MESSAGE(WSOFT_SETTINGS_ERROR, wsoft_settings_update(in, &s), topic);
+  // nothing changes on error, not even the valid fields
+  TEST_ASSERT_EQUAL_UINT32(4000, s.publish_interval_ms);
+  TEST_ASSERT_EQUAL_STRING("weighsoft/wsoft/#{unique_id}", s.mqtt_base_path);
+}
+
+void test_bad_topics_are_rejected_without_change() {
+  expect_topic_rejected("");
+  expect_topic_rejected("a/+/b");
+  expect_topic_rejected("a/#");
+  expect_topic_rejected("a b");
+  expect_topic_rejected("/leading");
+  expect_topic_rejected("trailing/");
+  char long_topic[WSOFT_MQTT_PATH_MAX + 2];
+  memset(long_topic, 'a', sizeof long_topic - 1);
+  long_topic[sizeof long_topic - 1] = '\0';
+  expect_topic_rejected(long_topic);
+}
+
+void test_topic_at_max_length_is_accepted() {
+  char topic[WSOFT_MQTT_PATH_MAX + 1];
+  memset(topic, 'a', sizeof topic - 1);
+  topic[sizeof topic - 1] = '\0';
+  TEST_ASSERT_TRUE(wsoft_settings_valid_topic(topic));
+  TEST_ASSERT_TRUE(wsoft_settings_valid_topic("weighsoft/#{platform}/#{unique_id}"));
+}
+
+void test_bad_names_are_rejected() {
+  WSoftSettingsData s = defaults();
+  WSoftSettingsInput in;
+  in.mqtt_name = "";
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_ERROR, wsoft_settings_update(in, &s));
+  WSoftSettingsInput in2;
+  in2.mqtt_unique_id = "has space";
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_ERROR, wsoft_settings_update(in2, &s));
+  WSoftSettingsInput in4;
+  in4.mqtt_name = "tab\there";
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_ERROR, wsoft_settings_update(in4, &s));
+  in4.mqtt_name = " padded";
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_ERROR, wsoft_settings_update(in4, &s));
+  char long_id[WSOFT_MQTT_ID_MAX + 2];
+  memset(long_id, 'x', sizeof long_id - 1);
+  long_id[sizeof long_id - 1] = '\0';
+  WSoftSettingsInput in3;
+  in3.mqtt_unique_id = long_id;
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_ERROR, wsoft_settings_update(in3, &s));
+  TEST_ASSERT_EQUAL_STRING("wsoft-#{unique_id}", s.mqtt_unique_id);
+}
+
+void test_source_defaults_to_rs485_and_takes_rs232() {
+  WSoftSettingsData s = defaults();
+  TEST_ASSERT_EQUAL(WSOFT_SOURCE_RS485, s.source);
+  WSoftSettingsInput in;
+  in.source = "rs232";
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_CHANGED, wsoft_settings_update(in, &s));
+  TEST_ASSERT_EQUAL(WSOFT_SOURCE_RS232, s.source);
+  TEST_ASSERT_EQUAL_STRING("rs232", wsoft_source_text(s.source));
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_UNCHANGED, wsoft_settings_update(in, &s));
+}
+
+void test_source_takes_the_load_cell() {
+  WSoftSettingsData s = defaults();
+  WSoftSettingsInput in;
+  in.source = "loadcell";
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_CHANGED, wsoft_settings_update(in, &s));
+  TEST_ASSERT_EQUAL(WSOFT_SOURCE_LOADCELL, s.source);
+  TEST_ASSERT_EQUAL_STRING("loadcell", wsoft_source_text(s.source));
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_UNCHANGED, wsoft_settings_update(in, &s));
+}
+
+void test_bad_source_is_rejected_without_change() {
+  WSoftSettingsData s = defaults();
+  s.source = WSOFT_SOURCE_RS232;
+  WSoftSettingsInput in;
+  in.source = "rs422";
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_ERROR, wsoft_settings_update(in, &s));
+  TEST_ASSERT_EQUAL(WSOFT_SOURCE_RS232, s.source);
+}
+
+void test_relay_is_off_by_default_on_relays_1_2_3() {
+  WSoftSettingsData s = defaults();
+  TEST_ASSERT_FALSE(s.relay_enabled);
+  TEST_ASSERT_EQUAL(1, s.relay_low);
+  TEST_ASSERT_EQUAL(2, s.relay_ok);
+  TEST_ASSERT_EQUAL(3, s.relay_high);
+  TEST_ASSERT_FALSE(s.relay_writer_follow);
+}
+
+void test_relay_writer_follow_applies_and_an_old_page_turns_it_off() {
+  WSoftSettingsData s = defaults();
+  WSoftSettingsInput in;
+  in.has_relay_writer_follow = true;
+  in.relay_writer_follow = true;
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_CHANGED, wsoft_settings_update(in, &s));
+  TEST_ASSERT_TRUE(s.relay_writer_follow);
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_UNCHANGED, wsoft_settings_update(in, &s));
+  WSoftSettingsInput old_page;
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_CHANGED, wsoft_settings_update(old_page, &s));
+  TEST_ASSERT_FALSE(s.relay_writer_follow);
+}
+
+// The light on the relay pins never comes on by itself: off by default, and a save that
+// does not name it puts it back off (full replace).
+void test_relay_light_is_off_by_default_and_can_be_switched() {
+  WSoftSettingsData s;
+  wsoft_settings_defaults(&s);
+  TEST_ASSERT_FALSE(s.relay_light);
+  WSoftSettingsInput in;
+  in.has_relay_light = true;
+  in.relay_light = true;
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_CHANGED, wsoft_settings_update(in, &s));
+  TEST_ASSERT_TRUE(s.relay_light);
+  WSoftSettingsInput none;
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_CHANGED, wsoft_settings_update(none, &s));
+  TEST_ASSERT_FALSE(s.relay_light);
+}
+
+void test_esp_led_is_on_by_default_and_can_be_switched_off() {
+  WSoftSettingsData s = defaults();
+  TEST_ASSERT_TRUE(s.esp_led);
+  WSoftSettingsInput in;
+  in.has_esp_led = true;
+  in.esp_led = false;
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_CHANGED, wsoft_settings_update(in, &s));
+  TEST_ASSERT_FALSE(s.esp_led);
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_UNCHANGED, wsoft_settings_update(in, &s));
+  // A page that does not send the field: back to the default (ON).
+  WSoftSettingsInput old_page;
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_CHANGED, wsoft_settings_update(old_page, &s));
+  TEST_ASSERT_TRUE(s.esp_led);
+}
+
+void test_alarm_test_switch_is_off_by_default_and_an_old_page_turns_it_off() {
+  WSoftSettingsData s = defaults();
+  TEST_ASSERT_FALSE(s.alarm_test_save);
+  WSoftSettingsInput in;
+  in.has_alarm_test_save = true;
+  in.alarm_test_save = true;
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_CHANGED, wsoft_settings_update(in, &s));
+  TEST_ASSERT_TRUE(s.alarm_test_save);
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_UNCHANGED, wsoft_settings_update(in, &s));
+  WSoftSettingsInput old_page;  // a page that does not know the switch: it goes back OFF
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_CHANGED, wsoft_settings_update(old_page, &s));
+  TEST_ASSERT_FALSE(s.alarm_test_save);
+}
+
+void test_relay_settings_apply_and_report_changed() {
+  WSoftSettingsData s = defaults();
+  WSoftSettingsInput in;
+  in.has_relay_enabled = true;
+  in.relay_enabled = true;
+  in.has_relay_low = in.has_relay_ok = in.has_relay_high = true;
+  in.relay_low = 3;
+  in.relay_ok = 0;
+  in.relay_high = 4;
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_CHANGED, wsoft_settings_update(in, &s));
+  TEST_ASSERT_TRUE(s.relay_enabled);
+  TEST_ASSERT_EQUAL(3, s.relay_low);
+  TEST_ASSERT_EQUAL(0, s.relay_ok);
+  TEST_ASSERT_EQUAL(4, s.relay_high);
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_UNCHANGED, wsoft_settings_update(in, &s));
+  // A save without the relay fields (an older page) switches the relay output OFF again.
+  WSoftSettingsInput old_page;
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_CHANGED, wsoft_settings_update(old_page, &s));
+  TEST_ASSERT_FALSE(s.relay_enabled);
+  TEST_ASSERT_EQUAL(1, s.relay_low);
+}
+
+void test_bad_relay_numbers_are_rejected_without_change() {
+  const int64_t bad[][3] = {{5, 2, 3}, {1, -1, 3}, {1, 2, 256}, {1, 1, 3}, {1, 2, 2}, {3, 2, 3}};
+  for (size_t i = 0; i < sizeof bad / sizeof bad[0]; i++) {
+    WSoftSettingsData s = defaults();
+    WSoftSettingsInput in;
+    in.has_relay_enabled = true;
+    in.relay_enabled = true;
+    in.has_relay_low = in.has_relay_ok = in.has_relay_high = true;
+    in.relay_low = bad[i][0];
+    in.relay_ok = bad[i][1];
+    in.relay_high = bad[i][2];
+    TEST_ASSERT_EQUAL(WSOFT_SETTINGS_ERROR, wsoft_settings_update(in, &s));
+    TEST_ASSERT_FALSE(s.relay_enabled);
+    TEST_ASSERT_EQUAL(1, s.relay_low);
+    TEST_ASSERT_EQUAL(2, s.relay_ok);
+    TEST_ASSERT_EQUAL(3, s.relay_high);
+  }
+  // One field alone can also clash with a default: low = 2 while ok defaults to 2.
+  WSoftSettingsData s = defaults();
+  WSoftSettingsInput in;
+  in.has_relay_low = true;
+  in.relay_low = 2;
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_ERROR, wsoft_settings_update(in, &s));
+}
+
+int main(int, char **) {
+  UNITY_BEGIN();
+  RUN_TEST(test_defaults);
+  RUN_TEST(test_empty_input_restores_defaults_and_reports_unchanged);
+  RUN_TEST(test_missing_field_falls_back_to_default);
+  RUN_TEST(test_valid_update_applies_every_field);
+  RUN_TEST(test_same_values_are_unchanged);
+  RUN_TEST(test_interval_is_clamped_both_ways);
+  RUN_TEST(test_bad_topics_are_rejected_without_change);
+  RUN_TEST(test_topic_at_max_length_is_accepted);
+  RUN_TEST(test_bad_names_are_rejected);
+  RUN_TEST(test_source_defaults_to_rs485_and_takes_rs232);
+  RUN_TEST(test_source_takes_the_load_cell);
+  RUN_TEST(test_bad_source_is_rejected_without_change);
+  RUN_TEST(test_relay_is_off_by_default_on_relays_1_2_3);
+  RUN_TEST(test_relay_settings_apply_and_report_changed);
+  RUN_TEST(test_relay_writer_follow_applies_and_an_old_page_turns_it_off);
+  RUN_TEST(test_esp_led_is_on_by_default_and_can_be_switched_off);
+  RUN_TEST(test_relay_light_is_off_by_default_and_can_be_switched);
+  RUN_TEST(test_alarm_test_switch_is_off_by_default_and_an_old_page_turns_it_off);
+  RUN_TEST(test_bad_relay_numbers_are_rejected_without_change);
+  return UNITY_END();
+}

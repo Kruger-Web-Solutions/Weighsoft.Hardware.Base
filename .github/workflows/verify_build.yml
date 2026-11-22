@@ -40,4 +40,24 @@ jobs:
         python -m pip install --upgrade pip
         pip install --upgrade platformio intelhex
     - name: Run PlatformIO
-      run: pio run -e esp12e -e node32s
+      # node32s is the framework ESP32 build on the PR #57 pin (espressif32@6.13.0).
+      # esp12e compiles, then the link fails: this tree is about 2.6MB and the
+      # ESP8266 app slot is about 1MB, so it is not a CI target.
+      run: pio run -e node32s
+
+  interface:
+    name: Build interface
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 20
+        cache: npm
+        cache-dependency-path: interface/package-lock.json
+    - name: Install, test and build the React UI
+      working-directory: interface
+      run: |
+        npm ci
+        npm test -- --watchAll=false
+        npm run build

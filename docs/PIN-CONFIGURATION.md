@@ -19,18 +19,18 @@ This document explains the UART Serial1 GPIO pin assignments for different ESP32
 - Hardware UART1 pins (U1RXD/U1TXD) on ESP32-S3
 - Won't conflict with USB Serial monitor on GPIO43/44
 
-### ESP32 (node32s environment)
+### ESP32 (node32s / esp32dev environments)
 
 | Signal | GPIO | Purpose |
 |--------|------|---------|
-| RX | **GPIO16** | Receives data from external device TX |
+| RX | **GPIO18** | Receives data from external device TX (same product wiring as ESP32-S3) |
 | TX | **GPIO17** | Transmits data to external device RX |
 | GND | GND | Common ground (required) |
 
-**Why GPIO16/17?**
+**Why GPIO17/18 on classic ESP32 too?**
 
-- Default Serial2 pins on classic ESP32
-- Well-tested, widely used for UART2
+- **Product standard** in this repository: one bench harness and one firmware pin map for **all** ESP32 targets (`SerialService.h` / `DiagnosticsService.h`).
+- Wire **scale TX → GPIO18**, **scale RX → GPIO17**, **GND** common on **node32s**, **esp32dev**, and **esp32s3**.
 
 ## How to Change Serial1 Pins
 
@@ -147,7 +147,8 @@ python -m platformio run -t upload -e esp32s3
 
 ✅ **Recommended for UART:**
 
-- GPIO16, GPIO17 (default Serial2, used in this project)
+- GPIO17, GPIO18 (used in this project for Serial1 scale RX/TX)
+- GPIO16, GPIO17 (common Serial2 default if you fork to different pins)
 - GPIO25, GPIO26
 - GPIO32, GPIO33
 

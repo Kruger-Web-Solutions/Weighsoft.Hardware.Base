@@ -24,3 +24,5 @@ Use these defaults:
 - There is no `serial2` or `display35` branch
 
 If the request does not clearly fit an existing branch, say that explicitly and discuss whether a new integration baseline is needed before proceeding.
+
+Before proposing a branch, read `AGENTS.md` and `docs/BRANCH-MAP.md`: they list every device branch and which firmware runs on each bench device.

@@ -9,6 +9,8 @@
 
 namespace SettingValue {
 String format(String value);
+/** STA MAC as 12 lowercase hex chars (used in MQTT paths and device_id). */
+String getUniqueId();
 };
 
 #endif  // end SettingValue

@@ -1,7 +1,9 @@
 #include <FeaturesService.h>
 
 FeaturesService::FeaturesService(AsyncWebServer* server) {
-  server->on(FEATURES_SERVICE_PATH, HTTP_GET, std::bind(&FeaturesService::features, this, std::placeholders::_1));
+  server->on(FEATURES_SERVICE_PATH,
+             HTTP_GET,
+             ArRequestHandlerFunction(std::bind(&FeaturesService::features, this, std::placeholders::_1)));
 }
 
 void FeaturesService::features(AsyncWebServerRequest* request) {
@@ -41,6 +43,19 @@ void FeaturesService::features(AsyncWebServerRequest* request) {
   root["ble"] = true;
 #else
   root["ble"] = false;
+#endif
+  // Which device this build is, so the web menu shows only pages this board serves.
+  root["wsoft"] = FT_ENABLED(FT_WSOFT) != 0;
+  root["wsoft_relay"] = FT_ENABLED(FT_WSOFT_RELAY) != 0;
+#if defined(WSOFT_HAS_RS232) && WSOFT_HAS_RS232
+  root["wsoft_rs232"] = true;
+#else
+  root["wsoft_rs232"] = false;
+#endif
+#if defined(WSOFT_HAS_LOADCELL) && WSOFT_HAS_LOADCELL
+  root["wsoft_loadcell"] = true;
+#else
+  root["wsoft_loadcell"] = false;
 #endif
   response->setLength();
   request->send(response);

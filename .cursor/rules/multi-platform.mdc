@@ -54,12 +54,14 @@ Use preprocessor directives for platform-specific code:
 ### Use Framework Abstractions
 
 ✅ **DO use:**
+
 - `ESPFS` for filesystem (not direct LittleFS calls)
 - `AsyncWebServer` (works on both platforms)
 - `AsyncMqttClient` (works on both platforms)
 - Standard Arduino APIs
 
 ❌ **DON'T use directly:**
+
 - ESP32-specific APIs without ESP8266 equivalent
 - ESP8266-specific APIs without ESP32 equivalent
 
@@ -86,6 +88,7 @@ LittleFS.begin();
 ### Design for Minimal Memory
 
 1. **Use `const` for strings**: Store in flash, not RAM
+
    ```cpp
    const char* SETTING_NAME = "wifi_ssid";  // Stored in flash
    ```
@@ -111,6 +114,7 @@ When writing cross-platform code:
 Reference: @docs/CONFIGURATION.md
 
 Platform definitions in `platformio.ini`:
+
 - `env:esp12e` - ESP8266 target
 - `env:node32s` - ESP32 target
 
@@ -127,6 +131,7 @@ Platform definitions in `platformio.ini`:
 ## Examples from Codebase
 
 Reference these files for platform-agnostic code:
+
 - @lib/framework/ESP8266React.cpp
 - @lib/framework/StatefulService.h
 - @src/LightStateService.h

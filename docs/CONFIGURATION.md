@@ -29,7 +29,7 @@ board_build.f_cpu = 160000000L
 board_build.filesystem = littlefs
 
 [env:node32s]             # ESP32 specific
-platform = espressif32
+platform = espressif32@6.13.0
 board = node32s
 board_build.partitions = partitions_ble.csv
 board_build.filesystem = littlefs
@@ -246,24 +246,80 @@ board_build.filesystem = littlefs
 ```ini
 [env:node32s]
 board_build.partitions = partitions_ble.csv
-platform = espressif32
+platform = espressif32@6.13.0
 board = node32s
 board_build.filesystem = littlefs
+build_flags =
+  ${env.build_flags}
+  -DCONFIG_ESP_TASK_WDT_TIMEOUT_S=10
+  -D FT_BLE=1
 ```
+
+`platform = espressif32@6.13.0` is the PR #57 pin (Arduino core 2.0.17). Leave the version on.
 
 **Partitions** (`partitions_ble.csv` in the repo root - one app slot, **no OTA**):
 ```
 # Name,   Type, SubType, Offset,  Size, Flags
-nvs,      data, nvs,     0x9000,  0x6000,
-phy_init, data, phy,     0xf000,  0x1000,
-factory,  app,  factory, 0x10000, 0x340000,
-spiffs,   data, spiffs,  0x350000,0xA0000,
+nvs,      data, nvs,     0x9000,  0x6000,     # 24KB
+phy_init, data, phy,     0xf000,  0x1000,     # 4KB
+factory,  app,  factory, 0x10000, 0x340000,   # 3.25MB (single app)
+spiffs,   data, spiffs,  0x350000,0xA0000,    # 640KB filesystem
 ```
 
 **Memory**:
 - Flash: 4MB
 - RAM: 520KB
 - PSRAM: Optional
+
+## OTA Limitations on 4MB ESP32 with BLE
+
+> **OTA is NOT supported** on the node32s (4MB flash) when BLE is enabled.
+
+### Why OTA Does Not Work
+
+OTA requires **two app partitions** (dual slots) so the device can download new firmware into the inactive slot and switch on reboot. On a 4MB ESP32 with BLE enabled:
+
+| Item | Size |
+|------|------|
+| Current firmware (with BLE + PROGMEM_WWW) | ~2.19 MB |
+| OTA requires 2 x app slots | 2 x 2.19 MB = **4.38 MB** |
+| Total flash available | **4.00 MB** |
+| Overhead (nvs, otadata, bootloader) | ~0.06 MB |
+| **Shortfall** | **~0.44 MB over** |
+
+The firmware simply does not fit twice in 4MB flash. The BLE stack alone adds ~400-600 KB to the binary.
+
+### What Was Tried
+
+A custom `partitions_ble_ota.csv` was created with dual 2.5 MB app slots, but:
+- The partition table totalled **5.25 MB** — exceeds 4 MB flash
+- The ESP32 boot-looped with `rst:0x3 (SW_RESET)` because the bootloader could not find valid partitions
+- Even the maximum possible OTA slot size on 4MB (~1.94 MB each with zero filesystem) is smaller than the firmware
+
+### Options to Enable OTA in Future
+
+| Option | Savings | Trade-off |
+|--------|---------|-----------|
+| Disable BLE (`FT_BLE=0`) | ~400-600 KB | Loses Bluetooth functionality |
+| Disable MQTT (`FT_MQTT=0`) | ~20-50 KB | Loses MQTT broker integration |
+| Optimize JS bundle / icons | ~50-100 KB | Reduced UI assets |
+| Use ESP32 with 8MB+ flash | N/A | Hardware change required |
+
+**Disabling BLE** is the only single change that makes OTA viable on 4MB. All other savings combined are insufficient.
+
+### Current Upload Method
+
+USB/serial upload only:
+```bash
+platformio run -t upload --upload-port COM9
+```
+
+If the device is in a boot loop (e.g. after a bad partition flash), enter download mode first:
+1. Hold the **BOOT** button
+2. Press and release the **RESET** button while holding BOOT
+3. Release BOOT
+4. Run `platformio run -t erase --upload-port COM9` to erase flash
+5. Re-upload firmware
 
 ## Frontend Build Configuration
 
@@ -302,27 +358,25 @@ const appName = process.env.REACT_APP_NAME;
 
 ## Upload Methods
 
-### Serial Upload (Default)
+### Serial Upload (Default — Required for node32s with BLE)
 
 ```bash
-platformio run -t upload
+platformio run -t upload --upload-port COM9
 ```
 
-### OTA Upload
+This is the **only supported upload method** for node32s with BLE enabled. See [OTA Limitations](#ota-limitations-on-4mb-esp32-with-ble) for why.
 
-Uncomment in platformio.ini:
-```ini
-upload_flags = 
-  --port=8266 
-  --auth=esp-react
-upload_port = 192.168.0.100
-upload_protocol = espota
-```
+### OTA Upload (ESP32-S3 — Supported)
 
-Then:
-```bash
-platformio run -t upload
-```
+**OTA is supported** on the **esp32s3** environment (8MB flash, dual app partitions). Full steps, port (8266), and password setup: **[OTA-UPLOAD.md](OTA-UPLOAD.md)**.
+
+- Device: **System → OTA SETTINGS** — enable OTA, set Port **8266**, Password **esp-react** (or match `upload_flags`).
+- `platformio.ini` [env:esp32s3]: use `upload_protocol = espota`, `upload_port = <device IP>`, `upload_flags = --port=8266 --auth=esp-react`.
+- Command: `python -m platformio run -e esp32s3 -t upload`.
+
+### OTA Upload (Not Available on node32s with BLE)
+
+OTA is **not** available on the **node32s** (4MB) env when BLE is enabled — firmware does not fit in two app slots. See [OTA Limitations](#ota-limitations-on-4mb-esp32-with-ble). Use USB/serial upload only for that env.
 
 ### Filesystem Upload
 

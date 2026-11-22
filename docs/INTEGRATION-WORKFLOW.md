@@ -4,14 +4,26 @@
 
 This repository uses `master` as the shared framework baseline and keeps major hardware integrations on their own long-lived branches.
 
-Integration branches the docs point to (they exist on GitHub as of 2026-09-24; whether each is still in active use is not recorded):
+Current integration branches: see **[BRANCH-MAP.md](BRANCH-MAP.md)** for every branch, the device it
+targets, its build env and its state (updated 22 November 2026).
 
-- `RelayBoardEspBuildIn` - relay board and Live Weight integration baseline
-- `SerialReaderWriter` - serial Reader / Writer / Diagnostics baseline; also holds the TFT screen (including the 3.5 inch `esp32dev_tft` board), the 16x2 character LCD (`lcddisplay`) and remote-weight options
-- `weighingboard` - load-cell / weighing integration baseline
+There is no `serial2` or `display35` branch. Serial work starts from `SerialReaderWriter`.
+3.5 inch display work is the `esp32dev_tft` board on that line. New 16x2 LCD work is
+`lcddisplay` on `SerialReaderWriter`. Older lines (`serial`, `serialWriter`,
+`espReadWriteRHYNO`) still exist; [BRANCH-MAP.md](BRANCH-MAP.md) and [../ROADMAP.md](../ROADMAP.md)
+say what each one holds.
+
+W-Soft (the weigh screen boards) is on `master` from 22 Nov 2026 and on `wsoft-esp32s3`
+(it was `claude/project-thread-9f4l7x`; the 2 Nov Waveshare line `wsoft-waveshare43` is merged
+into it). Its rules, including the check that stacked PRs reached that line, are in
+[WSOFT-WAVESHARE43.md section 0](WSOFT-WAVESHARE43.md).
+
+Other long-lived lines:
+
+- `RelayBoardEspBuildIn` - ESP8266 relay board and Live Weight
+- `SerialReaderWriter` - serial Reader / Writer / Diagnostics, TFT (`esp32dev_tft`), 16x2 LCD (`lcddisplay`), remote weight
+- `weighingboard` - load-cell / weighing
 - `display` - the original 16x2 LCD code, before it was ported to `SerialReaderWriter` as `lcddisplay`
-
-There is no `serial2` or `display35` branch. Serial work starts from `SerialReaderWriter`; 3.5 inch display work is the `esp32dev_tft` board on `SerialReaderWriter`; new 16x2 LCD work is `lcddisplay` on `SerialReaderWriter`. `serialReader` and `ALLinOneEspSerialdevice` are fully inside `SerialReaderWriter`. `serial`, `serialWriter` and `espReadWriteRHYNO` hold work that `SerialReaderWriter` does not have (for example WiFi fixes on `espReadWriteRHYNO`); they are not merged and their status is not decided. See [../ROADMAP.md](../ROADMAP.md) for the status of each line and the full branch list.
 
 ## Working Rules
 

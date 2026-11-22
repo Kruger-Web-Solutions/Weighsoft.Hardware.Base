@@ -14,30 +14,35 @@ This project is a **partnership** between the developer and AI assistant. All si
 ## Always Discuss Before Implementing
 
 **Git and Version Control Decisions:**
+
 - Commit message conventions or trailers (e.g., co-author attribution)
 - Branch naming strategies
 - Merge vs. rebase decisions
 - Repository or remote changes
 
 **Architecture and Design Decisions:**
+
 - Adding new patterns or frameworks
 - Changing existing design patterns
 - Technology stack additions or changes
 - File structure reorganization
 
 **Dependency and Tool Changes:**
+
 - Adding new libraries or packages
 - Updating major versions
 - Introducing new build tools or scripts
 - Changing deployment strategies
 
 **Feature Implementation Approaches:**
+
 - Multiple valid implementation paths
 - Trade-offs between performance, maintainability, and complexity
 - Breaking changes to existing APIs
 - Feature flags or conditional compilation
 
 **Project Configuration:**
+
 - Cursor rules or project settings
 - Build configuration changes
 - Environment variable changes
@@ -52,7 +57,7 @@ This project is a **partnership** between the developer and AI assistant. All si
 
 ## Example Good Communication
 
-```
+```txt
 I notice we could handle error logging in two ways:
 
 Option 1: Use console.error (simple, no dependencies)
@@ -64,7 +69,7 @@ Option 1. What's your preference?
 
 ## Example Bad Communication
 
-```
+```txt
 I'll add Winston for logging and update all error handlers.
 ```
 

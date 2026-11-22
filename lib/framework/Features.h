@@ -43,5 +43,34 @@
 #endif
 #endif
 
+// --- Per-board display features (NewEspAllInOne) ---
+// All OFF by default; enabled per-board in that env's build_flags in platformio.ini.
+
+// ESP-to-ESP weight receiver (hard dependency of the TFT weight screen)
+#ifndef FT_REMOTE_WEIGHT
+#define FT_REMOTE_WEIGHT 0
+#endif
+
+// TFT weight screen (TFT_eSPI; ILI9488 / CYD ILI9341). Requires FT_REMOTE_WEIGHT.
+#ifndef FT_TFT_WEIGHT_SCREEN
+#define FT_TFT_WEIGHT_SCREEN 0
+#endif
+
+// Character-LCD device (16x2 I2C via LiquidCrystal_I2C)
+#ifndef FT_DISPLAY_LCD
+#define FT_DISPLAY_LCD 0
+#endif
+
+// W-Soft weigh screen (Waveshare ESP32-S3 4.3, env wsoft_waveshare43)
+#ifndef FT_WSOFT
+#define FT_WSOFT 0
+#endif
+
+// Hi-Lo relay outputs on a W-Soft board (src/examples/relay). Requires FT_WSOFT and a
+// board env that names the relay pins.
+#ifndef FT_WSOFT_RELAY
+#define FT_WSOFT_RELAY 0
+#endif
+
 
 #endif

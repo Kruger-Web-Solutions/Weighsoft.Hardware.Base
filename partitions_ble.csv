@@ -1,6 +1,7 @@
 # Name,   Type, SubType, Offset,  Size, Flags
-# Partition scheme for BLE-enabled builds on 4MB flash
-# Single app partition (no OTA), app0: 3.3MB, spiffs: 640KB
+# Partition scheme for BLE-enabled builds on 4MB flash (NO OTA)
+# Single factory partition: 3.3MB app, 640KB filesystem
+# WARNING: This does NOT support OTA updates - use partitions_custom.csv for OTA
 nvs,      data, nvs,     0x9000,  0x6000,
 phy_init, data, phy,     0xf000,  0x1000,
 factory,  app,  factory, 0x10000, 0x340000,

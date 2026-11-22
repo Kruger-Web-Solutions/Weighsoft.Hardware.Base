@@ -9,6 +9,7 @@ import { RequiredChildrenProps } from '../../utils';
 
 import LayoutDrawer from './LayoutDrawer';
 import LayoutAppBar from './LayoutAppBar';
+import VersionDisplay from '../VersionDisplay';
 import { LayoutContext } from './context';
 
 export const DRAWER_WIDTH = 280;
@@ -31,10 +32,18 @@ const Layout: FC<RequiredChildrenProps> = ({ children }) => {
       <LayoutDrawer mobileOpen={mobileOpen} onClose={handleDrawerToggle} />
       <Box
         component="main"
-        sx={{ marginLeft: { md: `${DRAWER_WIDTH}px` } }}
+        sx={{
+          marginLeft: { md: `${DRAWER_WIDTH}px` },
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: '100vh'
+        }}
       >
         <Toolbar />
-        {children}
+        <Box sx={{ flexGrow: 1 }}>
+          {children}
+        </Box>
+        <VersionDisplay />
       </Box>
     </LayoutContext.Provider >
   );
