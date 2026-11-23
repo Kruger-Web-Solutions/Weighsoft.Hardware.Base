@@ -992,7 +992,7 @@ const WsoftUi = (() => {
     }
     if (S.source === 'LOADCELL') tile('zero', 'ZERO', 'SET TO 0', LOOK_BTN);
     tile('product', 'PRODUCT', !S.products.length ? 'NONE ON THE HUB' : pr ? pr.name.toUpperCase() : 'NONE', pr ? LOOK_ON : LOOK_BTN);
-    tile('theme', 'SCREEN', S.style === STYLE_COLOUR ? 'COLOUR' : S.style === STYLE_DIAL ? 'DIAL' : S.dark ? 'DARK' : 'LIGHT', LOOK_BTN);
+    tile('theme', 'SCREEN', S.style === STYLE_COLOUR ? 'MINI EDGE' : S.style === STYLE_DIAL ? 'DIAL' : S.dark ? 'DARK' : 'LIGHT', LOOK_BTN);
     tile('wifi', 'WI-FI', up ? S.wifi.ip : 'OFF', LOOK_BTN);
     m.tile_count = m.tiles.length;
     m.pin_count = S.pin.length;

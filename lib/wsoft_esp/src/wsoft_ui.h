@@ -37,6 +37,12 @@ struct WsoftUiView {
 
 // Starts the panel and touch. False when there is no panel (screenless board) or it failed.
 bool ui_begin();
+// A load cell on the Waveshare takes the I2C plug's SCL (GPIO9) for the HX711 clock (Rhyno,
+// 23 Nov 2026: one thing plugged in at a time). Call after ui_begin(): touch stops being read
+// and the board never talks on I2C again until a restart. SDA stays released (pulled high), so
+// the clock pulses never look like an I2C start to the touch chip or the IO expander. Other
+// boards: nothing to do.
+void ui_release_touch_bus();
 // Every poll: the screen paints the rows whose words changed.
 void ui_show(const WsoftUiView &view);
 // Every loop pass: taps, and the pages' way back to the live page when nobody taps.

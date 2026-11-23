@@ -8,6 +8,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **W-Soft: the Waveshare can read an RS232 scale or a load cell** (Rhyno, 23 Nov 2026). One thing
+  is plugged in at a time, so the pins follow the source: RS485 on the RS485 plug; RS232 on the
+  Sensor plug (GPIO6, receive only, through a MAX3232 like the yellow board); HX711 DT on the
+  Sensor plug (GPIO6) and SCK on the I2C plug's SCL (GPIO9). With the load cell picked the touch
+  screen is off (it shares the I2C wires); tap through the browser's Live tab. Relays stay off on
+  the Waveshare (Rhyno: ignore them). Not bench-tested.
+- **W-Soft: MENU > SCREEN says MINI EDGE** for the Full Colour look (the mini Edge, PR #70), so it
+  is easy to find: DARK, LIGHT, MINI EDGE, DIAL. Every board.
+- **W-Soft: one RS485 Scale setup, ZERO, stable and auto zero that work** (Rhyno, 23 Nov 2026).
+  The Scale setup tab has one form for the RS485 card: unit, decimal places, e, stable range and
+  time, auto zero range and time, Filter 1 and Filter 2. Save writes each value where it lives and
+  reads it back; the old second "Weighing card" write table is gone, and a check table under the
+  form shows what the card holds (Read / Read all). A DJB-M1X keeps all of them; a DJB-W1X keeps
+  only the filters, so the board keeps the rest and does the stable judging and auto zero itself.
+  ZERO on the main screen now works on RS485 too (board-side zero, kept over a restart, nothing
+  written to the card). The trade engine and the saver use the stable range and time: a reading
+  that wobbles inside the range is one weighing, not several. Every W-Soft board (Waveshare,
+  yellow, S3). Not bench-tested.
+- **W-Soft: decimal places and e work with a DJB-W1X** (Rhyno, 23 Nov 2026). The W1X (no display)
+  has no decimal or e setting, so Scale setup saved to nowhere and came back empty. The board now
+  sees that (the card reads e = 0) and keeps decimal places (0 to 4) and e itself. An M1X still
+  keeps them on the card. Every RS485 board.
+- **W-Soft: every board shows the same menus** (Rhyno, 23 Nov 2026). Serial is in the menu, and
+  Settings shows "Weight comes from", the Hi-Lo relays and the Hi-Lo light on every W-Soft board. An
+  option a board is not wired for (the Waveshare: RS232, load cell, relays, light) is greyed with
+  "needs add-on wiring"; the board still refuses it, so no pin is driven. Web page only.
+- **W-Soft: the S3 board can weigh with a load cell too** (Rhyno, 23 Nov 2026). HX711 DT on GPIO1,
+  SCK on GPIO2, picked in Settings "Weight comes from". Same as the yellow board. Not bench-tested.
+- **W-Soft: Live shows the screen AND the old info** (Rhyno, 23 Nov 2026). Under the board's
+  screen the Live tab has the Approval and Auto save switches, the approval log, SAVE WEIGHING,
+  the alarm test note and the status table again. Same page on every W-Soft board.
 - **W-Soft: the browser's Live screen is sharp** (Rhyno, 22 Nov 2026). The page paints the
   board's screen with the Waveshare's letters at 800 x 480 instead of blowing up the 320 x 240
   picture, with round corners and a soft shadow. About 29 KB more firmware.

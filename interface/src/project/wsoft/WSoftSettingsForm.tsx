@@ -23,6 +23,11 @@ const RELAY_ZONES: { name: 'relay_low' | 'relay_ok' | 'relay_high'; label: strin
   { name: 'relay_high', label: 'Relay for TOO HIGH' }
 ];
 
+// Every W-Soft board shows the same options (Rhyno, 23 Nov 2026: the yellow board is the
+// reference). One this board is not wired for stays visible but greyed, with this note, and
+// the board still refuses it, so nothing drives a pin that is not there.
+const NEEDS_WIRING = 'Needs add-on wiring on this board.';
+
 const WSoftSettingsForm: FC = () => {
   const [fieldErrors, setFieldErrors] = useState<ValidateFieldsError>();
   const {
@@ -56,87 +61,95 @@ const WSoftSettingsForm: FC = () => {
           }
           my={2}
         />
-        {(data.rs232_available || data.loadcell_available) && (
-          <ValidatedTextField
-            fieldErrors={fieldErrors}
-            name="source"
-            label="Weight comes from"
-            value={data.source}
-            fullWidth
-            select
-            variant="outlined"
-            onChange={updateFormValue}
-            margin="normal"
-            helperText={
-              'RS232: set the speed and the weight pattern on the Serial page. ' +
-              'Load cell: calibrate it on the Calibrate tab. ' +
-              'All of them use the same plug, so the board has one at a time. Saving a new choice restarts the board.'
+        <ValidatedTextField
+          fieldErrors={fieldErrors}
+          name="source"
+          label="Weight comes from"
+          value={data.source}
+          fullWidth
+          select
+          variant="outlined"
+          onChange={updateFormValue}
+          margin="normal"
+          helperText={
+            'RS232: set the speed and the weight pattern on the Serial page. ' +
+            'Load cell: calibrate it on the Calibrate tab. ' +
+            'All of them use the same plug, so the board has one at a time. Saving a new choice restarts the board.'
+          }
+        >
+          <MenuItem value="rs485">Junction box (RS485)</MenuItem>
+          <MenuItem value="rs232" disabled={!data.rs232_available}>
+            {data.rs232_available ? 'RS232 scale' : 'RS232 scale (needs add-on wiring)'}
+          </MenuItem>
+          <MenuItem value="loadcell" disabled={!data.loadcell_available}>
+            {data.loadcell_available ? 'Load cell (HX711 board)' : 'Load cell (needs add-on wiring)'}
+          </MenuItem>
+        </ValidatedTextField>
+        <>
+          {!data.relay_available && (
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+              Hi-Lo relays: {NEEDS_WIRING}
+            </Typography>
+          )}
+          <BlockFormControlLabel
+            disabled={!data.relay_available}
+            control={
+              <Checkbox
+                name="relay_enabled"
+                checked={data.relay_enabled}
+                onChange={updateFormValue}
+              />
             }
-          >
-            <MenuItem value="rs485">Junction box (RS485)</MenuItem>
-            {data.rs232_available && <MenuItem value="rs232">RS232 scale</MenuItem>}
-            {data.loadcell_available && <MenuItem value="loadcell">Load cell (HX711 board)</MenuItem>}
-          </ValidatedTextField>
-        )}
-        {data.relay_available && (
-          <>
-            <BlockFormControlLabel
-              control={
-                <Checkbox
-                  name="relay_enabled"
-                  checked={data.relay_enabled}
-                  onChange={updateFormValue}
-                />
-              }
-              label="Switch the Hi-Lo relays (LOW / OK / HIGH)?"
-            />
-            {RELAY_ZONES.map((zone) => (
-              <ValidatedTextField
-                key={zone.name}
-                fieldErrors={fieldErrors}
-                name={zone.name}
-                label={zone.label}
-                value={data[zone.name]}
-                fullWidth
-                select
-                variant="outlined"
-                onChange={(event) => setData({ ...data, [zone.name]: Number(event.target.value) })}
-                margin="normal"
-              >
-                <MenuItem value={0}>None</MenuItem>
-                <MenuItem value={1}>Relay 1</MenuItem>
-                <MenuItem value={2}>Relay 2</MenuItem>
-                <MenuItem value={3}>Relay 3</MenuItem>
-                <MenuItem value={4}>Relay 4</MenuItem>
-              </ValidatedTextField>
-            ))}
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-              All relays are off with no signal, an alarm, no product or an empty scale.
-            </Typography>
-            <BlockFormControlLabel
-              control={
-                <Checkbox
-                  name="relay_writer_follow"
-                  checked={!!data.relay_writer_follow}
-                  onChange={updateFormValue}
-                />
-              }
-              label="In Writer mode, switch the relays too (they follow the weigh board's weight)?"
-            />
-          </>
-        )}
-        {data.relay_light_available && (
-          <>
-            <BlockFormControlLabel
-              control={<Checkbox name="relay_light" checked={!!data.relay_light} onChange={updateFormValue} />}
-              label="Hi-Lo light: show Hi-Lo on the board's light (blue under, green correct, red over)?"
-            />
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-              The light uses the relay pins. A relay board wired to the light switches with it. Untick to keep the
-              light dark.
-            </Typography>
-          </>
-        )}
+            label="Switch the Hi-Lo relays (LOW / OK / HIGH)?"
+          />
+          {RELAY_ZONES.map((zone) => (
+            <ValidatedTextField
+              key={zone.name}
+              fieldErrors={fieldErrors}
+              name={zone.name}
+              label={zone.label}
+              value={data[zone.name]}
+              fullWidth
+              select
+              variant="outlined"
+              disabled={!data.relay_available}
+              onChange={(event) => setData({ ...data, [zone.name]: Number(event.target.value) })}
+              margin="normal"
+            >
+              <MenuItem value={0}>None</MenuItem>
+              <MenuItem value={1}>Relay 1</MenuItem>
+              <MenuItem value={2}>Relay 2</MenuItem>
+              <MenuItem value={3}>Relay 3</MenuItem>
+              <MenuItem value={4}>Relay 4</MenuItem>
+            </ValidatedTextField>
+          ))}
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+            All relays are off with no signal, an alarm, no product or an empty scale.
+          </Typography>
+          <BlockFormControlLabel
+            disabled={!data.relay_available}
+            control={
+              <Checkbox
+                name="relay_writer_follow"
+                checked={!!data.relay_writer_follow}
+                onChange={updateFormValue}
+              />
+            }
+            label="In Writer mode, switch the relays too (they follow the weigh board's weight)?"
+          />
+        </>
+        <>
+          <BlockFormControlLabel
+            disabled={!data.relay_light_available}
+            control={<Checkbox name="relay_light" checked={!!data.relay_light} onChange={updateFormValue} />}
+            label="Hi-Lo light: show Hi-Lo on the board's light (blue under, green correct, red over)?"
+          />
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+            {data.relay_light_available
+              ? 'The light uses the relay pins. A relay board wired to the light switches with it. Untick to keep the light dark.'
+              : NEEDS_WIRING}
+          </Typography>
+        </>
         {data.esp_led_available && (
           <BlockFormControlLabel
             control={<Checkbox name="esp_led" checked={!!data.esp_led} onChange={updateFormValue} />}

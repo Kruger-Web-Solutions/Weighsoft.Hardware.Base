@@ -5,6 +5,7 @@
 #include <time.h>
 #ifdef WSOFT_ON_BASE
 #include "approval_base.h"
+#include "scale.h"
 #include "switches.h"
 #endif
 
@@ -319,6 +320,10 @@ TradeCheck approval_update_held(bool linked, bool fresh, bool alarm, int32_t val
 #endif
 
   TradeReading reading = {on, linked, fresh, alarm, value, decimals, unit, millis(), (int64_t)time(nullptr)};
+#ifdef WSOFT_ON_BASE
+  // RS485 card: the stable range and time typed on the Scale setup (0 / 0 on other sources).
+  scale_stability(&reading.stable_range, &reading.stable_ms);
+#endif
   TradeWeight issued;
   TradeCheck next = engine.update(reading, queue_full, &issued);
 #ifdef WSOFT_ON_BASE

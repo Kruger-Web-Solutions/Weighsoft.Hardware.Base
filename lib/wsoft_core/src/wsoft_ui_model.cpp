@@ -264,7 +264,7 @@ static void menu(const WsoftUiInput &in, WsoftUiModel *m) {
     tile(m, WSOFT_UI_TILE_PRODUCT, "PRODUCT", m->product, true);
   }
   tile(m, WSOFT_UI_TILE_THEME, "SCREEN",
-       in.style == WSOFT_UI_STYLE_COLOUR ? "COLOUR" : in.style == WSOFT_UI_STYLE_DIAL ? "DIAL" : in.dark ? "DARK" : "LIGHT", false);
+       in.style == WSOFT_UI_STYLE_COLOUR ? "MINI EDGE" : in.style == WSOFT_UI_STYLE_DIAL ? "DIAL" : in.dark ? "DARK" : "LIGHT", false);
   // The menu holds 7 tiles. When ZERO and PRESET TARE are both there, WI-FI gives way: a tap
   // on the Wi-Fi bars at the top of the screen opens the same page.
   tile(m, WSOFT_UI_TILE_WIFI, "WI-FI", in.wifi_up ? in.ip : "OFF", false);

@@ -17,8 +17,8 @@ import { AuthenticationContext } from '../contexts/authentication';
 
 // A W-Soft board does not create the Serial1 devices (Diagnostics, Weight Forwarder), the
 // Remote Weight receiver or the LCD device, so their pages only answer 404 there: the menu
-// leaves them out. Serial stays on boards wired for an RS232 scale (its page sets the speed
-// and the weight pattern). Every other board keeps the full list. Hub: W-Soft boards, admins only.
+// leaves them out. Serial is on every board (Rhyno, 23 Nov 2026: same menus everywhere); a
+// board not wired for RS232 says so on that page. Every other board keeps the full list. Hub: W-Soft boards, admins only.
 const ProjectMenu: FC = () => {
   const { features } = useContext(FeaturesContext);
   const { me } = useContext(AuthenticationContext);
@@ -26,9 +26,7 @@ const ProjectMenu: FC = () => {
   return (
     <List>
       {!wsoft && <LayoutMenuItem icon={LightbulbIcon} label="LED" to={`/${PROJECT_PATH}/led-example`} />}
-      {(!wsoft || features.wsoft_rs232) && (
-        <LayoutMenuItem icon={SerialPortIcon} label="Serial" to={`/${PROJECT_PATH}/serial`} />
-      )}
+      <LayoutMenuItem icon={SerialPortIcon} label="Serial" to={`/${PROJECT_PATH}/serial`} />
       {!wsoft && <LayoutMenuItem icon={BuildIcon} label="Diagnostics" to={`/${PROJECT_PATH}/diagnostics`} />}
       {!wsoft && (
         <LayoutMenuItem icon={SendIcon} label="Weight Forwarder" to={`/${PROJECT_PATH}/weightforwarder`} />

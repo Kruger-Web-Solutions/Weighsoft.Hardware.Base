@@ -408,6 +408,18 @@ void test_preset_tare() {
   TEST_ASSERT_EQUAL(WSOFT_TARE_EMPTY, wsoft_tare_preset(s, 1, 1, &t));
 }
 
+static void test_board_format_valid() {
+  TEST_ASSERT_TRUE(wsoft_board_format_valid(2, 1, 1));       // 0.01 kg
+  TEST_ASSERT_TRUE(wsoft_board_format_valid(4, 1, 1));       // 0.0001 kg
+  TEST_ASSERT_TRUE(wsoft_board_format_valid(0, 500, 3));     // 500 g
+  TEST_ASSERT_FALSE(wsoft_board_format_valid(5, 1, 1));      // more than 4 decimals
+  TEST_ASSERT_FALSE(wsoft_board_format_valid(-1, 1, 1));
+  TEST_ASSERT_FALSE(wsoft_board_format_valid(2, 0, 1));      // what a DJB-W1X reads
+  TEST_ASSERT_FALSE(wsoft_board_format_valid(2, 3, 1));      // not a card step
+  TEST_ASSERT_FALSE(wsoft_board_format_valid(2, 1, 0));      // no unit
+  TEST_ASSERT_FALSE(wsoft_board_format_valid(2, 1, 4));
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_e_from_the_card);
@@ -431,5 +443,6 @@ int main(int, char **) {
   RUN_TEST(test_tare_button);
   RUN_TEST(test_tare_limit_falls_back_to_max);
   RUN_TEST(test_preset_tare);
+  RUN_TEST(test_board_format_valid);
   return UNITY_END();
 }

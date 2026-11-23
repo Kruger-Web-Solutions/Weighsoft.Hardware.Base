@@ -470,7 +470,9 @@ static void gather(Facts *f) {
   in.tare_on = tare.on;
   in.tare_value = tare.value;
   f->preset[0] = 0;
-  in.zero = strcmp(view.source, "LOADCELL") == 0;
+  // ZERO on every board that weighs itself or reads an RS485 card (Rhyno, 23 Nov 2026: the
+  // Waveshare had no ZERO). Not on RS232 (the indicator zeroes) or a Writer (the weigh board does).
+  in.zero = strcmp(view.source, "LOADCELL") == 0 || strcmp(view.source, "RS485") == 0;
   in.zero_note = zero_note[0] && millis() - zero_note_ms < RESULT_MS ? zero_note : "";
   in.preset_on = scale.setup.preset_tare_kg != WSOFT_KG_UNSET && scale.setup.preset_tare_kg > 0;
   if (in.preset_on) {
@@ -584,15 +586,19 @@ static void tare(bool preset) {
   say(error == WSOFT_TARE_OK ? (!preset && was_on ? "TARE CLEARED" : "TARE ON") : wsoft_tare_error_code(error));
 }
 
-// ZERO on the menu (load cell only; Rhyno, 22 Nov 2026): the scale drifted off zero, the
-// operator empties it and taps. The same zero as on the Calibrate tab, so it is kept over a
-// restart. Like Calibrate: not with Approval ON. Only on a steady reading, and not under a tare
-// (the tare was taken against the old zero).
+// ZERO on the menu and the live page (Rhyno, 22 Nov 2026 load cell; 23 Nov 2026 RS485 too): the
+// scale drifted off zero, the operator empties it and taps. Load cell: the same zero as on the
+// Calibrate tab. RS485 card: the board's own zero (scale_card_zero), nothing is written to the
+// card. Both are kept over a restart, both refuse with Approval ON, on a moving reading and
+// under a tare (the tare was taken against the old zero).
 // What the tap did is said twice: in the menu's message line, and under ZERO on the live page
 // for a few seconds (short words: the button holds 17 letters).
 static void zero() {
   const char *result;
-  if (approval_on()) result = "APPROVAL IS ON";
+  if (strcmp(view.source, "RS485") == 0) {
+    bool steady = approval_stable() && view.hold != WSOFT_HOLD_NOT_STABLE && !view.alarm;
+    result = wsoft_zero_error_screen(scale_card_zero(view.linked, steady, "screen"));
+  } else if (approval_on()) result = "APPROVAL IS ON";
   else if (scale_tare().on) result = "CLEAR TARE FIRST";
   else if (!view.linked) result = "CALIBRATE FIRST";
   else if (!approval_stable() || view.hold == WSOFT_HOLD_NOT_STABLE) result = "NOT STEADY";
@@ -644,7 +650,7 @@ static void menu_tap(int tile) {
       if (scale_rs485()) tare(true);
       break;
     case WSOFT_UI_TILE_ZERO:
-      if (strcmp(view.source, "LOADCELL") == 0) zero();
+      if (strcmp(view.source, "LOADCELL") == 0 || strcmp(view.source, "RS485") == 0) zero();
       break;
     case WSOFT_UI_TILE_PRODUCT:
       next_product();
@@ -664,7 +670,7 @@ static void menu_tap(int tile) {
         dark = true;
       }
       theme_save();
-      say(style == WSOFT_UI_STYLE_COLOUR ? "FULL COLOUR" : style == WSOFT_UI_STYLE_DIAL ? "DIAL" : dark ? "DARK MODE" : "LIGHT MODE");
+      say(style == WSOFT_UI_STYLE_COLOUR ? "MINI EDGE" : style == WSOFT_UI_STYLE_DIAL ? "DIAL" : dark ? "DARK MODE" : "LIGHT MODE");
       break;
     case WSOFT_UI_TILE_WIFI:
       message[0] = 0;
@@ -753,6 +759,14 @@ bool ui_begin() {
   theme_load();
   ready = gx_begin();
   return ready;
+}
+
+void ui_release_touch_bus() {
+#if !WSOFT_BOARD_HEADLESS && !WSOFT_BOARD_CYD
+  touch_ok = false;  // gx_touch() reads nothing more, so no I2C transfer starts again
+  gpio_reset_pin(GPIO_NUM_8);  // SDA: input with pull-up, never driven
+  WSOFT_LOG.println("touch off: the load cell uses the I2C plug (use the browser Live tab)");
+#endif
 }
 
 void ui_show(const WsoftUiView &next) {

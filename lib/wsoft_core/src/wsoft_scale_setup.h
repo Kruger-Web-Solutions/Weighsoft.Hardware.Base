@@ -87,6 +87,12 @@ const char *wsoft_setup_error_text(WsoftSetupError error);
 // kg, t or g, or e is not a whole number of 0.00001 kg.
 bool wsoft_card_e(const WsoftCardFormat &card, int64_t *e);
 
+// A weighing card with no format registers (the DJB-W1X, no display: Rhyno, 23 Nov 2026) reads 0
+// for the division; the M1X keeps 1..500. Then the board keeps the decimals, e and unit itself.
+// Valid: decimals 0..4, division one of the card's steps (1, 2, 5, 10, 20, 50, 100, 200, 500),
+// unit 1 kg, 2 t or 3 g.
+bool wsoft_board_format_valid(int decimal, int32_t division, int unit);
+
 // A reading (value scaled by decimals, in unit) in kg units. False when not exact.
 bool wsoft_reading_to_kg(int32_t value, int decimals, int unit, int64_t *kg);
 // kg units back to a reading in decimals and unit. False when not exact or too big.
@@ -109,15 +115,23 @@ int wsoft_scale_setup_missing(const WsoftScaleSetup &setup, const WsoftCardForma
 bool wsoft_scale_setup_complete(const WsoftScaleSetup &setup, const WsoftCardFormat &card);
 
 // Consecutive fresh, unchanged readings (the board's part of "stable").
+// range: a reading within range digits (last-digit steps) of the first one of the run still
+// counts as unchanged (0 = exactly the same, as before 23 Nov 2026). now_ms: when the reading
+// came, for the stable time (wsoft_rs485_tuning.h). Both default to the old behaviour.
 class WsoftStableSamples {
  public:
-  void update(bool linked, bool fresh, int32_t value);
+  void update(bool linked, bool fresh, int32_t value, int32_t range = 0, uint32_t now_ms = 0);
   int count() const { return count_; }
   bool stable(int needed) const { return count_ >= needed; }
+  // needed readings in a row AND the run has lasted at least time_ms (0 = no time rule).
+  bool stable_for(int needed, uint32_t time_ms, uint32_t now_ms) const {
+    return count_ >= needed && (time_ms == 0 || (uint32_t)(now_ms - since_ms_) >= time_ms);
+  }
 
  private:
   int count_ = 0;
   int32_t value_ = 0;
+  uint32_t since_ms_ = 0;
 };
 
 // Why a reading is held back from trade and from a save.

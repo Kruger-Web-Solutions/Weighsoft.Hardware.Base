@@ -817,7 +817,7 @@ void test_the_style_of_the_live_page() {
   in.style = WSOFT_UI_STYLE_COLOUR;
   wsoft_ui_model(in, &b);
   TEST_ASSERT_EQUAL(WSOFT_UI_TILE_THEME, b.tiles[3].id);
-  TEST_ASSERT_EQUAL_STRING("COLOUR", b.tiles[3].value);
+  TEST_ASSERT_EQUAL_STRING("MINI EDGE", b.tiles[3].value);
   in.style = WSOFT_UI_STYLE_DIAL;
   wsoft_ui_model(in, &b);
   TEST_ASSERT_EQUAL_STRING("DIAL", b.tiles[3].value);

@@ -34,6 +34,11 @@ const SerialMonitor: FC = () => {
     return (
       <Box p={3}>
         <UartModeSwitcher currentMode="reader" />
+        {!features.wsoft_rs232 && (
+          <Alert severity="info" sx={{ mb: 2 }}>
+            RS232 needs add-on wiring on this board. Until then it weighs over RS485 only.
+          </Alert>
+        )}
         <Alert severity="info">
           This board reads the scale over RS485 (the weighing card), so the Serial reader is off and this page has
           nothing to set. It is only for an RS232 scale: switch the source under W-Soft &gt; Settings.
