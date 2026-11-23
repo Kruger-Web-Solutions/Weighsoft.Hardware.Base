@@ -107,9 +107,48 @@ void test_link_and_format_limits() {
     // Reads are never range-checked.
     TEST_ASSERT_TRUE(wsoft_djb_plan("read", rows[i].name, 0, false, rows[i].high_bad, true, &plan));
   }
-  // Fields without a known code range stay raw.
+  // Sampling has no agreed code range (the two manuals differ): it stays raw.
   WsoftDjbPlan plan;
-  TEST_ASSERT_TRUE(wsoft_djb_plan("write", "filter2", 0, false, 1024, true, &plan));
+  TEST_ASSERT_TRUE(wsoft_djb_plan("write", "sampling", 0, false, 1024, true, &plan));
+}
+
+// The scale tuning rows (M1X manual menu 04..09, protocol V2.0 filters): out of range is refused
+// before anything is sent (23 Nov 2026: one Scale setup writes these to the card).
+void test_tuning_write_ranges() {
+  struct Row {
+    const char *name;
+    int32_t low_bad, low_ok, high_ok, high_bad;
+  };
+  const Row rows[] = {
+      {"stability_range", -1, 0, 999, 1000}, {"stability_time", 0, 1, 99, 100},
+      {"zero_track_limit", -1, 0, 9999, 10000}, {"zero_track_time", 0, 1, 99, 100},
+      {"zero_display", -1, 0, 99, 100},     {"filter1", -1, 0, 9, 10},
+      {"filter2", -1, 0, 10, 11},
+  };
+  for (size_t i = 0; i < sizeof rows / sizeof rows[0]; i++) {
+    WsoftDjbPlan plan;
+    TEST_ASSERT_FALSE_MESSAGE(wsoft_djb_plan("write", rows[i].name, 0, false, rows[i].low_bad, true, &plan), rows[i].name);
+    TEST_ASSERT_EQUAL_STRING("range", plan.error);
+    TEST_ASSERT_FALSE_MESSAGE(wsoft_djb_plan("write", rows[i].name, 0, false, rows[i].high_bad, true, &plan), rows[i].name);
+    TEST_ASSERT_TRUE_MESSAGE(wsoft_djb_plan("write", rows[i].name, 0, false, rows[i].low_ok, true, &plan), rows[i].name);
+    TEST_ASSERT_TRUE_MESSAGE(wsoft_djb_plan("write", rows[i].name, 0, false, rows[i].high_ok, true, &plan), rows[i].name);
+  }
+  WsoftDjbPlan plan;
+  TEST_ASSERT_TRUE(wsoft_djb_plan("write", "stability_time", 0, false, 5, true, &plan));
+  TEST_ASSERT_EQUAL_UINT16(41311, plan.doc);
+  TEST_ASSERT_TRUE(wsoft_djb_plan("write", "filter1", 0, false, 5, true, &plan));
+  TEST_ASSERT_EQUAL_UINT16(41321, plan.doc);
+}
+
+void test_division_write_is_a_card_step() {
+  WsoftDjbPlan plan;
+  const int32_t good[] = {1, 2, 5, 10, 20, 50, 100, 200, 500};
+  for (int32_t v : good) TEST_ASSERT_TRUE(wsoft_djb_plan("write", "division", 0, false, v, true, &plan));
+  const int32_t bad[] = {0, 3, 4, 25, 1000, -1};
+  for (int32_t v : bad) {
+    TEST_ASSERT_FALSE(wsoft_djb_plan("write", "division", 0, false, v, true, &plan));
+    TEST_ASSERT_EQUAL_STRING("range", plan.error);
+  }
 }
 
 void test_weight_and_alarm_are_read_only() {
@@ -260,5 +299,7 @@ int main(int argc, char **argv) {
   RUN_TEST(test_sampling_stays_a_raw_long);
   RUN_TEST(test_only_the_eeprom_alarm_is_allowed);
   RUN_TEST(test_alarm_watch_counts_changes_after_the_first_read);
+  RUN_TEST(test_tuning_write_ranges);
+  RUN_TEST(test_division_write_is_a_card_step);
   return UNITY_END();
 }

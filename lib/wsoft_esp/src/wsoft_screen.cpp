@@ -395,7 +395,7 @@ void wsoft_screen_setup(WsoftScreenSource source) {
 
   display_ready = ui_begin();
   log_line(display_ready ? "display ready" : WSOFT_BOARD_HEADLESS ? "no display (headless board)" : "display failed");
-  scale_begin(!line_mode || loadcell_mode);
+  scale_begin(!line_mode || loadcell_mode, !line_mode);
   pin_begin();
   approval_begin();
   weighings_begin(line_mode && !writer_mode);
@@ -543,6 +543,9 @@ void wsoft_screen_loop() {
     polls++;
   } else {
     fresh = poll_djb(&next);
+    // The board's ZERO, auto zero (a card with none of its own) and e rounding (a card with no
+    // format registers): only on a fresh read, as a carried-over value has had them already.
+    if (fresh) next.value = scale_card_shown(next.linked, fresh, next.value, next.decimals, next.unit);
     uint32_t before = alarm_watch.last();
     bool first = !alarm_watch.seen();
     if (alarm_watch.update(fresh && next.alarm_word_valid, next.alarm_word)) {

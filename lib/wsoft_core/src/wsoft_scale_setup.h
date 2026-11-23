@@ -115,15 +115,23 @@ int wsoft_scale_setup_missing(const WsoftScaleSetup &setup, const WsoftCardForma
 bool wsoft_scale_setup_complete(const WsoftScaleSetup &setup, const WsoftCardFormat &card);
 
 // Consecutive fresh, unchanged readings (the board's part of "stable").
+// range: a reading within range digits (last-digit steps) of the first one of the run still
+// counts as unchanged (0 = exactly the same, as before 23 Nov 2026). now_ms: when the reading
+// came, for the stable time (wsoft_rs485_tuning.h). Both default to the old behaviour.
 class WsoftStableSamples {
  public:
-  void update(bool linked, bool fresh, int32_t value);
+  void update(bool linked, bool fresh, int32_t value, int32_t range = 0, uint32_t now_ms = 0);
   int count() const { return count_; }
   bool stable(int needed) const { return count_ >= needed; }
+  // needed readings in a row AND the run has lasted at least time_ms (0 = no time rule).
+  bool stable_for(int needed, uint32_t time_ms, uint32_t now_ms) const {
+    return count_ >= needed && (time_ms == 0 || (uint32_t)(now_ms - since_ms_) >= time_ms);
+  }
 
  private:
   int count_ = 0;
   int32_t value_ = 0;
+  uint32_t since_ms_ = 0;
 };
 
 // Why a reading is held back from trade and from a save.

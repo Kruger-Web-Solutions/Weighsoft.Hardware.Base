@@ -236,6 +236,55 @@ void test_weight_unit_text() {
   TEST_ASSERT_EQUAL_STRING("", weight_unit_text(9));
 }
 
+// ---------- stable range and time (RS485 tuning, 23 Nov 2026) ----------
+
+static TradeReading tuned(uint32_t ms, int32_t value, int32_t range, uint32_t still_ms) {
+  TradeReading r = reading(ms, value);
+  r.stable_range = range;
+  r.stable_ms = still_ms;
+  return r;
+}
+
+void test_zero_range_and_time_keep_the_old_rule() {
+  TradeEngine e;
+  TradeWeight w;
+  // A brace list leaves the new fields 0: unchanged for TRADE_STABLE_MS.
+  TradeReading r = reading(0, 1520);
+  TEST_ASSERT_EQUAL_INT32(0, r.stable_range);
+  TEST_ASSERT_EQUAL_UINT32(0, r.stable_ms);
+  e.update(reading(0, 1520), false, &w);
+  e.update(reading(500, 1521), false, &w);
+  TEST_ASSERT_EQUAL(TRADE_MOTION, e.update(reading(1250, 1521), false, &w));
+  TEST_ASSERT_EQUAL(TRADE_OK, e.update(reading(1500, 1521), false, &w));
+}
+
+void test_stable_range_counts_a_wobble_as_still_and_saves_once() {
+  TradeEngine e;
+  TradeQueue q;
+  TradeWeight w;
+  const int32_t wobble[] = {1520, 1521, 1519, 1520, 1521, 1520, 1519, 1521};
+  int issued = 0;
+  uint32_t ms = 0;
+  for (int32_t v : wobble) {
+    e.update(tuned(ms, v, 1, 500), q.full(), &w);
+    if (w.valid) issued++;
+    ms += 250;
+  }
+  // Still after 0.5 s, one trade weight for the load however it wobbles inside the range.
+  TEST_ASSERT_TRUE(e.stable());
+  TEST_ASSERT_EQUAL_INT(1, issued);
+  // A move bigger than the range is motion again.
+  TEST_ASSERT_EQUAL(TRADE_MOTION, e.update(tuned(ms, 1530, 1, 500), q.full(), &w));
+}
+
+void test_stable_time_is_used() {
+  TradeEngine e;
+  TradeWeight w;
+  e.update(tuned(0, 800, 0, 2000), false, &w);
+  TEST_ASSERT_EQUAL(TRADE_MOTION, e.update(tuned(1500, 800, 0, 2000), false, &w));
+  TEST_ASSERT_EQUAL(TRADE_OK, e.update(tuned(2000, 800, 0, 2000), false, &w));
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_failed_poll_is_reported_stale_and_issues_nothing);
@@ -254,5 +303,8 @@ int main(int, char **) {
   RUN_TEST(test_seq_continues_from_storage_after_restart);
   RUN_TEST(test_format_weight);
   RUN_TEST(test_weight_unit_text);
+  RUN_TEST(test_zero_range_and_time_keep_the_old_rule);
+  RUN_TEST(test_stable_range_counts_a_wobble_as_still_and_saves_once);
+  RUN_TEST(test_stable_time_is_used);
   return UNITY_END();
 }

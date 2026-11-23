@@ -292,6 +292,22 @@ export interface WSoftScaleSetup {
   card: WSoftScaleCard | null;
   /** The card has no format registers (DJB-W1X): decimals, e and unit are kept on the board, and card holds those. */
   format_on_board?: boolean;
+  /** The weight comes from the RS485 weighing card (not a load cell or RS232). */
+  rs485_card?: boolean;
+  /** RS485 card: stable range / time and auto zero kept on this board (times in tenths of a second). */
+  tuning?: WSoftRs485Tuning;
+  /** RS485 card: auto zero runs on this board (the card has none of its own, the DJB-W1X). */
+  zero_on_board?: boolean;
+  /** RS485 card: the board's ZERO (the screen button), in the card's last digit. */
+  zero?: { set: boolean; raw: number; auto: number; card_raw: number };
+}
+
+/** Kept on the board for an RS485 card. Ranges in steps of the last digit, times in tenths of a second. */
+export interface WSoftRs485Tuning {
+  stable_range: number;
+  stable_time: number;
+  zero_track_range: number;
+  zero_track_time: number;
 }
 
 // A5. POST /rest/wsoftScaleSetup (admin).
@@ -301,11 +317,14 @@ export interface WSoftScaleSetupRequest {
   reason: string;
   /** Only for a card with no format registers: decimals, e in card steps and unit, kept on the board. */
   format?: WSoftScaleCard;
+  /** RS485 card tuning kept on this board; a key left out keeps its value. */
+  tuning?: Partial<WSoftRs485Tuning>;
 }
 
 // POST /rest/djb (admin), src/examples/wsoft/WSoftStatusService.cpp handleDjb.
 export type WSoftCardField =
-  'division' | 'decimal' | 'unit' | 'zero_track_limit' | 'zero_track_time' | 'stability_range' | 'stability_time';
+  'division' | 'decimal' | 'unit' | 'zero_track_limit' | 'zero_track_time' | 'stability_range' | 'stability_time'
+  | 'filter1' | 'filter2';
 
 // 'ad' is the calibration register (DJB Communication Protocol V2.0, LC1 AD 41003): write 0 = zero
 // calibration, write CW > 0 = load calibration with the test weight on. 'alarm' is read-only.

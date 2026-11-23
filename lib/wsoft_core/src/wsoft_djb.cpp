@@ -53,7 +53,24 @@ static const Limit LIMITS[] = {
     {WSOFT_DJB_BAUD, 0, 2},
     {WSOFT_DJB_BYTE_ORDER, 0, 0},
     {WSOFT_DJB_COM1_MODE, 1, 1},
+    // The M1X manual's Scale Parameters table (menu 05..09) and protocol V2.0 (filters).
+    {WSOFT_DJB_STABILITY_RANGE, 0, 999},
+    {WSOFT_DJB_STABILITY_TIME, 1, 99},
+    {WSOFT_DJB_ZERO_TRACK_LIMIT, 0, 9999},
+    {WSOFT_DJB_ZERO_TRACK_TIME, 1, 99},
+    {WSOFT_DJB_ZERO_DISPLAY, 0, 99},
+    {WSOFT_DJB_FILTER1, 0, 9},
+    {WSOFT_DJB_FILTER2, 0, 10},
 };
+
+// 04. dV: the division is one of these steps (M1X manual).
+static bool division_step(int32_t value) {
+  static const int32_t steps[] = {1, 2, 5, 10, 20, 50, 100, 200, 500};
+  for (int32_t step : steps) {
+    if (value == step) return true;
+  }
+  return false;
+}
 
 uint16_t wsoft_djb_crc16(const uint8_t *data, size_t length) {
   uint16_t crc = 0xFFFF;
@@ -145,6 +162,10 @@ bool wsoft_djb_plan(const char *op,
   }
   if (plan->write && !has_value) {
     fail(plan, "need_value");
+    return false;
+  }
+  if (plan->write && plan->field == WSOFT_DJB_DIVISION && !division_step(value)) {
+    fail(plan, "range");
     return false;
   }
   if (plan->write) {

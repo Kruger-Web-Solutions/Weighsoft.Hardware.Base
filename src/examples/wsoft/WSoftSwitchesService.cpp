@@ -17,7 +17,7 @@
 static const uint32_t SWITCH_TIMEOUT_MS = 1000;
 // 8 log lines of up to WSOFT_SWITCH_LOG_MAX bytes, copied into the JSON, plus the rest.
 static const size_t SWITCHES_JSON_SIZE = 3072;
-static const size_t SETUP_JSON_SIZE = 1024;
+static const size_t SETUP_JSON_SIZE = 1536;
 
 namespace {
 
@@ -110,6 +110,25 @@ void sendScaleSetup(AsyncWebServerRequest* request) {
 
   // A card with no format registers (DJB-W1X): decimals, e and unit are kept on this board.
   root["format_on_board"] = info.rs485 && info.card_no_format;
+  // RS485 card tuning kept on this board (23 Nov 2026): the board uses stable range/time always
+  // and auto zero when the card has none of its own (zero_on_board). Times in tenths of a second.
+  ScaleZeroInfo zero;
+  scale_zero_info(&zero);
+  root["rs485_card"] = zero.card;
+  if (zero.card) {
+    WsoftRs485Tuning t = scale_tuning();
+    JsonObject tune = root.createNestedObject("tuning");
+    tune["stable_range"] = (long)t.stable_range;
+    tune["stable_time"] = (long)t.stable_time;
+    tune["zero_track_range"] = (long)t.zero_track_range;
+    tune["zero_track_time"] = (long)t.zero_track_time;
+    root["zero_on_board"] = zero.board_tracks;
+    JsonObject z = root.createNestedObject("zero");
+    z["set"] = zero.zero.set;
+    z["raw"] = (long)zero.zero.raw;
+    z["auto"] = (long)zero.track;
+    z["card_raw"] = (long)zero.raw;
+  }
   if (info.card.read) {
     JsonObject card = root.createNestedObject("card");
     card["division"] = (long)info.card.division;
@@ -286,6 +305,36 @@ void WSoftSwitchesService::updateScaleSetup(AsyncWebServerRequest* request, Json
       return;
     }
     wsoft_screen_reread_format();
+  }
+  // Optional "tuning": {"stable_range","stable_time","zero_track_range","zero_track_time"} for the
+  // RS485 card, kept on this board (times in tenths of a second). A key left out keeps its value.
+  if (json.containsKey("tuning")) {
+    JsonVariant tune = json["tuning"];
+    if (!tune.is<JsonObject>()) {
+      sendError(request, 400, "BAD_REQUEST", "tuning needs whole numbers.");
+      return;
+    }
+    WsoftRs485Tuning next = scale_tuning();
+    const char* keys[] = {"stable_range", "stable_time", "zero_track_range", "zero_track_time"};
+    int32_t* slots[] = {&next.stable_range, &next.stable_time, &next.zero_track_range, &next.zero_track_time};
+    for (int i = 0; i < 4; i++) {
+      if (!tune.containsKey(keys[i])) continue;
+      if (!tune[keys[i]].is<long>()) {
+        sendError(request, 400, "BAD_REQUEST", "tuning needs whole numbers.");
+        return;
+      }
+      long v = tune[keys[i]].as<long>();
+      if (v < -1000000L || v > 1000000L) v = -1;  // out of every range: refused below
+      *slots[i] = (int32_t)v;
+    }
+    WsoftSetupError tune_error = scale_save_tuning(next, who.c_str());
+    if (tune_error != WSOFT_SETUP_OK) {
+      sendError(request, 409, wsoft_setup_error_code(tune_error),
+                tune_error == WSOFT_SETUP_NUMBER
+                    ? "Stable range 0 to 999, stable time 0 to 9.9 s, auto zero 0 to 9999, its time 0.1 to 9.9 s."
+                    : wsoft_setup_error_text(tune_error));
+      return;
+    }
   }
   WsoftSetupError error = scale_save(in, who.c_str());
   if (error != WSOFT_SETUP_OK) {

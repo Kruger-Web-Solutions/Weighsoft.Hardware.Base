@@ -269,17 +269,20 @@ bool wsoft_scale_setup_complete(const WsoftScaleSetup &setup, const WsoftCardFor
 
 // ---------- each reading ----------
 
-void WsoftStableSamples::update(bool linked, bool fresh, int32_t value) {
+void WsoftStableSamples::update(bool linked, bool fresh, int32_t value, int32_t range, uint32_t now_ms) {
   if (!linked || !fresh) {
     count_ = 0;
     return;
   }
-  if (count_ > 0 && value == value_) {
+  if (range < 0) range = 0;
+  int64_t moved = (int64_t)value - (int64_t)value_;
+  if (count_ > 0 && moved <= range && moved >= -(int64_t)range) {
     if (count_ < WSOFT_STABLE_SAMPLES_MAX) count_++;
     return;
   }
   value_ = value;
   count_ = 1;
+  since_ms_ = now_ms;
 }
 
 WsoftScaleHold wsoft_scale_hold(const WsoftScaleSetup &s, const WsoftCardFormat &card, int32_t value, int32_t net,

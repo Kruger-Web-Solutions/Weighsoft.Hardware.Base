@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **W-Soft: one RS485 Scale setup, ZERO, stable and auto zero that work** (Rhyno, 23 Nov 2026).
+  The Scale setup tab has one form for the RS485 card: unit, decimal places, e, stable range and
+  time, auto zero range and time, Filter 1 and Filter 2. Save writes each value where it lives and
+  reads it back; the old second "Weighing card" write table is gone, and a check table under the
+  form shows what the card holds (Read / Read all). A DJB-M1X keeps all of them; a DJB-W1X keeps
+  only the filters, so the board keeps the rest and does the stable judging and auto zero itself.
+  ZERO on the main screen now works on RS485 too (board-side zero, kept over a restart, nothing
+  written to the card). The trade engine and the saver use the stable range and time: a reading
+  that wobbles inside the range is one weighing, not several. Every W-Soft board (Waveshare,
+  yellow, S3). Not bench-tested.
 - **W-Soft: decimal places and e work with a DJB-W1X** (Rhyno, 23 Nov 2026). The W1X (no display)
   has no decimal or e setting, so Scale setup saved to nowhere and came back empty. The board now
   sees that (the card reads e = 0) and keeps decimal places (0 to 4) and e itself. An M1X still

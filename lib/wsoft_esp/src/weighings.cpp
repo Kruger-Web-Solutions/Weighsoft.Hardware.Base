@@ -1,6 +1,7 @@
 #include "wsoft_log.h"
 #include "weighings.h"
 #include "approval.h"
+#include "scale.h"
 
 #include <LittleFS.h>
 #include <Preferences.h>
@@ -267,6 +268,8 @@ WsoftSaveResult weighings_update(bool linked, bool fresh, bool alarm, int32_t va
   // The alarm test switch lets a save through a blocking alarm, only with Approval OFF.
   WsoftAlarmGate gate = wsoft_alarm_test_gate(alarm, alarm_test, approval_on());
   TradeReading r = {true, linked, fresh, gate.alarm, value, decimals, unit, millis(), (int64_t)time(nullptr)};
+  // RS485 card: the same stable range and time as the approval engine (0 / 0 on other sources).
+  scale_stability(&r.stable_range, &r.stable_ms);
   // Hi-Lo is judged on the net weight (gross - tare), in the reading's own decimals and unit.
   // Outside the limits auto save waits and a tap needs a second tap (WSOFT_SAVE_OUT_OF_LIMITS).
   WsoftHiloState state = WSOFT_HILO_NONE;

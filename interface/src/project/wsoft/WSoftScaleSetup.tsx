@@ -1,4 +1,4 @@
-import { FC, useCallback, useContext, useEffect, useState } from 'react';
+import { FC, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useSnackbar } from 'notistack';
 
 import { Box, Button, Checkbox, Chip, FormControlLabel, Grid, MenuItem, TextField, Typography } from '@mui/material';
@@ -7,13 +7,17 @@ import SaveIcon from '@mui/icons-material/Save';
 import { ButtonRow, FormLoader, MessageBox, SectionContent } from '../../components';
 import { AuthenticationContext } from '../../contexts/authentication';
 
-import WSoftCardSetup from './WSoftCardSetup';
+import WSoftRs485Check from './WSoftRs485Check';
 import * as WSoftApi from './api';
 import {
   divisionKey, LOADCELL_AUTO_ZERO, LOADCELL_DRIFT_GUARD, LOADCELL_FILTERS, loadcellDivisions, LoadcellUnit, loadcellUnit, noiseHint
 } from './calibrate';
-import { boardErrorText } from './errors';
-import { WSoftLoadcell, WSoftScaleBoard, WSoftScaleCard, WSoftScaleSetup as WSoftScaleSetupState } from './types';
+import { boardErrorText, plainError } from './errors';
+import {
+  boardValues, CardValues, cardWrites, CHECK_ROWS, eStep, FILTER1_MAX, FILTER2_MAX, formTuning, Rs485Form, rs485Problems, toRs485Form,
+  UNITS
+} from './rs485Setup';
+import { WSoftCardField, WSoftLoadcell, WSoftScaleBoard, WSoftScaleSetup as WSoftScaleSetupState } from './types';
 import { REASON_MAX, reasonProblem } from './validators';
 
 const REFRESH_MS = 5000;
@@ -49,26 +53,6 @@ const WHOLE = /^[0-9]+$/;
 
 const kgProblem = (value: string) => (kgText(value) === '' || KG.test(kgText(value)) ? undefined : 'A number in kg, like 60 or 0.02');
 
-// Decimal places and e live on the weighing card (written through /rest/djb); the form shows them in kg.
-// The card keeps e as a whole step in its smallest digit: e 0.02 kg with 2 decimals = step 2.
-interface CardForm {
-  decimal: string;
-  e_kg: string;
-}
-
-const toCardForm = (card: WSoftScaleCard | null): CardForm => {
-  if (!card) return { decimal: '', e_kg: '' };
-  return { decimal: String(card.decimal), e_kg: (card.division / 10 ** card.decimal).toFixed(card.decimal) };
-};
-
-/** The card step for e at these decimal places, or undefined when e is not a whole number of that digit. */
-const cardStep = (form: CardForm) => {
-  const decimal = Number(form.decimal);
-  const e = Number(kgText(form.e_kg));
-  if (form.decimal === '' || !KG.test(kgText(form.e_kg)) || e <= 0) return undefined;
-  const step = Math.round(e * 10 ** decimal);
-  return Math.abs(step / 10 ** decimal - e) < 1e-9 ? step : undefined;
-};
 const wholeProblem = (value: string, required: boolean) => {
   if (value.trim() === '') return required ? 'Needed' : undefined;
   return WHOLE.test(value.trim()) ? undefined : 'A whole number';
@@ -93,7 +77,11 @@ const WSoftScaleSetup: FC = () => {
   const [setup, setSetup] = useState<WSoftScaleSetupState>();
   const [loadError, setLoadError] = useState<string>();
   const [form, setForm] = useState<BoardForm>();
-  const [cardForm, setCardForm] = useState<CardForm>({ decimal: '', e_kg: '' });
+  // RS485 card: the one form (unit, e, stable, auto zero, filters) and what the card answered.
+  const [rsForm, setRsForm] = useState<Rs485Form>(toRs485Form(null, undefined, {}));
+  const [cardValues, setCardValues] = useState<CardValues>({});
+  const [cardBusy, setCardBusy] = useState(false);
+  const filtersAsked = useRef(false);
   // Load cell: the board holds the unit and the division the card holds on RS485, and the filter.
   const [cell, setCell] = useState<WSoftLoadcell>();
   const [cellForm, setCellForm] = useState<{ unit: LoadcellUnit; division: string; filter: number; zeroTrack: number; driftGuard: number }>(
@@ -125,7 +113,7 @@ const WSoftScaleSetup: FC = () => {
   useEffect(() => {
     if (setup && !dirty) {
       setForm(toForm(setup.board));
-      setCardForm(toCardForm(setup.card));
+      setRsForm(toRs485Form(setup.card, setup.tuning, cardValues));
       if (setup.card) {
         setCellForm({
           unit: loadcellUnit(setup.card.unit),
@@ -136,7 +124,34 @@ const WSoftScaleSetup: FC = () => {
         });
       }
     }
-  }, [setup, cell, dirty]);
+  }, [setup, cell, dirty, cardValues]);
+
+  /** Reads these card settings one by one; false (and a message) when the card does not answer. */
+  const readCard = useCallback(async (fields: WSoftCardField[], quiet = false) => {
+    setCardBusy(true);
+    try {
+      for (const field of fields) {
+        const reply = (await WSoftApi.djb({ op: 'read', field })).data;
+        if (!reply.ok || reply.value === undefined) throw new Error(plainError(reply.error) ?? 'The weighing card did not answer.');
+        const value = reply.value;
+        setCardValues((old) => ({ ...old, [field]: value }));
+      }
+      return true;
+    } catch (error) {
+      if (!quiet) enqueueSnackbar(boardErrorText(error, 'The weighing card did not answer.'), { variant: 'error' });
+      return false;
+    } finally {
+      setCardBusy(false);
+    }
+  }, [enqueueSnackbar]);
+
+  // The filters live only on the card: read them once so the form starts from what it holds.
+  useEffect(() => {
+    if (setup?.source === 'rs485' && isAdmin && !filtersAsked.current) {
+      filtersAsked.current = true;
+      readCard(['filter1', 'filter2'], true);
+    }
+  }, [setup?.source, isAdmin, readCard]);
 
   const content = () => {
     if (!setup || !form) {
@@ -184,34 +199,42 @@ const WSoftScaleSetup: FC = () => {
       tare_max_kg: kgProblem(form.tare_max_kg),
       preset_tare_kg: kgProblem(form.preset_tare_kg)
     };
-    const cardChanged = (key: keyof CardForm, value: string) => {
-      setCardForm({ ...cardForm, [key]: value });
+    const rsChanged = (key: keyof Rs485Form, value: string) => {
+      setRsForm({ ...rsForm, [key]: value });
       setDirty(true);
     };
-    const step = cardStep(cardForm);
-    const cardTouched = cardForm.decimal !== '' || cardForm.e_kg.trim() !== '';
-    const eProblem = cardTouched && step === undefined
-      ? 'Pick the decimal places, then e in kg with no more decimals than that (like 0.02 with 2)'
-      : undefined;
-    const cardDiffers = step !== undefined
-      && (!setup.card || setup.card.decimal !== Number(cardForm.decimal) || setup.card.division !== step);
+    const rsProblems = loadcell ? {} : rs485Problems(rsForm);
+    const step = eStep(rsForm.decimal, rsForm.e_kg);
 
     const reasonText = reasonProblem(reason);
-    const formOk = Object.values(problems).every((problem) => !problem) && !eProblem;
+    const formOk = Object.values(problems).every((problem) => !problem) && Object.keys(rsProblems).length === 0;
 
-    // A DJB-W1X has no decimal places or e: the board keeps them (sent with the setup below).
+    // A DJB-W1X has no unit, decimal places or e: the board keeps them (sent with the setup below).
     const onBoard = !!setup.format_on_board;
-    const format = onBoard && cardDiffers && step !== undefined
-      ? { decimal: Number(cardForm.decimal), division: step, unit: setup.card?.unit || 1 }
-      : undefined;
+    const typedFormat = step !== undefined ? { decimal: Number(rsForm.decimal), division: step, unit: Number(rsForm.unit) } : undefined;
+    const format = onBoard && typedFormat && (!setup.card || setup.card.decimal !== typedFormat.decimal
+      || setup.card.division !== typedFormat.division || setup.card.unit !== typedFormat.unit) ? typedFormat : undefined;
+    // Stable and auto zero: the board always judges stable itself, so it always keeps its copy.
+    const tuning = !loadcell && setup.tuning ? formTuning(rsForm) : undefined;
+    const tuningChanged = !!tuning && !!setup.tuning && (Object.keys(tuning) as (keyof typeof tuning)[])
+      .some((key) => tuning[key] !== setup.tuning?.[key]);
 
-    // Card first (decimal places, then e), so the board checks Max and Min against the new e.
+    /**
+     * Writes every value the card keeps (unit and e first, so the board checks Max and Min against
+     * the new e), reading each one back. Returns the labels the card did not keep.
+     */
     const writeCard = async () => {
-      if (onBoard || !cardDiffers || step === undefined) return;
-      for (const [field, value] of [['decimal', Number(cardForm.decimal)], ['division', step]] as const) {
-        const reply = (await WSoftApi.djb({ op: 'write', field, value })).data;
-        if (!reply.ok) throw new Error(reply.error ?? 'The weighing card did not answer.');
+      const missed: string[] = [];
+      for (const write of cardWrites(rsForm, onBoard, cardValues)) {
+        const label = CHECK_ROWS.find((row) => row.field === write.field)?.label ?? write.field;
+        const reply = (await WSoftApi.djb({ op: 'write', field: write.field, value: write.value })).data;
+        if (!reply.ok) throw new Error(`${label}: ${plainError(reply.error) ?? 'the weighing card did not answer.'}`);
+        const back = (await WSoftApi.djb({ op: 'read', field: write.field })).data;
+        const value = back.ok ? back.value : undefined;
+        setCardValues((old) => ({ ...old, [write.field]: value }));
+        if (value !== write.value) missed.push(label);
       }
+      return missed;
     };
 
     const writeCell = async () => {
@@ -226,20 +249,48 @@ const WSoftScaleSetup: FC = () => {
       if (!formOk || reasonText) return;
       setSaving(true);
       try {
-        await (loadcell ? writeCell() : writeCard());
-        const reply = (await WSoftApi.updateWSoftScaleSetup({ board: toBoard(form), reason: reason.trim(), format })).data;
+        const missed = loadcell ? [] : await writeCard();
+        if (loadcell) await writeCell();
+        const reply = (await WSoftApi.updateWSoftScaleSetup({
+          board: toBoard(form), reason: reason.trim(), format, tuning: tuningChanged ? tuning : undefined
+        })).data;
         setSetup(reply);
-        setForm(toForm(reply.board));
-        setCardForm(toCardForm(reply.card));
         setDirty(false);
         setReason('');
-        enqueueSnackbar('Scale setup saved', { variant: 'success' });
+        if (missed.length > 0) {
+          enqueueSnackbar(`Saved, but the card did not keep: ${missed.join(', ')}. See the check table.`, { variant: 'warning' });
+        } else {
+          enqueueSnackbar('Scale setup saved', { variant: 'success' });
+        }
       } catch (error) {
         enqueueSnackbar(boardErrorText(error, 'Could not save the scale setup'), { variant: 'error' });
       } finally {
         setSaving(false);
       }
     };
+
+    const rsField = (key: keyof Rs485Form, label: string, helper: string, choices?: { value: string; text: string }[]) => (
+      <Grid item xs={12} sm={6}>
+        <TextField
+          select={!!choices}
+          label={label}
+          fullWidth
+          margin="dense"
+          value={rsForm[key]}
+          disabled={!canEdit}
+          onChange={(event) => rsChanged(key, event.target.value)}
+          inputProps={choices ? undefined : { inputMode: 'decimal' }}
+          error={!!rsProblems[key]}
+          helperText={rsProblems[key] ?? helper}
+        >
+          {choices?.map((choice) => (<MenuItem key={choice.value} value={choice.value}>{choice.text}</MenuItem>))}
+        </TextField>
+      </Grid>
+    );
+    const where = (onCardToo: boolean) => (onCardToo
+      ? 'Saved on the weighing card'
+      : 'Kept on this board (the DJB-W1X has no such setting)');
+    const filterChoices = (max: number) => Array.from({ length: max + 1 }, (_, value) => ({ value: String(value), text: String(value) }));
 
     const field = (key: Exclude<keyof BoardForm, 'tare_enabled'>, label: string, helper: string, numeric = true) => (
       <Grid item xs={12} sm={6}>
@@ -353,39 +404,21 @@ const WSoftScaleSetup: FC = () => {
             </>
           ) : (
             <>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                select
-                label="Decimal places"
-                fullWidth
-                margin="dense"
-                value={cardForm.decimal}
-                disabled={!canEdit}
-                onChange={(event) => cardChanged('decimal', event.target.value)}
-                helperText={setup.format_on_board
-                  ? 'How many digits after the point (0 to 4). Kept on this board: the DJB-W1X has no decimal setting'
-                  : 'How many digits after the point (0 to 4). Saved on the weighing card'}
-              >
-                {[0, 1, 2, 3, 4].map((value) => (
-                  <MenuItem key={value} value={String(value)}>{value}</MenuItem>
-                ))}
-              </TextField>
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                label="e (kg)"
-                fullWidth
-                margin="dense"
-                value={cardForm.e_kg}
-                disabled={!canEdit}
-                onChange={(event) => cardChanged('e_kg', event.target.value)}
-                inputProps={{ inputMode: 'decimal' }}
-                error={!!eProblem}
-                helperText={eProblem ?? (setup.format_on_board
-                  ? 'The scale step, like 1, 0.5 or 0.0001. Kept on this board: the DJB-W1X has no e setting'
-                  : 'The scale step, like 1, 0.5 or 0.02. Saved on the weighing card')}
-              />
-            </Grid>
+              {rsField('unit', 'Unit', where(!onBoard), UNITS.map((unit) => ({ value: String(unit.value), text: unit.text })))}
+              {rsField('decimal', 'Decimal places', `Digits after the point, 0 to 4. ${where(!onBoard)}`,
+                [0, 1, 2, 3, 4].map((value) => ({ value: String(value), text: String(value) })))}
+              {rsField('e_kg', 'e (division size)', `The step the weight moves in, like 1, 0.5 or 0.02. ${where(!onBoard)}`)}
+              {rsField('stable_range', 'Stable range (digits)',
+                `How far the reading may wobble and still count as still. 0 = must not move. ${where(!onBoard)}`)}
+              {rsField('stable_time', 'Stable time (s)',
+                `How long it must hold still, 0.1 to 9.9 s. 0 = off. ${where(!onBoard)}`)}
+              {rsField('zero_track_range', 'Auto zero range (digits)',
+                `Pulls a creeping empty scale back to 0 within this many digits. 0 = off. ${where(!onBoard)}`)}
+              {rsField('zero_track_time', 'Auto zero time (s)', `How long it must sit near 0 first, 0.1 to 9.9 s. ${where(!onBoard)}`)}
+              {rsField('filter1', 'Filter 1', `0 to ${FILTER1_MAX}, higher = calmer but slower. Saved on the weighing card`,
+                filterChoices(FILTER1_MAX))}
+              {rsField('filter2', 'Filter 2', `0 to ${FILTER2_MAX}, higher = calmer but slower. Saved on the weighing card`,
+                filterChoices(FILTER2_MAX))}
             </>
           )}
           {field('max_kg', 'Max (kg)', 'More than e')}
@@ -438,7 +471,17 @@ const WSoftScaleSetup: FC = () => {
             </ButtonRow>
           </>
         )}
-        {!loadcell && <WSoftCardSetup card={setup.card} canRead={isAdmin} canWrite={canEdit} onWritten={load} />}
+        {!loadcell && (
+          <WSoftRs485Check
+            setup={setup}
+            form={rsForm}
+            card={cardValues}
+            board={boardValues(setup.card, setup.tuning)}
+            canRead={isAdmin}
+            busy={cardBusy || saving}
+            onRead={readCard}
+          />
+        )}
       </>
     );
   };
