@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **W-Soft: the S3 board can weigh with a load cell too** (Rhyno, 23 Nov 2026). HX711 DT on GPIO1,
+  SCK on GPIO2, picked in Settings "Weight comes from". Same as the yellow board. Not bench-tested.
 - **W-Soft: Live shows the screen AND the old info** (Rhyno, 23 Nov 2026). Under the board's
   screen the Live tab has the Approval and Auto save switches, the approval log, SAVE WEIGHING,
   the alarm test note and the status table again. Same page on every W-Soft board.
