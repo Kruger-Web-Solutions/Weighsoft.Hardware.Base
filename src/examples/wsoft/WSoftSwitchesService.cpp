@@ -10,6 +10,7 @@
 #include <switches.h>
 #include <wsoft_scale_setup.h>
 #include <wsoft_switch.h>
+#include <wsoft_screen.h>
 
 // The screen task takes a switch within one pass (5 ms) unless it is in a DJB poll or a draw.
 // At most about 1 s on the web server task; then BUSY, and the switch is not applied.
@@ -107,6 +108,8 @@ void sendScaleSetup(AsyncWebServerRequest* request) {
   putKg(board, "tare_max_kg", info.setup.tare_max_kg);
   putKg(board, "preset_tare_kg", info.setup.preset_tare_kg);
 
+  // A card with no format registers (DJB-W1X): decimals, e and unit are kept on this board.
+  root["format_on_board"] = info.rs485 && info.card_no_format;
   if (info.card.read) {
     JsonObject card = root.createNestedObject("card");
     card["division"] = (long)info.card.division;
@@ -268,6 +271,22 @@ void WSoftSwitchesService::updateScaleSetup(AsyncWebServerRequest* request, Json
   }
   in.reason = json["reason"] | "";
   String who = username(request);
+  // Optional "format": {"decimal","division","unit"} for a card with no format registers (DJB-W1X).
+  if (json.containsKey("format")) {
+    JsonVariant format = json["format"];
+    if (!format.is<JsonObject>() || !format["decimal"].is<int>() || !format["division"].is<long>() ||
+        !format["unit"].is<int>()) {
+      sendError(request, 400, "BAD_REQUEST", "format needs decimal, division and unit as numbers.");
+      return;
+    }
+    WsoftSetupError format_error = scale_save_board_format(format["decimal"].as<int>(), (int32_t)format["division"].as<long>(),
+                                                           format["unit"].as<int>(), who.c_str());
+    if (format_error != WSOFT_SETUP_OK) {
+      sendError(request, 409, wsoft_setup_error_code(format_error), wsoft_setup_error_text(format_error));
+      return;
+    }
+    wsoft_screen_reread_format();
+  }
   WsoftSetupError error = scale_save(in, who.c_str());
   if (error != WSOFT_SETUP_OK) {
     sendError(request, 409, wsoft_setup_error_code(error), wsoft_setup_error_text(error));

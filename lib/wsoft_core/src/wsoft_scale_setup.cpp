@@ -89,6 +89,15 @@ bool wsoft_kg_to_reading(int64_t kg, int decimals, int unit, int32_t *value) {
   return true;
 }
 
+bool wsoft_board_format_valid(int decimal, int32_t division, int unit) {
+  static const int32_t steps[] = {1, 2, 5, 10, 20, 50, 100, 200, 500};
+  if (decimal < 0 || decimal > 4 || unit < 1 || unit > 3) return false;
+  for (int32_t step : steps) {
+    if (division == step) return true;
+  }
+  return false;
+}
+
 bool wsoft_card_e(const WsoftCardFormat &card, int64_t *e) {
   if (!card.read || card.division <= 0) return false;
   int64_t kg;

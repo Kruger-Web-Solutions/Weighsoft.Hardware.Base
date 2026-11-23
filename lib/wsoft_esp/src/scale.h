@@ -35,10 +35,23 @@ void scale_set_card(int32_t division, int decimal, int unit);
 // Screen task: a card register write went through (setup audit + 1).
 void scale_card_written();
 
+// Screen task: the card answered but has no format registers (division 0: a DJB-W1X has no
+// decimals, e or unit). The card becomes the format kept on this board, when one is saved;
+// returns false (and leaves the card unread) when none is. kept gets the board's format.
+bool scale_card_no_format(WsoftCardFormat *kept);
+// Screen task: the card answered with its own format (an M1X).
+void scale_card_has_format();
+// Web task (admin): saves the decimals, e (in the card's steps) and unit on this board, for a card
+// with no format registers. NUMBER when not valid (wsoft_board_format_valid), LOCKED with
+// Approval ON or on RS232, BUSY when the setup lock is not free. A change adds 1 to the audit.
+WsoftSetupError scale_save_board_format(int decimal, int32_t division, int unit, const char *who);
+
 struct ScaleInfo {
   bool rs485;
   WsoftScaleSetup setup;
   WsoftCardFormat card;
+  // The card has no format registers: card holds the format kept on this board (if any).
+  bool card_no_format;
   uint32_t audit;
 };
 void scale_info(ScaleInfo *out);

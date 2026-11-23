@@ -163,7 +163,9 @@ static volatile int job_state = JOB_IDLE;
 static WsoftDjbPlan job_plan;
 static WsoftDjbResult job_result;
 // Set after a write so the next poll re-reads unit and decimals instead of waiting 20 polls.
-static bool format_stale = false;
+static volatile bool format_stale = false;
+// The card answered with no format registers (DJB-W1X): the board keeps the format.
+static bool card_without_format = false;
 
 static void fill_ids(const WsoftDjbPlan *plan, WsoftDjbResult *out) {
   out->slave = slave;
@@ -408,6 +410,8 @@ void wsoft_screen_setup(WsoftScreenSource source) {
   portEXIT_CRITICAL(&snapshot_lock);
 }
 
+void wsoft_screen_reread_format() { format_stale = true; }
+
 // One RS485 poll of the DJB: unit and decimals every 20 polls, then weight and alarm.
 static bool poll_djb(Reading *out) {
   Reading &next = *out;
@@ -421,8 +425,27 @@ static bool poll_djb(Reading *out) {
     if (format_ok) next.decimals = decimals;
     bool unit_ok = read_long(REG_WEIGHT_UNIT, &unit) && unit >= 0 && unit <= 3;
     if (unit_ok) next.unit = unit;
-    if (read_division && format_ok && unit_ok && read_long(REG_DIVISION, &value) && value > 0) division = value;
-    if (division > 0 && format_ok && unit_ok) scale_set_card(division, next.decimals, next.unit);
+    // A DJB-W1X (no display) has no format registers: it answers 0 for the division, which an
+    // M1X never does (1..500). Then the decimals, e and unit kept on this board are used.
+    bool no_format = false;
+    if (read_division && format_ok && unit_ok && read_long(REG_DIVISION, &value)) {
+      division = value > 0 ? value : 0;
+      no_format = value <= 0;
+    } else if (format_ok && unit_ok && division <= 0) {
+      no_format = card_without_format;
+    }
+    if (no_format) {
+      card_without_format = true;
+      WsoftCardFormat kept;
+      if (scale_card_no_format(&kept)) {
+        next.decimals = kept.decimal;
+        next.unit = kept.unit;
+      }
+    } else if (division > 0 && format_ok && unit_ok) {
+      card_without_format = false;
+      scale_card_has_format();
+      scale_set_card(division, next.decimals, next.unit);
+    }
   }
 
   uint16_t words[4];

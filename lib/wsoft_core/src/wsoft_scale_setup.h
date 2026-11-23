@@ -87,6 +87,12 @@ const char *wsoft_setup_error_text(WsoftSetupError error);
 // kg, t or g, or e is not a whole number of 0.00001 kg.
 bool wsoft_card_e(const WsoftCardFormat &card, int64_t *e);
 
+// A weighing card with no format registers (the DJB-W1X, no display: Rhyno, 23 Nov 2026) reads 0
+// for the division; the M1X keeps 1..500. Then the board keeps the decimals, e and unit itself.
+// Valid: decimals 0..4, division one of the card's steps (1, 2, 5, 10, 20, 50, 100, 200, 500),
+// unit 1 kg, 2 t or 3 g.
+bool wsoft_board_format_valid(int decimal, int32_t division, int unit);
+
 // A reading (value scaled by decimals, in unit) in kg units. False when not exact.
 bool wsoft_reading_to_kg(int32_t value, int decimals, int unit, int64_t *kg);
 // kg units back to a reading in decimals and unit. False when not exact or too big.
