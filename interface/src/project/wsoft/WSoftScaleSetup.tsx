@@ -83,7 +83,7 @@ const MISSING_LABEL: Record<string, string> = {
   stable_samples: 'Stable samples',
   division: 'Card step (e)',
   decimal: 'Card decimal places',
-  card: 'Read the weighing card'
+  card: 'Decimal places and e'
 };
 
 const WSoftScaleSetup: FC = () => {
@@ -199,9 +199,15 @@ const WSoftScaleSetup: FC = () => {
     const reasonText = reasonProblem(reason);
     const formOk = Object.values(problems).every((problem) => !problem) && !eProblem;
 
+    // A DJB-W1X has no decimal places or e: the board keeps them (sent with the setup below).
+    const onBoard = !!setup.format_on_board;
+    const format = onBoard && cardDiffers && step !== undefined
+      ? { decimal: Number(cardForm.decimal), division: step, unit: setup.card?.unit || 1 }
+      : undefined;
+
     // Card first (decimal places, then e), so the board checks Max and Min against the new e.
     const writeCard = async () => {
-      if (!cardDiffers || step === undefined) return;
+      if (onBoard || !cardDiffers || step === undefined) return;
       for (const [field, value] of [['decimal', Number(cardForm.decimal)], ['division', step]] as const) {
         const reply = (await WSoftApi.djb({ op: 'write', field, value })).data;
         if (!reply.ok) throw new Error(reply.error ?? 'The weighing card did not answer.');
@@ -221,7 +227,7 @@ const WSoftScaleSetup: FC = () => {
       setSaving(true);
       try {
         await (loadcell ? writeCell() : writeCard());
-        const reply = (await WSoftApi.updateWSoftScaleSetup({ board: toBoard(form), reason: reason.trim() })).data;
+        const reply = (await WSoftApi.updateWSoftScaleSetup({ board: toBoard(form), reason: reason.trim(), format })).data;
         setSetup(reply);
         setForm(toForm(reply.board));
         setCardForm(toCardForm(reply.card));
@@ -356,7 +362,9 @@ const WSoftScaleSetup: FC = () => {
                 value={cardForm.decimal}
                 disabled={!canEdit}
                 onChange={(event) => cardChanged('decimal', event.target.value)}
-                helperText="How many digits after the point. Saved on the weighing card"
+                helperText={setup.format_on_board
+                  ? 'How many digits after the point (0 to 4). Kept on this board: the DJB-W1X has no decimal setting'
+                  : 'How many digits after the point (0 to 4). Saved on the weighing card'}
               >
                 {[0, 1, 2, 3, 4].map((value) => (
                   <MenuItem key={value} value={String(value)}>{value}</MenuItem>
@@ -373,7 +381,9 @@ const WSoftScaleSetup: FC = () => {
                 onChange={(event) => cardChanged('e_kg', event.target.value)}
                 inputProps={{ inputMode: 'decimal' }}
                 error={!!eProblem}
-                helperText={eProblem ?? 'The scale step, like 1, 0.5 or 0.02. Saved on the weighing card'}
+                helperText={eProblem ?? (setup.format_on_board
+                  ? 'The scale step, like 1, 0.5 or 0.0001. Kept on this board: the DJB-W1X has no e setting'
+                  : 'The scale step, like 1, 0.5 or 0.02. Saved on the weighing card')}
               />
             </Grid>
             </>

@@ -320,6 +320,13 @@ typed. After 30 s with no tap the screen goes back to the live weight. Taps log
 | `tare_enabled`, `tare_max_kg`, `preset_tare_kg` | `tare_max <= max`, `preset <= tare_max` |
 
 - e = the card's division in its decimals and unit (register 41307, read by the poll).
+- **DJB-W1X (no display, Rhyno 23 Nov 2026):** it has no unit, decimal or division registers and
+  reads 0 for all of them (writes are echoed but not kept). A division of 0 (an M1X keeps 1 to 500)
+  marks a card with no format: the board then keeps decimals (0 to 4), e (in card steps 1, 2, 5 ...
+  500) and unit itself in NVS `scale` keys `fdec`, `fdiv`, `funit`, sent as A5
+  `"format":{"decimal":2,"division":1,"unit":1}` (refused with Approval ON; a change adds 1 to
+  `setup_audit`). A4 says `format_on_board: true` and `card` then holds those values. USB log:
+  `SETUP format kept on the board dec= step= unit=`.
 - Codes: `SETUP_LOCKED` (approval ON or RS232), `SETUP_ORDER`, `SETUP_NUMBER`, `SETUP_TEXT`,
   `SETUP_RANGE`, `REASON_REQUIRED`, `REASON_TOO_LONG`, `BUSY` (the setup lock was not free
   within 0.5 s).

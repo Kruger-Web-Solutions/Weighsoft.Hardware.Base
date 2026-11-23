@@ -290,6 +290,8 @@ export interface WSoftScaleSetup {
   board: WSoftScaleBoard;
   /** Last values read from the weighing card; null when not read yet. */
   card: WSoftScaleCard | null;
+  /** The card has no format registers (DJB-W1X): decimals, e and unit are kept on the board, and card holds those. */
+  format_on_board?: boolean;
 }
 
 // A5. POST /rest/wsoftScaleSetup (admin).
@@ -297,6 +299,8 @@ export interface WSoftScaleSetupRequest {
   /** A field that is left out keeps its stored value. */
   board: Partial<WSoftScaleBoard>;
   reason: string;
+  /** Only for a card with no format registers: decimals, e in card steps and unit, kept on the board. */
+  format?: WSoftScaleCard;
 }
 
 // POST /rest/djb (admin), src/examples/wsoft/WSoftStatusService.cpp handleDjb.

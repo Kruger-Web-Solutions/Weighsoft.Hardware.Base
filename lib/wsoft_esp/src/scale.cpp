@@ -13,6 +13,10 @@ static SemaphoreHandle_t save_mutex = nullptr;
 static bool rs485 = true;
 static WsoftScaleSetup stored_setup;
 static WsoftCardFormat card;
+// A card with no format registers (DJB-W1X): the decimals, e and unit kept on this board (NVS
+// fdec / fdiv / funit), and whether the last read of the card found no format.
+static WsoftCardFormat board_format;
+static bool card_no_format = false;
 static uint32_t audit = 0;
 static WsoftTare tare;
 
@@ -33,6 +37,16 @@ static void load(WsoftScaleSetup *s, uint32_t *counter) {
   s->preset_tare_kg = store.getLong64("tpre", WSOFT_KG_UNSET);
   *counter = store.getUInt("audit", 0);
   store.end();
+}
+
+static void load_board_format(WsoftCardFormat *f) {
+  Preferences store;
+  store.begin("scale", true);
+  f->decimal = store.getInt("fdec", 0);
+  f->division = store.getInt("fdiv", 0);
+  f->unit = store.getInt("funit", 1);
+  store.end();
+  f->read = wsoft_board_format_valid(f->decimal, f->division, f->unit);
 }
 
 static void store_setup(const WsoftScaleSetup &s, uint32_t counter) {
@@ -56,8 +70,11 @@ void scale_begin(bool is_rs485) {
   WsoftScaleSetup loaded;
   uint32_t counter = 0;
   load(&loaded, &counter);
+  WsoftCardFormat kept;
+  load_board_format(&kept);
   portENTER_CRITICAL(&lock);
   rs485 = is_rs485;
+  board_format = kept;
   stored_setup = loaded;
   audit = counter;
   portEXIT_CRITICAL(&lock);
@@ -99,6 +116,60 @@ void scale_set_card(int32_t division, int decimal, int unit) {
   portEXIT_CRITICAL(&lock);
 }
 
+bool scale_card_no_format(WsoftCardFormat *kept) {
+  portENTER_CRITICAL(&lock);
+  card_no_format = true;
+  WsoftCardFormat f = board_format;
+  if (f.read) card = f;
+  portEXIT_CRITICAL(&lock);
+  if (kept != nullptr) *kept = f;
+  return f.read;
+}
+
+void scale_card_has_format() {
+  portENTER_CRITICAL(&lock);
+  card_no_format = false;
+  portEXIT_CRITICAL(&lock);
+}
+
+WsoftSetupError scale_save_board_format(int decimal, int32_t division, int unit, const char *who) {
+  if (!wsoft_board_format_valid(decimal, division, unit)) return WSOFT_SETUP_NUMBER;
+  if (!scale_lock(SCALE_LOCK_WEB_MS)) return WSOFT_SETUP_BUSY;  // web task: do not block it
+  portENTER_CRITICAL(&lock);
+  bool on_rs485 = rs485;
+  bool same = board_format.read && board_format.decimal == decimal && board_format.division == division &&
+              board_format.unit == unit;
+  portEXIT_CRITICAL(&lock);
+  if (!on_rs485 || approval_on()) {
+    scale_unlock();
+    return WSOFT_SETUP_LOCKED;
+  }
+  if (same) {
+    scale_unlock();
+    return WSOFT_SETUP_OK;
+  }
+  portENTER_CRITICAL(&lock);
+  uint32_t counter = ++audit;
+  board_format.read = true;
+  board_format.decimal = decimal;
+  board_format.division = division;
+  board_format.unit = unit;
+  if (card_no_format) card = board_format;
+  tare = WsoftTare();  // the format changed
+  portEXIT_CRITICAL(&lock);
+  Preferences store;
+  store.begin("scale", false);
+  store.putInt("fdec", decimal);
+  store.putInt("fdiv", division);
+  store.putInt("funit", unit);
+  store.putUInt("audit", counter);
+  store.end();
+  scale_unlock();
+  WSOFT_LOG.printf("SETUP format kept on the board dec=%d step=%ld unit=%d audit=%lu by=%s\n", decimal, (long)division,
+                   unit, (unsigned long)counter, who);
+  return WSOFT_SETUP_OK;
+}
+
 void scale_card_written() {
   scale_lock(SCALE_LOCK_FOREVER);  // screen task
   portENTER_CRITICAL(&lock);
@@ -117,6 +188,7 @@ void scale_info(ScaleInfo *out) {
   out->rs485 = rs485;
   out->setup = stored_setup;
   out->card = card;
+  out->card_no_format = card_no_format;
   out->audit = audit;
   portEXIT_CRITICAL(&lock);
 }

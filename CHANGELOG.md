@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **W-Soft: decimal places and e work with a DJB-W1X** (Rhyno, 23 Nov 2026). The W1X (no display)
+  has no decimal or e setting, so Scale setup saved to nowhere and came back empty. The board now
+  sees that (the card reads e = 0) and keeps decimal places (0 to 4) and e itself. An M1X still
+  keeps them on the card. Every RS485 board.
 - **W-Soft: every board shows the same menus** (Rhyno, 23 Nov 2026). Serial is in the menu, and
   Settings shows "Weight comes from", the Hi-Lo relays and the Hi-Lo light on every W-Soft board. An
   option a board is not wired for (the Waveshare: RS232, load cell, relays, light) is greyed with
