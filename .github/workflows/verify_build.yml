@@ -8,6 +8,10 @@ on:
     branches:
       - master
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
 
@@ -15,6 +19,7 @@ jobs:
     # (correct: fork PRs must never run on our VMs). Stays GitHub-hosted unless the
     # repo is made private, at which point switch to [self-hosted, Linux, X64, weighsoft-qa].
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
     - uses: actions/checkout@v4
@@ -48,6 +53,7 @@ jobs:
   interface:
     name: Build interface
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
     - uses: actions/checkout@v4
     - uses: actions/setup-node@v4
