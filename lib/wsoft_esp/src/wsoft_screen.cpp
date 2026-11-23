@@ -401,6 +401,7 @@ void wsoft_screen_setup(WsoftScreenSource source) {
   weighings_begin(line_mode && !writer_mode);
   if (loadcell_mode) {
     weighings_set_source("loadcell");
+    ui_release_touch_bus();  // Waveshare: the HX711 clock is on the I2C plug's SCL
     loadcell_begin(WSOFT_LOADCELL_DT, WSOFT_LOADCELL_SCK);
   }
   hilo_begin();

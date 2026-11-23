@@ -761,6 +761,14 @@ bool ui_begin() {
   return ready;
 }
 
+void ui_release_touch_bus() {
+#if !WSOFT_BOARD_HEADLESS && !WSOFT_BOARD_CYD
+  touch_ok = false;  // gx_touch() reads nothing more, so no I2C transfer starts again
+  gpio_reset_pin(GPIO_NUM_8);  // SDA: input with pull-up, never driven
+  WSOFT_LOG.println("touch off: the load cell uses the I2C plug (use the browser Live tab)");
+#endif
+}
+
 void ui_show(const WsoftUiView &next) {
   view = next;
   refresh();
