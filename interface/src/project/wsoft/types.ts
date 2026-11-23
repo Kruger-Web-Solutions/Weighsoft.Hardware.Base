@@ -168,6 +168,25 @@ export interface WSoftHub {
 
 export type WSoftHubAction = { action: 'connect'; code: string } | { action: 'disconnect' };
 
+// Mirrors src/examples/wsoft/WSoftStatusService.cpp (sendSave).
+export interface WSoftWeighing {
+  seq: number;
+  weight: string;
+  unit: string;
+  /** Unix seconds. */
+  at: number;
+}
+
+export interface WSoftSave {
+  /** Saved on the board, not yet accepted by the Hub. */
+  pending: number;
+  last: WSoftWeighing | null;
+  /** Only on POST: whether this tap saved, and why not. */
+  ok?: boolean;
+  result?: string;
+  saved?: WSoftWeighing;
+}
+
 // Contract A (docs/superpowers/plans/2026-11-07-wsoft-switches-scale-setup.md).
 // Board errors: 409 (or 400 for a bad shape) with { error: CODE, message }.
 export interface WSoftBoardError {
@@ -195,6 +214,15 @@ export interface WSoftSwitches {
   pin_locked_s: number;
   /** Last 8 approval log lines, oldest first. */
   log: string[];
+}
+
+export type WSoftSwitchName = 'approval' | 'auto_save';
+
+// A2. POST /rest/wsoftSwitches (admin). Reason: 1 to 80 characters for approval, optional for auto_save.
+export interface WSoftSwitchRequest {
+  switch: WSoftSwitchName;
+  on: boolean;
+  reason: string;
 }
 
 // A3. POST /rest/wsoftPin (admin).

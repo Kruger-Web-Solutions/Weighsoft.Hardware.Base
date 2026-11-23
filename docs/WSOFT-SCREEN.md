@@ -154,10 +154,12 @@ the copy in the page is `ref.js` itself. All the rules (what a tap does, what th
 screen says) stay on the board, once.
 
 A board with no panel (`wsoft_s3_headless`) still makes the words and takes the taps: the
-browser is its screen. Every board shows the same layout in the browser, painted at the Waveshare's size. The old Live page (weight, chips, Approval and Auto save switches, Save button, status
-table) is gone; the firmware's `/rest/wsoftStatus`, `/rest/wsoftSwitches` and `/rest/wsoftSave`
-are unchanged. Not on the screen and so no longer on the Live tab: the approval log and the
-alarm test note. **Not tried on a board yet.**
+browser is its screen. Every board shows the same layout in the browser, painted at the Waveshare's size.
+Under the screen the Live tab keeps the old page's other parts (Rhyno, 23 Nov 2026): the
+Approval and Auto save switches with the approval log, SAVE WEIGHING, the alarm test note and
+the status table (trade check, audit counter, last trade sequence, waiting for the Hub, Hub,
+junction box alarm, screen), from `/rest/wsoftSwitches`, `/rest/wsoftSave` and the
+`wsoftStatus` socket. The old big weight and chips are not back: the screen shows them. **Not tried on a board yet.**
 
 ## 6. Checking a board over USB
 
