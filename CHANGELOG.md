@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **W-Soft: Live shows the screen AND the old info** (Rhyno, 23 Nov 2026). Under the board's
+  screen the Live tab has the Approval and Auto save switches, the approval log, SAVE WEIGHING,
+  the alarm test note and the status table again. Same page on every W-Soft board.
 - **W-Soft: the browser's Live screen is sharp** (Rhyno, 22 Nov 2026). The page paints the
   board's screen with the Waveshare's letters at 800 x 480 instead of blowing up the 320 x 240
   picture, with round corners and a soft shadow. About 29 KB more firmware.
