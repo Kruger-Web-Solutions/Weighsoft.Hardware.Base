@@ -23,7 +23,10 @@ const SendViaWeb: FC = () => {
     }
   };
 
-  const curlExample = `curl -X POST http://<device-ip>${SERIALW_SEND_PATH} \\\n  -H "Content-Type: application/json" \\\n  -d '{"data":"P"}'`;
+  const curlExample =
+    `curl -X POST http://<device-ip>${SERIALW_SEND_PATH} \\\n` +
+    '  -H "Content-Type: application/json" \\\n' +
+    '  -d \'{"data":"P"}\'';
 
   return (
     <SectionContent title="Send via Web (HTTP)" titleGutter>

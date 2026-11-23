@@ -1,7 +1,10 @@
 import { FC, useContext, useEffect, useState } from 'react';
 import { ValidateFieldsError } from 'async-validator';
 
-import { Alert, Avatar, Button, Checkbox, IconButton, List, ListItem, ListItemAvatar, ListItemSecondaryAction, ListItemText } from '@mui/material';
+import {
+  Alert, Avatar, Button, Checkbox, IconButton, List, ListItem, ListItemAvatar,
+  ListItemSecondaryAction, ListItemText,
+} from '@mui/material';
 import { useSnackbar } from 'notistack';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -191,8 +194,7 @@ const WiFiSettingsForm: FC = () => {
             After Save the board joins this Wi-Fi. Your phone will likely drop off the hotspot then, and
             the hotspot turns off. That is normal: the settings are saved. A board with a screen shows its new
             address on it. If the hotspot stays on, the board could not join: check the name and password.
-          </Alert>
-        }
+          </Alert>}
         <ButtonRow mt={1}>
           <Button startIcon={<SaveIcon />} disabled={saving} variant="contained" color="primary" type="submit" onClick={validateAndSubmit}>
             Save

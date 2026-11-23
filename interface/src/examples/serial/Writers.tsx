@@ -1,6 +1,9 @@
 import React, { FC, useEffect, useRef, useState } from 'react';
 import { useSnackbar } from 'notistack';
-import { Box, Card, CardContent, Typography, Alert, Chip, Button, IconButton, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
+import {
+  Box, Card, CardContent, Typography, Alert, Chip, Button, IconButton, Tooltip,
+  Dialog, DialogTitle, DialogContent, DialogActions,
+} from '@mui/material';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import RadarIcon from '@mui/icons-material/Radar';
@@ -143,9 +146,15 @@ const Writers: FC = () => {
       {bannerWriters.length > 0 && (
         <Alert severity="warning" sx={{ mb: 2 }}>
           {bannerWriters.length === 1 ? (
-            <>Writer <strong>{bannerWriters[0].friendly_name}</strong> has been offline for a while &mdash; the device will keep trying to reconnect.</>
+            <>
+              Writer <strong>{bannerWriters[0].friendly_name}</strong> has been offline for a while
+              &mdash; the device will keep trying to reconnect.
+            </>
           ) : (
-            <><strong>{bannerWriters.length} writers</strong> have been offline for a while &mdash; the devices will keep trying to reconnect.</>
+            <>
+              <strong>{bannerWriters.length} writers</strong> have been offline for a while
+              &mdash; the devices will keep trying to reconnect.
+            </>
           )}
         </Alert>
       )}
@@ -189,7 +198,8 @@ const Writers: FC = () => {
           <Typography color="text.secondary">
             No Writers connected yet. Set up a Writer device, point it at this Reader, and it&apos;ll appear here.
           </Typography>
-        </CardContent></Card>
+              </CardContent>
+        </Card>
       ) : (
         writers.map((w) => (
           <Card key={w.id} sx={{ mb: 1 }}>

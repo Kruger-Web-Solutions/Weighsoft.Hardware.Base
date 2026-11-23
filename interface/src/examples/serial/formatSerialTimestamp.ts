@@ -16,7 +16,12 @@ export function formatSerialTimestamp(msSinceBoot: number): string {
  */
 export function sanitizeLastLineForDisplay(line: string): string {
   if (!line) return line;
-  return line
-    .replace(/[\u0000-\u001F\u007F-\u009F]/g, '\u00B7') // control chars → middle dot
-    .replace(/\uFFFD/g, '\u00B7'); // replacement char → middle dot
+  let out = '';
+  for (let i = 0; i < line.length; i++) {
+    const code = line.charCodeAt(i);
+    // C0/C1 controls and the Unicode replacement character become a middle dot.
+    const hidden = code <= 31 || (code >= 127 && code <= 159) || code === 0xfffd;
+    out += hidden ? '\u00B7' : line.charAt(i);
+  }
+  return out;
 }

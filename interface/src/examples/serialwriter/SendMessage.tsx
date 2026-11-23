@@ -51,7 +51,14 @@ const SendMessage: FC = () => {
             sx={{ mb: 2 }}
           />
           <Box display="flex" justifyContent="flex-end">
-            <Button variant="contained" startIcon={<SendIcon />} disabled={sending || msg.trim().length === 0} onClick={() => send()}>Send</Button>
+            <Button
+              variant="contained"
+              startIcon={<SendIcon />}
+              disabled={sending || msg.trim().length === 0}
+              onClick={() => send()}
+            >
+              Send
+            </Button>
           </Box>
         </CardContent>
       </Card>

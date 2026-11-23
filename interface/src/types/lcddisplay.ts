@@ -3,7 +3,7 @@ export interface LcdDisplayData {
   line2: string;
   i2c_address: number;
   backlight: boolean;
-  
+
   // Serial bridge fields
   bridge_mode: 'off' | 'websocket' | 'mqtt' | 'ble';
   serial_device_ip: string;

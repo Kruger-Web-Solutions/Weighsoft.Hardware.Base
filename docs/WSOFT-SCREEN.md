@@ -67,7 +67,7 @@ three; only what a row draws differs. The menu pages look the same in every look
 | SCREEN says | Look | Pictures |
 |---|---|---|
 | DARK / LIGHT | Classic: the five rows of section 1. The default | `yellow-00` to `yellow-27` |
-| COLOUR | Full Colour: the whole screen takes the colour of the Hi-Lo zone (yellow low, green OK, red high), with a bigger weight and one big line | `yellow-28` to `yellow-37`, `yellow-47` |
+| COLOUR | Full Colour, the mini Edge look: navy deck fading down, a navy status bar with a teal line, the weight floating with no box and a thick zone-colour outline, black words on a zone-colour pill, glass buttons with a cyan edge and a blue SAVE | `yellow-28` to `yellow-37`, `yellow-47` |
 | DIAL | The Hi-Lo bar bent into a gauge over the weight, with a marker that moves along it | `yellow-38` to `yellow-46`, `yellow-48`, `yellow-49`, `yellow-52` |
 
 ![Full Colour](img/wsoft-screen/yellow-29.png) ![Dial](img/wsoft-screen/yellow-39.png)

@@ -44,11 +44,17 @@ void WiFiScanner::scanNetworks(AsyncWebServerRequest* request) {
     // loop tick already sees it and refrains from kicking off a new connect attempt.
     g_wifiScanInProgress = true;
     g_wifiScanInProgressUntilMs = millis() + WIFI_SCAN_GUARD_MS;
+#ifdef ESP32
     Serial.println(F("[WiFi] Scan started (passive, 400ms/chan, STA reconnect paused)"));
     // Passive scan listens for AP beacons (every ~100 ms) rather than active probing;
     // it is more reliable in noisy / crowded RF environments and avoids transmit bursts
-    // that conflict with serving the captive portal.
+    // that conflict with serving the captive portal. The ESP32 call is async, shows
+    // hidden SSIDs, passive, 400 ms per channel. ESP8266 has no passive argument.
     WiFi.scanNetworks(true /*async*/, true /*show_hidden*/, true /*passive*/, 400 /*max_ms_per_chan*/);
+#else
+    Serial.println(F("[WiFi] Scan started (async, hidden SSIDs, STA reconnect paused)"));
+    WiFi.scanNetworks(true /*async*/, true /*show_hidden*/);
+#endif
   }
   request->send(202);
 }

@@ -311,6 +311,8 @@ board drives them itself.
 
 ## 3. Build and flash (laptop)
 
+After the flash, name the board `wsoft/cyd/<next number>` (hostname `wsoft-cyd-<number>`) and add it to the register: [WSOFT-WAVESHARE43.md](WSOFT-WAVESHARE43.md) section 0c.
+
 1. `pio test -e native` (host tests).
 2. `pio run -e wsoft_cyd28`.
 3. Plug the CYD's **micro-USB** (CH340, `COM15` on Rhyno's laptop) and flash:

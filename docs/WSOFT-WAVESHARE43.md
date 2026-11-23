@@ -52,6 +52,47 @@ Rules (Rhyno, 14 Nov 2026, after three Waveshare features were lost in a rebuild
    board's own password, never while Approval is ON, every update on the audit counter. A board
    with room for one copy of the software only (the yellow board) updates by cable. No W-Soft
    build may switch on the framework's own OTA service or its firmware upload page.
+10. **Every board that gets flashed gets a name: `wsoft/<board make>/<number>`** (section 0c).
+    Give the name when the board is flashed and write it in the register in section 0c.
+
+## 0c. Board names (all W-Soft boards)
+
+Rule (Rhyno, 22 Nov 2026): every W-Soft board that gets flashed is called
+
+```
+wsoft/<board make>/<number in the sequence>
+```
+
+| Part | What goes there | Examples |
+|---|---|---|
+| `wsoft` | always `wsoft` | `wsoft` |
+| board make | the board, small letters, one word | `waveshare` (4.3 inch touch), `cyd` (yellow board), `s3` (S3 dev board, no screen) |
+| number | the next free number for that make, from 1 | `1`, `2`, `3` |
+
+Examples: `wsoft/waveshare/1`, `wsoft/cyd/2`, `wsoft/s3/1`.
+
+- **One number per board, for life.** The number stays with the board through every new
+  build, Wi-Fi update and re-pairing. A number is never given twice, also not when a board breaks
+  or is retired.
+- **A new make gets a new word** (small letters, no spaces), and its numbers start at 1. Add the
+  word to the table above in the same PR as the board's env.
+- **Where the name goes:**
+  - the sticker on the board or its box;
+  - the board's name on the Hub (device page);
+  - the board's **Hostname** on the WiFi Connection page. A hostname cannot hold `/`, so there it
+    is written with dashes: `wsoft-waveshare-1`.
+  - The board's own hotspot keeps its automatic name (`Weighsoft-Esp-Reader` /
+    `Weighsoft-Esp-Writer`): the firmware sets that from the board's role.
+- **Who:** whoever flashes the board gives the name, in the same session, and adds the row
+  below. The boards already on the bench get their number the next time each one is flashed,
+  in the order they are flashed.
+- No passwords, PINs or pairing keys in the register: this repo is public.
+
+### Register
+
+| Name | Board | Env | Named on | Notes |
+|---|---|---|---|---|
+| (none yet) | | | | Add a row when a board is flashed and named |
 
 ## 0b. Wi-Fi update (all W-Soft boards)
 

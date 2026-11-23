@@ -7,27 +7,27 @@ const SerialBle: FC = () => (
     <Typography variant="body2" paragraph>
       Monitor serial data via Bluetooth Low Energy using a BLE app like nRF Connect.
     </Typography>
-    
+
     <Typography variant="h6" gutterBottom>
       Connection Details
     </Typography>
     <List>
       <ListItem>
-        <ListItemText 
-          primary="Service UUID" 
+        <ListItemText
+          primary="Service UUID"
           secondary="12340000-e8f2-537e-4f6c-d104768a1234"
           secondaryTypographyProps={{ fontFamily: 'monospace' }}
         />
       </ListItem>
       <ListItem>
-        <ListItemText 
-          primary="Characteristic UUID" 
+        <ListItemText
+          primary="Characteristic UUID"
           secondary="12340001-e8f2-537e-4f6c-d104768a1234"
           secondaryTypographyProps={{ fontFamily: 'monospace' }}
         />
       </ListItem>
     </List>
-    
+
     <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
       Using nRF Connect
     </Typography>
