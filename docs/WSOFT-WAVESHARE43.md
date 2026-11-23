@@ -18,9 +18,9 @@ W-Soft runs on three PlatformIO envs. Every other env in `platformio.ini` is a d
 
 | Env | Board | Scale input |
 |---|---|---|
-| `wsoft_waveshare43` | Waveshare ESP32-S3 4.3 inch touch | RS485 junction box only |
-| `wsoft_cyd28` | Yellow board (CYD 2.8 inch) | RS485 junction box or RS232 scale |
-| `wsoft_s3_headless` | ESP32-S3 dev board, no screen | RS485 junction box or RS232 scale |
+| `wsoft_waveshare43` | Waveshare ESP32-S3 4.3 inch touch | RS485 junction box only: every other GPIO drives the panel; the only spare plug is the I2C socket (GPIO8/9, shared with touch) |
+| `wsoft_cyd28` | Yellow board (CYD 2.8 inch) | RS485 junction box, RS232 scale or load cell (HX711 on CN1) |
+| `wsoft_s3_headless` | ESP32-S3 dev board, no screen | RS485 junction box, RS232 scale or load cell (HX711 DT GPIO1, SCK GPIO2) |
 
 Any of them can also be a **Writer** (it shows a weigh board's weight and never saves).
 
