@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **W-Soft: every board shows the same menus** (Rhyno, 23 Nov 2026). Serial is in the menu, and
+  Settings shows "Weight comes from", the Hi-Lo relays and the Hi-Lo light on every W-Soft board. An
+  option a board is not wired for (the Waveshare: RS232, load cell, relays, light) is greyed with
+  "needs add-on wiring"; the board still refuses it, so no pin is driven. Web page only.
 - **W-Soft: the S3 board can weigh with a load cell too** (Rhyno, 23 Nov 2026). HX711 DT on GPIO1,
   SCK on GPIO2, picked in Settings "Weight comes from". Same as the yellow board. Not bench-tested.
 - **W-Soft: Live shows the screen AND the old info** (Rhyno, 23 Nov 2026). Under the board's
