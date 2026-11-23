@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **W-Soft: the Waveshare can read an RS232 scale** (Rhyno, 23 Nov 2026). One thing is plugged in at
+  a time, so the pins follow the source: RS485 on the RS485 plug, RS232 on the Sensor plug (GPIO6,
+  receive only, through a MAX3232 like the yellow board). RS232 is no longer greyed on the Waveshare.
+- **W-Soft: MENU > SCREEN says MINI EDGE** for the Full Colour look (the mini Edge, PR #70), so it
+  is easy to find: DARK, LIGHT, MINI EDGE, DIAL. Every board.
 - **W-Soft: one RS485 Scale setup, ZERO, stable and auto zero that work** (Rhyno, 23 Nov 2026).
   The Scale setup tab has one form for the RS485 card: unit, decimal places, e, stable range and
   time, auto zero range and time, Filter 1 and Filter 2. Save writes each value where it lives and

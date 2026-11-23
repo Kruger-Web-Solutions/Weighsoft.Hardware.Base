@@ -18,7 +18,7 @@ W-Soft runs on three PlatformIO envs. Every other env in `platformio.ini` is a d
 
 | Env | Board | Scale input |
 |---|---|---|
-| `wsoft_waveshare43` | Waveshare ESP32-S3 4.3 inch touch | RS485 junction box only: every other GPIO drives the panel; the only spare plug is the I2C socket (GPIO8/9, shared with touch) |
+| `wsoft_waveshare43` | Waveshare ESP32-S3 4.3 inch touch | RS485 junction box on the RS485 plug (GPIO15/16), or an RS232 scale on the Sensor plug (GPIO6, receive only, through a MAX3232; 23 Nov 2026). One source at a time, picked in Settings. Every other GPIO drives the panel; the I2C plug (GPIO8/9) carries touch, so no free pins for an HX711 or relays |
 | `wsoft_cyd28` | Yellow board (CYD 2.8 inch) | RS485 junction box, RS232 scale or load cell (HX711 on CN1) |
 | `wsoft_s3_headless` | ESP32-S3 dev board, no screen | RS485 junction box, RS232 scale or load cell (HX711 DT GPIO1, SCK GPIO2) |
 

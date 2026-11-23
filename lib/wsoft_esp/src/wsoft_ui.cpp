@@ -670,7 +670,7 @@ static void menu_tap(int tile) {
         dark = true;
       }
       theme_save();
-      say(style == WSOFT_UI_STYLE_COLOUR ? "FULL COLOUR" : style == WSOFT_UI_STYLE_DIAL ? "DIAL" : dark ? "DARK MODE" : "LIGHT MODE");
+      say(style == WSOFT_UI_STYLE_COLOUR ? "MINI EDGE" : style == WSOFT_UI_STYLE_DIAL ? "DIAL" : dark ? "DARK MODE" : "LIGHT MODE");
       break;
     case WSOFT_UI_TILE_WIFI:
       message[0] = 0;
