@@ -1,0 +1,44 @@
+{
+  "contract": "hub-screen-v1",
+  "format": "POST /api/v1/ingest/screen: a W-Soft board pushes the words on its screen (WsoftUiModel JSON, as GET /rest/wsoftScreen returns it). Answer 202 {\"accepted\":true}, unsigned.",
+  "source": "Hub docs/adr/0010-board-screen-push.md; model from Hardware.Base tools/wsoft-ui/ref.js PRESETS[0] at 6ad166ee65d18e6e38d5d91f0708dcb19651ef8a",
+  "status": "frozen wire vector, generated once with Python hmac/hashlib (independent of the Hub codec). The Hub test replays it byte for byte.",
+  "request_signing": "ASCII \"scale-models-hub-v1\" + LF + key_id + LF + timestamp + LF + nonce + LF + exact UTF-8 request body bytes; HMAC-SHA256 with the 32-byte key sha256(pairing secret)",
+  "rules": {
+    "max_body_bytes": 4096,
+    "screen": "a JSON object with an integer \"page\"; every other key is passed to the painter untouched",
+    "push_when": "the screen JSON changed and at least 3 s since the last push, or 30 s since the last push (keep-alive); only while the Hub state is online; never during a firmware upload",
+    "older_hub": "404 means the Hub has no Control room yet: try again after 10 min"
+  },
+  "pairing_secret_utf8": "wsoft-screen-fixture-secret",
+  "hmac_key": "sha256 of the UTF-8 bytes of pairing_secret_utf8 (32 bytes)",
+  "key_id": "k-screen-fixture",
+  "nonce": "fedcba9876543210fedcba9876543210",
+  "request": {
+    "timestamp": "1795687200",
+    "body": "{\"sent_at\":\"2026-11-26T10:00:00Z\",\"screen\":{\"dark\":true,\"page\":0,\"style\":0,\"wifi_up\":true,\"wifi_bars\":3,\"ip\":\"192.168.0.142\",\"hub\":\"HUB\",\"hub_tone\":1,\"link\":\"RS232\",\"link_tone\":1,\"slot\":0,\"slot_title\":\"\",\"slot_detail\":\"\",\"trade_ok\":false,\"reason\":\"\",\"reason_tone\":0,\"steady\":\"STABLE\",\"steady_tone\":1,\"plate_sa\":\"\",\"plate_limits\":\"\",\"audit\":\"AUDIT 0\",\"label\":\"NET\",\"live\":true,\"weight\":\"50.120\",\"unit\":\"kg\",\"zone\":2,\"product_on\":true,\"word\":\"OK\",\"word_tone\":1,\"product\":\"MAIZE\",\"target\":\"TARGET 50 KG\",\"low\":\"49\",\"high\":\"51\",\"pointer\":527,\"gross\":\"50.120 kg\",\"save_line\":\"AUTO SAVE ON\",\"save_look\":1,\"hint\":\"HOLD STILL\",\"zero_btn\":false,\"zero_line\":\"\",\"title\":\"\",\"message\":\"\",\"tiles\":[{\"id\":\"approval\",\"caption\":\"APPROVAL\",\"value\":\"OFF\",\"look\":0},{\"id\":\"auto\",\"caption\":\"AUTO SAVE\",\"value\":\"ON\",\"look\":1},{\"id\":\"product\",\"caption\":\"PRODUCT\",\"value\":\"MAIZE\",\"look\":1},{\"id\":\"theme\",\"caption\":\"SCREEN\",\"value\":\"DARK\",\"look\":0},{\"id\":\"wifi\",\"caption\":\"WI-FI\",\"value\":\"192.168.0.142\",\"look\":0}],\"tile_count\":5,\"pin_count\":0,\"address\":\"192.168.4.1\",\"ap_name\":\"Weighsoft-Esp-NEW\"}}",
+    "x_scalemodels_signature": "sha256=77f2bf19333b0e4ba36e2891a94de6a81fe21638bd7f8c5bfdd5179309be370c"
+  },
+  "rejected_bodies": [
+    {
+      "why": "screen has no integer page",
+      "body": "{\"sent_at\":\"2026-11-26T10:00:00Z\",\"screen\":{\"weight\":\"1.000\"}}",
+      "status": 400
+    },
+    {
+      "why": "page is not an integer",
+      "body": "{\"sent_at\":\"2026-11-26T10:00:00Z\",\"screen\":{\"page\":\"0\"}}",
+      "status": 400
+    },
+    {
+      "why": "screen is not an object",
+      "body": "{\"sent_at\":\"2026-11-26T10:00:00Z\",\"screen\":[0]}",
+      "status": 400
+    },
+    {
+      "why": "no sent_at",
+      "body": "{\"screen\":{\"page\":0}}",
+      "status": 400
+    }
+  ]
+}

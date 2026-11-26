@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **W-Soft: the screen goes to the Hub's Control room** (26 Nov 2026, Hub ADR 0010). A paired
+  board pushes the words on its screen (the same JSON as `/rest/wsoftScreen`) with a signed
+  `POST /api/v1/ingest/screen`: at most every 3 s while the screen changes, else every 30 s,
+  only while the Hub is online and no firmware upload runs. An older Hub (404) is asked again
+  after 10 minutes. `ui_model_json` got a mutex (two tasks call it now). Host test
+  `test_wsoft_hub_screen` with the shared vector. Docs: `docs/WSOFT-SCREEN.md` section 5b.
+  Not tried on a board yet.
+
 ### Changed
 - **W-Soft: the Waveshare can read an RS232 scale or a load cell** (Rhyno, 23 Nov 2026). One thing
   is plugged in at a time, so the pins follow the source: RS485 on the RS485 plug; RS232 on the

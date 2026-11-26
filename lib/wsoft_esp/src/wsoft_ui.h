@@ -49,7 +49,8 @@ void ui_show(const WsoftUiView &view);
 void ui_loop();
 
 // The copy of the screen in the browser (Rhyno, 22 Nov 2026: one screen, two places). Both are
-// safe to call from the web server's task.
+// safe to call from the web server's task; ui_model_json also from the hub task (the Hub's
+// Control room, Hub ADR 0010), one caller at a time.
 //   ui_model_json   the words on the screen now, as JSON (wsoft_ui_model_json). out needs
 //                   WSOFT_UI_JSON_MAX bytes. False before the first poll.
 //   ui_remote_tap   a tap at layout position x, y (320 x 240); the screen loop runs it like a
