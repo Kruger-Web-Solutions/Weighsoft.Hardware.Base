@@ -161,6 +161,35 @@ the status table (trade check, audit counter, last trade sequence, waiting for t
 junction box alarm, screen), from `/rest/wsoftSwitches`, `/rest/wsoftSave` and the
 `wsoftStatus` socket. The old big weight and chips are not back: the screen shows them. **Not tried on a board yet.**
 
+## 5b. The same screen on the Hub's Control room (26 Nov 2026)
+
+The Weighsoft Hub has a **Control room** page: the screens of many boards on one wall, like a
+camera room (Hub ADR 0010, `Kruger-Web-Solutions/Weighsoft.Indicator.Hub`). The Hub never
+connects to a board, so a paired board **pushes** its screen.
+
+| What | Where |
+|---|---|
+| The words | the same JSON as `GET /rest/wsoftScreen` (`ui_model_json`) |
+| The request | `POST <hub>/api/v1/ingest/screen`, signed like a heartbeat: `{"sent_at":"<UTC>","screen":<JSON>}` |
+| When | the screen changed and 3 s since the last push, or 30 s since the last push; only while the Hub is online and no firmware upload runs |
+| Rules | `lib/wsoft_core/src/wsoft_hub_screen.*`, host test `test/test_wsoft_hub_screen` with the shared vector `hub-screen-v1-fixtures.json` (byte-identical to the Hub's copy) |
+| The board side | `push_screen()` in `lib/wsoft_esp/src/hub.cpp`, in the hub task |
+
+- The Hub answers 202 and keeps only the latest screen (in memory). A Hub without the Control
+  room answers 404: the board waits 10 minutes before it tries again. Any other refusal (4xx:
+  too many, too big, not allowed): 1 minute. No answer or a Hub error (5xx): the changed screen
+  is tried again 3 s later.
+- The push runs in the hub task, like the heartbeat: while one waits for the Hub (up to the 8 s
+  timeout), the heartbeat, command pull and weighings in that task wait behind it. The screen
+  and the weigh loop do not wait. A push with no answer also counts toward moving to a backup
+  Hub address, like every other Hub request.
+- The JSON carries `pin_count` (how many digits were typed), never a PIN digit.
+- `ui_model_json` is now called by two tasks (web server and hub task), so its copy buffer has a
+  mutex.
+- The Hub paints the words with a copy of `gen/wsoftScreen.js`. A change to `ref.js` or the JSON
+  needs the Hub's copy updated too (its golden test goes red until it is).
+- **Not tried on a board yet** (26 Nov 2026): built for the yellow board and the Waveshare only.
+
 ## 6. Checking a board over USB
 
 USB technician commands (115200 baud, the board's log port), handled by `ui_handle_command`:

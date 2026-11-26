@@ -11,6 +11,8 @@
 #include "wifi_update.h"
 
 #include <wsoft_hub_commands.h>
+#include <wsoft_hub_screen.h>
+#include <wsoft_ui_model.h>
 #endif
 #ifndef WSOFT_ON_BASE
 #include "ota_secret.h"
@@ -553,6 +555,33 @@ static void pull_hilo() {
 }
 
 #endif
+#ifdef WSOFT_ON_BASE
+// ---------- the Hub Control room (Hub ADR 0010) ----------
+// The words on this board's screen go to the Hub, which shows them on its Control room wall.
+// Same JSON as GET /rest/wsoftScreen; when to push is wsoft_screen_push_due() (host-tested).
+static WsoftScreenPush screen_push;
+static char screen_json[WSOFT_UI_JSON_MAX];
+static char screen_body[WSOFT_SCREEN_BODY_MAX];
+
+// A re-pair restarts the board, so this state never carries over to another Hub.
+static void push_screen() {
+  if (!wsoft_screen_push_soon(screen_push, millis())) return;  // skip building the JSON
+  if (!ui_model_json(screen_json, sizeof screen_json)) return;  // no screen poll yet
+  uint32_t hash = wsoft_screen_hash(screen_json);
+  if (!wsoft_screen_push_due(screen_push, millis(), hash)) return;
+  char sent_at[32];
+  time_t now = time(nullptr);
+  struct tm utc;
+  gmtime_r(&now, &utc);
+  strftime(sent_at, sizeof sent_at, "%Y-%m-%dT%H:%M:%SZ", &utc);
+  if (!wsoft_screen_push_body(sent_at, screen_json, screen_body, sizeof screen_body)) return;
+  String reply;
+  int status = post_signed("/api/v1/ingest/screen", String(screen_body), &reply);
+  wsoft_screen_push_result(&screen_push, millis(), hash, status);
+  if (status != 202) WSOFT_LOG.printf("HUB screen status=%d %s\n", status, reply.substring(0, 80).c_str());
+}
+#endif
+
 static void send_heartbeat() {
   time_t now = time(nullptr);
   uint8_t nonce_bytes[16];
@@ -709,6 +738,8 @@ static void hub_task(void *) {
       next_command_pull = millis() + COMMANDS_MS;
     }
     if (state == HUB_ONLINE && !ota_busy && !pairing_changed && hilo_pull_due()) pull_hilo();
+    // The screen for the Hub's Control room: at most every 3 s while it changes, else every 30 s.
+    if (state == HUB_ONLINE && !ota_busy && !pairing_changed) push_screen();
     TradeWeight waiting;
     bool waiting_for_trade;
     int32_t waiting_tare;

@@ -775,12 +775,18 @@ void ui_show(const WsoftUiView &next) {
 }
 
 bool ui_model_json(char *out, size_t size) {
-  static WsoftUiModel copy;  // one web request at a time (the web server has one task)
+  // Two tasks ask now: the web server (the browser's copy of the screen) and the hub task (the
+  // Hub's Control room). The copy buffer is shared, so one caller at a time.
+  static SemaphoreHandle_t json_lock = xSemaphoreCreateMutex();
+  static WsoftUiModel copy;
+  if (!json_lock || xSemaphoreTake(json_lock, pdMS_TO_TICKS(500)) != pdTRUE) return false;
   portENTER_CRITICAL(&web_mux);
   bool valid = web_model_valid;
   if (valid) copy = web_model;
   portEXIT_CRITICAL(&web_mux);
-  return valid && wsoft_ui_model_json(copy, out, size) > 0;
+  bool ok = valid && wsoft_ui_model_json(copy, out, size) > 0;
+  xSemaphoreGive(json_lock);
+  return ok;
 }
 
 bool ui_remote_tap(int x, int y) {
