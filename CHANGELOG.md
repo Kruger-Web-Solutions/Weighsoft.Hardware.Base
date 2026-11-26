@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   board pushes the words on its screen (the same JSON as `/rest/wsoftScreen`) with a signed
   `POST /api/v1/ingest/screen`: at most every 3 s while the screen changes, else every 30 s,
   only while the Hub is online and no firmware upload runs. An older Hub (404) is asked again
-  after 10 minutes. `ui_model_json` got a mutex (two tasks call it now). Host test
+  after 10 minutes, any other refusal (4xx) after 1 minute. `ui_model_json` got a mutex (two tasks call it now). Host test
   `test_wsoft_hub_screen` with the shared vector. Docs: `docs/WSOFT-SCREEN.md` section 5b.
   Not tried on a board yet.
 

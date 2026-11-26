@@ -12,29 +12,39 @@ uint32_t wsoft_screen_hash(const char *json) {
   return h;
 }
 
-bool wsoft_screen_push_due(const WsoftScreenPush &push, uint32_t now_ms, uint32_t hash) {
-  if (push.holding && (int32_t)(now_ms - push.hold_until_ms) < 0) return false;
-  if (!push.ever) return push.holding || push.last_ms == 0 || now_ms - push.last_ms >= WSOFT_SCREEN_MIN_MS;
+// Unsigned elapsed time: right across a millis() wrap, however long the board was not asking.
+bool wsoft_screen_push_soon(const WsoftScreenPush &push, uint32_t now_ms) {
+  if (!push.tried) return true;
   uint32_t since = now_ms - push.last_ms;
-  if (hash != push.last_hash && since >= WSOFT_SCREEN_MIN_MS) return true;
-  return since >= WSOFT_SCREEN_KEEPALIVE_MS;
+  if (since < push.hold_ms) return false;
+  return since >= WSOFT_SCREEN_MIN_MS;
+}
+
+bool wsoft_screen_push_due(const WsoftScreenPush &push, uint32_t now_ms, uint32_t hash) {
+  if (!wsoft_screen_push_soon(push, now_ms)) return false;
+  if (!push.ever || push.hold_ms > 0) return true;  // nothing on the Hub yet, or a wait just ended
+  uint32_t since = now_ms - push.last_ms;
+  return hash != push.last_hash || since >= WSOFT_SCREEN_KEEPALIVE_MS;
 }
 
 void wsoft_screen_push_result(WsoftScreenPush *push, uint32_t now_ms, uint32_t hash, int status) {
+  push->tried = true;
   push->last_ms = now_ms;
-  push->holding = false;
+  push->hold_ms = 0;
   if (status == 202) {
     push->ever = true;
     push->last_hash = hash;
     return;
   }
-  // No Control room on this Hub yet (an older Hub), or too many pushes: wait, then try again.
-  if (status == 404 || status == 429) {
-    push->holding = true;
-    push->hold_until_ms = now_ms + (status == 404 ? WSOFT_SCREEN_OLD_HUB_MS : WSOFT_SCREEN_BUSY_HUB_MS);
+  // No Control room on this Hub yet (an older Hub): ask again much later.
+  if (status == 404) {
+    push->hold_ms = WSOFT_SCREEN_OLD_HUB_MS;
+    return;
   }
-  // Anything else (no answer, refused, Hub error): the Hub still holds the old screen, so the
-  // changed one is tried again after WSOFT_SCREEN_MIN_MS.
+  // Refused (too many, too big, not allowed): retrying every 3 s would not help.
+  if (status >= 400 && status < 500) push->hold_ms = WSOFT_SCREEN_REFUSED_MS;
+  // No answer or a Hub error (5xx): the Hub still holds the old screen, so the changed one is
+  // tried again after WSOFT_SCREEN_MIN_MS.
 }
 
 bool wsoft_screen_push_body(const char *sent_at, const char *model_json, char *out, size_t size) {

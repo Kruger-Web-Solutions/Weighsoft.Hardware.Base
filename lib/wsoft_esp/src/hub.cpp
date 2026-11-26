@@ -563,7 +563,9 @@ static WsoftScreenPush screen_push;
 static char screen_json[WSOFT_UI_JSON_MAX];
 static char screen_body[WSOFT_SCREEN_BODY_MAX];
 
+// A re-pair restarts the board, so this state never carries over to another Hub.
 static void push_screen() {
+  if (!wsoft_screen_push_soon(screen_push, millis())) return;  // skip building the JSON
   if (!ui_model_json(screen_json, sizeof screen_json)) return;  // no screen poll yet
   uint32_t hash = wsoft_screen_hash(screen_json);
   if (!wsoft_screen_push_due(screen_push, millis(), hash)) return;

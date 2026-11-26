@@ -176,8 +176,13 @@ connects to a board, so a paired board **pushes** its screen.
 | The board side | `push_screen()` in `lib/wsoft_esp/src/hub.cpp`, in the hub task |
 
 - The Hub answers 202 and keeps only the latest screen (in memory). A Hub without the Control
-  room answers 404: the board waits 10 minutes before it tries again. 429 (too many): 1 minute.
-- Nothing else waits on it: a failed push only means the changed screen is tried again 3 s later.
+  room answers 404: the board waits 10 minutes before it tries again. Any other refusal (4xx:
+  too many, too big, not allowed): 1 minute. No answer or a Hub error (5xx): the changed screen
+  is tried again 3 s later.
+- The push runs in the hub task, like the heartbeat: while one waits for the Hub (up to the 8 s
+  timeout), the heartbeat, command pull and weighings in that task wait behind it. The screen
+  and the weigh loop do not wait. A push with no answer also counts toward moving to a backup
+  Hub address, like every other Hub request.
 - The JSON carries `pin_count` (how many digits were typed), never a PIN digit.
 - `ui_model_json` is now called by two tasks (web server and hub task), so its copy buffer has a
   mutex.

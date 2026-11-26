@@ -103,8 +103,9 @@ void test_failed_push_tries_the_changed_screen_again() {
   wsoft_screen_push_result(&p, 20000, 8, -1);  // no answer
   TEST_ASSERT_FALSE(wsoft_screen_push_due(p, 22999, 8));
   TEST_ASSERT_TRUE(wsoft_screen_push_due(p, 23000, 8));  // the Hub still holds 7
-  wsoft_screen_push_result(&p, 23000, 8, 401);
-  TEST_ASSERT_TRUE(wsoft_screen_push_due(p, 26000, 8));
+  wsoft_screen_push_result(&p, 23000, 8, 401);              // refused: waits a minute
+  TEST_ASSERT_FALSE(wsoft_screen_push_due(p, 26000, 8));
+  TEST_ASSERT_TRUE(wsoft_screen_push_due(p, 23000 + WSOFT_SCREEN_REFUSED_MS, 8));
   // A board that was never answered keeps trying every 3 s.
   WsoftScreenPush q;
   wsoft_screen_push_result(&q, 5000, 1, 500);
@@ -112,16 +113,50 @@ void test_failed_push_tries_the_changed_screen_again() {
   TEST_ASSERT_TRUE(wsoft_screen_push_due(q, 8000, 1));
 }
 
-void test_older_hub_waits_ten_minutes_busy_hub_one() {
+void test_older_hub_waits_ten_minutes_a_refusal_one() {
   WsoftScreenPush p;
   wsoft_screen_push_result(&p, 1000, 1, 404);
   TEST_ASSERT_FALSE(wsoft_screen_push_due(p, 1000 + WSOFT_SCREEN_OLD_HUB_MS - 1, 2));
   TEST_ASSERT_TRUE(wsoft_screen_push_due(p, 1000 + WSOFT_SCREEN_OLD_HUB_MS, 2));
-  WsoftScreenPush q;
-  wsoft_screen_push_result(&q, 1000, 1, 202);
-  wsoft_screen_push_result(&q, 5000, 2, 429);
-  TEST_ASSERT_FALSE(wsoft_screen_push_due(q, 5000 + WSOFT_SCREEN_BUSY_HUB_MS - 1, 2));
-  TEST_ASSERT_TRUE(wsoft_screen_push_due(q, 5000 + WSOFT_SCREEN_BUSY_HUB_MS, 2));
+  // Too many, too big, not allowed: one minute, not every 3 s.
+  const int refused[] = {429, 400, 401, 403, 413};
+  for (size_t i = 0; i < sizeof refused / sizeof refused[0]; i++) {
+    WsoftScreenPush q;
+    wsoft_screen_push_result(&q, 1000, 1, 202);
+    wsoft_screen_push_result(&q, 5000, 2, refused[i]);
+    TEST_ASSERT_FALSE(wsoft_screen_push_due(q, 5000 + WSOFT_SCREEN_REFUSED_MS - 1, 2));
+    TEST_ASSERT_TRUE(wsoft_screen_push_due(q, 5000 + WSOFT_SCREEN_REFUSED_MS, 2));
+  }
+  // A Hub error (5xx) is not a refusal: the changed screen goes again after 3 s.
+  WsoftScreenPush r;
+  wsoft_screen_push_result(&r, 1000, 1, 202);
+  wsoft_screen_push_result(&r, 5000, 2, 503);
+  TEST_ASSERT_TRUE(wsoft_screen_push_due(r, 5000 + WSOFT_SCREEN_MIN_MS, 2));
+}
+
+void test_a_wait_never_comes_back_after_a_long_gap() {
+  // The board did not ask for 25 days after a 10-minute wait (Hub offline): the wait is over.
+  WsoftScreenPush p;
+  wsoft_screen_push_result(&p, 1000, 1, 404);
+  TEST_ASSERT_TRUE(wsoft_screen_push_due(p, 1000 + 2160000000u, 2));
+}
+
+void test_soon_lets_the_board_skip_building_the_json() {
+  WsoftScreenPush p;
+  TEST_ASSERT_TRUE(wsoft_screen_push_soon(p, 0));  // never tried
+  wsoft_screen_push_result(&p, 10000, 7, 202);
+  TEST_ASSERT_FALSE(wsoft_screen_push_soon(p, 12999));
+  TEST_ASSERT_TRUE(wsoft_screen_push_soon(p, 13000));
+  wsoft_screen_push_result(&p, 13000, 7, 404);
+  TEST_ASSERT_FALSE(wsoft_screen_push_soon(p, 13000 + WSOFT_SCREEN_MIN_MS));  // still waiting
+  TEST_ASSERT_TRUE(wsoft_screen_push_soon(p, 13000 + WSOFT_SCREEN_OLD_HUB_MS));
+}
+
+void test_a_try_at_millis_zero_still_counts() {
+  WsoftScreenPush p;
+  wsoft_screen_push_result(&p, 0, 1, -1);
+  TEST_ASSERT_FALSE(wsoft_screen_push_due(p, 100, 1));
+  TEST_ASSERT_TRUE(wsoft_screen_push_due(p, WSOFT_SCREEN_MIN_MS, 1));
 }
 
 void test_millis_wrap() {
@@ -141,7 +176,10 @@ int main() {
   RUN_TEST(test_first_push_goes_at_once);
   RUN_TEST(test_changed_screen_waits_three_seconds_same_screen_thirty);
   RUN_TEST(test_failed_push_tries_the_changed_screen_again);
-  RUN_TEST(test_older_hub_waits_ten_minutes_busy_hub_one);
+  RUN_TEST(test_older_hub_waits_ten_minutes_a_refusal_one);
+  RUN_TEST(test_a_wait_never_comes_back_after_a_long_gap);
+  RUN_TEST(test_soon_lets_the_board_skip_building_the_json);
+  RUN_TEST(test_a_try_at_millis_zero_still_counts);
   RUN_TEST(test_millis_wrap);
   return UNITY_END();
 }
