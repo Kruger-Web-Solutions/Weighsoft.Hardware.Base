@@ -145,6 +145,11 @@ bool wsoft_packer_code_ok(const char *code) {
   return true;
 }
 
+void wsoft_packer_roster_reset(WsoftPackerRoster *roster) {
+  static const WsoftPackerRoster empty;  // built once, never on a task's stack
+  *roster = empty;
+}
+
 const WsoftPackerEntry *wsoft_packer_find(const WsoftPackerRoster &roster, const char *code) {
   if (code == nullptr || code[0] == 0) return nullptr;
   for (size_t i = 0; i < roster.count && i < WSOFT_PACKERS_MAX; i++) {
@@ -728,7 +733,7 @@ bool read_bag_event_result(Reader &r, WsoftBagEventResult *res) {
 
 bool wsoft_packers_parse(const char *body, size_t length, WsoftPackerRoster *out) {
   if (body == nullptr || out == nullptr) return false;
-  *out = WsoftPackerRoster();
+  wsoft_packer_roster_reset(out);
   Reader r = {body, body + length};
   enum { REQ = 1, UNIT = 2, PACKERS = 4, EVICTED = 8, ALL = 15 };
   int seen = 0;
@@ -763,7 +768,7 @@ bool wsoft_packers_parse(const char *body, size_t length, WsoftPackerRoster *out
     if (!r.take(',')) break;
   }
   ok = ok && r.take('}') && r.done() && seen == ALL;
-  if (!ok) *out = WsoftPackerRoster();
+  if (!ok) wsoft_packer_roster_reset(out);
   return ok;
 }
 

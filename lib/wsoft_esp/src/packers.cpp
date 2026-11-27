@@ -78,8 +78,9 @@ void packers_begin() {
   flash_mutex = xSemaphoreCreateMutex();
   static WsoftPackerRoster stored_roster;
   static WsoftBagEventOutbox stored_outbox;
-  stored_roster = WsoftPackerRoster();
-  stored_outbox = WsoftBagEventOutbox();
+  // In place: a temporary roster (about 10 KB) overflowed the loop task's stack at boot.
+  wsoft_packer_roster_reset(&stored_roster);
+  stored_outbox.clear();
   uint32_t stored_fails = 0;
 
   Preferences store;
@@ -88,13 +89,13 @@ void packers_begin() {
       if (store.getBytesLength("roster") == sizeof stored_roster) {
         if (store.getBytes("roster", &stored_roster, sizeof stored_roster) != sizeof stored_roster ||
             stored_roster.count > WSOFT_PACKERS_MAX) {
-          stored_roster = WsoftPackerRoster();
+          wsoft_packer_roster_reset(&stored_roster);
         }
       }
       if (store.getBytesLength("outbox") == sizeof stored_outbox) {
         if (store.getBytes("outbox", &stored_outbox, sizeof stored_outbox) != sizeof stored_outbox ||
             stored_outbox.size() > WSOFT_BAG_OUTBOX_MAX) {
-          stored_outbox = WsoftBagEventOutbox();
+          stored_outbox.clear();
         }
       }
       stored_fails = store.getUInt("fails", 0);
