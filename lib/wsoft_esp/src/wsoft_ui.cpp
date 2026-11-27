@@ -25,6 +25,9 @@
 #ifndef WSOFT_BOARD_CYD
 #define WSOFT_BOARD_CYD 0
 #endif
+#ifndef WSOFT_BOARD_S3_35
+#define WSOFT_BOARD_S3_35 0
+#endif
 
 // ======================================================================================
 // The panel and touch of each board.
@@ -180,6 +183,287 @@ static bool gx_touch(int *sx, int *sy) {
   return true;
 }
 
+#elif WSOFT_BOARD_S3_35
+// ---------- S3 DevKitC + 3.5" SPI module (ST7796, 320 x 480, turned to 480 x 320) ----------
+// Module "3.5in 40PIN SPI Interface 35002 V1.2" (SKU S219C35002A); the maker's sheet for this
+// family (Elecrow DLS30035B1 / LCD wiki MSP3526) names an FT6336U capacitive touch on I2C.
+// The board revision may differ, so the touch chip is found at start: FT5x06/FT6x36 at 0x38 or
+// GT911 at 0x5D / 0x14. "TOUCH chip ..." in the USB log says which one answered.
+// The panel is write only here (MISO not wired): the rows are drawn into a frame in PSRAM
+// (SCREEN SHOT and SCREEN PIXEL read the frame) and the lines of a changed row are sent.
+// Pins: docs/WSOFT-S3-35.md. All on the left header of the DevKitC, in the screen header's
+// order, so no signal wires cross (SPI goes through the GPIO matrix: fine at 40 MHz).
+#include <SPI.h>
+#include <Wire.h>
+#include <esp_heap_caps.h>
+#include <gen/wsoft_ui_fonts_1x.h>
+#ifndef WSOFT_LCD_SCK
+#define WSOFT_LCD_SCK 10
+#define WSOFT_LCD_MOSI 11
+#define WSOFT_LCD_CS 14
+#define WSOFT_LCD_DC 12
+#define WSOFT_LCD_RST 13
+#define WSOFT_LCD_BL 9
+#endif
+#ifndef WSOFT_CTP_SDA
+#define WSOFT_CTP_SDA 15
+#define WSOFT_CTP_SCL 8
+#define WSOFT_CTP_RST 16
+#define WSOFT_CTP_INT 7
+#endif
+#ifndef WSOFT_LCD_SPI_HZ
+#define WSOFT_LCD_SPI_HZ 40000000
+#endif
+// MADCTL for landscape: 0x28 = MV + BGR (rotation 1), 0xE8 = MX + MY + MV + BGR (rotation 3,
+// the picture turned upside down). Clear 0x08 if red and blue are swapped.
+#ifndef WSOFT_LCD_MADCTL
+#define WSOFT_LCD_MADCTL 0x28
+#endif
+// IPS panels need the colours inverted; if the screen looks like a photo negative, set 0.
+#ifndef WSOFT_LCD_INVERT
+#define WSOFT_LCD_INVERT 1
+#endif
+// Touch to screen: the touch reports the panel's own portrait dots (x 0-319, y 0-479). Every tap
+// logs "TOUCH raw=x,y,chip screen=x,y" on USB, so a different batch can be set with these.
+#ifndef WSOFT_TOUCH_SWAP_XY
+#define WSOFT_TOUCH_SWAP_XY 1
+#endif
+#ifndef WSOFT_TOUCH_FLIP_X
+#define WSOFT_TOUCH_FLIP_X 0
+#endif
+#ifndef WSOFT_TOUCH_FLIP_Y
+#define WSOFT_TOUCH_FLIP_Y 0
+#endif
+
+static const int PANEL_W = 480, PANEL_H = 320;
+static const uint32_t TAP_GAP_MS = 400;
+static SPIClass lcd_spi(FSPI);
+static uint16_t *frame = nullptr;
+static uint8_t touch_addr = 0;   // 0: no touch chip answered
+static bool touch_gt911 = false;
+static bool touch_ok = false;
+static int touch_raw[3];          // x, y, chip address of the last reading, for the log
+
+static void lcd_command(uint8_t cmd, const uint8_t *data = nullptr, size_t length = 0) {
+  lcd_spi.beginTransaction(SPISettings(WSOFT_LCD_SPI_HZ, MSBFIRST, SPI_MODE0));
+  digitalWrite(WSOFT_LCD_CS, LOW);
+  digitalWrite(WSOFT_LCD_DC, LOW);
+  lcd_spi.write(cmd);
+  if (length > 0) {
+    digitalWrite(WSOFT_LCD_DC, HIGH);
+    lcd_spi.writeBytes(data, length);
+  }
+  digitalWrite(WSOFT_LCD_CS, HIGH);
+  lcd_spi.endTransaction();
+}
+
+static void lcd_cmd(uint8_t cmd, std::initializer_list<uint8_t> data, uint32_t wait_ms = 0) {
+  lcd_command(cmd, data.begin(), data.size());
+  if (wait_ms) delay(wait_ms);
+}
+
+// Panel lines top .. top + rows - 1 of the frame to the glass.
+static void lcd_push(int top, int rows) {
+  if (rows <= 0) return;
+  const uint16_t x1 = PANEL_W - 1, y0 = top, y1 = top + rows - 1;
+  lcd_cmd(0x2A, {0, 0, (uint8_t)(x1 >> 8), (uint8_t)x1});
+  lcd_cmd(0x2B, {(uint8_t)(y0 >> 8), (uint8_t)y0, (uint8_t)(y1 >> 8), (uint8_t)y1});
+  lcd_spi.beginTransaction(SPISettings(WSOFT_LCD_SPI_HZ, MSBFIRST, SPI_MODE0));
+  digitalWrite(WSOFT_LCD_CS, LOW);
+  digitalWrite(WSOFT_LCD_DC, LOW);
+  lcd_spi.write(0x2C);
+  digitalWrite(WSOFT_LCD_DC, HIGH);
+  // writePixels sends each 16-bit dot high byte first, as the panel wants it.
+  lcd_spi.writePixels(frame + (size_t)top * PANEL_W, (uint32_t)PANEL_W * rows * 2);
+  digitalWrite(WSOFT_LCD_CS, HIGH);
+  lcd_spi.endTransaction();
+}
+
+// The ST7796 start-up of TFT_eSPI's ST7796_Init.h (Bodmer, FreeBSD licence), in landscape.
+static void lcd_init() {
+  digitalWrite(WSOFT_LCD_RST, HIGH);
+  delay(5);
+  digitalWrite(WSOFT_LCD_RST, LOW);
+  delay(20);
+  digitalWrite(WSOFT_LCD_RST, HIGH);
+  delay(150);
+  lcd_cmd(0x01, {}, 120);                 // software reset
+  lcd_cmd(0x11, {}, 120);                 // sleep out
+  lcd_cmd(0xF0, {0xC3});                  // command set part 1 on
+  lcd_cmd(0xF0, {0x96});                  // command set part 2 on
+  lcd_cmd(0x36, {WSOFT_LCD_MADCTL});      // memory access: landscape
+  lcd_cmd(0x3A, {0x55});                  // 16 bits a dot
+  lcd_cmd(0xB4, {0x01});                  // 1-dot inversion
+  lcd_cmd(0xB6, {0x80, 0x02, 0x3B});      // display function control
+  lcd_cmd(0xE8, {0x40, 0x8A, 0x00, 0x00, 0x29, 0x19, 0xA5, 0x33});
+  lcd_cmd(0xC1, {0x06});
+  lcd_cmd(0xC2, {0xA7});
+  lcd_cmd(0xC5, {0x18}, 120);
+  lcd_cmd(0xE0, {0xF0, 0x09, 0x0B, 0x06, 0x04, 0x15, 0x2F, 0x54, 0x42, 0x3C, 0x17, 0x14, 0x18, 0x1B});
+  lcd_cmd(0xE1, {0xE0, 0x09, 0x0B, 0x06, 0x04, 0x03, 0x2B, 0x43, 0x42, 0x3B, 0x16, 0x14, 0x17, 0x1B}, 120);
+  lcd_cmd(0xF0, {0x3C});                  // command set part 1 off
+  lcd_cmd(0xF0, {0x69}, 120);             // command set part 2 off
+  lcd_cmd(WSOFT_LCD_INVERT ? 0x21 : 0x20, {});
+  lcd_cmd(0x29, {}, 20);                  // display on
+}
+
+static bool i2c_present(uint8_t addr) {
+  Wire.beginTransmission(addr);
+  return Wire.endTransmission() == 0;
+}
+
+static bool i2c_read(uint8_t addr, const uint8_t *reg, size_t reg_len, uint8_t *out, size_t len) {
+  Wire.beginTransmission(addr);
+  Wire.write(reg, reg_len);
+  if (Wire.endTransmission(false) != 0) return false;
+  if (Wire.requestFrom(addr, (uint8_t)len) != len) return false;
+  for (size_t i = 0; i < len; i++) out[i] = Wire.read();
+  return true;
+}
+
+static void touch_begin() {
+  // Reset with INT held low: a GT911 then takes address 0x5D. An FT6336 ignores INT here.
+  pinMode(WSOFT_CTP_INT, OUTPUT);
+  digitalWrite(WSOFT_CTP_INT, LOW);
+  pinMode(WSOFT_CTP_RST, OUTPUT);
+  digitalWrite(WSOFT_CTP_RST, LOW);
+  delay(20);
+  digitalWrite(WSOFT_CTP_RST, HIGH);
+  delay(60);
+  pinMode(WSOFT_CTP_INT, INPUT);
+  delay(250);  // the FT6336 needs about 300 ms after reset before it answers
+  Wire.begin(WSOFT_CTP_SDA, WSOFT_CTP_SCL, 400000);
+  for (int attempt = 0; attempt < 5 && touch_addr == 0; attempt++) {
+    if (i2c_present(0x38)) touch_addr = 0x38;
+    else if (i2c_present(0x5D)) touch_addr = 0x5D, touch_gt911 = true;
+    else if (i2c_present(0x14)) touch_addr = 0x14, touch_gt911 = true;
+    else delay(100);
+  }
+  touch_ok = touch_addr != 0;
+  if (touch_ok) {
+    WSOFT_LOG.printf("TOUCH chip at 0x%02X (%s)\n", touch_addr, touch_gt911 ? "GT911" : "FT5x06/FT6x36");
+    return;
+  }
+  // Nothing at the known addresses: list whatever is on the bus, so the chip can be named.
+  WSOFT_LOG.print("TOUCH no chip at 0x38/0x5D/0x14; I2C has:");
+  for (uint8_t a = 1; a < 127; a++)
+    if (i2c_present(a)) WSOFT_LOG.printf(" 0x%02X", a);
+  WSOFT_LOG.println(" (check SDA 15 / SCL 8)");
+}
+
+static bool gx_begin() {
+  pinMode(WSOFT_LCD_CS, OUTPUT);
+  digitalWrite(WSOFT_LCD_CS, HIGH);
+  pinMode(WSOFT_LCD_DC, OUTPUT);
+  pinMode(WSOFT_LCD_RST, OUTPUT);
+  pinMode(WSOFT_LCD_BL, OUTPUT);
+  digitalWrite(WSOFT_LCD_BL, LOW);  // dark until the first picture is on the glass
+  lcd_spi.begin(WSOFT_LCD_SCK, -1, WSOFT_LCD_MOSI, -1);
+  const size_t bytes = (size_t)PANEL_W * PANEL_H * sizeof(uint16_t);
+  frame = static_cast<uint16_t *>(heap_caps_malloc(bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+  if (frame == nullptr) {
+    WSOFT_LOG.println("frame alloc failed");
+    return false;
+  }
+  memset(frame, 0, bytes);
+  lcd_init();
+  lcd_push(0, PANEL_H);
+  digitalWrite(WSOFT_LCD_BL, HIGH);  // LED pin high = backlight on (maker's FAQ)
+  canvas.begin(PANEL_W, PANEL_H, PANEL_W / 320.0, PANEL_H / 240.0, WSOFT_UI_FONTS_1X);
+  canvas.window(frame, 0, PANEL_H);
+  touch_begin();
+  WSOFT_LOG.println(touch_ok ? "touch ready" : "touch failed (no taps)");
+  return true;
+}
+
+static void gx_paint(const WsoftUiModel &model, int row) {
+  canvas.window(frame, 0, PANEL_H);
+  wsoft_ui_paint_row(canvas, model, row);
+  WsoftUiSpan span = wsoft_ui_row_span(row);
+  int top = span.y0 * PANEL_H / 240;
+  int end = (span.y1 * PANEL_H + 239) / 240;
+  if (top < 0) top = 0;
+  if (end > PANEL_H) end = PANEL_H;
+  lcd_push(top, end - top);
+}
+
+static void gx_flush() {}
+
+static void gx_capture(const WsoftUiModel *model, DotSink sink, void *arg) {
+  if (model != nullptr) {
+    canvas.window(frame, 0, PANEL_H);
+    wsoft_ui_paint(canvas, *model);
+  }
+  sink(frame, (size_t)PANEL_W * PANEL_H, arg);
+}
+
+static uint16_t gx_pixel(int x, int y) {
+  return frame[y * PANEL_W + x];
+}
+
+// One reading of the first finger, in the panel's portrait dots: 1 a finger, 0 none,
+// -1 nothing new (a GT911 with no fresh report: the last answer stands).
+static int touch_read(int *rx, int *ry) {
+  uint8_t d[5];
+  if (touch_gt911) {
+    const uint8_t status_reg[2] = {0x81, 0x4E};
+    if (!i2c_read(touch_addr, status_reg, 2, d, 1)) return -1;
+    if (!(d[0] & 0x80)) return -1;
+    int result = 0;
+    if ((d[0] & 0x0F) > 0) {
+      const uint8_t point_reg[2] = {0x81, 0x50};
+      uint8_t p[4];
+      if (i2c_read(touch_addr, point_reg, 2, p, 4)) {
+        *rx = p[0] | (p[1] << 8);
+        *ry = p[2] | (p[3] << 8);
+        result = 1;
+      }
+    }
+    Wire.beginTransmission(touch_addr);  // hand the buffer back to the chip
+    Wire.write(0x81);
+    Wire.write(0x4E);
+    Wire.write(0);
+    Wire.endTransmission();
+    return result;
+  }
+  const uint8_t reg = 0x02;  // TD_STATUS, then P1_XH, P1_XL, P1_YH, P1_YL
+  if (!i2c_read(touch_addr, &reg, 1, d, 5)) return 0;
+  int count = d[0] & 0x0F;
+  if (count < 1 || count > 5) return 0;
+  *rx = ((d[1] & 0x0F) << 8) | d[2];
+  *ry = ((d[3] & 0x0F) << 8) | d[4];
+  return 1;
+}
+
+// Read every 30 ms; in between the last answer stands.
+static bool gx_touch(int *x, int *y) {
+  static uint32_t last_read = 0;
+  static bool down = false;
+  static int last_x = 0, last_y = 0;
+  if (!touch_ok) return false;
+  if (millis() - last_read >= 30) {
+    last_read = millis();
+    int rx = 0, ry = 0;
+    int got = touch_read(&rx, &ry);
+    if (got >= 0) down = got == 1;
+    if (got == 1) {
+      int px = WSOFT_TOUCH_SWAP_XY ? ry : rx;  // 0 .. 479 across
+      int py = WSOFT_TOUCH_SWAP_XY ? rx : ry;  // 0 .. 319 down
+      if (WSOFT_TOUCH_FLIP_X) px = PANEL_W - 1 - px;
+      if (WSOFT_TOUCH_FLIP_Y) py = PANEL_H - 1 - py;
+      px = constrain(px, 0, PANEL_W - 1);
+      py = constrain(py, 0, PANEL_H - 1);
+      touch_raw[0] = rx;
+      touch_raw[1] = ry;
+      touch_raw[2] = touch_addr;
+      last_x = px * 320 / PANEL_W;
+      last_y = py * 240 / PANEL_H;
+    }
+  }
+  *x = last_x;
+  *y = last_y;
+  return down;
+}
 #else
 // ---------- Waveshare ESP32-S3-Touch-LCD-4.3: 800 x 480 RGB panel, GT911 touch ----------
 // The rows are drawn into one frame in PSRAM; the whole frame goes to the panel when
@@ -762,7 +1046,8 @@ bool ui_begin() {
 }
 
 void ui_release_touch_bus() {
-#if !WSOFT_BOARD_HEADLESS && !WSOFT_BOARD_CYD
+// Only the Waveshare shares its touch I2C with the load cell; the S3 3.5" keeps touch on.
+#if !WSOFT_BOARD_HEADLESS && !WSOFT_BOARD_CYD && !WSOFT_BOARD_S3_35
   touch_ok = false;  // gx_touch() reads nothing more, so no I2C transfer starts again
   gpio_reset_pin(GPIO_NUM_8);  // SDA: input with pull-up, never driven
   WSOFT_LOG.println("touch off: the load cell uses the I2C plug (use the browser Live tab)");
@@ -817,7 +1102,7 @@ void ui_loop() {
   bool down = ready && gx_touch(&x, &y);
   if (down && !was_down && millis() - last_press > TAP_GAP_MS) {
     last_press = millis();
-#if WSOFT_BOARD_CYD
+#if WSOFT_BOARD_CYD || WSOFT_BOARD_S3_35
     WSOFT_LOG.printf("TOUCH raw=%d,%d,%d screen=%d,%d\n", touch_raw[0], touch_raw[1], touch_raw[2], x, y);
 #else
     WSOFT_LOG.printf("TOUCH screen=%d,%d\n", x, y);

@@ -13,6 +13,7 @@
 // and decimals, so W113 and other indicators work without setup. POSIX ERE syntax.
 #ifndef SERIAL_DEFAULT_REGEX
 #if (defined(WSOFT_BOARD_CYD) && WSOFT_BOARD_CYD) || (defined(WSOFT_BOARD_HEADLESS) && WSOFT_BOARD_HEADLESS) || \
+    (defined(WSOFT_BOARD_S3_35) && WSOFT_BOARD_S3_35) || \
     defined(BOARD_WAVESHARE_ESP32_S3_TOUCH_LCD_4_3)
 #define SERIAL_DEFAULT_REGEX "([-+]?[ ]*[0-9]+([.,][0-9]+)?)"
 #else
