@@ -11,6 +11,7 @@
 #include <Arduino.h>
 
 #include <wsoft_hilo.h>
+#include <wsoft_pack_set.h>
 #include <wsoft_weighing.h>
 
 // rs232 = the weight comes from an RS232 scale line (else the DJB over RS485).
@@ -76,5 +77,10 @@ bool weighings_oldest(TradeWeight *w, bool *for_trade, int32_t *tare_value, Wsof
 // is marked "alarm_test_override" for the Hub (wsoft_alarm_test_gate).
 void weighings_set_alarm_test(bool on);
 bool weighings_alarm_test();
+// Pack-Size Auto-Save (WSoftSettingsData.pack_set, OFF by default; any task). When enabled
+// and no Hi-Lo product override is active, Auto save only saves settled net weights within
+// tolerance_g of one of the configured targets_g.
+void weighings_set_pack_set(const WsoftPackSet &cfg);
+void weighings_pack_set(WsoftPackSet *out);
 // Hub task: the Hub accepted (or permanently refused) everything up to seq.
 void weighings_delivered(uint32_t seq);

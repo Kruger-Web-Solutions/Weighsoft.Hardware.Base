@@ -93,6 +93,7 @@ Examples: `wsoft/waveshare/1`, `wsoft/cyd/2`, `wsoft/s3/1`.
 | Name | Board | Env | Named on | Notes |
 |---|---|---|---|---|
 | `wsoft/s3touch/1` | S3-N16R8 Sixspan + 3.5" ST7796 touch screen, MAC ends ff:34:70 | `wsoft_s3_35` | 27 Nov 2026 | Hostname `wsoft-s3touch-1`. Screen VCC on 3V3 |
+| `wsoft/s3touch/2` | S3-N16R8 Sixspan + 3.5" ST7796 touch screen, MAC ends ff:4d:c8 | `wsoft_s3_35` | 27 Nov 2026 | Hostname `wsoft-s3touch-2`. Screen VCC on 3V3 |
 
 ## 0b. Wi-Fi update (all W-Soft boards)
 

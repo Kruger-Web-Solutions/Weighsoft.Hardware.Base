@@ -284,6 +284,49 @@ void test_bad_relay_numbers_are_rejected_without_change() {
   TEST_ASSERT_EQUAL(WSOFT_SETTINGS_ERROR, wsoft_settings_update(in, &s));
 }
 
+void test_pack_set_defaults_updates_and_rejects_bad_values() {
+  WSoftSettingsData s = defaults();
+  TEST_ASSERT_FALSE(s.pack_set.enabled);
+  TEST_ASSERT_EQUAL_UINT8(0, s.pack_set.count);
+  TEST_ASSERT_EQUAL_INT32(0, s.pack_set.tolerance_g);
+
+  WSoftSettingsInput in;
+  in.has_pack_set_enabled = true;
+  in.pack_set_enabled = true;
+  in.has_pack_set_tolerance_g = true;
+  in.pack_set_tolerance_g = 20;
+  in.has_pack_set_targets_g = true;
+  in.pack_set_count = 3;
+  in.pack_set_targets_g[0] = 500;
+  in.pack_set_targets_g[1] = 1000;
+  in.pack_set_targets_g[2] = 2000;
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_CHANGED, wsoft_settings_update(in, &s));
+  TEST_ASSERT_TRUE(s.pack_set.enabled);
+  TEST_ASSERT_EQUAL_INT32(20, s.pack_set.tolerance_g);
+  TEST_ASSERT_EQUAL_UINT8(3, s.pack_set.count);
+  TEST_ASSERT_EQUAL_INT32(1000, s.pack_set.targets_g[1]);
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_UNCHANGED, wsoft_settings_update(in, &s));
+
+  WSoftSettingsInput bad;
+  bad.has_pack_set_tolerance_g = true;
+  bad.pack_set_tolerance_g = -5;
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_ERROR, wsoft_settings_update(bad, &s));
+  TEST_ASSERT_TRUE(s.pack_set.enabled);
+
+  WSoftSettingsInput bad_target;
+  bad_target.has_pack_set_targets_g = true;
+  bad_target.pack_set_count = 1;
+  bad_target.pack_set_targets_g[0] = 0;
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_ERROR, wsoft_settings_update(bad_target, &s));
+  TEST_ASSERT_EQUAL_UINT8(3, s.pack_set.count);
+
+  WSoftSettingsInput old_page;
+  TEST_ASSERT_EQUAL(WSOFT_SETTINGS_CHANGED, wsoft_settings_update(old_page, &s));
+  TEST_ASSERT_FALSE(s.pack_set.enabled);
+  TEST_ASSERT_EQUAL_UINT8(0, s.pack_set.count);
+  TEST_ASSERT_EQUAL_INT32(0, s.pack_set.tolerance_g);
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_defaults);
@@ -305,5 +348,6 @@ int main(int, char **) {
   RUN_TEST(test_relay_light_is_off_by_default_and_can_be_switched);
   RUN_TEST(test_alarm_test_switch_is_off_by_default_and_an_old_page_turns_it_off);
   RUN_TEST(test_bad_relay_numbers_are_rejected_without_change);
+  RUN_TEST(test_pack_set_defaults_updates_and_rejects_bad_values);
   return UNITY_END();
 }

@@ -13,22 +13,24 @@ WSoftSettingsService::WSoftSettingsService(AsyncWebServer* server, FS* fs, Secur
                   server,
                   WSOFT_SETTINGS_ENDPOINT_PATH,
                   securityManager,
-                  AuthenticationPredicates::IS_ADMIN),
-    _fsPersistence(WSoftSettings::readConfig, WSoftSettings::update, this, fs, WSOFT_SETTINGS_FILE),
+                  AuthenticationPredicates::IS_ADMIN,
+                  2048),
+    _fsPersistence(WSoftSettings::readConfig, WSoftSettings::update, this, fs, WSOFT_SETTINGS_FILE, 2048),
     _webSocket(WSoftSettings::read,
                WSoftSettings::update,
                this,
                server,
                WSOFT_SETTINGS_SOCKET_PATH,
                securityManager,
-               AuthenticationPredicates::IS_ADMIN) {
+               AuthenticationPredicates::IS_ADMIN,
+               2048) {
 }
 
 void WSoftSettingsService::begin() {
   _fsPersistence.readFromFS();
-  // The alarm test switch goes to the weighing rules now and after every change on the page.
-  pushAlarmTest();
-  addUpdateHandler([this](const String&) { pushAlarmTest(); }, false);
+  // Hand alarm test switch and pack-set config to the weighing rules now and after every change.
+  pushWeighingSettings();
+  addUpdateHandler([this](const String&) { pushWeighingSettings(); }, false);
   Serial.printf("[WSoft] Settings loaded: source=%s publish=%lums mqtt=%s topic=%s\n",
                 wsoft_source_text(source()),
                 (unsigned long)publishIntervalMs(),
@@ -70,10 +72,15 @@ String WSoftSettingsService::mqttUniqueId() {
   return uid;
 }
 
-void WSoftSettingsService::pushAlarmTest() {
+void WSoftSettingsService::pushWeighingSettings() {
   bool on = false;
-  read([&](const WSoftSettings& s) { on = s.data.alarm_test_save; });
+  WsoftPackSet packSet;
+  read([&](const WSoftSettings& s) {
+    on = s.data.alarm_test_save;
+    packSet = s.data.pack_set;
+  });
   weighings_set_alarm_test(on);
+  weighings_set_pack_set(packSet);
 }
 
 void WSoftSettingsService::relayConfig(bool* enabled, uint8_t* low, uint8_t* ok, uint8_t* high, bool* light) {
