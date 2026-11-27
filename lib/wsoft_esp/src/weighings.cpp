@@ -1,6 +1,7 @@
 #include "wsoft_log.h"
 #include "weighings.h"
 #include "approval.h"
+#include "packers.h"
 #include "scale.h"
 
 #include <LittleFS.h>
@@ -16,6 +17,9 @@ static bool for_trade_by_seq[TradeQueue::CAPACITY];  // seq % CAPACITY; seqs in 
 static int32_t tare_by_seq[TradeQueue::CAPACITY];   // same index; 0 = no tare
 static WsoftHiloStamp hilo_by_seq[TradeQueue::CAPACITY];  // same index; on = false when no product
 static bool alarm_override_by_seq[TradeQueue::CAPACITY];    // same index; saved through an alarm (test switch)
+static char packer_code_by_seq[TradeQueue::CAPACITY][WSOFT_PACKER_CODE_MAX + 1];
+static char packer_name_by_seq[TradeQueue::CAPACITY][WSOFT_PACKER_NAME_MAX + 1];
+static char bag_batch_by_seq[TradeQueue::CAPACITY][WSOFT_PACKER_BATCH_ID_MAX + 1];
 // The alarm test switch (WSoftSettingsData.alarm_test_save), set by the settings service.
 static volatile bool alarm_test = false;
 static uint32_t delivered_seq = 0;
@@ -58,8 +62,8 @@ struct StoredWeighingV2 {
   int32_t spare2;
 };
 
-// Now: V2 and the Hi-Lo result (Hub ADR 0008).
-struct StoredWeighing {
+// Saved before packer-bag tracking was added. Still read, like V1/V2.
+struct StoredWeighingV3 {
   uint32_t seq;
   int32_t value;
   int32_t decimals;
@@ -78,8 +82,35 @@ struct StoredWeighing {
   char alarm_override;  // 1 = saved through a junction box alarm with the test switch on (was spare: 0)
   char spare[5];
 };
+
+// Now: V3 plus optional packer-bag metadata (Hub ADR 0011).
+struct StoredWeighing {
+  uint32_t seq;
+  int32_t value;
+  int32_t decimals;
+  int32_t unit;
+  int64_t at;
+  int32_t for_trade;
+  int32_t tare;
+  int32_t hilo_on;
+  int32_t hilo_state;
+  int32_t hilo_auto;
+  int32_t target_g;
+  int32_t low_g;
+  int32_t high_g;
+  char code[WSOFT_HILO_CODE_MAX + 1];
+  char overridden;
+  char alarm_override;
+  char spare[5];
+  char packer_code[WSOFT_PACKER_CODE_MAX + 1];
+  char packer_name[WSOFT_PACKER_NAME_MAX + 1];
+  char bag_batch_id[WSOFT_PACKER_BATCH_ID_MAX + 1];
+};
 static_assert(sizeof(StoredWeighing) != sizeof(StoredWeighingV1) && sizeof(StoredWeighing) != sizeof(StoredWeighingV2) &&
-                  sizeof(StoredWeighingV1) != sizeof(StoredWeighingV2),
+                  sizeof(StoredWeighing) != sizeof(StoredWeighingV3) &&
+                  sizeof(StoredWeighingV1) != sizeof(StoredWeighingV2) &&
+                  sizeof(StoredWeighingV1) != sizeof(StoredWeighingV3) &&
+                  sizeof(StoredWeighingV2) != sizeof(StoredWeighingV3),
               "the layouts must differ in size");
 
 static WsoftHiloStamp stamp_of(const StoredWeighing &s) {
@@ -159,6 +190,10 @@ void weighings_begin(bool rs232) {
       s.at = old.at;
       s.for_trade = old.for_trade;
       s.tare = old.tare;
+    } else if (length == sizeof(StoredWeighingV3)) {
+      StoredWeighingV3 old;
+      if (prefs.getBytes(key, &old, sizeof old) != sizeof old) continue;
+      memcpy(&s, &old, sizeof old);
     } else if (length != sizeof s || prefs.getBytes(key, &s, sizeof s) != sizeof s) {
       continue;
     }
@@ -169,10 +204,14 @@ void weighings_begin(bool rs232) {
     w.decimals = s.decimals;
     w.unit = s.unit;
     w.at = s.at;
-    for_trade_by_seq[s.seq % TradeQueue::CAPACITY] = s.for_trade != 0;
-    tare_by_seq[s.seq % TradeQueue::CAPACITY] = s.tare;
-    hilo_by_seq[s.seq % TradeQueue::CAPACITY] = stamp_of(s);
-    alarm_override_by_seq[s.seq % TradeQueue::CAPACITY] = s.alarm_override == 1;
+    size_t idx = s.seq % TradeQueue::CAPACITY;
+    for_trade_by_seq[idx] = s.for_trade != 0;
+    tare_by_seq[idx] = s.tare;
+    hilo_by_seq[idx] = stamp_of(s);
+    alarm_override_by_seq[idx] = s.alarm_override == 1;
+    strlcpy(packer_code_by_seq[idx], s.packer_code, sizeof packer_code_by_seq[idx]);
+    strlcpy(packer_name_by_seq[idx], s.packer_name, sizeof packer_name_by_seq[idx]);
+    strlcpy(bag_batch_by_seq[idx], s.bag_batch_id, sizeof bag_batch_by_seq[idx]);
   }
   prefs.end();
   if (stored_auto == 2) {
@@ -212,13 +251,18 @@ static void apply_delivered() {
 
 // The entry goes to flash before the counters that make it visible.
 static void store_saved(const TradeWeight &w, bool for_trade, int32_t tare_value, const WsoftHiloStamp &hilo,
-                        bool alarm_override) {
+                        bool alarm_override, const char *packer_code, const char *packer_name,
+                        const char *bag_batch_id) {
   portENTER_CRITICAL(&lock);
   queue.push(w);
-  alarm_override_by_seq[w.seq % TradeQueue::CAPACITY] = alarm_override;
-  for_trade_by_seq[w.seq % TradeQueue::CAPACITY] = for_trade;
-  tare_by_seq[w.seq % TradeQueue::CAPACITY] = tare_value;
-  hilo_by_seq[w.seq % TradeQueue::CAPACITY] = hilo;
+  size_t idx = w.seq % TradeQueue::CAPACITY;
+  alarm_override_by_seq[idx] = alarm_override;
+  for_trade_by_seq[idx] = for_trade;
+  tare_by_seq[idx] = tare_value;
+  hilo_by_seq[idx] = hilo;
+  strlcpy(packer_code_by_seq[idx], packer_code ? packer_code : "", sizeof packer_code_by_seq[idx]);
+  strlcpy(packer_name_by_seq[idx], packer_name ? packer_name : "", sizeof packer_name_by_seq[idx]);
+  strlcpy(bag_batch_by_seq[idx], bag_batch_id ? bag_batch_id : "", sizeof bag_batch_by_seq[idx]);
   uint32_t head = queue.head();
   size_t count = queue.size();
   portEXIT_CRITICAL(&lock);
@@ -243,6 +287,9 @@ static void store_saved(const TradeWeight &w, bool for_trade, int32_t tare_value
     strlcpy(s.code, hilo.code, sizeof s.code);
     s.overridden = hilo.overridden ? 1 : 0;
   }
+  if (packer_code) strlcpy(s.packer_code, packer_code, sizeof s.packer_code);
+  if (packer_name) strlcpy(s.packer_name, packer_name, sizeof s.packer_name);
+  if (bag_batch_id) strlcpy(s.bag_batch_id, bag_batch_id, sizeof s.bag_batch_id);
   char key[8];
   slot_key(head + count - 1, key, sizeof key);
   prefs.begin("weigh", false);
@@ -264,6 +311,11 @@ WsoftSaveResult weighings_update(bool linked, bool fresh, bool alarm, int32_t va
   uint32_t requests = save_requests;
   bool tapped = requests != save_answered;
   portEXIT_CRITICAL(&lock);
+
+  if (hold != WSOFT_SAVE_WRITER && hold != WSOFT_SAVE_BLANK && packers_required()) {
+    WsoftSaveResult pack_hold = packers_save_hold();
+    if (pack_hold != WSOFT_SAVE_NONE) hold = pack_hold;
+  }
 
   // The alarm test switch lets a save through a blocking alarm, only with Approval OFF.
   WsoftAlarmGate gate = wsoft_alarm_test_gate(alarm, alarm_test, approval_on());
@@ -287,7 +339,17 @@ WsoftSaveResult weighings_update(bool linked, bool fresh, bool alarm, int32_t va
     hilo.high_g = product->high_g;
     hilo.auto_saved = !tapped;
   }
-  if (result == WSOFT_SAVE_SAVED) store_saved(saved, for_trade, tare_value, hilo, gate.overridden);
+  if (result == WSOFT_SAVE_SAVED) {
+    char packer_code[WSOFT_PACKER_CODE_MAX + 1] = "";
+    char packer_name[WSOFT_PACKER_NAME_MAX + 1] = "";
+    char bag_batch_id[WSOFT_PACKER_BATCH_ID_MAX + 1] = "";
+    if (packers_required()) {
+      packers_active_meta(packer_code, sizeof packer_code, packer_name, sizeof packer_name, bag_batch_id,
+                          sizeof bag_batch_id);
+      packers_on_saved(packer_code, &hilo);
+    }
+    store_saved(saved, for_trade, tare_value, hilo, gate.overridden, packer_code, packer_name, bag_batch_id);
+  }
 
   portENTER_CRITICAL(&lock);
   waiting = remote_save != nullptr ? remote_waiting : saver.waiting();
@@ -394,18 +456,23 @@ void weighings_info(WeighingsInfo *out) {
 }
 
 bool weighings_oldest(TradeWeight *w, bool *for_trade, int32_t *tare_value, WsoftHiloStamp *hilo,
-                      bool *alarm_override) {
+                      bool *alarm_override, char *packer_code, size_t packer_code_size, char *packer_name,
+                      size_t packer_name_size, char *bag_batch_id, size_t bag_batch_id_size) {
   portENTER_CRITICAL(&lock);
   // Skip what was acked but not yet removed by the screen task.
   bool found = false;
   for (size_t i = 0; i < queue.size(); i++) {
     const TradeWeight &item = queue.at(i);
     if (item.seq > delivered_seq) {
+      size_t idx = item.seq % TradeQueue::CAPACITY;
       *w = item;
-      *for_trade = for_trade_by_seq[item.seq % TradeQueue::CAPACITY];
-      *tare_value = tare_by_seq[item.seq % TradeQueue::CAPACITY];
-      if (hilo) *hilo = hilo_by_seq[item.seq % TradeQueue::CAPACITY];
-      if (alarm_override) *alarm_override = alarm_override_by_seq[item.seq % TradeQueue::CAPACITY];
+      *for_trade = for_trade_by_seq[idx];
+      *tare_value = tare_by_seq[idx];
+      if (hilo) *hilo = hilo_by_seq[idx];
+      if (alarm_override) *alarm_override = alarm_override_by_seq[idx];
+      if (packer_code && packer_code_size > 0) strlcpy(packer_code, packer_code_by_seq[idx], packer_code_size);
+      if (packer_name && packer_name_size > 0) strlcpy(packer_name, packer_name_by_seq[idx], packer_name_size);
+      if (bag_batch_id && bag_batch_id_size > 0) strlcpy(bag_batch_id, bag_batch_by_seq[idx], bag_batch_id_size);
       found = true;
       break;
     }

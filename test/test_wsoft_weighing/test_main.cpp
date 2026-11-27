@@ -342,7 +342,7 @@ void test_tap_outside_the_limits_needs_a_second_tap() {
 }
 
 void test_every_result_has_words() {
-  for (int r = WSOFT_SAVE_SAVED; r <= WSOFT_SAVE_ALARM; r++) {
+  for (int r = WSOFT_SAVE_SAVED; r <= WSOFT_SAVE_NO_BAGS; r++) {
     size_t length = strlen(wsoft_save_result_text((WsoftSaveResult)r));
     TEST_ASSERT_TRUE(length > 0 && length <= 16);
   }
@@ -406,7 +406,7 @@ void test_every_notice_fits_the_screens() {
   TEST_ASSERT_FALSE(wsoft_save_notice(WSOFT_SAVE_NONE, &n));
   TEST_ASSERT_FALSE(wsoft_save_notice(WSOFT_SAVE_SAVED, &n));
   TEST_ASSERT_FALSE(wsoft_save_notice(WSOFT_SAVE_EMPTY, &n));
-  for (int r = WSOFT_SAVE_SAVED; r <= WSOFT_SAVE_ALARM; r++) {
+  for (int r = WSOFT_SAVE_SAVED; r <= WSOFT_SAVE_NO_BAGS; r++) {
     if (r == WSOFT_SAVE_EMPTY || r == WSOFT_SAVE_SAVED) continue;
     TEST_ASSERT_TRUE(wsoft_save_notice((WsoftSaveResult)r, &n));
     TEST_ASSERT_TRUE(strlen(n.title) > 0 && strlen(n.title) <= 20);

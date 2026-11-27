@@ -7,6 +7,7 @@
 #include "hilo.h"
 #include "hub.h"
 #include "loadcell.h"
+#include "packers.h"
 #include "pin.h"
 #include "relay.h"
 #include "scale.h"
@@ -408,6 +409,7 @@ void wsoft_screen_setup(WsoftScreenSource source) {
     loadcell_begin(WSOFT_LOADCELL_DT, WSOFT_LOADCELL_SCK);
   }
   hilo_begin();
+  packers_begin();
   hub_begin();
   portENTER_CRITICAL(&snapshot_lock);
   snapshot.display_ready = display_ready;
@@ -530,6 +532,7 @@ void wsoft_screen_loop() {
   hub_ota_poll();
   service_job();
   switches_poll();
+  packers_tick(millis());
   ui_loop();
   // No panel (headless board) or a panel that failed to start only stops the drawing: the scale
   // is still read, saved and sent to the Hub (wsoft-waveshare43 5a1515d). ui_show() draws nothing

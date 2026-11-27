@@ -64,8 +64,12 @@ void weighings_info(WeighingsInfo *out);
 // Hub task: the oldest unsent weighing, its tare (0 = none) and its Hi-Lo result (hilo may be
 // nullptr). False when none wait.
 // alarm_override (may be nullptr): saved through a junction box alarm with the test switch on.
+// packer_code / packer_name / bag_batch_id (may be nullptr): populated when packer-bag tracking
+// was active at the time of save.
 bool weighings_oldest(TradeWeight *w, bool *for_trade, int32_t *tare_value, WsoftHiloStamp *hilo,
-                      bool *alarm_override = nullptr);
+                      bool *alarm_override = nullptr, char *packer_code = nullptr, size_t packer_code_size = 0,
+                      char *packer_name = nullptr, size_t packer_name_size = 0, char *bag_batch_id = nullptr,
+                      size_t bag_batch_id_size = 0);
 
 // The alarm test switch (WSoftSettingsData.alarm_test_save, OFF by default; any task). While ON
 // and Approval is OFF, a blocking junction box alarm no longer stops a save; each such weighing
