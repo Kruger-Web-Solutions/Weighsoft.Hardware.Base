@@ -36,7 +36,7 @@ screen header's order, so no signal wires cross. Only power swaps at the bottom.
 | RESET | 13 | yellow |
 | CS | 14 | orange |
 | GND | GND | black |
-| VCC | 5V | red (module spec: 5.0 V, on-board level conversion for 3.3 V MCUs; FAQ allows 3.3 V too) |
+| VCC | **3V3** | red. On the bench (27 Nov) the 5V pin of this S3 gave the screen no power (black screen, no touch chip); on 3V3 picture and touch both work. The maker allows 3.3 V. |
 
 SPI runs through the GPIO matrix (not the FSPI IOMUX pins 10-13 in their native roles):
 fine at 40 MHz.
@@ -66,4 +66,4 @@ relays 4 / 5 / 6, RGB LED 48, USB 19 / 20. Never use 0, 3, 45, 46 (strapping), 2
 | `TOUCH no chip` in the log | check SDA 15 / SCL 8 / RST 16; the log lists any I2C address that answered |
 | `TOUCH chip at 0x.. (unknown chip ...)` | a chip at an address the code does not know (this screen: 0x6E). It is read like an FT6336; the log shows its ID registers and `TOUCH regs 00-07` each time they change, so the chip can be named |
 
-Not bench-tested yet (27 Nov 2026).
+Bench 27 Nov 2026: picture and touch work with VCC on 3V3 and `WSOFT_TOUCH_FLIP_Y=1` (default). Touch chip: FT6336U at 0x38 (A3=64, A8=11).
