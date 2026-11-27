@@ -64,5 +64,6 @@ relays 4 / 5 / 6, RGB LED 48, USB 19 / 20. Never use 0, 3, 45, 46 (strapping), 2
 | Taps land in the wrong place | each tap logs `TOUCH raw=x,y,addr screen=x,y` on USB; set `WSOFT_TOUCH_SWAP_XY`, `WSOFT_TOUCH_FLIP_X`, `WSOFT_TOUCH_FLIP_Y` |
 | White screen, nothing drawn | check CS 14, DC 12, RESET 13, SCK 10, MOSI 11; try `-D WSOFT_LCD_SPI_HZ=20000000` |
 | `TOUCH no chip` in the log | check SDA 15 / SCL 8 / RST 16; the log lists any I2C address that answered |
+| `TOUCH chip at 0x.. (unknown chip ...)` | a chip at an address the code does not know (this screen: 0x6E). It is read like an FT6336; the log shows its ID registers and `TOUCH regs 00-07` each time they change, so the chip can be named |
 
 Not bench-tested yet (27 Nov 2026).
