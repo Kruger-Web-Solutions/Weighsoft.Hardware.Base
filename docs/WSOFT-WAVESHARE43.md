@@ -66,7 +66,7 @@ wsoft/<board make>/<number in the sequence>
 | Part | What goes there | Examples |
 |---|---|---|
 | `wsoft` | always `wsoft` | `wsoft` |
-| board make | the board, small letters, one word | `waveshare` (4.3 inch touch), `cyd` (yellow board), `s3` (S3 dev board, no screen) |
+| board make | the board, small letters, one word | `waveshare` (4.3 inch touch), `cyd` (yellow board), `s3` (S3 dev board, no screen), `s3touch` (S3 dev board + 3.5 inch touch screen) |
 | number | the next free number for that make, from 1 | `1`, `2`, `3` |
 
 Examples: `wsoft/waveshare/1`, `wsoft/cyd/2`, `wsoft/s3/1`.
@@ -92,7 +92,7 @@ Examples: `wsoft/waveshare/1`, `wsoft/cyd/2`, `wsoft/s3/1`.
 
 | Name | Board | Env | Named on | Notes |
 |---|---|---|---|---|
-| (none yet) | | | | Add a row when a board is flashed and named |
+| `wsoft/s3touch/1` | S3-N16R8 Sixspan + 3.5" ST7796 touch screen, MAC ends ff:34:70 | `wsoft_s3_35` | 27 Nov 2026 | Hostname `wsoft-s3touch-1`. Screen VCC on 3V3 |
 
 ## 0b. Wi-Fi update (all W-Soft boards)
 
@@ -106,6 +106,7 @@ in `test/test_wsoft_wifi_update`). Board side: `lib/wsoft_esp/src/wifi_update.cp
 |---|---|---|---|
 | Waveshare 4.3 inch | `wsoft_waveshare43` | Yes | 16 MB flash, two app slots (`default_16MB.csv`) |
 | S3, no screen | `wsoft_s3_headless` | Yes | 16 MB flash, two app slots (`default_16MB.csv`) |
+| S3 + 3.5 inch screen | `wsoft_s3_35` | Yes | same board and partitions as the S3 without screen |
 | Yellow board | `wsoft_cyd28` | **No, cable only** | 4 MB flash, one 3.25 MB app slot (`partitions_wsoft_cyd.csv`); two copies of a ~2.3 MB build do not fit |
 
 The board asks its own flash at boot (`esp_ota_get_next_update_partition`), so the answer is true
@@ -148,7 +149,7 @@ board** of a build that has it. After that, Waveshare and S3 boards update over 
 pio run -e wsoft_waveshare43 -t upload --upload-protocol espota --upload-port <board address> --upload-flags=--port=3232 --upload-flags=--auth=$env:WSOFT_UPDATE_PASSWORD
 ```
 
-Use `-e wsoft_s3_headless` for the S3 board. The board restarts on the new software by itself.
+Use `-e wsoft_s3_headless` for the S3 board, `-e wsoft_s3_35` for the S3 with the 3.5 inch screen. The board restarts on the new software by itself.
 
 - `WSOFT_UPDATE_PASSWORD` is an environment variable of that one PowerShell window, filled in
   from a hidden prompt or from the file the other board logins are kept in. The password is
