@@ -1,7 +1,7 @@
-import { FC, useState } from 'react';
+import { ChangeEvent, FC, useState } from 'react';
 import { ValidateFieldsError } from 'async-validator';
 
-import { Button, Checkbox, MenuItem, Typography } from '@mui/material';
+import { Button, Checkbox, MenuItem, TextField, Typography } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
 
 import {
@@ -14,7 +14,8 @@ import WSoftPinForm from './WSoftPinForm';
 import WSoftRelayTest from './WSoftRelayTest';
 import WSoftWifiUpdateForm from './WSoftWifiUpdateForm';
 import * as WSoftApi from './api';
-import { WSoftSettings } from './types';
+import { DEFAULT_PACK_SET, formatPackTargets, PACK_SET_MAX, parsePackTargets, toleranceProblem } from './packSet';
+import { WSoftPackSet, WSoftSettings } from './types';
 import { WSOFT_SETTINGS_VALIDATOR } from './validators';
 
 const RELAY_ZONES: { name: 'relay_low' | 'relay_ok' | 'relay_high'; label: string }[] = [
@@ -30,6 +31,9 @@ const NEEDS_WIRING = 'Needs add-on wiring on this board.';
 
 const WSoftSettingsForm: FC = () => {
   const [fieldErrors, setFieldErrors] = useState<ValidateFieldsError>();
+  const [targetsInput, setTargetsInput] = useState<string>();
+  const [targetsError, setTargetsError] = useState<string>();
+  const [toleranceError, setToleranceError] = useState<string>();
   const {
     loadData, saving, data, setData, saveData, errorMessage
   } = useRest<WSoftSettings>({ read: WSoftApi.readWSoftSettings, update: WSoftApi.updateWSoftSettings });
@@ -41,10 +45,41 @@ const WSoftSettingsForm: FC = () => {
       return (<FormLoader onRetry={loadData} errorMessage={errorMessage} />);
     }
 
+    const packSet: WSoftPackSet = data.pack_set ?? DEFAULT_PACK_SET;
+    const packMax = data.pack_set_max ?? PACK_SET_MAX;
+    const shownTargets = targetsInput !== undefined ? targetsInput : formatPackTargets(packSet.targets_g);
+
+    const updatePackSet = (patch: Partial<WSoftPackSet>) => {
+      setData({ ...data, pack_set: { ...packSet, ...patch } });
+    };
+
+    const handleTargetsChange = (event: ChangeEvent<HTMLInputElement>) => {
+      const nextText = event.target.value;
+      setTargetsInput(nextText);
+      const parsed = parsePackTargets(nextText, packMax);
+      setTargetsError(parsed.error);
+      if (!parsed.error) {
+        updatePackSet({ targets_g: parsed.targets });
+      }
+    };
+
+    const handleToleranceChange = (event: ChangeEvent<HTMLInputElement>) => {
+      const raw = event.target.value;
+      const num = raw === '' ? NaN : Number(raw);
+      const err = toleranceProblem(num);
+      setToleranceError(err);
+      updatePackSet({ tolerance_g: Number.isNaN(num) ? -1 : num });
+    };
+
     const validateAndSubmit = async () => {
+      const parsedTargets = parsePackTargets(shownTargets, packMax);
+      const tolErr = toleranceProblem(packSet.tolerance_g);
+      setTargetsError(parsedTargets.error);
+      setToleranceError(tolErr);
       try {
         setFieldErrors(undefined);
         await validate(WSOFT_SETTINGS_VALIDATOR, data);
+        if (parsedTargets.error || tolErr) return;
         saveData();
       } catch (errors: any) {
         setFieldErrors(errors);
@@ -173,6 +208,42 @@ const WSoftSettingsForm: FC = () => {
             my={1}
           />
         )}
+        <BlockFormControlLabel
+          control={
+            <Checkbox
+              name="pack_set_enabled"
+              checked={packSet.enabled}
+              onChange={(event) => updatePackSet({ enabled: event.target.checked })}
+            />
+          }
+          label="Pack-Size Auto-Save: match net weight to configured pack targets?"
+        />
+        <TextField
+          name="pack_set_targets_g"
+          label={`Pack targets (g, up to ${packMax})`}
+          fullWidth
+          variant="outlined"
+          value={shownTargets}
+          onChange={handleTargetsChange}
+          margin="normal"
+          error={Boolean(targetsError)}
+          helperText={
+            targetsError ??
+            'Comma-separated whole grams, e.g. 500, 1000, 2000. Ignored when a Hi-Lo product is picked.'
+          }
+        />
+        <TextField
+          name="pack_set_tolerance_g"
+          label="Pack tolerance (+/- g)"
+          fullWidth
+          variant="outlined"
+          type="number"
+          value={packSet.tolerance_g >= 0 ? numberValue(packSet.tolerance_g) : ''}
+          onChange={handleToleranceChange}
+          margin="normal"
+          error={Boolean(toleranceError)}
+          helperText={toleranceError ?? 'Allowed +/- grams around the nearest target for Auto save.'}
+        />
         <ValidatedTextField
           fieldErrors={fieldErrors}
           name="publish_interval_ms"

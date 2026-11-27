@@ -69,6 +69,13 @@ class WSoftSettings {
     root["alarm_test_save"] = settings.data.alarm_test_save;
     root["esp_led"] = settings.data.esp_led;
     root["relay_light"] = settings.data.relay_light;
+    JsonObject packSet = root.createNestedObject("pack_set");
+    packSet["enabled"] = settings.data.pack_set.enabled;
+    packSet["tolerance_g"] = settings.data.pack_set.tolerance_g;
+    JsonArray targets = packSet.createNestedArray("targets_g");
+    for (uint8_t i = 0; i < settings.data.pack_set.count && i < WSOFT_PACK_SET_MAX; i++) {
+      targets.add(settings.data.pack_set.targets_g[i]);
+    }
   }
 
   // Stored fields plus the resolved status topic, for the settings page.
@@ -77,6 +84,7 @@ class WSoftSettings {
     root["mqtt_status_topic"] = statusTopic(settings);
     root["publish_interval_min_ms"] = WSOFT_PUBLISH_MIN_MS;
     root["publish_interval_max_ms"] = WSOFT_PUBLISH_MAX_MS;
+    root["pack_set_max"] = WSOFT_PACK_SET_MAX;
     root["rs232_available"] = WSOFT_HAS_RS232 != 0;
     root["loadcell_available"] = WSOFT_HAS_LOADCELL != 0;
     root["relay_available"] = FT_ENABLED(FT_WSOFT_RELAY) != 0;
@@ -134,6 +142,31 @@ class WSoftSettings {
         !relayNumber(root["relay_high"], &in.has_relay_high, &in.relay_high)) {
       return StateUpdateResult::ERROR;
     }
+    JsonVariant packSetVar = root["pack_set"];
+    if (!packSetVar.isNull()) {
+      if (!packSetVar.is<JsonObject>()) return StateUpdateResult::ERROR;
+      JsonObject packSet = packSetVar.as<JsonObject>();
+      if (packSet.containsKey("enabled")) {
+        if (!packSet["enabled"].is<bool>()) return StateUpdateResult::ERROR;
+        in.has_pack_set_enabled = true;
+        in.pack_set_enabled = packSet["enabled"].as<bool>();
+      }
+      if (!relayNumber(packSet["tolerance_g"], &in.has_pack_set_tolerance_g, &in.pack_set_tolerance_g)) {
+        return StateUpdateResult::ERROR;
+      }
+      JsonVariant targetsVar = packSet["targets_g"];
+      if (!targetsVar.isNull()) {
+        if (!targetsVar.is<JsonArray>()) return StateUpdateResult::ERROR;
+        JsonArray targets = targetsVar.as<JsonArray>();
+        if (targets.size() > WSOFT_PACK_SET_MAX) return StateUpdateResult::ERROR;
+        in.has_pack_set_targets_g = true;
+        in.pack_set_count = 0;
+        for (JsonVariant item : targets) {
+          if (!item.is<long>()) return StateUpdateResult::ERROR;
+          in.pack_set_targets_g[in.pack_set_count++] = item.as<long>();
+        }
+      }
+    }
 #if !FT_ENABLED(FT_WSOFT_RELAY)
     // This board has no relay outputs: the switch stays off whatever is sent.
     if (in.relay_enabled) return StateUpdateResult::ERROR;
@@ -188,8 +221,8 @@ class WSoftSettingsService : public StatefulService<WSoftSettings> {
   bool writerMode() const { return _writerMode; }
 
  private:
-  // Hands the alarm test switch to the weighing rules (weighings_set_alarm_test).
-  void pushAlarmTest();
+  // Hands the alarm test switch and pack-set config to the weighing rules.
+  void pushWeighingSettings();
   bool _writerMode = false;
   HttpEndpoint<WSoftSettings> _httpEndpoint;
   FSPersistence<WSoftSettings> _fsPersistence;

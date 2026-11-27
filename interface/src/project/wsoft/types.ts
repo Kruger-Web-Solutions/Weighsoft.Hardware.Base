@@ -102,6 +102,12 @@ export type WSoftLoadcellRequest =
   | { action: 'format'; decimals: number; step: number; unit: 'kg' | 'g'; filter: number; zero_track: number; drift_guard: number };
 
 // Mirrors src/examples/wsoft/WSoftSettingsService.h (WSoftSettings::read).
+export interface WSoftPackSet {
+  enabled: boolean;
+  tolerance_g: number;
+  targets_g: number[];
+}
+
 export interface WSoftSettings {
   publish_interval_ms: number;
   mqtt_enabled: boolean;
@@ -138,6 +144,10 @@ export interface WSoftSettings {
   mqtt_status_topic?: string;
   publish_interval_min_ms?: number;
   publish_interval_max_ms?: number;
+  /** Pack-Size Auto-Save (off by default). Matches net weight against up to 8 targets when no Hi-Lo product is selected. */
+  pack_set?: WSoftPackSet;
+  /** Read-only: maximum target weights supported in pack_set.targets_g (8). */
+  pack_set_max?: number;
 }
 
 // Mirrors src/examples/wsoft/WSoftStatusService.cpp (sendHub). Admin only.
