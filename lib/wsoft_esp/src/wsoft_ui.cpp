@@ -321,7 +321,42 @@ static bool i2c_read(uint8_t addr, const uint8_t *reg, size_t reg_len, uint8_t *
   return true;
 }
 
-static void touch_begin() {
+static int touch_sda = WSOFT_CTP_SDA, touch_scl = WSOFT_CTP_SCL;
+
+// Looks for the touch chip with SDA on `sda` and SCL on `scl`. 100 kHz: the I2C driver turns
+// on the S3's own (weak) pull-ups, enough at this speed for a module without its own.
+static bool touch_probe(int sda, int scl) {
+  Wire.end();
+  if (!Wire.begin(sda, scl, 100000)) return false;
+  for (int attempt = 0; attempt < 3; attempt++) {
+    if (i2c_present(0x38)) touch_addr = 0x38, touch_gt911 = false;
+    else if (i2c_present(0x5D)) touch_addr = 0x5D, touch_gt911 = true;
+    else if (i2c_present(0x14)) touch_addr = 0x14, touch_gt911 = true;
+    if (touch_addr) {
+      touch_sda = sda;
+      touch_scl = scl;
+      return true;
+    }
+    delay(50);
+  }
+  return false;
+}
+
+// SDA and SCL as wired, then the other way round (two wires swapped on the plug).
+static bool touch_find() {
+  if (touch_probe(WSOFT_CTP_SDA, WSOFT_CTP_SCL)) return true;
+  if (touch_probe(WSOFT_CTP_SCL, WSOFT_CTP_SDA)) return true;
+  touch_probe(WSOFT_CTP_SDA, WSOFT_CTP_SCL);  // leave the bus on the planned pins
+  return false;
+}
+
+static void touch_log_found() {
+  WSOFT_LOG.printf("TOUCH chip at 0x%02X (%s), SDA %d, SCL %d%s\n", touch_addr,
+                   touch_gt911 ? "GT911" : "FT5x06/FT6x36", touch_sda, touch_scl,
+                   touch_sda != WSOFT_CTP_SDA ? " (SDA and SCL wires are swapped: works anyway)" : "");
+}
+
+static void touch_reset() {
   // Reset with INT held low: a GT911 then takes address 0x5D. An FT6336 ignores INT here.
   pinMode(WSOFT_CTP_INT, OUTPUT);
   digitalWrite(WSOFT_CTP_INT, LOW);
@@ -330,25 +365,43 @@ static void touch_begin() {
   delay(20);
   digitalWrite(WSOFT_CTP_RST, HIGH);
   delay(60);
-  pinMode(WSOFT_CTP_INT, INPUT);
-  delay(250);  // the FT6336 needs about 300 ms after reset before it answers
-  Wire.begin(WSOFT_CTP_SDA, WSOFT_CTP_SCL, 400000);
-  for (int attempt = 0; attempt < 5 && touch_addr == 0; attempt++) {
-    if (i2c_present(0x38)) touch_addr = 0x38;
-    else if (i2c_present(0x5D)) touch_addr = 0x5D, touch_gt911 = true;
-    else if (i2c_present(0x14)) touch_addr = 0x14, touch_gt911 = true;
-    else delay(100);
-  }
-  touch_ok = touch_addr != 0;
+  pinMode(WSOFT_CTP_INT, INPUT_PULLUP);
+  delay(300);  // the FT6336 needs about 300 ms after reset before it answers
+}
+
+static void touch_begin() {
+  touch_reset();
+  touch_ok = touch_find();
   if (touch_ok) {
-    WSOFT_LOG.printf("TOUCH chip at 0x%02X (%s)\n", touch_addr, touch_gt911 ? "GT911" : "FT5x06/FT6x36");
+    touch_log_found();
     return;
   }
-  // Nothing at the known addresses: list whatever is on the bus, so the chip can be named.
+  // Nothing at the known addresses: how the lines sit, and whatever answers on the bus.
+  Wire.end();
+  pinMode(WSOFT_CTP_SDA, INPUT_PULLUP);
+  pinMode(WSOFT_CTP_SCL, INPUT_PULLUP);
+  delay(2);
+  WSOFT_LOG.printf("TOUCH lines: SDA(%d)=%d SCL(%d)=%d INT(%d)=%d (1 = idle high, 0 = held low)\n",
+                   WSOFT_CTP_SDA, digitalRead(WSOFT_CTP_SDA), WSOFT_CTP_SCL, digitalRead(WSOFT_CTP_SCL),
+                   WSOFT_CTP_INT, digitalRead(WSOFT_CTP_INT));
+  Wire.begin(WSOFT_CTP_SDA, WSOFT_CTP_SCL, 100000);
   WSOFT_LOG.print("TOUCH no chip at 0x38/0x5D/0x14; I2C has:");
   for (uint8_t a = 1; a < 127; a++)
     if (i2c_present(a)) WSOFT_LOG.printf(" 0x%02X", a);
-  WSOFT_LOG.println(" (check SDA 15 / SCL 8)");
+  WSOFT_LOG.printf(" (check SDA %d / SCL %d / RST %d); looking again every 5 s\n", WSOFT_CTP_SDA,
+                   WSOFT_CTP_SCL, WSOFT_CTP_RST);
+}
+
+// While no chip answered: look again every 5 s, so a wire fixed while the board runs is found.
+static void touch_retry() {
+  static uint32_t last_try = 0;
+  if (touch_ok || millis() - last_try < 5000) return;
+  last_try = millis();
+  touch_reset();
+  if (touch_find()) {
+    touch_ok = true;
+    touch_log_found();
+  }
 }
 
 static bool gx_begin() {
@@ -372,7 +425,7 @@ static bool gx_begin() {
   canvas.begin(PANEL_W, PANEL_H, PANEL_W / 320.0, PANEL_H / 240.0, WSOFT_UI_FONTS_1X);
   canvas.window(frame, 0, PANEL_H);
   touch_begin();
-  WSOFT_LOG.println(touch_ok ? "touch ready" : "touch failed (no taps)");
+  WSOFT_LOG.println(touch_ok ? "touch ready" : "touch not found yet (no taps)");
   return true;
 }
 
@@ -440,7 +493,10 @@ static bool gx_touch(int *x, int *y) {
   static uint32_t last_read = 0;
   static bool down = false;
   static int last_x = 0, last_y = 0;
-  if (!touch_ok) return false;
+  if (!touch_ok) {
+    touch_retry();
+    return false;
+  }
   if (millis() - last_read >= 30) {
     last_read = millis();
     int rx = 0, ry = 0;
