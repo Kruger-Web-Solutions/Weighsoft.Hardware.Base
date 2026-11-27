@@ -25,8 +25,11 @@
 #ifndef WSOFT_BOARD_CYD
 #define WSOFT_BOARD_CYD 0
 #endif
-#if WSOFT_BOARD_HEADLESS || WSOFT_BOARD_CYD
-// Headless S3: a TTL converter or TTL-to-RS485 module on the env's pins. CYD: an external
+#ifndef WSOFT_BOARD_S3_35
+#define WSOFT_BOARD_S3_35 0
+#endif
+#if WSOFT_BOARD_HEADLESS || WSOFT_BOARD_CYD || WSOFT_BOARD_S3_35
+// Headless S3 and S3 3.5" screen: a TTL converter or TTL-to-RS485 module on the env's pins. CYD: an external
 // 3.3 V TTL-to-RS485 module with automatic direction on CN1 (GPIO22 / GPIO27).
 static const int RS485_RX = WSOFT_RS485_RX;
 static const int RS485_TX = WSOFT_RS485_TX;

@@ -47,6 +47,8 @@ static const char *RELEASE_VERSION = "bench-2026-10-24";
 static const char *STATION_MODEL = "wsoft-cyd28";
 #elif defined(WSOFT_BOARD_HEADLESS) && WSOFT_BOARD_HEADLESS
 static const char *STATION_MODEL = "wsoft-s3-headless";
+#elif defined(WSOFT_BOARD_S3_35) && WSOFT_BOARD_S3_35
+static const char *STATION_MODEL = "wsoft-s3-35";
 #else
 static const char *STATION_MODEL = "wsoft-waveshare43";
 #endif
