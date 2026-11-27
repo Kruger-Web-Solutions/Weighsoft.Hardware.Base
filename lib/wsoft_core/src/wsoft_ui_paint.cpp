@@ -274,8 +274,9 @@ static const char *product_line(const WsoftUiModel &m, char *out, size_t size) {
 // with a red swoosh): plate grey, the brand's blue bar, navy letters, a thin red strip by the
 // weight, the word in a pill of the zone's colour. Full Colour is the bright look (Rhyno, same
 // day: "make the colours brighter"): the whole screen in a vivid zone colour, the word in a
-// white (or navy) pill. With no zone (no product, empty scale, no signal) both fall back to
-// the classic screen of their theme.
+// white (or navy) pill. With no zone (no product, empty scale, no signal) both keep their own
+// look, with a calm colour in place of the zone's (Rhyno, 27 Nov 2026: the Zero, Waiting and No
+// signal screens must follow the theme too).
 static const uint16_t PLATE = 0xEF7E;       // #E9EEF2
 static const uint16_t NAVY = 0x18A8;        // #1B1446
 static const uint16_t SLATE = 0x5B0E;       // #5A6270
@@ -310,9 +311,10 @@ struct ColourSet {
 
 static ColourSet colour_set(const WsoftUiModel &m, const Theme &) {
   const bool low = m.zone == WSOFT_UI_ZONE_LOW, ok = m.zone == WSOFT_UI_ZONE_OK;
+  const bool none = m.zone == WSOFT_UI_ZONE_NONE;
   ColourSet P;
   if (m.style != WSOFT_UI_STYLE_COLOUR) {
-    uint16_t z = low ? VIVID_LOW : ok ? VIVID_OK : VIVID_HIGH;
+    uint16_t z = none ? SLATE : low ? VIVID_LOW : ok ? VIVID_OK : VIVID_HIGH;
     P.bg = PLATE;
     P.ink = NAVY;
     P.soft = SLATE;
@@ -334,7 +336,7 @@ static ColourSet colour_set(const WsoftUiModel &m, const Theme &) {
     P.w_soft = SLATE;
     P.strip = SWOOSH;
     P.pill = z;
-    P.pill_ink = low ? NIGHT : WHITE;
+    P.pill_ink = low && !none ? NIGHT : WHITE;
     P.out = wsoft_blend565(PLATE, VIVID_LOW, 130);
     P.mid = wsoft_blend565(PLATE, VIVID_OK, 130);
     P.over = wsoft_blend565(PLATE, VIVID_HIGH, 130);
@@ -343,7 +345,7 @@ static ColourSet colour_set(const WsoftUiModel &m, const Theme &) {
     P.m_dot = z;
     return P;
   }
-  uint16_t z = low ? VIVID_LOW : ok ? VIVID_OK : VIVID_HIGH;
+  uint16_t z = none ? AUR_LINE : low ? VIVID_LOW : ok ? VIVID_OK : VIVID_HIGH;
   P.bg = wsoft_blend565(AUR_TOP, AUR_LOW, 174);
   P.grad = true;
   P.ink = WHITE;
@@ -365,7 +367,7 @@ static ColourSet colour_set(const WsoftUiModel &m, const Theme &) {
   P.w_soft = AUR_SOFT;
   P.strip = z;
   P.pill = z;
-  P.pill_ink = INK0;
+  P.pill_ink = none ? WHITE : INK0;
   P.out = wsoft_blend565(P.bg, VIVID_LOW, 110);
   P.mid = wsoft_blend565(P.bg, VIVID_OK, 110);
   P.over = wsoft_blend565(P.bg, VIVID_HIGH, 110);
@@ -397,7 +399,6 @@ static void paint_hilo(WsoftCanvas &c, const WsoftUiModel &m, const Theme &T);
 static void paint_bottom(WsoftCanvas &c, const WsoftUiModel &m, const Theme &T);
 
 static void paint_top_colour(WsoftCanvas &c, const WsoftUiModel &m, const Theme &T) {
-  if (m.zone == WSOFT_UI_ZONE_NONE) return paint_top(c, m, T);
   char cut[CUT_SIZE];
   ColourSet P = colour_set(m, T);
   ground(c, P, 20, 42);
@@ -430,7 +431,7 @@ static void paint_top_colour(WsoftCanvas &c, const WsoftUiModel &m, const Theme 
     c.star6(8 + w / 2, 32.5, 9, P.soft);
   }
   double sw = c.text(m.steady, 312, 32.5, SMALL, P.soft, WSOFT_RIGHT);
-  c.disc(312 - sw - 8, 32.5, 4, P.dot);
+  c.disc(312 - sw - 8, 32.5, 4, m.zone == WSOFT_UI_ZONE_NONE ? dot(T, m.steady_tone) : P.dot);
   c.text(c.fit(m.reason, TINY, 312 - sw - 20 - (8 + w + 7), cut, sizeof cut), 8 + w + 7, 32.5, TINY, P.soft);
   if (plate_on(m)) {
     double aw = c.text(m.audit, 312, 52, TINY, P.soft, WSOFT_RIGHT);
@@ -443,23 +444,17 @@ static void paint_top_colour(WsoftCanvas &c, const WsoftUiModel &m, const Theme 
 }
 
 static void paint_weight_colour(WsoftCanvas &c, const WsoftUiModel &m, const Theme &T) {
-  uint16_t bg = T.bg, ink = m.live ? T.ink : T.soft, soft = T.soft;
-  if (m.zone != WSOFT_UI_ZONE_NONE) {
-    ColourSet P = colour_set(m, T);
-    ground(c, P, 62, 60);
-    // Mini Edge: the weight floats on the ground, no box (Rhyno, 22 Nov 2026).
-    if (!P.card && !P.band) c.rect(0, 64, 4, 56, P.strip);
-    ink = P.w_ink;
-    soft = P.w_soft;
-  } else {
-    c.rect(0, 62, 320, 60, bg);
-  }
+  const ColourSet P = colour_set(m, T);
+  ground(c, P, 62, 60);
+  // Mini Edge: the weight floats on the ground, no box (Rhyno, 22 Nov 2026).
+  if (!P.card && !P.band) c.rect(0, 64, 4, 56, P.strip);
+  // No weight coming in (no zone then): the soft colour, never a bright old number.
+  uint16_t ink = m.zone == WSOFT_UI_ZONE_NONE && !m.live ? P.w_soft : P.w_ink, soft = P.w_soft;
   // Mini Edge: big numbers floating on the ground.
-  if (m.zone != WSOFT_UI_ZONE_NONE && colour_set(m, T).card) {
+  if (P.card) {
     c.text(m.label, 302, 73, TINY, soft, WSOFT_RIGHT);
     // Big numbers with a thick outline in the full zone colour (Rhyno, 22 Nov 2026: "as big as
     // under range", outline "thicker", "brighter").
-    const ColourSet P = colour_set(m, T);
     const bool huge = c.width(m.weight, HUGE_) <= 256;
     const int role = huge ? HUGE_ : c.width(m.weight, HERO) <= 236 ? HERO : BIG;
     const double x = huge ? 280 : 264, y = huge ? 92 : 94;
@@ -481,18 +476,20 @@ static void paint_weight_colour(WsoftCanvas &c, const WsoftUiModel &m, const The
 }
 
 static void paint_hilo_colour(WsoftCanvas &c, const WsoftUiModel &m, const Theme &T) {
-  if (m.zone == WSOFT_UI_ZONE_NONE) return paint_hilo(c, m, T);
   char cut[CUT_SIZE], line[CUT_SIZE];
   ColourSet P = colour_set(m, T);
   ground(c, P, 122, 66);
   // The word and what to do in a pill of the zone's own colour.
   char words[40];
   hilo_words(m, words, sizeof words);
+  // No zone: no tick or arrow, so the pill is only the words.
+  const bool none = m.zone == WSOFT_UI_ZONE_NONE;
+  const double pad = none ? 28 : 52;
   int role = BIG;
-  if (c.width(words, BIG) + 52 > 304) role = MID;
-  if (role == MID && c.width(words, MID) + 52 > 304) role = SMALL;
+  if (c.width(words, BIG) + pad > 304) role = MID;
+  if (role == MID && c.width(words, MID) + pad > 304) role = SMALL;
   double wy = plate_on(m) ? 139 : 143;
-  double pw = c.width(words, role) + 52, px = 160 - pw / 2;
+  double pw = c.width(words, role) + pad, px = 160 - pw / 2;
   // The band is as tall as the pill when the plate needs its line under it.
   if (P.band) {
     double bh = plate_on(m) ? 28 : 34;
@@ -502,11 +499,15 @@ static void paint_hilo_colour(WsoftCanvas &c, const WsoftUiModel &m, const Theme
     if (P.card) c.rect(px - 4, wy - 18, pw + 8, 36, wsoft_blend565(P.bg, P.pill, 70), -1);
     c.rect(px, wy - 14, pw, 28, P.pill, -1);
   }
-  paint_sign(c, m.zone, px + 23, wy, P.pill_ink);
-  c.text(words, px + 38, wy, role, P.pill_ink);
+  if (!none) paint_sign(c, m.zone, px + 23, wy, P.pill_ink);
+  c.text(words, px + (none ? 14 : 38), wy, role, P.pill_ink);
   if (plate_on(m)) c.text(c.fit(product_line(m, line, sizeof line), SMALL, 300, cut, sizeof cut), 160, 160, SMALL, P.soft, WSOFT_CENTER);
-  // The limits as three soft bands, and the marker.
+  // The limits as three soft bands, and the marker. No product: one plain bar.
   const double bx = 14, bw = 292, by = 168, bh = 6;
+  if (!m.product_on) {
+    c.rect(bx, by, bw, bh, P.shade, -1);
+    return;
+  }
   double lo = bx + bw * 6 / 22, hi = bx + bw * 16 / 22;
   if (P.card) {
     // Aurora: forty short segments, and the marker a white bar.
@@ -538,7 +539,6 @@ static void paint_hilo_colour(WsoftCanvas &c, const WsoftUiModel &m, const Theme
 }
 
 static void paint_bottom_colour(WsoftCanvas &c, const WsoftUiModel &m, const Theme &T) {
-  if (m.zone == WSOFT_UI_ZONE_NONE) return paint_bottom(c, m, T);
   ColourSet P = colour_set(m, T);
   ground(c, P, 188, 52);
   if (P.border) c.rect(7, 189, 106, 48, P.btn_line, 9);
@@ -797,7 +797,7 @@ uint32_t wsoft_ui_row_key(const WsoftUiModel &m, int row) {
       return key;
     case WSOFT_UI_ROW_WEIGHT:
       key = stretch(key, m, weight, hilo);
-      if (look) key = FIELD(key, zone);
+      if (look) key = FIELD(FIELD(key, zone), live);
       return style == WSOFT_UI_STYLE_DIAL ? stretch(key, m, hilo, bottom) : key;
     case WSOFT_UI_ROW_HILO:
       key = stretch(key, m, hilo, bottom);
@@ -828,7 +828,7 @@ void wsoft_ui_paint_row(WsoftCanvas &c, const WsoftUiModel &m, int row) {
   c.clip(span.y0, span.y1);
   switch (row) {
     case WSOFT_UI_ROW_BAR:
-      if (colour && m.zone != WSOFT_UI_ZONE_NONE) {
+      if (colour) {
         ColourSet P = colour_set(m, T);
         paint_bar(c, m, P.bar, P.bar_line);
       } else {
