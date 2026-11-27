@@ -322,6 +322,33 @@ static bool i2c_read(uint8_t addr, const uint8_t *reg, size_t reg_len, uint8_t *
 }
 
 static int touch_sda = WSOFT_CTP_SDA, touch_scl = WSOFT_CTP_SCL;
+static bool touch_unknown = false;  // a chip at another address: read it like an FT6336
+
+// The first address that answers on the touch wires (0 if none). Only the touch chip sits there.
+static uint8_t i2c_first() {
+  for (uint8_t a = 0x08; a < 0x78; a++)
+    if (i2c_present(a)) return a;
+  return 0;
+}
+
+// For a chip at an address the code does not know: what its ID registers hold, so the
+// chip can be named from the log. FT-style 8-bit registers and GT911-style 16-bit ones.
+static void touch_log_ids() {
+  uint8_t d[16];
+  const uint8_t r0 = 0x00;
+  WSOFT_LOG.printf("TOUCH 0x%02X regs 00-0F:", touch_addr);
+  if (i2c_read(touch_addr, &r0, 1, d, 16))
+    for (int i = 0; i < 16; i++) WSOFT_LOG.printf(" %02X", d[i]);
+  else WSOFT_LOG.print(" (no answer)");
+  const uint8_t ids[] = {0xA0, 0xA3, 0xA6, 0xA8};
+  for (uint8_t r : ids) {
+    if (i2c_read(touch_addr, &r, 1, d, 1)) WSOFT_LOG.printf(" %02X=%02X", r, d[0]);
+  }
+  const uint8_t gt_id[2] = {0x81, 0x40};
+  if (i2c_read(touch_addr, gt_id, 2, d, 4))
+    WSOFT_LOG.printf(" 8140=%02X %02X %02X %02X", d[0], d[1], d[2], d[3]);
+  WSOFT_LOG.println();
+}
 
 // Looks for the touch chip with SDA on `sda` and SCL on `scl`. 100 kHz: the I2C driver turns
 // on the S3's own (weak) pull-ups, enough at this speed for a module without its own.
@@ -332,6 +359,7 @@ static bool touch_probe(int sda, int scl) {
     if (i2c_present(0x38)) touch_addr = 0x38, touch_gt911 = false;
     else if (i2c_present(0x5D)) touch_addr = 0x5D, touch_gt911 = true;
     else if (i2c_present(0x14)) touch_addr = 0x14, touch_gt911 = true;
+    else if (sda == WSOFT_CTP_SDA) touch_addr = i2c_first(), touch_gt911 = false, touch_unknown = true;
     if (touch_addr) {
       touch_sda = sda;
       touch_scl = scl;
@@ -352,8 +380,12 @@ static bool touch_find() {
 
 static void touch_log_found() {
   WSOFT_LOG.printf("TOUCH chip at 0x%02X (%s), SDA %d, SCL %d%s\n", touch_addr,
-                   touch_gt911 ? "GT911" : "FT5x06/FT6x36", touch_sda, touch_scl,
+                   touch_unknown ? "unknown chip, read like an FT6336"
+                   : touch_gt911 ? "GT911"
+                                 : "FT5x06/FT6x36",
+                   touch_sda, touch_scl,
                    touch_sda != WSOFT_CTP_SDA ? " (SDA and SCL wires are swapped: works anyway)" : "");
+  if (touch_unknown) touch_log_ids();
 }
 
 static void touch_reset() {
@@ -478,6 +510,19 @@ static int touch_read(int *rx, int *ry) {
     Wire.write(0);
     Wire.endTransmission();
     return result;
+  }
+  if (touch_unknown) {  // log regs 00-07 whenever they change, so the chip's map can be read
+    static uint8_t seen[8];
+    static uint32_t logged = 0;
+    uint8_t now[8];
+    const uint8_t r0 = 0x00;
+    if (i2c_read(touch_addr, &r0, 1, now, 8) && memcmp(now, seen, 8) != 0 &&
+        millis() - logged >= 100) {
+      memcpy(seen, now, 8);
+      logged = millis();
+      WSOFT_LOG.printf("TOUCH regs 00-07: %02X %02X %02X %02X %02X %02X %02X %02X\n", now[0], now[1],
+                       now[2], now[3], now[4], now[5], now[6], now[7]);
+    }
   }
   const uint8_t reg = 0x02;  // TD_STATUS, then P1_XH, P1_XL, P1_YH, P1_YL
   if (!i2c_read(touch_addr, &reg, 1, d, 5)) return 0;
