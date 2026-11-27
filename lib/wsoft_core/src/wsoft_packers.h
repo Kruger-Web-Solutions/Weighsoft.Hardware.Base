@@ -112,6 +112,10 @@ struct WsoftPackerRoster {
   size_t evicted_count = 0;
 };
 
+// Empties a roster in place. A roster is about 10 KB: `*r = WsoftPackerRoster()` builds a
+// temporary on the stack, which overflowed the ESP32 loop task at boot (27 Nov 2026).
+void wsoft_packer_roster_reset(WsoftPackerRoster *roster);
+
 const WsoftPackerEntry *wsoft_packer_find(const WsoftPackerRoster &roster, const char *code);
 WsoftPackerEntry *wsoft_packer_find_mut(WsoftPackerRoster *roster, const char *code);
 
