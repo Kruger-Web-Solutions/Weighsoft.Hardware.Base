@@ -65,6 +65,12 @@ struct TradeReading {
   int unit;
   uint32_t now_ms;
   int64_t now_unix;
+  // RS485 tuning (wsoft_rs485_tuning.h, 23 Nov 2026). Left 0 by a brace list: the old rules.
+  // stable_range: a fresh reading within this many digits of the one the still time began with
+  // counts as unchanged, and a stable weight within it of the last trade weight is the same load.
+  // stable_ms: how long the reading must stay still; 0 = TRADE_STABLE_MS.
+  int32_t stable_range;
+  uint32_t stable_ms;
 };
 
 class TradeEngine {
@@ -88,6 +94,7 @@ class TradeEngine {
   bool after_stale_ = false;
   int32_t motion_value_ = 0;
   uint32_t unchanged_since_ = 0;
+  bool issued_this_run_ = false;  // a trade weight was issued since the reading last moved
   bool stable_ = false;
   bool current_ = false;
   bool seen_empty_ = true;

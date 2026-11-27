@@ -7,7 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **W-Soft: the screen goes to the Hub's Control room** (26 Nov 2026, Hub ADR 0010). A paired
+  board pushes the words on its screen (the same JSON as `/rest/wsoftScreen`) with a signed
+  `POST /api/v1/ingest/screen`: at most every 3 s while the screen changes, else every 30 s,
+  only while the Hub is online and no firmware upload runs. An older Hub (404) is asked again
+  after 10 minutes, any other refusal (4xx) after 1 minute. `ui_model_json` got a mutex (two tasks call it now). Host test
+  `test_wsoft_hub_screen` with the shared vector. Docs: `docs/WSOFT-SCREEN.md` section 5b.
+  Not tried on a board yet.
+
 ### Changed
+- **W-Soft: the Waveshare can read an RS232 scale or a load cell** (Rhyno, 23 Nov 2026). One thing
+  is plugged in at a time, so the pins follow the source: RS485 on the RS485 plug; RS232 on the
+  Sensor plug (GPIO6, receive only, through a MAX3232 like the yellow board); HX711 DT on the
+  Sensor plug (GPIO6) and SCK on the I2C plug's SCL (GPIO9). With the load cell picked the touch
+  screen is off (it shares the I2C wires); tap through the browser's Live tab. Relays stay off on
+  the Waveshare (Rhyno: ignore them). Not bench-tested.
+- **W-Soft: MENU > SCREEN says MINI EDGE** for the Full Colour look (the mini Edge, PR #70), so it
+  is easy to find: DARK, LIGHT, MINI EDGE, DIAL. Every board.
+- **W-Soft: one RS485 Scale setup, ZERO, stable and auto zero that work** (Rhyno, 23 Nov 2026).
+  The Scale setup tab has one form for the RS485 card: unit, decimal places, e, stable range and
+  time, auto zero range and time, Filter 1 and Filter 2. Save writes each value where it lives and
+  reads it back; the old second "Weighing card" write table is gone, and a check table under the
+  form shows what the card holds (Read / Read all). A DJB-M1X keeps all of them; a DJB-W1X keeps
+  only the filters, so the board keeps the rest and does the stable judging and auto zero itself.
+  ZERO on the main screen now works on RS485 too (board-side zero, kept over a restart, nothing
+  written to the card). The trade engine and the saver use the stable range and time: a reading
+  that wobbles inside the range is one weighing, not several. Every W-Soft board (Waveshare,
+  yellow, S3). Not bench-tested.
+- **W-Soft: decimal places and e work with a DJB-W1X** (Rhyno, 23 Nov 2026). The W1X (no display)
+  has no decimal or e setting, so Scale setup saved to nowhere and came back empty. The board now
+  sees that (the card reads e = 0) and keeps decimal places (0 to 4) and e itself. An M1X still
+  keeps them on the card. Every RS485 board.
+- **W-Soft: every board shows the same menus** (Rhyno, 23 Nov 2026). Serial is in the menu, and
+  Settings shows "Weight comes from", the Hi-Lo relays and the Hi-Lo light on every W-Soft board. An
+  option a board is not wired for (the Waveshare: RS232, load cell, relays, light) is greyed with
+  "needs add-on wiring"; the board still refuses it, so no pin is driven. Web page only.
+- **W-Soft: the S3 board can weigh with a load cell too** (Rhyno, 23 Nov 2026). HX711 DT on GPIO1,
+  SCK on GPIO2, picked in Settings "Weight comes from". Same as the yellow board. Not bench-tested.
+- **W-Soft: Live shows the screen AND the old info** (Rhyno, 23 Nov 2026). Under the board's
+  screen the Live tab has the Approval and Auto save switches, the approval log, SAVE WEIGHING,
+  the alarm test note and the status table again. Same page on every W-Soft board.
 - **W-Soft: the browser's Live screen is sharp** (Rhyno, 22 Nov 2026). The page paints the
   board's screen with the Waveshare's letters at 800 x 480 instead of blowing up the 320 x 240
   picture, with round corners and a soft shadow. About 29 KB more firmware.
@@ -32,12 +72,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   its own field: `esp_led` (the S3's light) is ON by default and is not used on these pins.
   **Not flashed, not bench-tested.**
 - **W-Soft: two more looks for the board screen, Full Colour and Dial** (Rhyno, 22 Nov 2026).
-  MENU > SCREEN now steps DARK, LIGHT, COLOUR, DIAL. Full Colour turns the whole screen the
-  colour of the Hi-Lo zone with a bigger weight; Dial bends the Hi-Lo bar into a gauge over the
-  weight. Both say what to do: TOO LOW ADD MORE (arrow up), TOO HIGH REMOVE PRODUCT (arrow
-  down), SAVING, DONE. Same rows and taps; the browser's Live tab follows the board. Classic dark
-  stays the default. Host-tested dot for dot on both panels; **not flashed, not seen on a
-  board yet**. See docs/WSOFT-SCREEN.md section 3a.
+  MENU > SCREEN now steps DARK, LIGHT, COLOUR, DIAL. Full Colour is the mini Edge look: a navy
+  deck, a teal line on the status bar, the weight floating with a thick zone-colour outline,
+  black words on a zone-colour pill, glass buttons with a cyan edge and a blue SAVE. Dial bends
+  the Hi-Lo bar into a gauge over the weight. Both say what to do: TOO LOW ADD MORE (arrow up),
+  TOO HIGH REMOVE PRODUCT (arrow down), SAVING, DONE. Same rows and taps; the browser's Live
+  tab follows the board. Classic dark stays the default. Host-tested dot for dot on both panels;
+  **not flashed, not seen on a board yet**. See docs/WSOFT-SCREEN.md section 3a.
 - **W-Soft: Drift Guard for the load cell** (Rhyno, 22 Nov 2026: the zero floats in a slow
   wave of about 12 g, the same empty and loaded). Scale setup → *Drift Guard* (off by default,
   1 to 20 divisions). Once a weight has been still for 2 seconds, slow movement is held back so
@@ -100,9 +141,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   OFF with no signal, an alarm, no product or an empty scale. Settings and a relay test on
   W-Soft > Settings. Guide: `docs/WSOFT-CYD28.md` section 2d. Not bench-tested yet.
 
-### Changed
+### Fixed
+- Build: shared sources compile for `esp12e` again (no BLE library, ESP8266 Wi-Fi and HTTP client, Serial1 `begin`, Wi-Fi scan). The sketch still does not link: it is about 2.6MB and the ESP8266 app slot is about 1MB. CI builds `node32s`.
+- CI: install `intelhex` so the `node32s` (ESP32) build can finish.
+- Build: pin the ESP32 platform to `espressif32@6.13.0` (same as the device branches). Unpinned, it moved to 8.0.0 (Arduino core 3.x) and `node32s` stopped compiling.
+- Docs: branch lists now name branches that exist (there is no `serial2` or `display35`).
+- Docs: `node32s` partition and OTA notes now match `platformio.ini` and `partitions_ble.csv`.
 
-- (Future changes will be listed here)
+### Security
+- `.gitignore`: `data/config/` (device runtime config) and `compile_commands.json` (generated build file).
+- `docs/SECURITY.md`: never commit device config; what to do when a password reaches history.
+
+### Note
+- W-Soft through 22 Nov 2026 (PRs #58–#70) is on `master`. Other device lines are still on their own branches and are not fully logged here:
+  - `RelayBoardEspBuildIn` - relay board and Live Weight screens (last commit 2026-08-10).
+  - `SerialReaderWriter` - serial Reader / Writer / Diagnostics, TFT screen, LCD, remote weight (last commit 2026-07-16).
+- Status of each line and the open decisions: [ROADMAP.md](ROADMAP.md). Branch list: [docs/BRANCH-MAP.md](docs/BRANCH-MAP.md).
 
 ## [0.7.0] - 2026-02-17
 

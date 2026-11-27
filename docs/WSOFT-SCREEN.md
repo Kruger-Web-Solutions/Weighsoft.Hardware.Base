@@ -67,7 +67,7 @@ three; only what a row draws differs. The menu pages look the same in every look
 | SCREEN says | Look | Pictures |
 |---|---|---|
 | DARK / LIGHT | Classic: the five rows of section 1. The default | `yellow-00` to `yellow-27` |
-| COLOUR | Full Colour: the whole screen takes the colour of the Hi-Lo zone (yellow low, green OK, red high), with a bigger weight and one big line | `yellow-28` to `yellow-37`, `yellow-47` |
+| COLOUR | Full Colour, the mini Edge look: navy deck fading down, a navy status bar with a teal line, the weight floating with no box and a thick zone-colour outline, black words on a zone-colour pill, glass buttons with a cyan edge and a blue SAVE | `yellow-28` to `yellow-37`, `yellow-47` |
 | DIAL | The Hi-Lo bar bent into a gauge over the weight, with a marker that moves along it | `yellow-38` to `yellow-46`, `yellow-48`, `yellow-49`, `yellow-52` |
 
 ![Full Colour](img/wsoft-screen/yellow-29.png) ![Dial](img/wsoft-screen/yellow-39.png)
@@ -154,10 +154,41 @@ the copy in the page is `ref.js` itself. All the rules (what a tap does, what th
 screen says) stay on the board, once.
 
 A board with no panel (`wsoft_s3_headless`) still makes the words and takes the taps: the
-browser is its screen. Every board shows the same layout in the browser, painted at the Waveshare's size. The old Live page (weight, chips, Approval and Auto save switches, Save button, status
-table) is gone; the firmware's `/rest/wsoftStatus`, `/rest/wsoftSwitches` and `/rest/wsoftSave`
-are unchanged. Not on the screen and so no longer on the Live tab: the approval log and the
-alarm test note. **Not tried on a board yet.**
+browser is its screen. Every board shows the same layout in the browser, painted at the Waveshare's size.
+Under the screen the Live tab keeps the old page's other parts (Rhyno, 23 Nov 2026): the
+Approval and Auto save switches with the approval log, SAVE WEIGHING, the alarm test note and
+the status table (trade check, audit counter, last trade sequence, waiting for the Hub, Hub,
+junction box alarm, screen), from `/rest/wsoftSwitches`, `/rest/wsoftSave` and the
+`wsoftStatus` socket. The old big weight and chips are not back: the screen shows them. **Not tried on a board yet.**
+
+## 5b. The same screen on the Hub's Control room (26 Nov 2026)
+
+The Weighsoft Hub has a **Control room** page: the screens of many boards on one wall, like a
+camera room (Hub ADR 0010, `Kruger-Web-Solutions/Weighsoft.Indicator.Hub`). The Hub never
+connects to a board, so a paired board **pushes** its screen.
+
+| What | Where |
+|---|---|
+| The words | the same JSON as `GET /rest/wsoftScreen` (`ui_model_json`) |
+| The request | `POST <hub>/api/v1/ingest/screen`, signed like a heartbeat: `{"sent_at":"<UTC>","screen":<JSON>}` |
+| When | the screen changed and 3 s since the last push, or 30 s since the last push; only while the Hub is online and no firmware upload runs |
+| Rules | `lib/wsoft_core/src/wsoft_hub_screen.*`, host test `test/test_wsoft_hub_screen` with the shared vector `hub-screen-v1-fixtures.json` (byte-identical to the Hub's copy) |
+| The board side | `push_screen()` in `lib/wsoft_esp/src/hub.cpp`, in the hub task |
+
+- The Hub answers 202 and keeps only the latest screen (in memory). A Hub without the Control
+  room answers 404: the board waits 10 minutes before it tries again. Any other refusal (4xx:
+  too many, too big, not allowed): 1 minute. No answer or a Hub error (5xx): the changed screen
+  is tried again 3 s later.
+- The push runs in the hub task, like the heartbeat: while one waits for the Hub (up to the 8 s
+  timeout), the heartbeat, command pull and weighings in that task wait behind it. The screen
+  and the weigh loop do not wait. A push with no answer also counts toward moving to a backup
+  Hub address, like every other Hub request.
+- The JSON carries `pin_count` (how many digits were typed), never a PIN digit.
+- `ui_model_json` is now called by two tasks (web server and hub task), so its copy buffer has a
+  mutex.
+- The Hub paints the words with a copy of `gen/wsoftScreen.js`. A change to `ref.js` or the JSON
+  needs the Hub's copy updated too (its golden test goes red until it is).
+- **Not tried on a board yet** (26 Nov 2026): built for the yellow board and the Waveshare only.
 
 ## 6. Checking a board over USB
 

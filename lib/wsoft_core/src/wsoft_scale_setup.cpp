@@ -89,6 +89,15 @@ bool wsoft_kg_to_reading(int64_t kg, int decimals, int unit, int32_t *value) {
   return true;
 }
 
+bool wsoft_board_format_valid(int decimal, int32_t division, int unit) {
+  static const int32_t steps[] = {1, 2, 5, 10, 20, 50, 100, 200, 500};
+  if (decimal < 0 || decimal > 4 || unit < 1 || unit > 3) return false;
+  for (int32_t step : steps) {
+    if (division == step) return true;
+  }
+  return false;
+}
+
 bool wsoft_card_e(const WsoftCardFormat &card, int64_t *e) {
   if (!card.read || card.division <= 0) return false;
   int64_t kg;
@@ -260,17 +269,20 @@ bool wsoft_scale_setup_complete(const WsoftScaleSetup &setup, const WsoftCardFor
 
 // ---------- each reading ----------
 
-void WsoftStableSamples::update(bool linked, bool fresh, int32_t value) {
+void WsoftStableSamples::update(bool linked, bool fresh, int32_t value, int32_t range, uint32_t now_ms) {
   if (!linked || !fresh) {
     count_ = 0;
     return;
   }
-  if (count_ > 0 && value == value_) {
+  if (range < 0) range = 0;
+  int64_t moved = (int64_t)value - (int64_t)value_;
+  if (count_ > 0 && moved <= range && moved >= -(int64_t)range) {
     if (count_ < WSOFT_STABLE_SAMPLES_MAX) count_++;
     return;
   }
   value_ = value;
   count_ = 1;
+  since_ms_ = now_ms;
 }
 
 WsoftScaleHold wsoft_scale_hold(const WsoftScaleSetup &s, const WsoftCardFormat &card, int32_t value, int32_t net,

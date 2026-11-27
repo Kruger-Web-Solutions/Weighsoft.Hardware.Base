@@ -104,8 +104,7 @@ const WSoftWifiUpdateForm: FC = () => {
             checked={info.on}
             disabled={busy || (!info.on && (locked || !info.password_set))}
             onChange={(event) =>
-              send({ on: event.target.checked }, event.target.checked ? 'Wi-Fi update is ON' : 'Wi-Fi update is OFF')
-            }
+              send({ on: event.target.checked }, event.target.checked ? 'Wi-Fi update is ON' : 'Wi-Fi update is OFF')}
           />
         }
         label="Allow updates over Wi-Fi?"

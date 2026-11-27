@@ -1,20 +1,24 @@
 import { FC, MouseEvent, useEffect, useRef, useState } from 'react';
 
-import { Box } from '@mui/material';
+import { Box, Table, TableBody, TableCell, TableRow } from '@mui/material';
 
 import { FormLoader, MessageBox, SectionContent } from '../../components';
+import { useWs } from '../../utils';
 
 import * as WSoftApi from './api';
+import WSoftSavePanel from './WSoftSavePanel';
+import WSoftSwitches from './WSoftSwitches';
+import { WSOFT_STATUS_WEBSOCKET_URL } from './api';
 import { paintPicture, tapPoint, toRgba, PICTURE_H, PICTURE_W } from './screen';
+import { WSoftStatus } from './types';
 
 const REFRESH_MS = 250;
 const LOST_AFTER = 8;  // misses in a row (about 2 s) before the page says the board is gone
 
 // The board's screen, in the browser (Rhyno, 22 Nov 2026: one screen, two places). The board
 // sends the words on its screen, this page paints them with the board's own drawing, and a
-// click here is a tap there: the board runs it like a finger on its panel. So this page shows
-// what the board shows and can do what the board's screen can do, and nothing else.
-const WSoftLive: FC = () => {
+// click here is a tap there: the board runs it like a finger on its panel.
+const BoardScreen: FC = () => {
   const canvas = useRef<HTMLCanvasElement>(null);
   const [seen, setSeen] = useState(false);
   const [lost, setLost] = useState(false);
@@ -24,6 +28,7 @@ const WSoftLive: FC = () => {
     let timer: ReturnType<typeof setTimeout>;
     let misses = 0;
     let last = '';
+    let picture: ImageData | undefined;  // made once, painted over on every new frame
     const poll = async () => {
       try {
         const model = (await WSoftApi.readWSoftScreen()).data;
@@ -34,8 +39,8 @@ const WSoftLive: FC = () => {
         const words = JSON.stringify(model);
         const context = canvas.current?.getContext('2d');
         if (context && words !== last) {
-          const picture = context.createImageData(PICTURE_W, PICTURE_H);
-          picture.data.set(toRgba(paintPicture(model)));
+          if (!picture) picture = context.createImageData(PICTURE_W, PICTURE_H);
+          toRgba(paintPicture(model), picture.data);
           context.putImageData(picture, 0, 0);
           last = words;
         }
@@ -59,7 +64,7 @@ const WSoftLive: FC = () => {
   };
 
   return (
-    <SectionContent title="W-Soft screen" titleGutter>
+    <>
       {lost && <MessageBox level="error" message="No answer from the board. This picture is old." my={2} />}
       {!seen && !lost && <FormLoader message="Reading the board's screen…" />}
       {/* Painted with the Waveshare's dots, so it stays sharp on a big screen (Rhyno, 22 Nov 2026). */}
@@ -67,6 +72,7 @@ const WSoftLive: FC = () => {
         sx={{
           maxWidth: 960,
           mx: 'auto',
+          mb: 2,
           display: seen ? 'block' : 'none',
           opacity: lost ? 0.4 : 1,
           transition: 'opacity 0.3s',
@@ -86,6 +92,55 @@ const WSoftLive: FC = () => {
           style={{ width: '100%', height: 'auto', display: 'block', cursor: 'pointer', touchAction: 'manipulation' }}
         />
       </Box>
+    </>
+  );
+};
+
+const alarmText = (status: WSoftStatus) =>
+  (status.alarm_allowed ? 'Allowed, monitoring: ' + (status.alarm_note ?? '') : status.alarm ? 'ALARM (blocking)' : 'None') +
+  (status.alarm_word_hex ? ` (code ${status.alarm_word_hex})` : '') +
+  (status.alarm_changes > 0 ? `. CHANGED ${status.alarm_changes}x since start` : '');
+
+// The board's state in words, under the screen (Rhyno, 23 Nov 2026: the screen AND the old info).
+const StatusTable: FC<{ status: WSoftStatus }> = ({ status }) => {
+  const rows: [string, string | number][] = [
+    ['Trade check', status.trade_check],
+    ['Audit counter', status.audit_counter],
+    ['Last trade sequence', status.last_trade_seq || '-'],
+    ['Waiting for the Hub', status.trade_queue],
+    ['Hub', status.hub],
+    ['Junction box alarm', alarmText(status)],
+    ['Screen', status.display_ready ? 'Ready' : 'Not ready']
+  ];
+  return (
+    <Table size="small">
+      <TableBody>
+        {rows.map(([name, value]) => (
+          <TableRow key={name}>
+            <TableCell><strong>{name}</strong></TableCell>
+            <TableCell>{value}</TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+};
+
+const alarmTestText = (status: WSoftStatus) =>
+  status.approval_on
+    ? 'Alarm test switch is ON but does nothing while Approval is ON. Switch it off in Settings.'
+    : 'TEST MODE: saves go through a junction box alarm. Those weighings are marked on the Hub. Switch it off in Settings.';
+
+// Live: the board's screen on top, then the switches, Save and the board's state (every W-Soft board).
+const WSoftLive: FC = () => {
+  const { connected, data } = useWs<WSoftStatus>(WSOFT_STATUS_WEBSOCKET_URL);
+  return (
+    <SectionContent title="W-Soft live" titleGutter>
+      <BoardScreen />
+      {data?.alarm_test && <MessageBox level="warning" message={alarmTestText(data)} my={2} />}
+      <WSoftSwitches />
+      <WSoftSavePanel />
+      {!connected || !data ? <FormLoader message="Connecting to WebSocket…" /> : <StatusTable status={data} />}
     </SectionContent>
   );
 };

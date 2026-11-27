@@ -37,13 +37,20 @@ struct WsoftUiView {
 
 // Starts the panel and touch. False when there is no panel (screenless board) or it failed.
 bool ui_begin();
+// A load cell on the Waveshare takes the I2C plug's SCL (GPIO9) for the HX711 clock (Rhyno,
+// 23 Nov 2026: one thing plugged in at a time). Call after ui_begin(): touch stops being read
+// and the board never talks on I2C again until a restart. SDA stays released (pulled high), so
+// the clock pulses never look like an I2C start to the touch chip or the IO expander. Other
+// boards: nothing to do.
+void ui_release_touch_bus();
 // Every poll: the screen paints the rows whose words changed.
 void ui_show(const WsoftUiView &view);
 // Every loop pass: taps, and the pages' way back to the live page when nobody taps.
 void ui_loop();
 
 // The copy of the screen in the browser (Rhyno, 22 Nov 2026: one screen, two places). Both are
-// safe to call from the web server's task.
+// safe to call from the web server's task; ui_model_json also from the hub task (the Hub's
+// Control room, Hub ADR 0010), one caller at a time.
 //   ui_model_json   the words on the screen now, as JSON (wsoft_ui_model_json). out needs
 //                   WSOFT_UI_JSON_MAX bytes. False before the first poll.
 //   ui_remote_tap   a tap at layout position x, y (320 x 240); the screen loop runs it like a

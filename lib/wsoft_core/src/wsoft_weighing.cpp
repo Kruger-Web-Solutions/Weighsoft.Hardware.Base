@@ -95,15 +95,19 @@ WsoftSaveResult WsoftWeighingSaver::update(const TradeReading &r, bool auto_save
                                            bool queue_full, TradeWeight *issued, WsoftSaveResult hold,
                                            WsoftHiloState hilo) {
   if (issued) *issued = TradeWeight();
-  // Stability exactly as TradeEngine: fresh, unchanged readings for TRADE_STABLE_MS.
-  if (!started_ || !r.linked || !r.fresh || after_stale_ || r.value != motion_value_) {
+  // Stability exactly as TradeEngine: fresh readings within stable_range of each other for
+  // stable_ms (0 / 0 = unchanged for TRADE_STABLE_MS, the rule before 23 Nov 2026).
+  const int64_t range = r.stable_range > 0 ? r.stable_range : 0;
+  const int64_t moved = (int64_t)r.value - (int64_t)motion_value_;
+  if (!started_ || !r.linked || !r.fresh || after_stale_ || moved > range || moved < -range) {
     started_ = true;
     motion_value_ = r.value;
     unchanged_since_ = r.now_ms;
   }
   after_stale_ = !r.fresh;
   // Still is still: an alarm blocks trade on its own (TRADE_ALARM), it is not motion (14 Nov 2026).
-  stable_ = r.linked && r.fresh && r.now_ms - unchanged_since_ >= TRADE_STABLE_MS;
+  const uint32_t still_needed = r.stable_ms > 0 ? r.stable_ms : TRADE_STABLE_MS;
+  stable_ = r.linked && r.fresh && r.now_ms - unchanged_since_ >= still_needed;
   if (r.linked && r.fresh && r.value <= 0) seen_empty_ = true;
 
   countdown_ = 0;

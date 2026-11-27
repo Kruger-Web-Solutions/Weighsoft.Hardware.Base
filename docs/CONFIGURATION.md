@@ -29,9 +29,9 @@ board_build.f_cpu = 160000000L
 board_build.filesystem = littlefs
 
 [env:node32s]             # ESP32 specific
-platform = espressif32
+platform = espressif32@6.13.0
 board = node32s
-board_build.partitions = min_spiffs.csv
+board_build.partitions = partitions_ble.csv
 board_build.filesystem = littlefs
 ```
 
@@ -246,7 +246,7 @@ board_build.filesystem = littlefs
 ```ini
 [env:node32s]
 board_build.partitions = partitions_ble.csv
-platform = espressif32
+platform = espressif32@6.13.0
 board = node32s
 board_build.filesystem = littlefs
 build_flags =
@@ -255,13 +255,15 @@ build_flags =
   -D FT_BLE=1
 ```
 
-**Partitions** (`partitions_ble.csv` — BLE, no OTA):
+`platform = espressif32@6.13.0` is the PR #57 pin (Arduino core 2.0.17). Leave the version on.
+
+**Partitions** (`partitions_ble.csv` in the repo root - one app slot, **no OTA**):
 ```
-# Name,   Type, SubType, Offset,  Size
-nvs,      data, nvs,     0x9000,  0x6000    # 24KB
-phy_init, data, phy,     0xf000,  0x1000    # 4KB
-factory,  app,  factory, 0x10000, 0x340000  # 3.25MB (single app)
-spiffs,   data, spiffs,  0x350000,0xA0000   # 640KB filesystem
+# Name,   Type, SubType, Offset,  Size, Flags
+nvs,      data, nvs,     0x9000,  0x6000,     # 24KB
+phy_init, data, phy,     0xf000,  0x1000,     # 4KB
+factory,  app,  factory, 0x10000, 0x340000,   # 3.25MB (single app)
+spiffs,   data, spiffs,  0x350000,0xA0000,    # 640KB filesystem
 ```
 
 **Memory**:

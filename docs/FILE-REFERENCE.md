@@ -88,7 +88,7 @@ C:\Project\Weighsoft.Hardware.Base\
 |-----------|-------|---------|
 | `examples/led/` | `LedExampleService.h/cpp` | LED control with 4 channels (REST, WS, MQTT, BLE) |
 
-On `master`, `src/examples/` is the shared baseline. Integration-specific example code is maintained on branches such as `serial2`, `display`, `weighingboard`, and `display35`.
+On `master`, `src/examples/` is the shared baseline. Integration-specific example code is maintained on branches such as `RelayBoardEspBuildIn`, `SerialReaderWriter`, `weighingboard`, and `display`.
 
 **Pattern**: Create your custom services in `examples/yourdevice/` on the correct base branch.
 

@@ -47,6 +47,9 @@ export const digitsText = (digits: number, decimals: number) => {
 
 export type LoadcellUnit = 'kg' | 'g';
 
+/** The board's unit code as a load cell unit: 3 is g, anything else is kg. */
+export const loadcellUnit = (code: number): LoadcellUnit => (code === 3 ? 'g' : 'kg');
+
 /** One choice in the "Division size" list: 0.002 kg is decimals 3, step 2. */
 export interface LoadcellDivision {
   decimals: number;

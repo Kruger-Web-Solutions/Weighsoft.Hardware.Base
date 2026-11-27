@@ -1,5 +1,7 @@
 # UART Diagnostics Example
 
+> **Where the code is:** `src/examples/diagnostics/` and `interface/src/examples/diagnostics/` are on the `SerialReaderWriter` branch, not on `master`.
+
 ## Overview
 
 The UART Diagnostics service provides comprehensive hardware testing tools for **Serial1** on **GPIO18 (RX) / GPIO17 (TX)** for **all ESP32 targets** in this repository. It helps troubleshoot serial connectivity issues by testing the hardware functionality, detecting baud rates, and measuring signal quality before debugging scale wiring or software.

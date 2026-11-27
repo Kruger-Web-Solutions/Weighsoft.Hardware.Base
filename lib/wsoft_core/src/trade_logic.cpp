@@ -34,14 +34,18 @@ void TradeEngine::reset() {
 TradeCheck TradeEngine::update(const TradeReading &r, bool queue_full, TradeWeight *issued) {
   // Only fresh, unchanged readings build up stability. A failed poll restarts the clock at the next
   // fresh reading, so carried-over values never count toward the stable time.
-  if (!started_ || !r.linked || !r.fresh || after_stale_ || r.value != motion_value_) {
+  const int64_t range = r.stable_range > 0 ? r.stable_range : 0;
+  const int64_t moved = (int64_t)r.value - (int64_t)motion_value_;
+  if (!started_ || !r.linked || !r.fresh || after_stale_ || moved > range || moved < -range) {
     started_ = true;
     motion_value_ = r.value;
     unchanged_since_ = r.now_ms;
+    issued_this_run_ = false;
   }
   after_stale_ = !r.fresh;
   // Still is still: an alarm blocks trade on its own (TRADE_ALARM), it is not motion (14 Nov 2026).
-  stable_ = r.linked && r.fresh && r.now_ms - unchanged_since_ >= TRADE_STABLE_MS;
+  const uint32_t still_ms = r.stable_ms > 0 ? r.stable_ms : TRADE_STABLE_MS;
+  stable_ = r.linked && r.fresh && r.now_ms - unchanged_since_ >= still_ms;
   if (r.linked && r.fresh && r.value <= 0) seen_empty_ = true;
 
   TradeCheck check;
@@ -55,8 +59,11 @@ TradeCheck TradeEngine::update(const TradeReading &r, bool queue_full, TradeWeig
   else check = TRADE_OK;
 
   // A new trade weight once per load: the stable weight differs from the last one, or the scale was emptied.
-  bool new_load = !last_.valid || seen_empty_ || r.value != last_.value || r.decimals != last_.decimals ||
-                  r.unit != last_.unit;
+  const int64_t from_last = (int64_t)r.value - (int64_t)last_.value;
+  // Inside one still run (the reading stayed within the range) the load is the one already issued.
+  bool new_load = !last_.valid || seen_empty_ ||
+                  (!issued_this_run_ && (from_last > range || from_last < -range)) ||
+                  r.decimals != last_.decimals || r.unit != last_.unit;
   if (check == TRADE_OK && new_load && queue_full) check = TRADE_QUEUE_FULL;
 
   if (check == TRADE_OK && new_load) {
@@ -69,6 +76,7 @@ TradeCheck TradeEngine::update(const TradeReading &r, bool queue_full, TradeWeig
     w.at = r.now_unix;
     last_ = w;
     seen_empty_ = false;
+    issued_this_run_ = true;
     if (issued) *issued = w;
   } else if (issued) {
     *issued = TradeWeight();

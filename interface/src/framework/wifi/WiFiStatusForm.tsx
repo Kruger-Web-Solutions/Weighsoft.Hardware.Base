@@ -154,7 +154,12 @@ const WiFiStatusForm: FC = () => {
                 </ListItemAvatar>
                 <ListItemText
                   primary="Signal Strength (RSSI)"
-                  secondary={`${data.rssi} dBm${data.rssi >= -50 ? ' — Excellent' : data.rssi >= -67 ? ' — Good' : data.rssi >= -80 ? ' — Fair' : ' — Weak'}`}
+                  secondary={
+                    `${data.rssi} dBm` +
+                    (data.rssi >= -50 ? ' — Excellent'
+                      : data.rssi >= -67 ? ' — Good'
+                        : data.rssi >= -80 ? ' — Fair' : ' — Weak')
+                  }
                 />
               </ListItem>
               <Divider variant="inset" component="li" />

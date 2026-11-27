@@ -54,3 +54,6 @@ struct WsoftDjbResult {
 };
 
 bool wsoft_screen_djb(const WsoftDjbPlan *plan, WsoftDjbResult *out, uint32_t timeout_ms);
+
+// Any task: read the card's format again at the next poll (after the board's own format changed).
+void wsoft_screen_reread_format();

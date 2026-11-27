@@ -18,9 +18,9 @@ W-Soft runs on three PlatformIO envs. Every other env in `platformio.ini` is a d
 
 | Env | Board | Scale input |
 |---|---|---|
-| `wsoft_waveshare43` | Waveshare ESP32-S3 4.3 inch touch | RS485 junction box only |
-| `wsoft_cyd28` | Yellow board (CYD 2.8 inch) | RS485 junction box or RS232 scale |
-| `wsoft_s3_headless` | ESP32-S3 dev board, no screen | RS485 junction box or RS232 scale |
+| `wsoft_waveshare43` | Waveshare ESP32-S3 4.3 inch touch | RS485 junction box on the RS485 plug (GPIO15/16), or an RS232 scale on the Sensor plug (GPIO6, receive only, through a MAX3232), or an HX711 load cell (DT Sensor plug GPIO6, SCK I2C plug SCL GPIO9; touch off while the load cell is picked) (23 Nov 2026). One source at a time, picked in Settings. No relays (no free pin) |
+| `wsoft_cyd28` | Yellow board (CYD 2.8 inch) | RS485 junction box, RS232 scale or load cell (HX711 on CN1) |
+| `wsoft_s3_headless` | ESP32-S3 dev board, no screen | RS485 junction box, RS232 scale or load cell (HX711 DT GPIO1, SCK GPIO2) |
 
 Any of them can also be a **Writer** (it shows a weigh board's weight and never saves).
 
@@ -361,6 +361,28 @@ typed. After 30 s with no tap the screen goes back to the live weight. Taps log
 | `tare_enabled`, `tare_max_kg`, `preset_tare_kg` | `tare_max <= max`, `preset <= tare_max` |
 
 - e = the card's division in its decimals and unit (register 41307, read by the poll).
+- **DJB-W1X (no display, Rhyno 23 Nov 2026):** it has no unit, decimal or division registers and
+  reads 0 for all of them (writes are echoed but not kept). A division of 0 (an M1X keeps 1 to 500)
+  marks a card with no format: the board then keeps decimals (0 to 4), e (in card steps 1, 2, 5 ...
+  500) and unit itself in NVS `scale` keys `fdec`, `fdiv`, `funit`, sent as A5
+  `"format":{"decimal":2,"division":1,"unit":1}` (refused with Approval ON; a change adds 1 to
+  `setup_audit`). A4 says `format_on_board: true` and `card` then holds those values. USB log:
+  `SETUP format kept on the board dec= step= unit=`.
+- **Stable, auto zero and filters (Rhyno, 23 Nov 2026).** A5 takes an optional
+  `"tuning":{"stable_range":2,"stable_time":5,"zero_track_range":1,"zero_track_time":10}` (ranges
+  in digits of the last place, times in tenths of a second; NVS `scale` keys `srng`, `stim`, `ztr`,
+  `ztt`). The board always judges stable itself with them (range 0 and time 0 = the old rule: no
+  movement, `stable_samples` readings). Auto zero runs on the board only for a card with no format
+  registers (W1X): while stable and within the range of zero for the time, the zero follows, never
+  more than 20 x the range from the set zero. An M1X does its own: the page writes the M1X
+  registers 41303..41315 instead (`/rest/djb`), and Filter 1 / Filter 2 (41321 / 41323, protocol
+  V2.0) on both cards. Each write is read back; the page's check table shows the card's answer.
+  The time scaling of the M1X registers (tenths) is read from the manual's 0.1 to 9.9 s range,
+  not bench-proven.
+- **ZERO on RS485 (main screen).** Takes the card's weight now as the board's zero (NVS `scale`
+  keys `zset`, `zraw`, `zdec`, `zunit`). Refused with Approval ON, a tare on, no signal or not
+  steady (the same words as the load cell). Nothing is written to the card; Calibrate's Zero is
+  still the card's own zero calibration. A4 shows `zero` and `zero_on_board`.
 - Codes: `SETUP_LOCKED` (approval ON or RS232), `SETUP_ORDER`, `SETUP_NUMBER`, `SETUP_TEXT`,
   `SETUP_RANGE`, `REASON_REQUIRED`, `REASON_TOO_LONG`, `BUSY` (the setup lock was not free
   within 0.5 s).

@@ -23,7 +23,7 @@ const SerialRest: FC = () => {
         This view polls the REST API every 2 seconds to fetch the last received line.
         For real-time streaming, use the WebSocket view.
       </Typography>
-      
+
       {!data ? (
         <FormLoader onRetry={loadData} errorMessage={errorMessage} />
       ) : (

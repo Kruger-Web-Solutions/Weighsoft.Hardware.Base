@@ -141,7 +141,8 @@ const WriterSettings: FC = () => {
         } else {
           setTestMessage({
             severity: 'warning',
-            text: tested.last_error || `Saved, but this Writer is still waiting for the ${source}. Check it is on, on the same Wi-Fi, and the address.`,
+            text: tested.last_error ||
+              `Saved, but this Writer is still waiting for the ${source}. Check it is on, on the same Wi-Fi, and the address.`,
           });
         }
       } else {
@@ -317,7 +318,11 @@ const WriterSettings: FC = () => {
               onChange={(e) => setField('output_port')(Number(e.target.value) as 0 | 1)}
             >
               <FormControlLabel value="0" control={<Radio />} label="GPIO pins (Serial1 TX/RX)" />
-              <FormControlLabel value="1" control={<Radio />} label={<><UsbIcon fontSize="small" sx={{ mr: 0.5, verticalAlign: 'middle' }} />USB Serial</>} />
+              <FormControlLabel
+                value="1"
+                control={<Radio />}
+                label={<><UsbIcon fontSize="small" sx={{ mr: 0.5, verticalAlign: 'middle' }} />USB Serial</>}
+              />
             </RadioGroup>
           </FormControl>
           )}
@@ -389,7 +394,10 @@ const WriterSettings: FC = () => {
             }}
             disabled={saving}
             inputProps={{ min: 0, max: 60000, step: 100 }}
-            helperText="Throttle how often data is written to the serial output. 0 = transmit every received line. e.g. 1000 = at most one frame per second (latest data wins)."
+            helperText={
+              'Throttle how often data is written to the serial output. 0 = transmit every received line. ' +
+              'e.g. 1000 = at most one frame per second (latest data wins).'
+            }
           />
 
           <ButtonRow mt={2}>

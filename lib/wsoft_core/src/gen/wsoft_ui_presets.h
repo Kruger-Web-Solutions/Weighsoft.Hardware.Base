@@ -1618,7 +1618,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       m->tiles[5].id = WSOFT_UI_TILE_THEME;
       m->tiles[5].look = 0;
       WSOFT_UI_PRESET_SET(m->tiles[5].caption, "SCREEN");
-      WSOFT_UI_PRESET_SET(m->tiles[5].value, "COLOUR");
+      WSOFT_UI_PRESET_SET(m->tiles[5].value, "MINI EDGE");
       m->tiles[6].id = WSOFT_UI_TILE_WIFI;
       m->tiles[6].look = 0;
       WSOFT_UI_PRESET_SET(m->tiles[6].caption, "WI-FI");
@@ -1681,7 +1681,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       m->tiles[5].id = WSOFT_UI_TILE_THEME;
       m->tiles[5].look = 0;
       WSOFT_UI_PRESET_SET(m->tiles[5].caption, "SCREEN");
-      WSOFT_UI_PRESET_SET(m->tiles[5].value, "COLOUR");
+      WSOFT_UI_PRESET_SET(m->tiles[5].value, "MINI EDGE");
       m->tiles[6].id = WSOFT_UI_TILE_WIFI;
       m->tiles[6].look = 0;
       WSOFT_UI_PRESET_SET(m->tiles[6].caption, "WI-FI");
@@ -1735,7 +1735,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       m->tiles[3].id = WSOFT_UI_TILE_THEME;
       m->tiles[3].look = 0;
       WSOFT_UI_PRESET_SET(m->tiles[3].caption, "SCREEN");
-      WSOFT_UI_PRESET_SET(m->tiles[3].value, "COLOUR");
+      WSOFT_UI_PRESET_SET(m->tiles[3].value, "MINI EDGE");
       m->tiles[4].id = WSOFT_UI_TILE_WIFI;
       m->tiles[4].look = 0;
       WSOFT_UI_PRESET_SET(m->tiles[4].caption, "WI-FI");
@@ -1791,7 +1791,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       m->tiles[3].id = WSOFT_UI_TILE_THEME;
       m->tiles[3].look = 0;
       WSOFT_UI_PRESET_SET(m->tiles[3].caption, "SCREEN");
-      WSOFT_UI_PRESET_SET(m->tiles[3].value, "COLOUR");
+      WSOFT_UI_PRESET_SET(m->tiles[3].value, "MINI EDGE");
       m->tiles[4].id = WSOFT_UI_TILE_WIFI;
       m->tiles[4].look = 0;
       WSOFT_UI_PRESET_SET(m->tiles[4].caption, "WI-FI");
@@ -1846,7 +1846,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       m->tiles[3].id = WSOFT_UI_TILE_THEME;
       m->tiles[3].look = 0;
       WSOFT_UI_PRESET_SET(m->tiles[3].caption, "SCREEN");
-      WSOFT_UI_PRESET_SET(m->tiles[3].value, "COLOUR");
+      WSOFT_UI_PRESET_SET(m->tiles[3].value, "MINI EDGE");
       m->tiles[4].id = WSOFT_UI_TILE_WIFI;
       m->tiles[4].look = 0;
       WSOFT_UI_PRESET_SET(m->tiles[4].caption, "WI-FI");
@@ -1899,7 +1899,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       m->tiles[3].id = WSOFT_UI_TILE_THEME;
       m->tiles[3].look = 0;
       WSOFT_UI_PRESET_SET(m->tiles[3].caption, "SCREEN");
-      WSOFT_UI_PRESET_SET(m->tiles[3].value, "COLOUR");
+      WSOFT_UI_PRESET_SET(m->tiles[3].value, "MINI EDGE");
       m->tiles[4].id = WSOFT_UI_TILE_WIFI;
       m->tiles[4].look = 0;
       WSOFT_UI_PRESET_SET(m->tiles[4].caption, "WI-FI");
@@ -1949,7 +1949,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       m->tiles[3].id = WSOFT_UI_TILE_THEME;
       m->tiles[3].look = 0;
       WSOFT_UI_PRESET_SET(m->tiles[3].caption, "SCREEN");
-      WSOFT_UI_PRESET_SET(m->tiles[3].value, "COLOUR");
+      WSOFT_UI_PRESET_SET(m->tiles[3].value, "MINI EDGE");
       m->tiles[4].id = WSOFT_UI_TILE_WIFI;
       m->tiles[4].look = 0;
       WSOFT_UI_PRESET_SET(m->tiles[4].caption, "WI-FI");
@@ -2016,7 +2016,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       m->tiles[5].id = WSOFT_UI_TILE_THEME;
       m->tiles[5].look = 0;
       WSOFT_UI_PRESET_SET(m->tiles[5].caption, "SCREEN");
-      WSOFT_UI_PRESET_SET(m->tiles[5].value, "COLOUR");
+      WSOFT_UI_PRESET_SET(m->tiles[5].value, "MINI EDGE");
       m->tiles[6].id = WSOFT_UI_TILE_WIFI;
       m->tiles[6].look = 0;
       WSOFT_UI_PRESET_SET(m->tiles[6].caption, "WI-FI");
@@ -2070,7 +2070,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       m->tiles[3].id = WSOFT_UI_TILE_THEME;
       m->tiles[3].look = 0;
       WSOFT_UI_PRESET_SET(m->tiles[3].caption, "SCREEN");
-      WSOFT_UI_PRESET_SET(m->tiles[3].value, "COLOUR");
+      WSOFT_UI_PRESET_SET(m->tiles[3].value, "MINI EDGE");
       m->tiles[4].id = WSOFT_UI_TILE_WIFI;
       m->tiles[4].look = 0;
       WSOFT_UI_PRESET_SET(m->tiles[4].caption, "WI-FI");
@@ -2126,7 +2126,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       m->tiles[3].id = WSOFT_UI_TILE_THEME;
       m->tiles[3].look = 0;
       WSOFT_UI_PRESET_SET(m->tiles[3].caption, "SCREEN");
-      WSOFT_UI_PRESET_SET(m->tiles[3].value, "COLOUR");
+      WSOFT_UI_PRESET_SET(m->tiles[3].value, "MINI EDGE");
       m->tiles[4].id = WSOFT_UI_TILE_WIFI;
       m->tiles[4].look = 0;
       WSOFT_UI_PRESET_SET(m->tiles[4].caption, "WI-FI");
@@ -2691,7 +2691,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       m->tiles[3].id = WSOFT_UI_TILE_THEME;
       m->tiles[3].look = 0;
       WSOFT_UI_PRESET_SET(m->tiles[3].caption, "SCREEN");
-      WSOFT_UI_PRESET_SET(m->tiles[3].value, "COLOUR");
+      WSOFT_UI_PRESET_SET(m->tiles[3].value, "MINI EDGE");
       m->tiles[4].id = WSOFT_UI_TILE_WIFI;
       m->tiles[4].look = 0;
       WSOFT_UI_PRESET_SET(m->tiles[4].caption, "WI-FI");
@@ -3011,7 +3011,7 @@ inline bool wsoft_ui_preset(int n, WsoftUiModel *m) {
       m->tiles[3].id = WSOFT_UI_TILE_THEME;
       m->tiles[3].look = 0;
       WSOFT_UI_PRESET_SET(m->tiles[3].caption, "SCREEN");
-      WSOFT_UI_PRESET_SET(m->tiles[3].value, "COLOUR");
+      WSOFT_UI_PRESET_SET(m->tiles[3].value, "MINI EDGE");
       m->tiles[4].id = WSOFT_UI_TILE_WIFI;
       m->tiles[4].look = 0;
       WSOFT_UI_PRESET_SET(m->tiles[4].caption, "WI-FI");

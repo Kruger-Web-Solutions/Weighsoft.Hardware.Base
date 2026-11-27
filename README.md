@@ -13,6 +13,8 @@ A professional hardware interface framework for weighbridge and IoT projects bui
 
 Designed to work with the PlatformIO IDE with [limited setup](#getting-started). Please read below for setup, build and upload instructions.
 
+> **Project status (2026-09-24):** see [ROADMAP.md](ROADMAP.md). `master` holds the shared framework and the LED demo only. Device work lives on the `RelayBoardEspBuildIn` and `SerialReaderWriter` branches, which are not merged into `master`.
+
 ## Table of Contents
 
 - [Features](#features)
@@ -88,8 +90,8 @@ All features are [configurable at compile-time](#selecting-features) to optimize
 
 ```bash
 # Clone repository
-git clone https://github.com/your-org/weighsoft-hardware-ui.git
-cd weighsoft-hardware-ui
+git clone https://github.com/Kruger-Web-Solutions/Weighsoft.Hardware.Base.git
+cd Weighsoft.Hardware.Base
 
 # Install PlatformIO (if not installed)
 pip install platformio
@@ -105,12 +107,15 @@ For detailed instructions, see the sections below.
 
 ### Repository Workflow
 
-`master` is the shared framework baseline. Integration implementations live on dedicated long-lived branches:
+`master` holds the shared framework and, from 22 Nov 2026, the W-Soft line. Other integrations still live on dedicated long-lived branches. The full list is [docs/BRANCH-MAP.md](docs/BRANCH-MAP.md). The ones the older docs point at:
 
-- `serial2`
-- `display`
-- `weighingboard`
-- `display35`
+- `wsoft-esp32s3` - W-Soft device branch. The same line is on `master` after 22 Nov 2026.
+- `RelayBoardEspBuildIn` - ESP8266 relay board (4 relays, 2 inputs) and Live Weight operator screens. Last commit 2026-08-10.
+- `SerialReaderWriter` - serial Reader / Writer / Diagnostics firmware, plus the TFT screen (including the 3.5 inch `esp32dev_tft` board), the 16x2 character LCD (`lcddisplay`) and remote-weight options. Last commit 2026-07-16.
+- `weighingboard` - load-cell weighing board. Last commit 2026-04-29.
+- `display` - the original 16x2 LCD code, before it was ported to `SerialReaderWriter` as `lcddisplay`. Last commit 2026-04-29.
+
+There is no `serial2` or `display35` branch. Older lines (`serial`, `serialReader`, `serialWriter`, `espReadWriteRHYNO`) still exist; the branch map and [ROADMAP.md](ROADMAP.md) say what each one holds.
 
 When you need to extend one of these integrations, branch from the matching integration branch and do the implementation on a separate task branch. Do not implement directly on `master` or directly on the long-lived integration branch.
 
@@ -187,7 +192,14 @@ By default, the project is configured to serve the interface from PROGMEM.
 
 The interface will consume ~150k of program space which can be problematic if you already have a large binary artefact or if you have added large dependencies to the interface. The ESP32 binaries are fairly large in there simplest form so the addition of the interface resources requires us to use special partitioning for the ESP32.
 
-When building for ESP32 (e.g. **node32s** or **esp32s3**), the project uses custom partition schemes (e.g. `partitions_ble.csv`, `partitions_ble_ota.csv`). See [Configuration](docs/CONFIGURATION.md) for partition options and OTA limitations when BLE is enabled on 4MB flash.
+When building using the "node32s" profile, the project uses the custom [partitions_ble.csv](partitions_ble.csv) layout: one 3.25MB app slot and a 640KB filesystem, with **no OTA slot** (so node32s firmware cannot be updated over the air). Other ESP32 environments use that same single-app layout, or `partitions_ble_ota.csv` where the board has room for two app slots (for example `esp32s3`). See [Configuration](docs/CONFIGURATION.md).
+
+```ini
+[env:node32s]
+board_build.partitions = partitions_ble.csv
+platform = espressif32@6.13.0
+board = node32s
+```
 
 #### Serving the interface from the filesystem
 
@@ -343,16 +355,26 @@ Pre-configured environments in ['platformio.ini'](platformio.ini):
 
 | Environment | Board | Flash | Notes |
 |-------------|-------|-------|-------|
-| **esp32s3** (default) | ESP32-S3 DevKitC-1 | 8MB | BLE + OTA, native USB |
-| node32s | Node32s (ESP32) | 4MB | BLE; OTA not available with BLE (see [CONFIGURATION](docs/CONFIGURATION.md)) |
-| esp32dev | Generic ESP32 | 4MB | Development/troubleshooting |
+| **nodemcu_esp32** (default) | Ai-Thinker NodeMCU-32 (`board = node32s`) | 4MB | Bench ESP32. Platform pinned to `espressif32@6.13.0`. Single-app `partitions_ble.csv` (no OTA). |
+| node32s | Node32s (ESP32) | 4MB | CI env. Same pin and partition. BLE on. No OTA slot (see [CONFIGURATION](docs/CONFIGURATION.md)). |
+| esp32s3 | ESP32-S3 DevKitC-1 N16R8 | 16MB | All-in-one serial line. `partitions_ble_ota.csv`. |
+| esp32dev | Generic ESP32 | 4MB | Troubleshooting. Single-app layout so the large firmware fits. |
 | esp12e | ESP8266 | 4MB | ESP8266 variant |
 
-Select an environment by setting `default_envs` in the `[platformio]` section, for example:
+W-Soft boards are `wsoft_s3_headless`, `wsoft_cyd28` and `wsoft_waveshare43` in the same file. The shared ESP32 platform is pinned to `espressif32@6.13.0` (Arduino core 2.0.17, PR #57). An unpinned `espressif32` moved to 8.0.0 in November 2026 and `node32s` stopped compiling.
+
+```ini
+[env:node32s]
+platform = espressif32@6.13.0
+board = node32s
+board_build.partitions = partitions_ble.csv
+```
+
+Select an environment with `default_envs`:
 
 ```ini
 [platformio]
-default_envs = esp32s3
+default_envs = nodemcu_esp32
 ```
 
 ## Customizing and theming
@@ -769,6 +791,7 @@ esp8266React.getWiFiSettingsService()->addUpdateHandler(
 - Ensure PlatformIO is up to date: `pio upgrade`
 - Clean build: `pio run -t clean`
 - Check [platformio.ini](platformio.ini) for correct board configuration
+- ESP32 build stops with `No module named 'intelhex'`: newer ESP32 platform versions need this Python package. Install it into the Python that runs PlatformIO: `pip install intelhex` (PlatformIO IDE: `~/.platformio/penv/bin/python -m pip install intelhex`; on Windows `%USERPROFILE%\.platformio\penv\Scripts\python.exe -m pip install intelhex`)
 
 **Upload Errors:**
 
@@ -783,7 +806,7 @@ esp8266React.getWiFiSettingsService()->addUpdateHandler(
 - Check WiFi credentials in [factory_settings.ini](factory_settings.ini)
 - Verify 2.4GHz network (5GHz not supported)
 
-For more help, see [documentation](docs/) or [open an issue](https://github.com/your-org/weighsoft-hardware-ui/issues).
+For more help, see [documentation](docs/) or [open an issue](https://github.com/Kruger-Web-Solutions/Weighsoft.Hardware.Base/issues).
 
 ## Contributing
 
@@ -791,7 +814,7 @@ We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.
 
 ### Development Workflow
 
-1. Start from `master` for shared work, or from `serial2`, `display`, `weighingboard`, or `display35` for integration-specific work
+1. Start from `master` for shared work, or from `RelayBoardEspBuildIn`, `SerialReaderWriter`, `weighingboard`, or `display` for integration-specific work
 2. Create a separate task branch from that base branch
 3. Do not implement directly on `master` or the long-lived integration branch
 4. Commit your changes following the repo conventions
