@@ -232,7 +232,7 @@ static bool gx_touch(int *sx, int *sy) {
 #define WSOFT_TOUCH_FLIP_X 0
 #endif
 #ifndef WSOFT_TOUCH_FLIP_Y
-#define WSOFT_TOUCH_FLIP_Y 0
+#define WSOFT_TOUCH_FLIP_Y 1  // bench 27 Nov: top-left tap read as bottom-left without it
 #endif
 
 static const int PANEL_W = 480, PANEL_H = 320;
@@ -359,7 +359,8 @@ static bool touch_probe(int sda, int scl) {
     if (i2c_present(0x38)) touch_addr = 0x38, touch_gt911 = false;
     else if (i2c_present(0x5D)) touch_addr = 0x5D, touch_gt911 = true;
     else if (i2c_present(0x14)) touch_addr = 0x14, touch_gt911 = true;
-    else if (sda == WSOFT_CTP_SDA) touch_addr = i2c_first(), touch_gt911 = false, touch_unknown = true;
+    else if (sda == WSOFT_CTP_SDA) touch_addr = i2c_first(), touch_gt911 = false;
+    touch_unknown = touch_addr != 0 && !touch_gt911 && touch_addr != 0x38;
     if (touch_addr) {
       touch_sda = sda;
       touch_scl = scl;
