@@ -22,6 +22,7 @@ void wsoft_settings_defaults(WSoftSettingsData *s) {
   s->alarm_test_save = false;
   s->esp_led = true;
   s->relay_light = false;
+  wsoft_pack_set_defaults(&s->pack_set);
 }
 
 const char *wsoft_source_text(WSoftSource source) {
@@ -116,6 +117,22 @@ WSoftSettingsResult wsoft_settings_update(const WSoftSettingsInput &in, WSoftSet
   if (in.has_relay_ok && !relay_number(in.relay_ok, &next.relay_ok)) return WSOFT_SETTINGS_ERROR;
   if (in.has_relay_high && !relay_number(in.relay_high, &next.relay_high)) return WSOFT_SETTINGS_ERROR;
   if (!wsoft_relay_map_valid(next.relay_low, next.relay_ok, next.relay_high)) return WSOFT_SETTINGS_ERROR;
+  if (in.has_pack_set_enabled) next.pack_set.enabled = in.pack_set_enabled;
+  if (in.has_pack_set_tolerance_g) {
+    if (in.pack_set_tolerance_g < 0 || in.pack_set_tolerance_g > WSOFT_PACK_SET_GRAMS_MAX) return WSOFT_SETTINGS_ERROR;
+    next.pack_set.tolerance_g = (int32_t)in.pack_set_tolerance_g;
+  }
+  if (in.has_pack_set_targets_g) {
+    if (in.pack_set_count > WSOFT_PACK_SET_MAX) return WSOFT_SETTINGS_ERROR;
+    next.pack_set.count = in.pack_set_count;
+    for (uint8_t i = 0; i < in.pack_set_count; i++) {
+      if (in.pack_set_targets_g[i] <= 0 || in.pack_set_targets_g[i] > WSOFT_PACK_SET_GRAMS_MAX) {
+        return WSOFT_SETTINGS_ERROR;
+      }
+      next.pack_set.targets_g[i] = (int32_t)in.pack_set_targets_g[i];
+    }
+  }
+  if (!wsoft_pack_set_valid(next.pack_set)) return WSOFT_SETTINGS_ERROR;
 
   bool changed = next.publish_interval_ms != s->publish_interval_ms || next.mqtt_enabled != s->mqtt_enabled ||
                  strcmp(next.mqtt_base_path, s->mqtt_base_path) != 0 || strcmp(next.mqtt_name, s->mqtt_name) != 0 ||
@@ -123,7 +140,8 @@ WSoftSettingsResult wsoft_settings_update(const WSoftSettingsInput &in, WSoftSet
                  next.relay_enabled != s->relay_enabled || next.relay_low != s->relay_low ||
                  next.relay_ok != s->relay_ok || next.relay_high != s->relay_high ||
                  next.relay_writer_follow != s->relay_writer_follow || next.alarm_test_save != s->alarm_test_save ||
-                 next.esp_led != s->esp_led || next.relay_light != s->relay_light;
+                 next.esp_led != s->esp_led || next.relay_light != s->relay_light ||
+                 !wsoft_pack_set_same(next.pack_set, s->pack_set);
   *s = next;
   return changed ? WSOFT_SETTINGS_CHANGED : WSOFT_SETTINGS_UNCHANGED;
 }

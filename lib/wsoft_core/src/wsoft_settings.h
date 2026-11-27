@@ -11,6 +11,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "wsoft_pack_set.h"
 #include "wsoft_relay.h"
 
 static const uint32_t WSOFT_PUBLISH_MIN_MS = 250;  // the screen polls the DJB every 250 ms
@@ -65,6 +66,9 @@ struct WSoftSettingsData {
   // pins that would switch outputs after an update with nobody asking. A relay board wired
   // to the same pads switches with the light, so the page says so.
   bool relay_light;
+  // Pack-Size Auto-Save (OFF by default). When enabled and no Hi-Lo product is selected,
+  // Auto save only saves settled net weights within tolerance_g of one of targets_g.
+  WsoftPackSet pack_set;
 };
 
 // One field per option. A missing field (has_* false or a null string) takes its default:
@@ -96,6 +100,13 @@ struct WSoftSettingsInput {
   bool esp_led = false;
   bool has_relay_light = false;
   bool relay_light = false;
+  bool has_pack_set_enabled = false;
+  bool pack_set_enabled = false;
+  bool has_pack_set_tolerance_g = false;
+  int64_t pack_set_tolerance_g = 0;
+  bool has_pack_set_targets_g = false;
+  uint8_t pack_set_count = 0;
+  int64_t pack_set_targets_g[WSOFT_PACK_SET_MAX] = {};
 };
 
 enum WSoftSettingsResult { WSOFT_SETTINGS_UNCHANGED, WSOFT_SETTINGS_CHANGED, WSOFT_SETTINGS_ERROR };

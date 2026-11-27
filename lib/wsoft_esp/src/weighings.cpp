@@ -18,6 +18,8 @@ static WsoftHiloStamp hilo_by_seq[TradeQueue::CAPACITY];  // same index; on = fa
 static bool alarm_override_by_seq[TradeQueue::CAPACITY];    // same index; saved through an alarm (test switch)
 // The alarm test switch (WSoftSettingsData.alarm_test_save), set by the settings service.
 static volatile bool alarm_test = false;
+// Pack-Size Auto-Save config (WSoftSettingsData.pack_set), set by the settings service under lock.
+static WsoftPackSet pack_set;
 static uint32_t delivered_seq = 0;
 static bool auto_save = false;
 static uint32_t save_requests = 0;   // bumped by a tap
@@ -272,8 +274,19 @@ WsoftSaveResult weighings_update(bool linked, bool fresh, bool alarm, int32_t va
   scale_stability(&r.stable_range, &r.stable_ms);
   // Hi-Lo is judged on the net weight (gross - tare), in the reading's own decimals and unit.
   // Outside the limits auto save waits and a tap needs a second tap (WSOFT_SAVE_OUT_OF_LIMITS).
+  // When no Hi-Lo product is selected and Pack-Size Auto-Save is enabled, match against pack_set.
   WsoftHiloState state = WSOFT_HILO_NONE;
-  if (product != nullptr && linked) state = wsoft_hilo_check(*product, value - tare_value, decimals, unit);
+  if (product != nullptr && linked) {
+    state = wsoft_hilo_check(*product, value - tare_value, decimals, unit);
+  } else if (product == nullptr && linked && fresh) {
+    WsoftPackSet cfg;
+    portENTER_CRITICAL(&lock);
+    cfg = pack_set;
+    portEXIT_CRITICAL(&lock);
+    if (cfg.enabled) {
+      state = wsoft_pack_set_check(cfg, value - tare_value, decimals, unit);
+    }
+  }
   TradeWeight saved;
   WsoftSaveResult result = saver.update(r, automatic, tapped, full, &saved, hold, state);
   WsoftHiloStamp hilo;
@@ -420,6 +433,28 @@ void weighings_set_alarm_test(bool on) {
 }
 
 bool weighings_alarm_test() { return alarm_test; }
+
+void weighings_set_pack_set(const WsoftPackSet &cfg) {
+  WsoftPackSet next;
+  if (wsoft_pack_set_valid(cfg)) next = cfg;
+  else wsoft_pack_set_defaults(&next);
+  bool changed = false;
+  portENTER_CRITICAL(&lock);
+  changed = !wsoft_pack_set_same(pack_set, next);
+  pack_set = next;
+  portEXIT_CRITICAL(&lock);
+  if (changed) {
+    WSOFT_LOG.printf("WEIGH pack-set auto-save %s (%u targets, +/- %ld g)\n", next.enabled ? "ON" : "off",
+                     (unsigned)next.count, (long)next.tolerance_g);
+  }
+}
+
+void weighings_pack_set(WsoftPackSet *out) {
+  if (out == nullptr) return;
+  portENTER_CRITICAL(&lock);
+  *out = pack_set;
+  portEXIT_CRITICAL(&lock);
+}
 
 void weighings_delivered(uint32_t seq) {
   portENTER_CRITICAL(&lock);
