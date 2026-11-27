@@ -36,6 +36,12 @@ struct WsoftWeighingMeta {
   // Saved through a junction box alarm with the alarm test switch on (wsoft_alarm_test_gate).
   // Adds "alarm_test_override": true to the payload; the payload is unchanged when false.
   bool alarm_test_override;
+  // Optional packer & batch fields (Hub ADR 0011). Left null/empty unless packer-bag tracking
+  // is active; emitted at top level only when non-null and non-empty so existing payloads stay
+  // byte-identical.
+  const char *packer_id;
+  const char *packer_name;
+  const char *bag_batch_id;
 };
 
 // weighing_id = "<device_tag>-<unix time>-<seq>", unique even if the counter is reset.
@@ -84,6 +90,9 @@ enum WsoftSaveResult {
   // The junction box reports a blocking alarm (Rhyno, 14 Nov 2026: it used to say NOT_STABLE,
   // so a dead still load read "WEIGHT IS MOVING"). Nothing saves until the alarm clears.
   WSOFT_SAVE_ALARM,
+  // Packer-bag tracking (Hub ADR 0011, only when require_packer_bags is ON).
+  WSOFT_SAVE_NEED_PACKER,  // no active packer selected on the shared-scale strip
+  WSOFT_SAVE_NO_BAGS,      // selected packer has 0 bags remaining in the open batch
 };
 
 class WsoftWeighingSaver {

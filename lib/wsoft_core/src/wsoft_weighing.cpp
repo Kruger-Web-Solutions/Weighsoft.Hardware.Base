@@ -49,6 +49,9 @@ bool wsoft_weighing_json(const TradeWeight &w, const WsoftWeighingMeta &meta, ch
   if (!w.valid || w.value <= 0 || w.at < TRADE_CLOCK_VALID_AFTER) return false;
   if (!safe_text(meta.device_tag) || !safe_text(meta.source) || !safe_text(meta.station_model)) return false;
   if (meta.device_tag[0] == 0) return false;
+  if (meta.packer_id != nullptr && meta.packer_id[0] != 0 && !safe_text(meta.packer_id)) return false;
+  if (meta.packer_name != nullptr && meta.packer_name[0] != 0 && !safe_text(meta.packer_name)) return false;
+  if (meta.bag_batch_id != nullptr && meta.bag_batch_id[0] != 0 && !safe_text(meta.bag_batch_id)) return false;
 
   char kg[24], tare[24], net[24];
   if (!wsoft_weight_kg_text(w.value, w.decimals, w.unit, kg, sizeof kg)) return false;
@@ -66,6 +69,24 @@ bool wsoft_weighing_json(const TradeWeight &w, const WsoftWeighingMeta &meta, ch
   char hilo[400] = "";
   if (meta.hilo != nullptr && meta.hilo->on && !wsoft_hilo_json(*meta.hilo, net, hilo, sizeof hilo)) return false;
 
+  char packer[320] = "";
+  size_t pused = 0;
+  if (meta.packer_id != nullptr && meta.packer_id[0] != 0) {
+    int pn = snprintf(packer + pused, sizeof packer - pused, ",\"packer_id\":\"%s\"", meta.packer_id);
+    if (pn < 0 || (size_t)pn >= sizeof packer - pused) return false;
+    pused += (size_t)pn;
+  }
+  if (meta.packer_name != nullptr && meta.packer_name[0] != 0) {
+    int pn = snprintf(packer + pused, sizeof packer - pused, ",\"packer_name\":\"%s\"", meta.packer_name);
+    if (pn < 0 || (size_t)pn >= sizeof packer - pused) return false;
+    pused += (size_t)pn;
+  }
+  if (meta.bag_batch_id != nullptr && meta.bag_batch_id[0] != 0) {
+    int pn = snprintf(packer + pused, sizeof packer - pused, ",\"bag_batch_id\":\"%s\"", meta.bag_batch_id);
+    if (pn < 0 || (size_t)pn >= sizeof packer - pused) return false;
+    pused += (size_t)pn;
+  }
+
   char when[32];
   time_t seconds = (time_t)w.at;
   struct tm utc;
@@ -76,11 +97,11 @@ bool wsoft_weighing_json(const TradeWeight &w, const WsoftWeighingMeta &meta, ch
                    "{\"weighing_id\":\"%s-%lld-%lu\",\"committed_at\":\"%s\","
                    "\"gross_kg\":%s,\"tare_kg\":%s,\"net_kg\":%s,\"basis\":\"%s\","
                    "\"payload\":{\"seq\":%lu,\"reading\":\"%s\",\"unit\":\"%s\",\"source\":\"%s\","
-                   "\"station_model\":\"%s\",\"for_trade\":%s%s}%s}",
+                   "\"station_model\":\"%s\",\"for_trade\":%s%s}%s%s}",
                    meta.device_tag, (long long)w.at, (unsigned long)w.seq, when, kg, tare, net, meta.tared ? "NT" : "GS",
                    (unsigned long)w.seq, reading,
                    weight_unit_text(w.unit), meta.source, meta.station_model, meta.for_trade ? "true" : "false",
-                   meta.alarm_test_override ? ",\"alarm_test_override\":true" : "", hilo);
+                   meta.alarm_test_override ? ",\"alarm_test_override\":true" : "", hilo, packer);
   return n > 0 && (size_t)n < size;
 }
 
@@ -125,7 +146,13 @@ WsoftSaveResult WsoftWeighingSaver::update(const TradeReading &r, bool auto_save
   else if (r.value <= 0) blocked = WSOFT_SAVE_EMPTY;
   else if (r.now_unix < TRADE_CLOCK_VALID_AFTER) blocked = WSOFT_SAVE_NO_CLOCK;
   if (hold == WSOFT_SAVE_BLANK && blocked != WSOFT_SAVE_NO_SIGNAL) blocked = hold;
-  else if (hold != WSOFT_SAVE_NONE && blocked == WSOFT_SAVE_NONE) blocked = hold;
+  else if ((hold == WSOFT_SAVE_NEED_PACKER || hold == WSOFT_SAVE_NO_BAGS) &&
+           blocked != WSOFT_SAVE_NO_SIGNAL && blocked != WSOFT_SAVE_BLANK &&
+           blocked != WSOFT_SAVE_ALARM && blocked != WSOFT_SAVE_NO_CLOCK) {
+    blocked = hold;
+  } else if (hold != WSOFT_SAVE_NONE && blocked == WSOFT_SAVE_NONE) {
+    blocked = hold;
+  }
 
   // A new load only after the scale showed 0: a changed weight alone is not a new load.
   bool new_load = seen_empty_;
@@ -147,6 +174,7 @@ WsoftSaveResult WsoftWeighingSaver::update(const TradeReading &r, bool auto_save
   if (blocked == WSOFT_SAVE_NO_SIGNAL || blocked == WSOFT_SAVE_BLANK || blocked == WSOFT_SAVE_ALARM) waiting_ = blocked;
   else if (r.now_unix < TRADE_CLOCK_VALID_AFTER) waiting_ = WSOFT_SAVE_NO_CLOCK;
   else if (loaded && !new_load) waiting_ = same_as_saved ? WSOFT_SAVE_ALREADY : WSOFT_SAVE_NEED_ZERO;
+  else if (hold == WSOFT_SAVE_NEED_PACKER || hold == WSOFT_SAVE_NO_BAGS) waiting_ = hold;
   else if (!loaded) waiting_ = WSOFT_SAVE_NONE;
   else if (queue_full) waiting_ = WSOFT_SAVE_FULL;
   else if (blocked == WSOFT_SAVE_BELOW_MIN) waiting_ = blocked;
@@ -215,6 +243,8 @@ const char *wsoft_save_result_text(WsoftSaveResult result) {
     case WSOFT_SAVE_OUT_OF_LIMITS: return "Tap again: save";
     case WSOFT_SAVE_WRITER: return "Writer: no save";
     case WSOFT_SAVE_ALARM: return "Scale alarm";
+    case WSOFT_SAVE_NEED_PACKER: return "Tap packer name";
+    case WSOFT_SAVE_NO_BAGS: return "No bags left";
   }
   return "";
 }
@@ -290,6 +320,18 @@ bool wsoft_save_notice(WsoftSaveResult result, WsoftSaveNotice *out) {
       n.code = "ALARM";
       n.title = "SCALE ALARM";
       n.detail = "The junction box shows an alarm";
+      n.level = WSOFT_NOTICE_STOP;
+      break;
+    case WSOFT_SAVE_NEED_PACKER:
+      n.code = "NEED_PACKER";
+      n.title = "TAP PACKER NAME";
+      n.detail = "Select who is packing";
+      n.level = WSOFT_NOTICE_STOP;
+      break;
+    case WSOFT_SAVE_NO_BAGS:
+      n.code = "NO_BAGS";
+      n.title = "NO BAGS LEFT";
+      n.detail = "Call Floor Manager";
       n.level = WSOFT_NOTICE_STOP;
       break;
   }

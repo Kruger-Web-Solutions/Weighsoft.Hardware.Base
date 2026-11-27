@@ -6,12 +6,14 @@
 #include "hilo.h"
 #include "loadcell.h"
 #include "hub_web.h"
+#include "packers.h"
 #include "switches.h"
 #include "weighings.h"
 #include "wifi_update.h"
 
 #include <wsoft_hub_commands.h>
 #include <wsoft_hub_screen.h>
+#include <wsoft_packers.h>
 #include <wsoft_ui_model.h>
 #endif
 #ifndef WSOFT_ON_BASE
@@ -372,20 +374,30 @@ static int post_signed(const char *path, const String &body, String *reply) {
 static void send_weighings() {
   String tag = WiFi.macAddress();
   tag.replace(":", "");
-  WsoftWeighingMeta meta = {tag.c_str(), weighings_source(), STATION_MODEL, false, false, 0, nullptr};
+  WsoftWeighingMeta meta = {tag.c_str(), weighings_source(), STATION_MODEL, false, false, 0, nullptr, false, nullptr,
+                            nullptr, nullptr};
   for (int i = 0; i < WEIGHINGS_PER_HEARTBEAT; i++) {
     TradeWeight w;
     bool for_trade = false;
     int32_t tare_value = 0;
     WsoftHiloStamp hilo;
     bool alarm_override = false;
-    if (!weighings_oldest(&w, &for_trade, &tare_value, &hilo, &alarm_override)) return;
+    char packer_code[WSOFT_PACKER_CODE_MAX + 1] = "";
+    char packer_name[WSOFT_PACKER_NAME_MAX + 1] = "";
+    char bag_batch_id[WSOFT_PACKER_BATCH_ID_MAX + 1] = "";
+    if (!weighings_oldest(&w, &for_trade, &tare_value, &hilo, &alarm_override, packer_code, sizeof packer_code,
+                          packer_name, sizeof packer_name, bag_batch_id, sizeof bag_batch_id)) {
+      return;
+    }
     meta.alarm_test_override = alarm_override;
     meta.for_trade = for_trade;
     meta.tared = tare_value > 0;
     meta.tare_value = tare_value;
     meta.hilo = &hilo;
-    char body[900];
+    meta.packer_id = packer_code[0] ? packer_code : nullptr;
+    meta.packer_name = packer_name[0] ? packer_name : nullptr;
+    meta.bag_batch_id = bag_batch_id[0] ? bag_batch_id : nullptr;
+    char body[1024];
     if (!wsoft_weighing_json(w, meta, body, sizeof body)) {
       WSOFT_LOG.printf("WEIGH seq=%lu cannot be sent (weight or time out of range): dropped\n", (unsigned long)w.seq);
       weighings_delivered(w.seq);
@@ -554,6 +566,46 @@ static void pull_hilo() {
     return;
   }
   hilo_take(list);
+}
+
+// ---------- Packers & bag ledger sync (Hardware.Base, Hub ADR 0011, Sprint 2) ----------
+static void pull_packers() {
+  static char request[WSOFT_PACKERS_REQUEST_MAX];
+  if (!packers_request(request, sizeof request)) {
+    packers_failed();
+    return;
+  }
+  String reply;
+  if (!pull_signed("/api/v1/ingest/packers", request, WSOFT_HUB_PACKERS_PREFIX, "packers", &reply)) {
+    packers_failed();
+    return;
+  }
+  static WsoftPackerRoster roster;  // static: too big for the Hub task's stack
+  if (!wsoft_packers_parse(reply.c_str(), reply.length(), &roster)) {
+    WSOFT_LOG.println("HUB packers bad body");
+    packers_failed();
+    return;
+  }
+  packers_take(roster);
+}
+
+static void push_bag_events() {
+  static char request[WSOFT_BAG_EVENTS_REQUEST_MAX];
+  size_t count = 0;
+  if (!packers_bag_events_request(request, sizeof request, &count) || count == 0) return;
+  String reply;
+  if (!pull_signed("/api/v1/ingest/bag-events", request, WSOFT_HUB_BAG_EVENTS_PREFIX, "bag-events", &reply)) {
+    packers_bag_events_failed();
+    return;
+  }
+  static WsoftBagEventResult results[WSOFT_BAG_OUTBOX_MAX];
+  size_t result_count = 0;
+  if (!wsoft_bag_events_parse(reply.c_str(), reply.length(), results, WSOFT_BAG_OUTBOX_MAX, &result_count)) {
+    WSOFT_LOG.println("HUB bag-events bad body");
+    packers_bag_events_failed();
+    return;
+  }
+  packers_bag_events_take(results, result_count);
 }
 
 #endif
@@ -740,6 +792,8 @@ static void hub_task(void *) {
       next_command_pull = millis() + COMMANDS_MS;
     }
     if (state == HUB_ONLINE && !ota_busy && !pairing_changed && hilo_pull_due()) pull_hilo();
+    if (state == HUB_ONLINE && !ota_busy && !pairing_changed && packers_pull_due()) pull_packers();
+    if (state == HUB_ONLINE && !ota_busy && !pairing_changed && packers_bag_events_due()) push_bag_events();
     // The screen for the Hub's Control room: at most every 3 s while it changes, else every 30 s.
     if (state == HUB_ONLINE && !ota_busy && !pairing_changed) push_screen();
     TradeWeight waiting;
