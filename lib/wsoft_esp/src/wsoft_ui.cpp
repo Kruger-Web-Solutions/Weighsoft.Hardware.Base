@@ -1632,11 +1632,8 @@ void ui_loop() {
   if (auth_job_id != 0) {
     last_tap_ms = millis();
     static WsoftPackerAuthReply auth_reply;
-    HubPackerAuthState st = hub_packer_auth_poll(auth_job_id, &auth_reply);
-    if (st == HUB_PACKER_AUTH_PENDING && millis() - auth_job_started_ms > 4000) {
-      hub_packer_auth_cancel(auth_job_id);
-      st = HUB_PACKER_AUTH_OFFLINE;
-    }
+    bool timed_out = millis() - auth_job_started_ms > 4000;
+    HubPackerAuthState st = hub_packer_auth_poll(auth_job_id, &auth_reply, timed_out);
     if (st != HUB_PACKER_AUTH_PENDING) {
       finish_auth_job(st, auth_reply);
       refresh();
