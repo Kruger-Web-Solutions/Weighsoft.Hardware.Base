@@ -27,7 +27,7 @@ enum HubPackerAuthState {
 };
 
 uint32_t hub_packer_auth_start(const char *code, const char *pin, const char *action, bool fire_and_forget = false);
-HubPackerAuthState hub_packer_auth_poll(uint32_t job_id, WsoftPackerAuthReply *out);
+HubPackerAuthState hub_packer_auth_poll(uint32_t job_id, WsoftPackerAuthReply *out, bool cancel_if_pending = false);
 void hub_packer_auth_cancel(uint32_t job_id);
 bool hub_packer_auth(const char *code, const char *pin, const char *action, WsoftPackerAuthReply *out);
 void hub_trigger_bag_events_push();

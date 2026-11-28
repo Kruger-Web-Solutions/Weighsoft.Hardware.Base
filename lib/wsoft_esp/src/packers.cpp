@@ -217,8 +217,6 @@ WsoftPackerPinResult packers_sign_in_offline(const char *code, const char *pin, 
   portEXIT_CRITICAL(&lock);
 
   bool pin_ok = (found && has_verifier && !locked_now) && wsoft_packer_pin_matches(salt, hash, pin);
-  memset(salt, 0, sizeof salt);
-  memset(hash, 0, sizeof hash);
 
   portENTER_CRITICAL(&lock);
   if (!found || !has_verifier) {
@@ -226,9 +224,10 @@ WsoftPackerPinResult packers_sign_in_offline(const char *code, const char *pin, 
   } else if (pin_guard.locked_s(now_ms) > 0) {
     result = WSOFT_PACKER_PIN_LOCKED;
   } else if (pin_ok) {
-    pin_guard.right();
     const WsoftPackerEntry *fresh = wsoft_packer_find(roster, code);
-    if (fresh != nullptr) {
+    if (fresh != nullptr && fresh->has_verifier && memcmp(fresh->pin_salt, salt, sizeof salt) == 0 &&
+        memcmp(fresh->pin_sha256, hash, sizeof hash) == 0) {
+      pin_guard.right();
       if (!fresh->floor_manager) strip.sign_in(fresh->code, now_ms);
       if (out_entry) *out_entry = *fresh;
       next_pull_ms = now_ms + AFTER_CHANGE_MS;
@@ -243,6 +242,9 @@ WsoftPackerPinResult packers_sign_in_offline(const char *code, const char *pin, 
   next_fails = pin_guard.fails();
   locked_s = pin_guard.locked_s(now_ms);
   portEXIT_CRITICAL(&lock);
+
+  memset(salt, 0, sizeof salt);
+  memset(hash, 0, sizeof hash);
 
   if (locked_s_out) *locked_s_out = locked_s;
   if (next_fails != prev_fails) save_state(false, false, true);
@@ -304,10 +306,18 @@ WsoftPackerPinResult packers_verify_manager_pin(const char *pin, uint32_t now_ms
   if (pin_guard.locked_s(now_ms) > 0) {
     result = WSOFT_PACKER_PIN_LOCKED;
   } else if (matched_idx >= 0) {
-    pin_guard.right();
-    if (actor_code && actor_code_size > 0) strlcpy(actor_code, candidates[matched_idx].code, actor_code_size);
-    if (actor_name && actor_name_size > 0) strlcpy(actor_name, candidates[matched_idx].name, actor_name_size);
-    result = WSOFT_PACKER_PIN_OK;
+    const MgrCandidate &cand = candidates[matched_idx];
+    const WsoftPackerEntry *cur = wsoft_packer_find(roster, cand.code);
+    if (cur != nullptr && cur->floor_manager && cur->has_verifier &&
+        memcmp(cur->pin_salt, cand.salt, sizeof cand.salt) == 0 &&
+        memcmp(cur->pin_sha256, cand.hash, sizeof cand.hash) == 0) {
+      pin_guard.right();
+      if (actor_code && actor_code_size > 0) strlcpy(actor_code, cur->code, actor_code_size);
+      if (actor_name && actor_name_size > 0) strlcpy(actor_name, cur->name[0] ? cur->name : cur->code, actor_name_size);
+      result = WSOFT_PACKER_PIN_OK;
+    } else {
+      result = WSOFT_PACKER_PIN_WRONG;
+    }
   } else if (count == 0) {
     result = WSOFT_PACKER_PIN_NOT_SET;
   } else {
