@@ -17,6 +17,8 @@
 #include <wsoft_products.h>
 
 // Once, before the Hub and screen tasks start.
+// Makes the Hi-Lo list on the heap; call first thing in setup (wsoft_screen_setup does).
+void hilo_alloc();
 void hilo_begin();
 
 // Any task: the product in use now. False (and *out untouched) when none is picked.
