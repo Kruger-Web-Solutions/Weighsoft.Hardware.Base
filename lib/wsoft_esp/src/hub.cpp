@@ -1,5 +1,7 @@
 #include "wsoft_log.h"
 #include "hub.h"
+#include <memory>
+#include <new>
 #include "approval.h"
 #include "wsoft_ui.h"
 #ifdef WSOFT_ON_BASE
@@ -503,12 +505,6 @@ static const uint32_t COMMANDS_MS = 10000;
 static const uint32_t COMMAND_APPLY_TIMEOUT_MS = 3000;
 static WsoftCmdResult command_results[WSOFT_CMD_RESULTS_MAX];
 
-// Hub task scratch buffers on the heap, taken once at boot while the heap is whole: static DRAM
-// is full on the yellow board (ESP32, no PSRAM) since the packer work (28 Nov 2026).
-static WsoftHiloList &hub_hilo_buf = *new WsoftHiloList();
-static WsoftPackerRoster &hub_packers_buf = *new WsoftPackerRoster();
-static char *const hub_bag_request_buf = new char[WSOFT_BAG_EVENTS_REQUEST_MAX];
-static WsoftBagEventResult *const hub_bag_results_buf = new WsoftBagEventResult[WSOFT_BAG_OUTBOX_MAX];
 static size_t command_result_count = 0;
 static uint64_t commands_applied = 0;
 
@@ -649,7 +645,14 @@ static void pull_hilo() {
     hilo_failed();
     return;
   }
-  WsoftHiloList &list = hub_hilo_buf;  // too big for the Hub task's stack
+  // Heap, for this pull only: too big for the Hub task's stack, and the yellow board has no RAM
+  // to keep a spare. No memory: treated like a failed pull (tried again later).
+  std::unique_ptr<WsoftHiloList> list_p(new (std::nothrow) WsoftHiloList());
+  if (!list_p) {
+    hilo_failed();
+    return;
+  }
+  WsoftHiloList &list = *list_p;
   if (!wsoft_hilo_parse(reply.c_str(), reply.length(), &list)) {
     WSOFT_LOG.println("HUB hilo bad body");
     hilo_failed();
@@ -670,8 +673,13 @@ static void pull_packers() {
     packers_failed();
     return;
   }
-  // Too big for the Hub task's stack; lives on the heap (see hub_packers_buf).
-  WsoftPackerRoster &roster = hub_packers_buf;
+  // Heap, for this pull only (see pull_hilo).
+  std::unique_ptr<WsoftPackerRoster> roster_p(new (std::nothrow) WsoftPackerRoster());
+  if (!roster_p) {
+    packers_failed();
+    return;
+  }
+  WsoftPackerRoster &roster = *roster_p;
   if (!wsoft_packers_parse(reply.c_str(), reply.length(), &roster)) {
     WSOFT_LOG.println("HUB packers bad body");
     packers_failed();
@@ -681,7 +689,10 @@ static void pull_packers() {
 }
 
 static void push_bag_events() {
-  char *request = hub_bag_request_buf;
+  // Heap, for this push only (see pull_hilo). No memory: tried again later.
+  std::unique_ptr<char[]> request_p(new (std::nothrow) char[WSOFT_BAG_EVENTS_REQUEST_MAX]);
+  if (!request_p) return;
+  char *request = request_p.get();
   size_t count = 0;
   if (!packers_bag_events_request(request, WSOFT_BAG_EVENTS_REQUEST_MAX, &count) || count == 0) return;
   String reply;
@@ -689,7 +700,13 @@ static void push_bag_events() {
     packers_bag_events_failed();
     return;
   }
-  WsoftBagEventResult *results = hub_bag_results_buf;
+  request_p.reset();  // sent: hand the request memory back before the results are read
+  std::unique_ptr<WsoftBagEventResult[]> results_p(new (std::nothrow) WsoftBagEventResult[WSOFT_BAG_OUTBOX_MAX]);
+  if (!results_p) {
+    packers_bag_events_failed();
+    return;
+  }
+  WsoftBagEventResult *results = results_p.get();
   size_t result_count = 0;
   if (!wsoft_bag_events_parse(reply.c_str(), reply.length(), results, WSOFT_BAG_OUTBOX_MAX, &result_count)) {
     WSOFT_LOG.println("HUB bag-events bad body");

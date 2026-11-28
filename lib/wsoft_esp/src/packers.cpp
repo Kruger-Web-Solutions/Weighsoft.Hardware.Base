@@ -1,5 +1,8 @@
 #include "packers.h"
 
+#include <memory>
+#include <new>
+
 #include "wsoft_log.h"
 
 #include <Preferences.h>
@@ -29,14 +32,21 @@ static portMUX_TYPE lock = portMUX_INITIALIZER_UNLOCKED;
 static SemaphoreHandle_t flash_mutex = nullptr;
 static SemaphoreHandle_t mgr_mutex = nullptr;
 
-// Big packer buffers live on the heap, not in static DRAM: the yellow board (ESP32, no PSRAM)
-// ran out of static DRAM by about 105 KB once packers landed (28 Nov 2026). Allocated once,
-// never freed, so they behave exactly like the statics they replace. All of them are taken at
-// boot (static init), while the heap is still whole, so no later call can fail to allocate.
-static WsoftPackerRoster &roster = *new WsoftPackerRoster();  // require_packer_bags defaults to false
+// The live roster and outbox live on the heap, not in static DRAM: the yellow board (ESP32, no
+// PSRAM) ran out of static DRAM once packers landed (28 Nov 2026). Made once by packers_alloc()
+// from packers_begin() in setup (NOT by a global constructor: the ESP32 heap is small that early, and NOT
+// by a function-local static: its guard takes a lock, which hangs inside a spinlock). Never freed.
+static WsoftPackerRoster *live_roster_p = nullptr;
+static WsoftBagEventOutbox *live_outbox_p = nullptr;
+#define roster (*live_roster_p)  // require_packer_bags defaults to false
 static WsoftPackerStrip strip;
 static WsoftPackerPinGuard pin_guard;
-static WsoftBagEventOutbox &outbox = *new WsoftBagEventOutbox();
+#define outbox (*live_outbox_p)
+
+void packers_alloc() {
+  if (live_roster_p == nullptr) live_roster_p = new WsoftPackerRoster();
+  if (live_outbox_p == nullptr) live_outbox_p = new WsoftBagEventOutbox();
+}
 
 // Scratch copies, each used by one function only (same rules as the statics they were).
 struct MgrCandidate {
@@ -45,13 +55,6 @@ struct MgrCandidate {
   uint8_t salt[WSOFT_PACKER_PIN_SALT_SIZE];
   uint8_t hash[32];
 };
-static WsoftPackerRoster &save_roster_buf = *new WsoftPackerRoster();    // save_state, under flash_mutex
-static WsoftBagEventOutbox &save_outbox_buf = *new WsoftBagEventOutbox(); // save_state, under flash_mutex
-static WsoftPackerRoster &load_roster_buf = *new WsoftPackerRoster();    // packers_begin
-static WsoftBagEventOutbox &load_outbox_buf = *new WsoftBagEventOutbox(); // packers_begin
-static WsoftPackerRoster &print_roster_buf = *new WsoftPackerRoster();   // packers_print_list
-static WsoftBagEvent *const events_copy_buf = new WsoftBagEvent[WSOFT_BAG_OUTBOX_MAX];  // bag-events request
-static MgrCandidate *const mgr_candidates_buf = new MgrCandidate[WSOFT_PACKERS_MAX];   // under mgr_mutex
 
 static uint32_t next_pull_ms = 0;
 static uint32_t next_events_ms = 0;
@@ -59,22 +62,28 @@ static uint32_t last_ok_ms = 0;
 
 static void save_state(bool with_roster, bool with_outbox, bool with_pin_fails) {
   if (flash_mutex == nullptr) return;
-  WsoftPackerRoster &roster_copy = save_roster_buf;
-  WsoftBagEventOutbox &outbox_copy = save_outbox_buf;
+  // Copies for this save only (the yellow board has no RAM to keep spares). No memory: the save
+  // is skipped; the live state is unchanged and the next save writes it.
+  std::unique_ptr<WsoftPackerRoster> roster_p(with_roster ? new (std::nothrow) WsoftPackerRoster() : nullptr);
+  std::unique_ptr<WsoftBagEventOutbox> outbox_p(with_outbox ? new (std::nothrow) WsoftBagEventOutbox() : nullptr);
+  if ((with_roster && !roster_p) || (with_outbox && !outbox_p)) {
+    WSOFT_LOG.println("PACKERS save skipped: no memory");
+    return;
+  }
   uint32_t fails_copy = 0;
 
   xSemaphoreTake(flash_mutex, portMAX_DELAY);
   portENTER_CRITICAL(&lock);
-  if (with_roster) roster_copy = roster;
-  if (with_outbox) outbox_copy = outbox;
+  if (with_roster) *roster_p = roster;
+  if (with_outbox) *outbox_p = outbox;
   if (with_pin_fails) fails_copy = pin_guard.fails();
   portEXIT_CRITICAL(&lock);
 
   Preferences store;
   if (store.begin("packers", false)) {
     store.putUInt("ver", STORED_VERSION);
-    if (with_roster) store.putBytes("roster", &roster_copy, sizeof roster_copy);
-    if (with_outbox) store.putBytes("outbox", &outbox_copy, sizeof outbox_copy);
+    if (with_roster) store.putBytes("roster", roster_p.get(), sizeof *roster_p);
+    if (with_outbox) store.putBytes("outbox", outbox_p.get(), sizeof *outbox_p);
     if (with_pin_fails) store.putUInt("fails", fails_copy);
     store.end();
   }
@@ -109,10 +118,14 @@ static bool roster_equal(const WsoftPackerRoster &a, const WsoftPackerRoster &b)
 }
 
 void packers_begin() {
+  packers_alloc();  // setup, heap whole, before the Hub task starts (hub_begin comes after)
   flash_mutex = xSemaphoreCreateMutex();
   mgr_mutex = xSemaphoreCreateMutex();
-  WsoftPackerRoster &stored_roster = load_roster_buf;
-  WsoftBagEventOutbox &stored_outbox = load_outbox_buf;
+  // Boot-only copies on the heap, handed back when packers_begin() returns.
+  std::unique_ptr<WsoftPackerRoster> stored_roster_p(new WsoftPackerRoster());
+  std::unique_ptr<WsoftBagEventOutbox> stored_outbox_p(new WsoftBagEventOutbox());
+  WsoftPackerRoster &stored_roster = *stored_roster_p;
+  WsoftBagEventOutbox &stored_outbox = *stored_outbox_p;
   // In place: a temporary roster (about 10 KB) overflowed the loop task's stack at boot.
   wsoft_packer_roster_reset(&stored_roster);
   stored_outbox.clear();
@@ -280,7 +293,13 @@ WsoftPackerPinResult packers_verify_manager_pin(const char *pin, uint32_t now_ms
   if (actor_code && actor_code_size > 0) actor_code[0] = 0;
   if (actor_name && actor_name_size > 0) actor_name[0] = 0;
 
-  MgrCandidate *candidates = mgr_candidates_buf;
+  // For this check only. No memory: nobody is let in (the PIN is not checked).
+  std::unique_ptr<MgrCandidate[]> candidates_p(new (std::nothrow) MgrCandidate[WSOFT_PACKERS_MAX]);
+  if (!candidates_p) {
+    WSOFT_LOG.println("PACKERS manager PIN: no memory");
+    return WSOFT_PACKER_PIN_NOT_SET;
+  }
+  MgrCandidate *candidates = candidates_p.get();
   if (mgr_mutex == nullptr) return WSOFT_PACKER_PIN_NOT_SET;
 
   WsoftPackerPinResult result = WSOFT_PACKER_PIN_NOT_SET;
@@ -489,7 +508,13 @@ bool packers_bag_events_due() {
 }
 
 bool packers_bag_events_request(char *out, size_t size, size_t *count) {
-  WsoftBagEvent *copy = events_copy_buf;
+  // For this request only. No memory: nothing is sent now; the outbox keeps its events.
+  std::unique_ptr<WsoftBagEvent[]> copy_p(new (std::nothrow) WsoftBagEvent[WSOFT_BAG_OUTBOX_MAX]);
+  if (!copy_p) {
+    if (count) *count = 0;
+    return false;
+  }
+  WsoftBagEvent *copy = copy_p.get();
   size_t n = 0;
   portENTER_CRITICAL(&lock);
   n = outbox.size();
@@ -654,7 +679,13 @@ bool packers_floor_target(uint8_t index, uint8_t *index_out, uint8_t *total_out,
 }
 
 void packers_print_list(Stream &port) {
-  WsoftPackerRoster &copy = print_roster_buf;
+  // A USB command, rare: the copy is made for this call only. No memory = say so, no crash.
+  std::unique_ptr<WsoftPackerRoster> copy_p(new (std::nothrow) WsoftPackerRoster());
+  if (!copy_p) {
+    port.println("PACKERS no memory for the list");
+    return;
+  }
+  WsoftPackerRoster &copy = *copy_p;
   char active[WSOFT_PACKER_CODE_MAX + 1] = "";
   portENTER_CRITICAL(&lock);
   copy = roster;

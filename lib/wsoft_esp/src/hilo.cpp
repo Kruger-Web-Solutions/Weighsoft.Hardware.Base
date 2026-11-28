@@ -1,6 +1,9 @@
 #include "wsoft_log.h"
 #include "hilo.h"
 
+#include <memory>
+#include <new>
+
 #include <wsoft_products.h>
 
 #include <Preferences.h>
@@ -17,10 +20,14 @@ static const uint32_t LOCAL_VERSION = 1;
 
 // Shared between tasks: read and written under the lock.
 static portMUX_TYPE lock = portMUX_INITIALIZER_UNLOCKED;
-// Heap, taken once at boot: static DRAM is full on the yellow board (no PSRAM).
-static WsoftHiloList &list = *new WsoftHiloList();
-static WsoftHiloList &save_list_buf = *new WsoftHiloList();  // save(), under flash_mutex
-static WsoftHiloList &load_list_buf = *new WsoftHiloList();  // hilo_begin
+// On the heap (static DRAM is full on the yellow board): made once by hilo_alloc() from hilo_begin()
+// in setup, never freed. See packers.cpp for why not a global or function-local static.
+static WsoftHiloList *live_list_p = nullptr;
+#define list (*live_list_p)
+
+void hilo_alloc() {
+  if (live_list_p == nullptr) live_list_p = new WsoftHiloList();
+}
 static WsoftLocalProducts local;
 static WsoftHiloPick pick;
 static uint32_t next_pull_ms = 0;
@@ -31,12 +38,16 @@ static SemaphoreHandle_t flash_mutex = nullptr;
 
 static void save(bool with_list, bool with_local = false) {
   // Copies first: the flash write is slow and must not hold the spinlock.
-  WsoftHiloList &list_copy = save_list_buf;
+  std::unique_ptr<WsoftHiloList> list_p(with_list ? new (std::nothrow) WsoftHiloList() : nullptr);
+  if (with_list && !list_p) {
+    WSOFT_LOG.println("HILO save skipped: no memory");
+    return;
+  }
   static WsoftLocalProducts local_copy;
   WsoftHiloPick pick_copy;
   xSemaphoreTake(flash_mutex, portMAX_DELAY);
   portENTER_CRITICAL(&lock);
-  if (with_list) list_copy = list;
+  if (with_list) *list_p = list;
   if (with_local) local_copy = local;
   pick_copy = pick;
   portEXIT_CRITICAL(&lock);
@@ -45,7 +56,7 @@ static void save(bool with_list, bool with_local = false) {
   store.putUInt("ver", STORED_VERSION);
   store.putString("cur", pick_copy.current);
   store.putString("set", pick_copy.applied_set_at);
-  if (with_list) store.putBytes("list", &list_copy, sizeof list_copy);
+  if (with_list) store.putBytes("list", list_p.get(), sizeof *list_p);
   if (with_local) {
     store.putUInt("lver", LOCAL_VERSION);
     store.putBytes("local", &local_copy, sizeof local_copy);
@@ -55,8 +66,10 @@ static void save(bool with_list, bool with_local = false) {
 }
 
 void hilo_begin() {
+  hilo_alloc();  // setup, heap whole, before the Hub task starts (hub_begin comes after)
   flash_mutex = xSemaphoreCreateMutex();
-  WsoftHiloList &stored = load_list_buf;
+  std::unique_ptr<WsoftHiloList> stored_p(new WsoftHiloList());  // boot-only, freed on return
+  WsoftHiloList &stored = *stored_p;
   static WsoftLocalProducts stored_local;
   WsoftHiloPick stored_pick;
   Preferences store;

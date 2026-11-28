@@ -14,6 +14,8 @@
 #include <wsoft_ui_paint.h>
 #include <wsoft_weighing.h>
 
+// Makes the roster and outbox on the heap (once). packers_begin() calls it; nothing reads them earlier.
+void packers_alloc();
 void packers_begin();
 
 // True when the Hub has switched require_packer_bags ON for this board (false by default).
