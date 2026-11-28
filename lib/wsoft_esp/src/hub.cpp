@@ -892,10 +892,12 @@ static bool packer_auth_online_now() {
 
 static void process_packer_auth() {
   static WsoftPackerAuthReply reply;
+  bool so_failed = false;
 
   for (;;) {
-    bool online = packer_auth_online_now();
+    bool online = packer_auth_online_now() && !so_failed;
     char so_code[WSOFT_PACKER_CODE_MAX + 1] = "";
+    uint32_t so_seq = 0;
     uint32_t job_id = 0;
     bool fire_and_forget = false;
     char code[WSOFT_PACKER_CODE_MAX + 1] = "";
@@ -910,9 +912,7 @@ static void process_packer_auth() {
                    (!have_job || (int32_t)(sign_out_queue[0].seq - auth_job.seq) < 0);
     if (take_so) {
       strlcpy(so_code, sign_out_queue[0].code, sizeof so_code);
-      for (size_t i = 1; i < sign_out_count; i++) sign_out_queue[i - 1] = sign_out_queue[i];
-      sign_out_count--;
-      sign_out_queue[sign_out_count] = SignOutItem();
+      so_seq = sign_out_queue[0].seq;
     } else if (have_job && (!have_so || !online || (int32_t)(auth_job.seq - sign_out_queue[0].seq) < 0)) {
       job_id = auth_job.job_id;
       fire_and_forget = auth_job.fire_and_forget;
@@ -924,7 +924,17 @@ static void process_packer_auth() {
     portEXIT_CRITICAL(&auth_lock);
 
     if (so_code[0] != 0) {
-      run_packer_auth_http(so_code, nullptr, "sign_out", &reply);
+      if (run_packer_auth_http(so_code, nullptr, "sign_out", &reply)) {
+        portENTER_CRITICAL(&auth_lock);
+        if (sign_out_count > 0 && sign_out_queue[0].seq == so_seq) {
+          for (size_t i = 1; i < sign_out_count; i++) sign_out_queue[i - 1] = sign_out_queue[i];
+          sign_out_count--;
+          sign_out_queue[sign_out_count] = SignOutItem();
+        }
+        portEXIT_CRITICAL(&auth_lock);
+      } else {
+        so_failed = true;
+      }
       continue;
     }
     if (job_id == 0) break;
