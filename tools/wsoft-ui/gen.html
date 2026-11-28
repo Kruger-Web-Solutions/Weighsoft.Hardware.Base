@@ -46,6 +46,17 @@
         out.png[id].push(cv.toDataURL('image/png'));
       }
     }
+    // Render S3 3.5" 320x480 portrait layout PNGs for the new packer screens (n >= 61).
+    out.png.s3_35 = [];
+    const yellowFonts = out.fonts.yellow.map(U.unpackFont);
+    U.PRESETS.forEach(([, , S], n) => {
+      if (n < 61) return;
+      const c = new U.Canvas(320, 480, 1, 2, yellowFonts);
+      U.paint(c, U.modelOf(S));
+      const cv = document.createElement('canvas');
+      U.show(cv, c, 1);
+      out.png.s3_35.push({ n, url: cv.toDataURL('image/png') });
+    });
     await fetch('/done', { method: 'POST', body: JSON.stringify(out) });
   } catch (e) {
     await fetch('/fail', { method: 'POST', body: String((e && e.stack) || e) });

@@ -77,6 +77,28 @@ struct WsoftUiInput {
   int pin_count = 0;          // digits typed
   const char *address = "";   // to open in a browser: the no-PIN note and the Wi-Fi page; "" when there is none
   const char *ap_name = "";   // the board's own hotspot; "" when it is off
+
+  // packer strip & floor manager (zero / false when packer_on == false)
+  bool packer_on = false;
+  const char *pack_unit = "";
+  uint8_t strip_count = 0;
+  WsoftUiStripEntry strip[WSOFT_UI_STRIP_MAX] = {};
+  bool pin_for_packer = false;
+  bool pin_for_mgr = false;
+  uint8_t picker_count = 0;
+  uint8_t picker_page = 0;
+  uint8_t picker_pages = 0;
+  WsoftUiPickerEntry picker[WSOFT_UI_PICKER_MAX] = {};
+  const char *floor_code = "";
+  const char *floor_name = "";
+  int32_t floor_issued = 0;
+  int32_t floor_remaining = 0;
+  bool floor_has_batch = false;
+  uint8_t floor_index = 0;
+  uint8_t floor_total = 0;
+  int32_t handin_lost = 0;
+  int32_t handin_returned = 0;
+  const char *handin_reason = "";
 };
 
 // Fills *model (every byte of it) from the facts.
@@ -88,7 +110,7 @@ void wsoft_ui_model(const WsoftUiInput &in, WsoftUiModel *model);
 // drawing. A tile is {"caption","value","look"}. Returns the length written (without the
 // ending 0), or 0 when out is too small (WSOFT_UI_JSON_MAX bytes always holds it).
 size_t wsoft_ui_model_json(const WsoftUiModel &model, char *out, size_t size);
-static const size_t WSOFT_UI_JSON_MAX = 2560;
+static const size_t WSOFT_UI_JSON_MAX = 3840;
 
 // Wi-Fi bars from the signal in dBm: 4 from -55, 3 from -67, 2 from -75, else 1.
 int wsoft_ui_wifi_bars(int rssi);

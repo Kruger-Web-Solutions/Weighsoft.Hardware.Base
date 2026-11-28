@@ -149,10 +149,47 @@ static bool paint_slot(WsoftCanvas &c, const WsoftUiModel &m, const Theme &T) {
   return false;
 }
 
+static bool paint_strip(WsoftCanvas &c, const WsoftUiModel &m, uint16_t btn, uint16_t btn_ink, uint16_t soft,
+                        uint16_t on, uint16_t on_ink, uint16_t stop, uint16_t accent) {
+  if (!m.packer_on) return false;
+  char cut[CUT_SIZE], cnt[24];
+  c.rect(276, 22, 38, 18, accent, 5);
+  c.text("+", 295, 31, MID, WHITE, WSOFT_CENTER);
+  c.rect(276, 42, 38, 18, btn, 5);
+  c.text("MGR", 295, 51, TINY, btn_ink, WSOFT_CENTER);
+  if (m.strip_count == 0) {
+    c.rect(6, 22, 264, 38, btn, 6);
+    c.text("TAP TO SIGN IN", 138, 41, SMALL, btn_ink, WSOFT_CENTER);
+    return true;
+  }
+  const int n = m.strip_count < WSOFT_UI_STRIP_MAX ? m.strip_count : WSOFT_UI_STRIP_MAX;
+  for (int i = 0; i < n; i++) {
+    const WsoftUiStripEntry &e = m.strip[i];
+    WsoftUiBox box = wsoft_ui_strip_box(i, n);
+    uint16_t fill = e.active ? (e.remaining <= 0 ? stop : on) : btn;
+    uint16_t ink = e.active ? (e.remaining <= 0 ? WHITE : on_ink) : btn_ink;
+    uint16_t sub = e.active ? ink : soft;
+    if (n <= 4) {
+      c.rect(box.x, box.y, box.w, box.h, fill, 6);
+      c.text(c.fit(e.name, TINY, box.w - 8, cut, sizeof cut), box.x + box.w / 2.0, box.y + 11, TINY, ink, WSOFT_CENTER);
+      snprintf(cnt, sizeof cnt, "%ld %s", (long)e.remaining, m.pack_unit);
+      if (c.width(cnt, TINY) > box.w - 6) snprintf(cnt, sizeof cnt, "%ld", (long)e.remaining);
+      c.text(c.fit(cnt, TINY, box.w - 6, cut, sizeof cut), box.x + box.w / 2.0, box.y + 27, TINY, sub, WSOFT_CENTER);
+    } else {
+      c.rect(box.x, box.y, box.w, box.h, fill, 5);
+      snprintf(cnt, sizeof cnt, "%ld", (long)e.remaining);
+      double cw = c.text(cnt, box.x + box.w - 4, box.y + 9, TINY, sub, WSOFT_RIGHT);
+      c.text(c.fit(e.name, TINY, box.w - cw - 10, cut, sizeof cut), box.x + 4, box.y + 9, TINY, ink);
+    }
+  }
+  return true;
+}
+
 static void paint_top(WsoftCanvas &c, const WsoftUiModel &m, const Theme &T) {
   char cut[CUT_SIZE];
   c.rect(0, 20, 320, 42, T.bg);
   if (paint_slot(c, m, T)) return;
+  if (paint_strip(c, m, T.btn, T.btn_ink, T.soft, T.ok, WHITE, T.stop, T.accent)) return;
   // Not for trade: a small six-pointed star instead of the words (Rhyno, 14 Nov 2026); a tap
   // on it says NOT TRADE APPROVED (WSOFT_UI_BOX_STAR).
   double w = WSOFT_UI_STAR_W;
@@ -421,6 +458,7 @@ static void paint_top_colour(WsoftCanvas &c, const WsoftUiModel &m, const Theme 
     c.text(c.fit(m.slot_detail, SMALL, 296, cut, sizeof cut), 160, 53, SMALL, sk, WSOFT_CENTER);
     return;
   }
+  if (paint_strip(c, m, P.btn, P.btn_ink, P.btn_soft, P.on, P.on_ink, T.stop, P.on)) return;
   double w = WSOFT_UI_STAR_W;
   if (m.trade_ok) {
     const char *chip = "TRADE CHECKS ON";
@@ -607,6 +645,7 @@ static void paint_top_dial(WsoftCanvas &c, const WsoftUiModel &m, const Theme &T
   c.rect(0, 20, 320, 42, T.bg);
   paint_dial(c, m, T);
   if (paint_slot(c, m, T)) return;
+  if (paint_strip(c, m, T.btn, T.btn_ink, T.soft, T.ok, WHITE, T.stop, T.accent)) return;
   if (m.trade_ok) {
     // Two short lines: the dial leaves no room for one long one.
     c.rect(8, 24, 68, 24, T.ok, 4);
@@ -672,21 +711,31 @@ static void paint_hilo_dial(WsoftCanvas &c, const WsoftUiModel &m, const Theme &
 static void paint_tile(WsoftCanvas &c, const Theme &T, const WsoftUiBox &box, const char *caption, const char *value,
                        int look) {
   double x = box.x, y = box.y, w = box.w, h = box.h;
-  bool strong = look == WSOFT_UI_LOOK_ON || look == WSOFT_UI_LOOK_ACCENT;
+  bool strong = look == WSOFT_UI_LOOK_ON || look == WSOFT_UI_LOOK_ACCENT || look == WSOFT_UI_LOOK_BAD;
   if (look == WSOFT_UI_LOOK_PLAIN) {
     c.rect(x, y, w, h, T.line, 8);
     c.rect(x + 1, y + 1, w - 2, h - 2, T.panel, 7);
   } else {
-    c.rect(x, y, w, h, look == WSOFT_UI_LOOK_ON ? T.ok : look == WSOFT_UI_LOOK_ACCENT ? T.accent : T.btn, 8);
+    c.rect(x, y, w, h,
+           look == WSOFT_UI_LOOK_ON       ? T.ok
+           : look == WSOFT_UI_LOOK_ACCENT ? T.accent
+           : look == WSOFT_UI_LOOK_BAD    ? T.stop
+                                          : T.btn,
+           8);
   }
   uint16_t ink = strong ? WHITE : look == WSOFT_UI_LOOK_PLAIN ? T.ink : T.btn_ink;
   if (caption[0]) {
     char cut[CUT_SIZE];
-    c.text(caption, x + 10, y + 13, TINY, strong ? WHITE : T.soft);
+    c.text(c.fit(caption, TINY, w - 16, cut, sizeof cut), x + 10, y + 13, TINY, strong ? WHITE : T.soft);
     if (c.width(value, MID) <= w - 20) c.text(value, x + 10, y + 30, MID, ink);
     else c.text(c.fit(value, SMALL, w - 20, cut, sizeof cut), x + 10, y + 30, SMALL, ink);
   } else {
-    c.text(value, x + w / 2, y + h / 2, MID, ink, WSOFT_CENTER);
+    if (c.width(value, MID) <= w - 8) {
+      c.text(value, x + w / 2, y + h / 2, MID, ink, WSOFT_CENTER);
+    } else {
+      char cut[CUT_SIZE];
+      c.text(c.fit(value, SMALL, w - 8, cut, sizeof cut), x + w / 2, y + h / 2, SMALL, ink, WSOFT_CENTER);
+    }
   }
 }
 
@@ -710,7 +759,61 @@ static void paint_page(WsoftCanvas &c, const WsoftUiModel &m, const Theme &T) {
     paint_tile(c, T, wsoft_ui_key_box(0, 3, 3, 1), "", "0", WSOFT_UI_LOOK_BTN);
     paint_tile(c, T, wsoft_ui_key_box(3, 0, 1, 1), "", "DEL", WSOFT_UI_LOOK_BTN);
     paint_tile(c, T, wsoft_ui_key_box(3, 1, 1, 1), "", "BACK", WSOFT_UI_LOOK_PLAIN);
-    paint_tile(c, T, wsoft_ui_key_box(3, 2, 1, 2), "", "OK", WSOFT_UI_LOOK_ON);
+    int ok_look = (!m.pin_for_packer || m.pin_count >= 3) ? WSOFT_UI_LOOK_ON : WSOFT_UI_LOOK_BTN;
+    paint_tile(c, T, wsoft_ui_key_box(3, 2, 1, 2), "", "OK", ok_look);
+  } else if (m.page == WSOFT_UI_PAGE_PACKER) {
+    if (m.picker_count == 0) {
+      c.text("NO PACKERS ON THIS SCALE", 160, 96, MID, T.soft, WSOFT_CENTER);
+      c.text("Sync packers from the Hub", 160, 122, SMALL, T.soft, WSOFT_CENTER);
+    } else {
+      for (int i = 0; i < m.picker_count && i < WSOFT_UI_PICKER_MAX; i++) {
+        const WsoftUiPickerEntry &p = m.picker[i];
+        char cap[28];
+        if (p.active) snprintf(cap, sizeof cap, "ACTIVE - %ld", (long)p.remaining);
+        else if (p.signed_in) snprintf(cap, sizeof cap, "ON STRIP - %ld", (long)p.remaining);
+        else if (p.has_batch || p.remaining > 0) snprintf(cap, sizeof cap, "%ld %s", (long)p.remaining, m.pack_unit);
+        else snprintf(cap, sizeof cap, "NO BATCH");
+        int look = p.active ? WSOFT_UI_LOOK_ON : p.signed_in ? WSOFT_UI_LOOK_ACCENT : WSOFT_UI_LOOK_BTN;
+        paint_tile(c, T, wsoft_ui_tile_box(i), cap, p.name, look);
+      }
+    }
+    paint_tile(c, T, WSOFT_UI_BOX_PKR_MGR, "", "MGR", WSOFT_UI_LOOK_BTN);
+    if (m.has_active_packer) paint_tile(c, T, WSOFT_UI_BOX_PKR_OUT, "", "SIGN OUT", WSOFT_UI_LOOK_BAD);
+    if (m.picker_pages > 1) {
+      char pg[16];
+      snprintf(pg, sizeof pg, "%u/%u", (unsigned)(m.picker_page + 1), (unsigned)m.picker_pages);
+      paint_tile(c, T, WSOFT_UI_BOX_PKR_PAGE, "PAGE", pg, WSOFT_UI_LOOK_BTN);
+    }
+    paint_tile(c, T, WSOFT_UI_BOX_PKR_BACK, "", "BACK", WSOFT_UI_LOOK_PLAIN);
+  } else if (m.page == WSOFT_UI_PAGE_FLOOR) {
+    char cap[28], val[40];
+    if (m.floor_total > 0) snprintf(cap, sizeof cap, "PACKER %u/%u", (unsigned)(m.floor_index + 1), (unsigned)m.floor_total);
+    else snprintf(cap, sizeof cap, "PACKER");
+    paint_tile(c, T, WSOFT_UI_BOX_FLR_PICK, cap, m.floor_total > 0 ? m.floor_name : "NONE", WSOFT_UI_LOOK_PLAIN);
+    paint_tile(c, T, WSOFT_UI_BOX_FLR_NEXT, "", "NEXT", WSOFT_UI_LOOK_BTN);
+    static const char *const ISSUE_LABELS[4] = {"+25", "+50", "+100", "+200"};
+    for (int i = 0; i < 4; i++) {
+      paint_tile(c, T, wsoft_ui_floor_issue_box(i), "ISSUE", ISSUE_LABELS[i], WSOFT_UI_LOOK_ON);
+    }
+    snprintf(val, sizeof val, "ISSUED %ld   LEFT %ld %s", (long)m.floor_issued, (long)m.floor_remaining, m.pack_unit);
+    paint_tile(c, T, WsoftUiBox{8, 146, 304, 38}, "CURRENT BATCH", val, WSOFT_UI_LOOK_PLAIN);
+    paint_tile(c, T, WSOFT_UI_BOX_FLR_HANDIN, "", "HAND-IN", WSOFT_UI_LOOK_ACCENT);
+    paint_tile(c, T, WSOFT_UI_BOX_BACK, "", "BACK", WSOFT_UI_LOOK_PLAIN);
+  } else if (m.page == WSOFT_UI_PAGE_HANDIN) {
+    char val[24];
+    snprintf(val, sizeof val, "%ld", (long)m.handin_lost);
+    paint_tile(c, T, WsoftUiBox{8, 46, 148, 42}, "LOST", val, WSOFT_UI_LOOK_PLAIN);
+    paint_tile(c, T, WSOFT_UI_BOX_HI_LOST_DEC, "", "-1", WSOFT_UI_LOOK_BTN);
+    paint_tile(c, T, WSOFT_UI_BOX_HI_LOST_INC1, "", "+1", WSOFT_UI_LOOK_BTN);
+    paint_tile(c, T, WSOFT_UI_BOX_HI_LOST_INC5, "", "+5", WSOFT_UI_LOOK_BTN);
+    paint_tile(c, T, WSOFT_UI_BOX_HI_REASON, "LOST REASON (TAP)", m.handin_reason, WSOFT_UI_LOOK_BTN);
+    snprintf(val, sizeof val, "%ld", (long)m.handin_returned);
+    paint_tile(c, T, WsoftUiBox{8, 142, 148, 42}, "RETURNED", val, WSOFT_UI_LOOK_PLAIN);
+    paint_tile(c, T, WSOFT_UI_BOX_HI_RET_DEC, "", "-1", WSOFT_UI_LOOK_BTN);
+    paint_tile(c, T, WSOFT_UI_BOX_HI_RET_INC1, "", "+1", WSOFT_UI_LOOK_BTN);
+    paint_tile(c, T, WSOFT_UI_BOX_HI_RET_INC10, "", "+10", WSOFT_UI_LOOK_BTN);
+    paint_tile(c, T, WSOFT_UI_BOX_HI_CLOSE, "", "CLOSE BATCH", WSOFT_UI_LOOK_ON);
+    paint_tile(c, T, WSOFT_UI_BOX_HI_BACK, "", "BACK", WSOFT_UI_LOOK_PLAIN);
   } else if (m.page == WSOFT_UI_PAGE_NO_PIN) {
     c.text("SET A SCREEN PIN FIRST", 160, 62, MID, T.bad_ink, WSOFT_CENTER);
     if (m.address[0]) {
@@ -790,6 +893,8 @@ uint32_t wsoft_ui_row_key(const WsoftUiModel &m, int row) {
       return look ? FIELD(key, zone) : key;
     case WSOFT_UI_ROW_TOP:
       key = stretch(key, m, top, weight);
+      key = FIELD(key, packer_on);
+      if (m.packer_on) key = FIELD(FIELD(FIELD(key, pack_unit), strip_count), strip);
       // Full Colour and light mode: the zone's colour, and the product and target sit here.
       if (look) key = FIELD(FIELD(FIELD(key, zone), product), target);
       // Dial: the top of the arc, the limits and the marker.
@@ -855,6 +960,18 @@ void wsoft_ui_paint(WsoftCanvas &c, const WsoftUiModel &m) {
 
 WsoftUiBox wsoft_ui_tile_box(int i) {
   return WsoftUiBox{(int16_t)(i % 2 ? 164 : 8), (int16_t)(46 + (i >> 1) * 48), 148, 44};
+}
+
+WsoftUiBox wsoft_ui_strip_box(int i, int count) {
+  if (i < 0 || i >= WSOFT_UI_STRIP_MAX) return WsoftUiBox{0, 0, 0, 0};
+  if (count <= 4) return WsoftUiBox{(int16_t)(6 + i * 67), 22, 63, 38};
+  return WsoftUiBox{(int16_t)(6 + (i % 4) * 67), (int16_t)(22 + (i / 4) * 20), 63, 18};
+}
+
+WsoftUiBox wsoft_ui_floor_issue_box(int i) {
+  static const int16_t X[4] = {8, 85, 162, 239};
+  if (i < 0 || i >= 4) return WsoftUiBox{0, 0, 0, 0};
+  return WsoftUiBox{X[i], 96, (int16_t)(i == 3 ? 73 : 71), 44};
 }
 
 WsoftUiBox wsoft_ui_key_box(int col, int row, int cols, int rows) {

@@ -21,8 +21,8 @@ static const uint32_t WSOFT_SCREEN_MIN_MS = 3000;
 static const uint32_t WSOFT_SCREEN_KEEPALIVE_MS = 30000;
 static const uint32_t WSOFT_SCREEN_OLD_HUB_MS = 600000;
 static const uint32_t WSOFT_SCREEN_REFUSED_MS = 60000;
-// The model JSON (WSOFT_UI_JSON_MAX, 2560) plus the envelope; the Hub takes up to 4096.
-static const size_t WSOFT_SCREEN_BODY_MAX = 2560 + 64;
+// The model JSON (WSOFT_UI_JSON_MAX, 3840) plus the envelope; the Hub takes up to 4096.
+static const size_t WSOFT_SCREEN_BODY_MAX = 3840 + 64;
 
 struct WsoftScreenPush {
   bool tried = false;      // a push was tried at least once

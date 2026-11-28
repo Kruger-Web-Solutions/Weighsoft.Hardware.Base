@@ -75,13 +75,14 @@ function colorsHeader(theme, bar) {
 // Room for each text in WsoftUiModel (lib/wsoft_core/src/wsoft_ui_paint.h), the ending 0 included.
 const ROOM = { ip: 16, hub: 14, link: 8, slot_title: 24, slot_detail: 36, reason: 18, steady: 10, plate_sa: 40, plate_limits: 56, audit: 18, label: 12,
   weight: 14, unit: 4, word: 14, hint: 18, product: 26, target: 26, low: 12, high: 12, gross: 22, save_line: 18, title: 12, message: 40,
-  address: 20, ap_name: 34, caption: 14, value: 26, zero_line: 18 };
+  address: 20, ap_name: 34, caption: 14, value: 26, zero_line: 18,
+  pack_unit: 10, code: 12, name: 14, floor_code: 12, floor_name: 14, handin_reason: 10 };
 function checkRoom(title, key, text) {
   if (!(key in ROOM)) throw new Error('no room set for the text ' + key);
   if (text.length >= ROOM[key]) throw new Error(`test screen "${title}": ${key} is ${text.length} long, the model holds ${ROOM[key] - 1}`);
 }
 
-const TILE_ID = { approval: 'APPROVAL', auto: 'AUTO', tare: 'TARE', preset: 'PRESET', zero: 'ZERO', product: 'PRODUCT', theme: 'THEME', wifi: 'WIFI' };
+const TILE_ID = { approval: 'APPROVAL', auto: 'AUTO', tare: 'TARE', preset: 'PRESET', zero: 'ZERO', packer: 'PACKER', product: 'PRODUCT', theme: 'THEME', wifi: 'WIFI' };
 function presetsHeader(models) {
   let s = `${HEAD}// The test screens: what test/test_wsoft_ui draws and what SCREEN SHOT n draws on a board.\n#pragma once\n\n` +
     `#include <string.h>\n\n#include "../wsoft_ui_paint.h"\n\n#define WSOFT_UI_PRESET_SET(field, text) strncpy(field, text, sizeof(field) - 1)\n\n` +
@@ -96,6 +97,26 @@ function presetsHeader(models) {
           checkRoom(title, 'caption', t.caption);
           checkRoom(title, 'value', t.value);
           s += `      WSOFT_UI_PRESET_SET(m->tiles[${i}].caption, ${cstr(t.caption)});\n      WSOFT_UI_PRESET_SET(m->tiles[${i}].value, ${cstr(t.value)});\n`;
+        });
+      } else if (k === 'strip') {
+        v.forEach((e, i) => {
+          checkRoom(title, 'code', e.code);
+          checkRoom(title, 'name', e.name);
+          s += `      WSOFT_UI_PRESET_SET(m->strip[${i}].code, ${cstr(e.code)});\n`;
+          s += `      WSOFT_UI_PRESET_SET(m->strip[${i}].name, ${cstr(e.name)});\n`;
+          if (e.remaining) s += `      m->strip[${i}].remaining = ${e.remaining};\n`;
+          if (e.active) s += `      m->strip[${i}].active = true;\n`;
+        });
+      } else if (k === 'picker') {
+        v.forEach((p, i) => {
+          checkRoom(title, 'code', p.code);
+          checkRoom(title, 'name', p.name);
+          s += `      WSOFT_UI_PRESET_SET(m->picker[${i}].code, ${cstr(p.code)});\n`;
+          s += `      WSOFT_UI_PRESET_SET(m->picker[${i}].name, ${cstr(p.name)});\n`;
+          if (p.remaining) s += `      m->picker[${i}].remaining = ${p.remaining};\n`;
+          if (p.signed_in) s += `      m->picker[${i}].signed_in = true;\n`;
+          if (p.active) s += `      m->picker[${i}].active = true;\n`;
+          if (p.has_batch) s += `      m->picker[${i}].has_batch = true;\n`;
         });
       } else if (typeof v === 'string') {
         checkRoom(title, k, v);
@@ -151,6 +172,13 @@ function finish(data) {
   for (const id of ['yellow', 'wave']) {
     data.png[id].forEach((url, n) => {
       const file = join(root, 'docs/img/wsoft-screen', `${id}-${String(n).padStart(2, '0')}.png`);
+      mkdirSync(dirname(file), { recursive: true });
+      writeFileSync(file, Buffer.from(url.split(',')[1], 'base64'));
+    });
+  }
+  if (data.png.s3_35) {
+    data.png.s3_35.forEach(({ n, url }) => {
+      const file = join(root, 'docs/img/wsoft-screen', `s3-35-${String(n).padStart(2, '0')}.png`);
       mkdirSync(dirname(file), { recursive: true });
       writeFileSync(file, Buffer.from(url.split(',')[1], 'base64'));
     });

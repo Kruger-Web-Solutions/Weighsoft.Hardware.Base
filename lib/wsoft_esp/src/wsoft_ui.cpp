@@ -11,6 +11,7 @@
 #include "hilo.h"
 #include "hub.h"
 #include "loadcell.h"
+#include "packers.h"
 #include "pin.h"
 #include "relay.h"
 #include "scale.h"
@@ -18,6 +19,8 @@
 #include "weighings.h"
 #include "wsoft_log.h"
 #include "wsoft_ui.h"
+
+#include <time.h>
 
 #ifndef WSOFT_BOARD_HEADLESS
 #define WSOFT_BOARD_HEADLESS 0
@@ -719,6 +722,19 @@ static uint32_t shown_key[WSOFT_UI_ROW_COUNT];
 static bool shown_valid[WSOFT_UI_ROW_COUNT];
 static WsoftPinPad pad;
 static bool pin_target = false;    // Approval ON (true) or OFF, once the PIN is right
+enum PinMode { PIN_APPROVAL = 0, PIN_PACKER, PIN_FLOOR_MGR };
+static PinMode pin_mode = PIN_APPROVAL;
+static int pin_return_page = WSOFT_UI_PAGE_MENU;
+static char pin_packer_code[WSOFT_PACKER_CODE_MAX + 1] = "";
+static char pin_packer_name[WSOFT_PACKER_NAME_MAX + 1] = "";
+static uint8_t picker_page = 0;
+static char floor_actor_code[WSOFT_PACKER_CODE_MAX + 1] = "";
+static uint8_t floor_index = 0;
+static int32_t handin_lost = 0;
+static int32_t handin_returned = 0;
+static uint8_t handin_reason_idx = 0;
+static const char *const HANDIN_REASONS[3] = {"RIPPED", "STOLEN", "OTHER"};
+static uint32_t bag_event_seq = 0;
 static char message[40] = "";      // the open page's top-right line
 static uint32_t last_tap_ms = 0;
 // What the last ZERO tap did, shown under ZERO on the live page for RESULT_MS.
@@ -769,7 +785,10 @@ static void say(const char *text) {
 static void open_page(int next) {
   page = next;
   last_tap_ms = millis();
-  if (next != WSOFT_UI_PAGE_PIN) pad.clear();
+  if (next != WSOFT_UI_PAGE_PIN) {
+    pad.clear();
+    pin_mode = PIN_APPROVAL;
+  }
   if (next == WSOFT_UI_PAGE_LIVE) message[0] = 0;
 }
 
@@ -785,11 +804,15 @@ struct Facts {
   char plate_sa[40];
   char plate_limits[56];
   char preset[24];
+  char pack_unit[WSOFT_PACKER_UNIT_MAX + 1];
+  char floor_code[WSOFT_PACKER_CODE_MAX + 1];
+  char floor_name[WSOFT_PACKER_NAME_MAX + 1];
 };
 
 static void gather(Facts *f) {
+  static const WsoftUiInput EMPTY_INPUT;
   WsoftUiInput &in = f->in;
-  in = WsoftUiInput();
+  in = EMPTY_INPUT;
   in.dark = dark;
   in.style = style;
   in.page = page;
@@ -882,6 +905,33 @@ static void gather(Facts *f) {
   if (page == WSOFT_UI_PAGE_NO_PIN && in.wifi_up) strlcpy(f->address, f->ip, sizeof f->address);
   in.address = f->address;
   in.ap_name = f->ap_name;
+
+  bool packer_on = false;
+  f->pack_unit[0] = f->floor_code[0] = f->floor_name[0] = 0;
+  packers_ui_snapshot(&packer_on, f->pack_unit, sizeof f->pack_unit, in.strip, &in.strip_count, picker_page,
+                      &in.picker_page, &in.picker_pages, in.picker, &in.picker_count);
+  picker_page = in.picker_page;
+  in.packer_on = packer_on;
+  if (packer_on) {
+    in.pack_unit = f->pack_unit;
+    in.pin_for_packer = (page == WSOFT_UI_PAGE_PIN && pin_mode != PIN_APPROVAL);
+    in.pin_for_mgr = (page == WSOFT_UI_PAGE_PIN && pin_mode == PIN_FLOOR_MGR);
+    if (page == WSOFT_UI_PAGE_FLOOR || page == WSOFT_UI_PAGE_HANDIN) {
+      int32_t fl_issued = 0, fl_rem = 0;
+      bool fl_batch = false;
+      packers_floor_target(floor_index, &floor_index, &in.floor_total, f->floor_code, sizeof f->floor_code,
+                           f->floor_name, sizeof f->floor_name, &fl_issued, &fl_rem, &fl_batch);
+      in.floor_code = f->floor_code;
+      in.floor_name = f->floor_name;
+      in.floor_issued = fl_issued;
+      in.floor_remaining = fl_rem;
+      in.floor_has_batch = fl_batch;
+      in.floor_index = floor_index;
+      in.handin_lost = handin_lost;
+      in.handin_returned = handin_returned;
+      in.handin_reason = HANDIN_REASONS[handin_reason_idx];
+    }
+  }
 }
 
 // Every row is painted again at the next refresh.
@@ -934,14 +984,148 @@ static void start_approval() {
     say(wsoft_switch_error_code(info.blocked));
   } else {
     message[0] = 0;
+    pin_mode = PIN_APPROVAL;
+    pin_return_page = WSOFT_UI_PAGE_MENU;
     open_page(WSOFT_UI_PAGE_PIN);
   }
 }
 
+static void start_packer_pin(const char *code, const char *name, int return_page) {
+  uint32_t lock_s = packers_guard_locked_s(millis());
+  pin_mode = PIN_PACKER;
+  pin_return_page = return_page;
+  strlcpy(pin_packer_code, code, sizeof pin_packer_code);
+  strlcpy(pin_packer_name, name, sizeof pin_packer_name);
+  if (lock_s > 0) {
+    char line[40];
+    snprintf(line, sizeof line, "WAIT %luS", (unsigned long)lock_s);
+    say(line);
+  } else {
+    say(name);
+  }
+  open_page(WSOFT_UI_PAGE_PIN);
+}
+
+static void start_floor_mgr_pin(int return_page) {
+  uint32_t lock_s = packers_guard_locked_s(millis());
+  pin_mode = PIN_FLOOR_MGR;
+  pin_return_page = return_page;
+  pin_packer_code[0] = 0;
+  pin_packer_name[0] = 0;
+  if (lock_s > 0) {
+    char line[40];
+    snprintf(line, sizeof line, "WAIT %luS", (unsigned long)lock_s);
+    say(line);
+  } else {
+    message[0] = 0;
+  }
+  open_page(WSOFT_UI_PAGE_PIN);
+}
+
 static void pin_ok() {
+  char line[40];
+  if (pin_mode == PIN_PACKER) {
+    if (!wsoft_packer_pin_format_ok(pad.entry())) {
+      say("3-4 DIGITS");
+      return;
+    }
+    uint32_t lock_s = packers_guard_locked_s(millis());
+    if (lock_s > 0) {
+      pad.clear();
+      snprintf(line, sizeof line, "WAIT %luS", (unsigned long)lock_s);
+      say(line);
+      return;
+    }
+    WsoftPackerAuthReply reply;
+    if (hub_packer_auth(pin_packer_code, pad.entry(), "sign_in", &reply)) {
+      pad.clear();
+      if (reply.ok) {
+        packers_apply_auth(reply);
+        open_page(WSOFT_UI_PAGE_LIVE);
+      } else if (strstr(reply.reason, "LOCK") != nullptr) {
+        say("LOCKED");
+      } else {
+        say("WRONG PIN");
+      }
+      return;
+    }
+    uint32_t locked_s = 0;
+    WsoftPackerPinResult r = packers_sign_in_offline(pin_packer_code, pad.entry(), millis(), &locked_s);
+    pad.clear();
+    if (r == WSOFT_PACKER_PIN_OK) {
+      open_page(WSOFT_UI_PAGE_LIVE);
+    } else if (r == WSOFT_PACKER_PIN_LOCKED) {
+      snprintf(line, sizeof line, "WAIT %luS", (unsigned long)locked_s);
+      say(line);
+    } else if (r == WSOFT_PACKER_PIN_WRONG) {
+      say("WRONG PIN");
+    } else {
+      say("SYNC HUB FIRST");
+    }
+    return;
+  }
+  if (pin_mode == PIN_FLOOR_MGR) {
+    if (!wsoft_packer_pin_format_ok(pad.entry())) {
+      say("3-4 DIGITS");
+      return;
+    }
+    uint32_t lock_s = packers_guard_locked_s(millis());
+    if (lock_s > 0) {
+      pad.clear();
+      snprintf(line, sizeof line, "WAIT %luS", (unsigned long)lock_s);
+      say(line);
+      return;
+    }
+    char actor_code[WSOFT_PACKER_CODE_MAX + 1] = "";
+    char actor_name[WSOFT_PACKER_NAME_MAX + 1] = "";
+    bool auth_ok = false;
+    bool handled_online = false;
+    if (packers_single_manager_code(actor_code, sizeof actor_code)) {
+      WsoftPackerAuthReply reply;
+      if (hub_packer_auth(actor_code, pad.entry(), "sign_in", &reply)) {
+        handled_online = true;
+        pad.clear();
+        if (reply.ok && reply.floor_manager) {
+          packers_apply_auth(reply);
+          strlcpy(actor_code, reply.code, sizeof actor_code);
+          auth_ok = true;
+        } else if (!reply.ok && strstr(reply.reason, "LOCK") != nullptr) {
+          say("LOCKED");
+        } else {
+          say("WRONG PIN");
+        }
+      }
+    }
+    if (!handled_online) {
+      uint32_t locked_s = 0;
+      WsoftPackerPinResult r = packers_verify_manager_pin(pad.entry(), millis(), &locked_s, actor_code,
+                                                          sizeof actor_code, actor_name, sizeof actor_name);
+      pad.clear();
+      if (r == WSOFT_PACKER_PIN_OK) {
+        auth_ok = true;
+      } else if (r == WSOFT_PACKER_PIN_LOCKED) {
+        snprintf(line, sizeof line, "WAIT %luS", (unsigned long)locked_s);
+        say(line);
+      } else if (r == WSOFT_PACKER_PIN_WRONG) {
+        say("WRONG PIN");
+      } else {
+        say("NO MGR SET");
+      }
+    }
+    if (auth_ok) {
+      strlcpy(floor_actor_code, actor_code, sizeof floor_actor_code);
+      floor_index = 0;
+      handin_lost = 0;
+      handin_returned = 0;
+      handin_reason_idx = 0;
+      message[0] = 0;
+      open_page(WSOFT_UI_PAGE_FLOOR);
+    }
+    return;
+  }
+
   WsoftPinResult result = pin_try(pad.entry());
   pad.clear();
-  char line[40];
   if (result == WSOFT_PIN_OK) {
     WsoftSwitchError error =
         switches_apply_here(WSOFT_SWITCH_APPROVAL, pin_target, "PIN", WSOFT_WHERE_SCREEN, SCREEN_REASON);
@@ -1058,6 +1242,11 @@ static void menu_tap(int tile) {
       theme_save();
       say(style == WSOFT_UI_STYLE_COLOUR ? "MINI EDGE" : style == WSOFT_UI_STYLE_DIAL ? "DIAL" : dark ? "DARK MODE" : "LIGHT MODE");
       break;
+    case WSOFT_UI_TILE_PACKER:
+      message[0] = 0;
+      picker_page = 0;
+      open_page(WSOFT_UI_PAGE_PACKER);
+      break;
     case WSOFT_UI_TILE_WIFI:
       message[0] = 0;
       open_page(WSOFT_UI_PAGE_WIFI);
@@ -1067,21 +1256,203 @@ static void menu_tap(int tile) {
   }
 }
 
+static const char *bag_err_text(WsoftBagEventError err) {
+  switch (err) {
+    case WSOFT_BAG_OK: return "OK";
+    case WSOFT_BAG_ERR_NOT_FLOOR_MANAGER: return "NOT MGR";
+    case WSOFT_BAG_ERR_UNKNOWN_PACKER: return "NO PACKER";
+    case WSOFT_BAG_ERR_BAD_QTY: return "BAD QTY";
+    case WSOFT_BAG_ERR_REASON_REQUIRED: return "NEED REASON";
+    case WSOFT_BAG_ERR_EXCEEDS_REMAINING: return "TOO MANY";
+    case WSOFT_BAG_ERR_QUEUE_FULL: return "OUTBOX FULL";
+    case WSOFT_BAG_ERR_BAD_TEXT: return "BAD TEXT";
+  }
+  return "ERROR";
+}
+
+static void make_bag_event_id(char *out, size_t size) {
+  String mac = WiFi.macAddress();
+  mac.replace(":", "");
+  time_t now = time(nullptr);
+  snprintf(out, size, "ev-%s-%lu-%lu", mac.c_str(), (unsigned long)(now > 0 ? now : millis()),
+           (unsigned long)++bag_event_seq);
+}
+
+static const char *make_occurred_at(char *buf, size_t size) {
+  time_t now = time(nullptr);
+  if (now < 1700000000) return nullptr;
+  struct tm utc;
+  gmtime_r(&now, &utc);
+  strftime(buf, size, "%Y-%m-%dT%H:%M:%SZ", &utc);
+  return buf;
+}
+
+static int strip_hit_index(int x, int y, uint8_t count) {
+  int best = -1;
+  int best_dist = 100000;
+  for (int i = 0; i < count && i < WSOFT_UI_STRIP_MAX; i++) {
+    WsoftUiBox b = wsoft_ui_strip_box(i, count);
+    if (!b.hit(x, y)) continue;
+    int dx = x - (b.x + b.w / 2);
+    int dy = y - (b.y + b.h / 2);
+    int dist = (dx < 0 ? -dx : dx) + (dy < 0 ? -dy : dy);
+    if (dist < best_dist) {
+      best_dist = dist;
+      best = i;
+    }
+  }
+  return best;
+}
+
 static void pin_tap(int x, int y) {
   if (wsoft_ui_key_box(3, 1, 1, 1).hit(x, y)) {  // BACK
-    open_page(WSOFT_UI_PAGE_MENU);
+    int dest = pin_mode == PIN_APPROVAL ? WSOFT_UI_PAGE_MENU : pin_return_page;
+    message[0] = 0;
+    open_page(dest);
   } else if (wsoft_ui_key_box(3, 0, 1, 1).hit(x, y)) {
     pad.del();
   } else if (wsoft_ui_key_box(3, 2, 1, 2).hit(x, y)) {
     pin_ok();
   } else if (wsoft_ui_key_box(0, 3, 3, 1).hit(x, y)) {
-    pad.press('0');
+    if (pin_mode == PIN_APPROVAL || strlen(pad.entry()) < WSOFT_PACKER_PIN_MAX) pad.press('0');
   } else {
     for (int i = 0; i < 9; i++) {
       if (!wsoft_ui_key_box(i % 3, i / 3, 1, 1).hit(x, y)) continue;
-      pad.press((char)('1' + i));
+      if (pin_mode == PIN_APPROVAL || strlen(pad.entry()) < WSOFT_PACKER_PIN_MAX) pad.press((char)('1' + i));
       return;
     }
+  }
+}
+
+static void packer_tap(int x, int y) {
+  if (WSOFT_UI_BOX_PKR_MGR.hit(x, y)) {
+    start_floor_mgr_pin(WSOFT_UI_PAGE_PACKER);
+    return;
+  }
+  if (shown.has_active_packer && WSOFT_UI_BOX_PKR_OUT.hit(x, y)) {
+    char code[WSOFT_PACKER_CODE_MAX + 1] = "";
+    packers_active_code(code, sizeof code);
+    if (code[0] != 0) {
+      packers_sign_out(code);
+      WsoftPackerAuthReply reply;
+      if (hub_packer_auth(code, nullptr, "sign_out", &reply) && reply.ok) {
+        packers_apply_auth(reply);
+      }
+      say("SIGNED OUT");
+    }
+    return;
+  }
+  if (shown.picker_pages > 1 && WSOFT_UI_BOX_PKR_PAGE.hit(x, y)) {
+    picker_page = (uint8_t)((picker_page + 1) % shown.picker_pages);
+    return;
+  }
+  if (WSOFT_UI_BOX_PKR_BACK.hit(x, y)) {
+    open_page(WSOFT_UI_PAGE_LIVE);
+    return;
+  }
+  for (int i = 0; i < shown.picker_count && i < WSOFT_UI_PICKER_MAX; i++) {
+    if (!wsoft_ui_tile_box(i).hit(x, y)) continue;
+    const WsoftUiPickerEntry &e = shown.picker[i];
+    if (e.signed_in) {
+      packers_select(e.code, millis());
+      open_page(WSOFT_UI_PAGE_LIVE);
+    } else {
+      start_packer_pin(e.code, e.name, WSOFT_UI_PAGE_PACKER);
+    }
+    return;
+  }
+}
+
+static void floor_tap(int x, int y) {
+  if (WSOFT_UI_BOX_BACK.hit(x, y)) {
+    open_page(WSOFT_UI_PAGE_LIVE);
+    return;
+  }
+  if (WSOFT_UI_BOX_FLR_PICK.hit(x, y) || WSOFT_UI_BOX_FLR_NEXT.hit(x, y)) {
+    if (shown.floor_total > 0) {
+      floor_index = (uint8_t)((floor_index + 1) % shown.floor_total);
+      message[0] = 0;
+    }
+    return;
+  }
+  if (WSOFT_UI_BOX_FLR_HANDIN.hit(x, y)) {
+    if (shown.floor_total == 0 || shown.floor_code[0] == 0) {
+      say("NO PACKERS");
+      return;
+    }
+    handin_lost = 0;
+    handin_returned = 0;
+    handin_reason_idx = 0;
+    char line[40];
+    snprintf(line, sizeof line, "%s - %ld LEFT", shown.floor_name, (long)shown.floor_remaining);
+    say(line);
+    open_page(WSOFT_UI_PAGE_HANDIN);
+    return;
+  }
+  static const int32_t ISSUE_QTY[4] = {25, 50, 100, 200};
+  for (int i = 0; i < 4; i++) {
+    if (!wsoft_ui_floor_issue_box(i).hit(x, y)) continue;
+    if (shown.floor_total == 0 || shown.floor_code[0] == 0) {
+      say("NO PACKERS");
+      return;
+    }
+    char ev_id[WSOFT_BAG_EVENT_ID_MAX + 1];
+    char occ_buf[WSOFT_BAG_TIME_MAX + 1];
+    make_bag_event_id(ev_id, sizeof ev_id);
+    const char *occ = make_occurred_at(occ_buf, sizeof occ_buf);
+    WsoftBagEventError err = packers_floor_issue(ev_id, floor_actor_code, shown.floor_code, ISSUE_QTY[i], nullptr, occ);
+    if (err == WSOFT_BAG_OK) {
+      hub_trigger_bag_events_push();
+      char line[40];
+      snprintf(line, sizeof line, "ISSUED +%ld", (long)ISSUE_QTY[i]);
+      say(line);
+    } else {
+      say(bag_err_text(err));
+    }
+    return;
+  }
+}
+
+static void handin_tap(int x, int y) {
+  int32_t max_lost = shown.floor_remaining - handin_returned;
+  if (max_lost < 0) max_lost = 0;
+  int32_t max_ret = shown.floor_remaining - handin_lost;
+  if (max_ret < 0) max_ret = 0;
+
+  if (WSOFT_UI_BOX_HI_LOST_DEC.hit(x, y)) {
+    if (handin_lost > 0) handin_lost--;
+  } else if (WSOFT_UI_BOX_HI_LOST_INC1.hit(x, y)) {
+    if (handin_lost + 1 <= max_lost) handin_lost += 1;
+  } else if (WSOFT_UI_BOX_HI_LOST_INC5.hit(x, y)) {
+    handin_lost += 5;
+    if (handin_lost > max_lost) handin_lost = max_lost;
+  } else if (WSOFT_UI_BOX_HI_REASON.hit(x, y)) {
+    handin_reason_idx = (uint8_t)((handin_reason_idx + 1) % 3);
+  } else if (WSOFT_UI_BOX_HI_RET_DEC.hit(x, y)) {
+    if (handin_returned > 0) handin_returned--;
+  } else if (WSOFT_UI_BOX_HI_RET_INC1.hit(x, y)) {
+    if (handin_returned + 1 <= max_ret) handin_returned += 1;
+  } else if (WSOFT_UI_BOX_HI_RET_INC10.hit(x, y)) {
+    handin_returned += 10;
+    if (handin_returned > max_ret) handin_returned = max_ret;
+  } else if (WSOFT_UI_BOX_HI_CLOSE.hit(x, y)) {
+    char ev_id[WSOFT_BAG_EVENT_ID_MAX + 1];
+    char occ_buf[WSOFT_BAG_TIME_MAX + 1];
+    make_bag_event_id(ev_id, sizeof ev_id);
+    const char *occ = make_occurred_at(occ_buf, sizeof occ_buf);
+    const char *reason = handin_lost > 0 ? HANDIN_REASONS[handin_reason_idx] : nullptr;
+    WsoftBagEventError err = packers_floor_handin(ev_id, floor_actor_code, shown.floor_code, handin_lost,
+                                                  handin_returned, reason, nullptr, true, occ);
+    if (err == WSOFT_BAG_OK) {
+      hub_trigger_bag_events_push();
+      say("BATCH CLOSED");
+      open_page(WSOFT_UI_PAGE_FLOOR);
+    } else {
+      say(bag_err_text(err));
+    }
+  } else if (WSOFT_UI_BOX_HI_BACK.hit(x, y)) {
+    message[0] = 0;
+    open_page(WSOFT_UI_PAGE_FLOOR);
   }
 }
 
@@ -1100,12 +1471,34 @@ static void tap(int x, int y) {
         open_page(WSOFT_UI_PAGE_WIFI);
       } else if (shown.slot == WSOFT_UI_SLOT_WIFI && WSOFT_UI_BOX_DISMISS.hit(x, y)) {
         wifi_dismissed = true;
-      } else if (shown.slot == WSOFT_UI_SLOT_STOP && !shown.wifi_up && WSOFT_UI_BOX_SLOT.hit(x, y)) {
-        // "CLOCK NOT SET - Connect Wi-Fi to get the time": a tap on it shows how.
+      } else if (shown.slot == WSOFT_UI_SLOT_STOP && WSOFT_UI_BOX_SLOT.hit(x, y)) {
+        // Packer stop -> open Packer picker; Clock not set (when Wi-Fi is down) -> open Wi-Fi.
         WeighingsInfo weigh;
         weighings_info(&weigh);
-        if (weigh.waiting == WSOFT_SAVE_NO_CLOCK) open_page(WSOFT_UI_PAGE_WIFI);
-      } else if (shown.slot == WSOFT_UI_SLOT_NONE && !shown.trade_ok && WSOFT_UI_BOX_STAR.hit(x, y)) {
+        if (weigh.waiting == WSOFT_SAVE_NEED_PACKER || weigh.waiting == WSOFT_SAVE_NO_BAGS) {
+          message[0] = 0;
+          picker_page = 0;
+          open_page(WSOFT_UI_PAGE_PACKER);
+        } else if (!shown.wifi_up && weigh.waiting == WSOFT_SAVE_NO_CLOCK) {
+          open_page(WSOFT_UI_PAGE_WIFI);
+        }
+      } else if (shown.slot == WSOFT_UI_SLOT_NONE && shown.packer_on && WSOFT_UI_BOX_STRIP_ADD.hit(x, y) &&
+                 (!WSOFT_UI_BOX_STRIP_MGR.hit(x, y) || y < 41)) {
+        message[0] = 0;
+        picker_page = 0;
+        open_page(WSOFT_UI_PAGE_PACKER);
+      } else if (shown.slot == WSOFT_UI_SLOT_NONE && shown.packer_on && WSOFT_UI_BOX_STRIP_MGR.hit(x, y)) {
+        start_floor_mgr_pin(WSOFT_UI_PAGE_LIVE);
+      } else if (shown.slot == WSOFT_UI_SLOT_NONE && shown.packer_on && shown.strip_count == 0 &&
+                 WSOFT_UI_BOX_STRIP_SIGNIN.hit(x, y)) {
+        message[0] = 0;
+        picker_page = 0;
+        open_page(WSOFT_UI_PAGE_PACKER);
+      } else if (shown.slot == WSOFT_UI_SLOT_NONE && shown.packer_on && shown.strip_count > 0 &&
+                 strip_hit_index(x, y, shown.strip_count) >= 0) {
+        int idx = strip_hit_index(x, y, shown.strip_count);
+        packers_select(shown.strip[idx].code, millis());
+      } else if (shown.slot == WSOFT_UI_SLOT_NONE && !shown.packer_on && !shown.trade_ok && WSOFT_UI_BOX_STAR.hit(x, y)) {
         // The not-for-trade star (Rhyno, 14 Nov 2026): a tap says what it means.
         say("NOT TRADE APPROVED");
       } else if (x >= WSOFT_UI_BOX_SAVE.x - 4 && y >= WSOFT_UI_BOX_SAVE.y - 4) {
@@ -1131,6 +1524,15 @@ static void tap(int x, int y) {
       return;
     case WSOFT_UI_PAGE_PIN:
       pin_tap(x, y);
+      return;
+    case WSOFT_UI_PAGE_PACKER:
+      packer_tap(x, y);
+      return;
+    case WSOFT_UI_PAGE_FLOOR:
+      floor_tap(x, y);
+      return;
+    case WSOFT_UI_PAGE_HANDIN:
+      handin_tap(x, y);
       return;
     case WSOFT_UI_PAGE_NO_PIN:
       open_page(WSOFT_UI_PAGE_MENU);  // a tap anywhere closes the note

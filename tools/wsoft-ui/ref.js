@@ -312,7 +312,7 @@ const WsoftUi = (() => {
   }
 
   // ---------- the screen model: every word and state the screen shows ----------
-  const PAGE_LIVE = 0, PAGE_MENU = 1, PAGE_PIN = 2, PAGE_NO_PIN = 3, PAGE_WIFI = 4;
+  const PAGE_LIVE = 0, PAGE_MENU = 1, PAGE_PIN = 2, PAGE_NO_PIN = 3, PAGE_WIFI = 4, PAGE_PACKER = 5, PAGE_FLOOR = 6, PAGE_HANDIN = 7;
   const TONE_SOFT = 0, TONE_OK = 1, TONE_WAIT = 2, TONE_BAD = 3;
   const SLOT_NONE = 0, SLOT_STOP = 1, SLOT_WAIT = 2, SLOT_WIFI = 3;
   const STAR_W = 20;  // the not-for-trade star (WSOFT_UI_STAR_W)
@@ -327,8 +327,18 @@ const WsoftUi = (() => {
     wifiBar: [0, 0, 150, 20], slot: [6, 22, 308, 40], connect: [160, 26, 100, 32], dismiss: [266, 26, 42, 32],
     gross: [8, 190, 104, 46], zero: [8, 190, 104, 46], menu: [120, 190, 72, 46], save: [200, 190, 112, 46],
     back: [164, 190, 148, 44], wide: [8, 190, 304, 44],
+    stripSignin: [6, 22, 264, 38], stripAdd: [276, 22, 38, 18], stripMgr: [276, 42, 38, 18],
+    pkrMgr: [8, 190, 60, 44], pkrOut: [74, 190, 88, 44], pkrPage: [168, 190, 66, 44], pkrBack: [240, 190, 72, 44],
+    flrPick: [8, 46, 230, 44], flrNext: [244, 46, 68, 44], flrHandin: [8, 190, 148, 44],
+    hiLostDec: [164, 46, 44, 42], hiLostInc1: [214, 46, 46, 42], hiLostInc5: [266, 46, 46, 42],
+    hiReason: [8, 94, 304, 42],
+    hiRetDec: [164, 142, 44, 42], hiRetInc1: [214, 142, 46, 42], hiRetInc10: [266, 142, 46, 42],
+    hiClose: [8, 190, 192, 44], hiBack: [206, 190, 106, 44],
   };
   const tileBox = (i) => [i % 2 ? 164 : 8, 46 + (i >> 1) * 48, 148, 44];
+  const stripBox = (i, count) => count <= 4 ? [6 + i * 67, 22, 63, 38] : [6 + (i % 4) * 67, 22 + (i >> 2) * 20, 63, 18];
+  const FLR_ISSUE_X = [8, 85, 162, 239];
+  const floorIssueBox = (i) => [FLR_ISSUE_X[i], 96, i === 3 ? 73 : 71, 44];
   const KEY_X = [8, 86, 164, 242];
   const keyBox = (col, row, cols, rows) => [KEY_X[col], 46 + row * 48, 72 * cols + 6 * (cols - 1), 44 * rows + 4 * (rows - 1)];
 
@@ -394,9 +404,43 @@ const WsoftUi = (() => {
     return false;
   }
 
+  function paintStrip(c, m, btn, btnInk, soft, on, onInk, stop, accent) {
+    if (!m.packer_on) return false;
+    c.rect(276, 22, 38, 18, accent, 5);
+    c.text('+', 295, 31, MID, WHITE, CENTER);
+    c.rect(276, 42, 38, 18, btn, 5);
+    c.text('MGR', 295, 51, TINY, btnInk, CENTER);
+    if (m.strip_count === 0) {
+      c.rect(6, 22, 264, 38, btn, 6);
+      c.text('TAP TO SIGN IN', 138, 41, SMALL, btnInk, CENTER);
+      return true;
+    }
+    const n = m.strip_count < 8 ? m.strip_count : 8;
+    for (let i = 0; i < n; i++) {
+      const e = m.strip[i], box = stripBox(i, n);
+      const fill = e.active ? (e.remaining <= 0 ? stop : on) : btn;
+      const ink = e.active ? (e.remaining <= 0 ? WHITE : onInk) : btnInk;
+      const sub = e.active ? ink : soft;
+      if (n <= 4) {
+        c.rect(box[0], box[1], box[2], box[3], fill, 6);
+        c.text(c.fit(e.name, TINY, box[2] - 8), box[0] + box[2] / 2, box[1] + 11, TINY, ink, CENTER);
+        let cnt = e.remaining + ' ' + m.pack_unit;
+        if (c.width(cnt, TINY) > box[2] - 6) cnt = String(e.remaining);
+        c.text(c.fit(cnt, TINY, box[2] - 6), box[0] + box[2] / 2, box[1] + 27, TINY, sub, CENTER);
+      } else {
+        c.rect(box[0], box[1], box[2], box[3], fill, 5);
+        const cnt = String(e.remaining);
+        const cw = c.text(cnt, box[0] + box[2] - 4, box[1] + 9, TINY, sub, RIGHT);
+        c.text(c.fit(e.name, TINY, box[2] - cw - 10), box[0] + 4, box[1] + 9, TINY, ink, LEFT);
+      }
+    }
+    return true;
+  }
+
   function paintTop(c, m, T) {
     c.rect(0, 20, 320, 42, T.bg, 0);
     if (paintSlot(c, m, T)) return;
+    if (paintStrip(c, m, T.btn, T.btn_ink, T.soft, T.ok, WHITE, T.stop, T.accent)) return;
     // Not for trade: a small six-pointed star instead of the words (Rhyno, 14 Nov 2026).
     let w = STAR_W;
     if (m.trade_ok) {
@@ -561,6 +605,7 @@ const WsoftUi = (() => {
       c.text(c.fit(m.slot_detail, SMALL, 296), 160, 53, SMALL, sk, CENTER);
       return;
     }
+    if (paintStrip(c, m, P.btn, P.btn_ink, P.btn_soft, P.on, P.on_ink, T.stop, P.on)) return;
     let w = STAR_W;
     if (m.trade_ok) {
       const chip = 'TRADE CHECKS ON';
@@ -728,6 +773,7 @@ const WsoftUi = (() => {
     c.rect(0, 20, 320, 42, T.bg, 0);
     paintDial(c, m, T);
     if (paintSlot(c, m, T)) return;
+    if (paintStrip(c, m, T.btn, T.btn_ink, T.soft, T.ok, WHITE, T.stop, T.accent)) return;
     if (m.trade_ok) {
       // Two short lines: the dial leaves no room for one long one.
       c.rect(8, 24, 68, 24, T.ok, 4);
@@ -780,20 +826,21 @@ const WsoftUi = (() => {
   // ---------- the menu pages (everything under the status bar) ----------
   function paintTile(c, T, box, caption, value, look) {
     const [x, y, w, h] = box;
-    const strong = look === LOOK_ON || look === LOOK_ACCENT;
+    const strong = look === LOOK_ON || look === LOOK_ACCENT || look === LOOK_BAD;
     if (look === LOOK_PLAIN) {
       c.rect(x, y, w, h, T.line, 8);
       c.rect(x + 1, y + 1, w - 2, h - 2, T.panel, 7);
     } else {
-      c.rect(x, y, w, h, look === LOOK_ON ? T.ok : look === LOOK_ACCENT ? T.accent : T.btn, 8);
+      c.rect(x, y, w, h, look === LOOK_ON ? T.ok : look === LOOK_ACCENT ? T.accent : look === LOOK_BAD ? T.stop : T.btn, 8);
     }
     const ink = strong ? WHITE : look === LOOK_PLAIN ? T.ink : T.btn_ink;
     if (caption.length) {
-      c.text(caption, x + 10, y + 13, TINY, strong ? WHITE : T.soft, LEFT);
+      c.text(c.fit(caption, TINY, w - 16), x + 10, y + 13, TINY, strong ? WHITE : T.soft, LEFT);
       if (c.width(value, MID) <= w - 20) c.text(value, x + 10, y + 30, MID, ink, LEFT);
       else c.text(c.fit(value, SMALL, w - 20), x + 10, y + 30, SMALL, ink, LEFT);
     } else {
-      c.text(value, x + w / 2, y + h / 2, MID, ink, CENTER);
+      if (c.width(value, MID) <= w - 8) c.text(value, x + w / 2, y + h / 2, MID, ink, CENTER);
+      else c.text(c.fit(value, SMALL, w - 8), x + w / 2, y + h / 2, SMALL, ink, CENTER);
     }
   }
 
@@ -810,7 +857,45 @@ const WsoftUi = (() => {
       paintTile(c, T, keyBox(0, 3, 3, 1), '', '0', LOOK_BTN);
       paintTile(c, T, keyBox(3, 0, 1, 1), '', 'DEL', LOOK_BTN);
       paintTile(c, T, keyBox(3, 1, 1, 1), '', 'BACK', LOOK_PLAIN);
-      paintTile(c, T, keyBox(3, 2, 1, 2), '', 'OK', LOOK_ON);
+      const okLook = !m.pin_for_packer || m.pin_count >= 3 ? LOOK_ON : LOOK_BTN;
+      paintTile(c, T, keyBox(3, 2, 1, 2), '', 'OK', okLook);
+    } else if (m.page === PAGE_PACKER) {
+      if (m.picker_count === 0) {
+        c.text('NO PACKERS ON THIS SCALE', 160, 96, MID, T.soft, CENTER);
+        c.text('Sync packers from the Hub', 160, 122, SMALL, T.soft, CENTER);
+      } else {
+        for (let i = 0; i < m.picker_count && i < 6; i++) {
+          const p = m.picker[i];
+          const cap = p.active ? 'ACTIVE - ' + p.remaining : p.signed_in ? 'ON STRIP - ' + p.remaining : (p.has_batch || p.remaining > 0) ? p.remaining + ' ' + m.pack_unit : 'NO BATCH';
+          const look = p.active ? LOOK_ON : p.signed_in ? LOOK_ACCENT : LOOK_BTN;
+          paintTile(c, T, tileBox(i), cap, p.name, look);
+        }
+      }
+      paintTile(c, T, BOX.pkrMgr, '', 'MGR', LOOK_BTN);
+      if (m.has_active_packer) paintTile(c, T, BOX.pkrOut, '', 'SIGN OUT', LOOK_BAD);
+      if (m.picker_pages > 1) paintTile(c, T, BOX.pkrPage, 'PAGE', (m.picker_page + 1) + '/' + m.picker_pages, LOOK_BTN);
+      paintTile(c, T, BOX.pkrBack, '', 'BACK', LOOK_PLAIN);
+    } else if (m.page === PAGE_FLOOR) {
+      const cap = m.floor_total > 0 ? 'PACKER ' + (m.floor_index + 1) + '/' + m.floor_total : 'PACKER';
+      paintTile(c, T, BOX.flrPick, cap, m.floor_total > 0 ? m.floor_name : 'NONE', LOOK_PLAIN);
+      paintTile(c, T, BOX.flrNext, '', 'NEXT', LOOK_BTN);
+      const issueLabels = ['+25', '+50', '+100', '+200'];
+      for (let i = 0; i < 4; i++) paintTile(c, T, floorIssueBox(i), 'ISSUE', issueLabels[i], LOOK_ON);
+      paintTile(c, T, [8, 146, 304, 38], 'CURRENT BATCH', 'ISSUED ' + m.floor_issued + '   LEFT ' + m.floor_remaining + ' ' + m.pack_unit, LOOK_PLAIN);
+      paintTile(c, T, BOX.flrHandin, '', 'HAND-IN', LOOK_ACCENT);
+      paintTile(c, T, BOX.back, '', 'BACK', LOOK_PLAIN);
+    } else if (m.page === PAGE_HANDIN) {
+      paintTile(c, T, [8, 46, 148, 42], 'LOST', String(m.handin_lost), LOOK_PLAIN);
+      paintTile(c, T, BOX.hiLostDec, '', '-1', LOOK_BTN);
+      paintTile(c, T, BOX.hiLostInc1, '', '+1', LOOK_BTN);
+      paintTile(c, T, BOX.hiLostInc5, '', '+5', LOOK_BTN);
+      paintTile(c, T, BOX.hiReason, 'LOST REASON (TAP)', m.handin_reason, LOOK_BTN);
+      paintTile(c, T, [8, 142, 148, 42], 'RETURNED', String(m.handin_returned), LOOK_PLAIN);
+      paintTile(c, T, BOX.hiRetDec, '', '-1', LOOK_BTN);
+      paintTile(c, T, BOX.hiRetInc1, '', '+1', LOOK_BTN);
+      paintTile(c, T, BOX.hiRetInc10, '', '+10', LOOK_BTN);
+      paintTile(c, T, BOX.hiClose, '', 'CLOSE BATCH', LOOK_ON);
+      paintTile(c, T, BOX.hiBack, '', 'BACK', LOOK_PLAIN);
     } else if (m.page === PAGE_NO_PIN) {
       c.text('SET A SCREEN PIN FIRST', 160, 62, MID, T.bad_ink, CENTER);
       if (m.address.length) {
@@ -891,9 +976,11 @@ const WsoftUi = (() => {
     BELOW_MIN: [SLOT_STOP, 'BELOW MIN', 'Too light while Approval is ON'],
     OUT_OF_LIMITS: [SLOT_WAIT, 'OUTSIDE HI-LO LIMITS', 'Tap SAVE twice to save anyway'],
     ALARM: [SLOT_STOP, 'SCALE ALARM', 'The junction box shows an alarm'],
+    NEED_PACKER: [SLOT_STOP, 'TAP PACKER NAME', 'Select who is packing'],
   };
   const RESULT = { ALREADY: 'ALREADY SAVED', NEED_ZERO: 'TAKE LOAD OFF', NOT_STABLE: 'WAIT: MOVING', EMPTY: 'SCALE IS EMPTY',
-    NO_SIGNAL: 'NO SCALE SIGNAL', OUT_OF_LIMITS: 'TAP AGAIN: SAVE', WRITER: 'WRITER: NO SAVE', ALARM: 'SCALE ALARM' };
+    NO_SIGNAL: 'NO SCALE SIGNAL', OUT_OF_LIMITS: 'TAP AGAIN: SAVE', WRITER: 'WRITER: NO SAVE', ALARM: 'SCALE ALARM',
+    NEED_PACKER: 'TAP PACKER NAME', NO_BAGS: 'NO BAGS LEFT' };
   const REASON = { motion: 'MOTION', empty: 'EMPTY', nosignal: 'NO SIGNAL', alarm: 'ALARM', noclock: 'NO CLOCK' };
   const HUB = { online: 'HUB', offline: 'HUB OFFLINE', nowifi: 'HUB', clock: 'HUB CLOCK', rejected: 'HUB REJECTED', setup: 'HUB SETUP' };
   const fmtW = (g, dec) => (g / 1000).toFixed(dec);
@@ -916,13 +1003,14 @@ const WsoftUi = (() => {
   }
 
   function modelOf(S) {
-    const m = { dark: S.dark, page: { live: PAGE_LIVE, menu: PAGE_MENU, pin: PAGE_PIN, nopin: PAGE_NO_PIN, wifi: PAGE_WIFI }[S.page], style: S.style };
+    const m = { dark: S.dark, page: { live: PAGE_LIVE, menu: PAGE_MENU, pin: PAGE_PIN, nopin: PAGE_NO_PIN, wifi: PAGE_WIFI, packer: PAGE_PACKER, floor: PAGE_FLOOR, handin: PAGE_HANDIN }[S.page], style: S.style };
     const up = S.wifi.up, hub = up ? S.hub : 'nowifi', net = S.gross - S.tare, pr = S.product;
     m.wifi_up = up; m.wifi_bars = up ? S.wifi.bars : 0; m.ip = up ? S.wifi.ip : 'NO WI-FI';
     m.hub = HUB[hub]; m.hub_tone = hub === 'online' ? TONE_OK : hub === 'setup' ? TONE_SOFT : TONE_BAD;
     m.link = S.source === 'LOADCELL' ? 'CELL' : S.source; m.link_tone = !S.linked ? TONE_BAD : S.alarm ? TONE_WAIT : TONE_OK;
     // The band above the weight: a red note first, then the Wi-Fi alert, then a yellow note.
-    const n = NOTICES[S.waiting];
+    const packUnit = String(S.packUnit || 'bags').slice(0, 9).toUpperCase();
+    const n = S.waiting === 'NO_BAGS' ? [SLOT_STOP, 'NO ' + packUnit + ' LEFT', 'Call Floor Manager'] : NOTICES[S.waiting];
     m.slot = SLOT_NONE; m.slot_title = ''; m.slot_detail = '';
     if (n && n[0] === SLOT_STOP) { m.slot = SLOT_STOP; m.slot_title = n[1]; m.slot_detail = n[2]; }
     else if (!up && !S.wifi.dismissed) m.slot = SLOT_WIFI;
@@ -958,6 +1046,7 @@ const WsoftUi = (() => {
     const writer = S.source === 'WRITER';
     if (writer && r && r.result === 'SAVED') { m.save_line = 'SAVED'; m.save_look = LOOK_ON; }
     else if (r && r.result === 'SAVED') { m.save_line = 'SAVED #' + r.seq; m.save_look = LOOK_ON; }
+    else if (r && r.result === 'NO_BAGS' && S.packerOn && S.packUnit) { m.save_line = 'NO ' + packUnit + ' LEFT'; m.save_look = LOOK_BAD; }
     else if (r) { m.save_line = RESULT[r.result]; m.save_look = r.result === 'ALREADY' || r.result === 'NEED_ZERO' ? LOOK_BTN : LOOK_BAD; }
     else if (S.waiting === 'ALREADY') { m.save_line = 'TAKE LOAD OFF'; m.save_look = LOOK_BTN; }
     else if (!writer && S.save.auto && S.save.count > 0) { m.save_line = 'SAVING IN ' + Math.min(S.save.count, 9); m.save_look = LOOK_ON; }
@@ -977,10 +1066,32 @@ const WsoftUi = (() => {
     }
     m.zero_btn = S.source === 'LOADCELL' && !S.tare;
     m.zero_line = m.zero_btn ? S.zeroNote || 'TAP: SET TO 0' : '';
-    m.title = ['', 'MENU', 'ENTER PIN', 'APPROVAL', 'WI-FI'][m.page];
+    m.packer_on = !!S.packerOn;
+    m.pack_unit = m.packer_on ? packUnit : '';
+    const stripSrc = m.packer_on ? (S.strip || []).slice(0, 8) : [];
+    m.strip = stripSrc.map((e) => ({ code: String(e.code || '').slice(0, 11), name: String(e.name || e.code || '').slice(0, 13).toUpperCase(), remaining: e.remaining | 0, active: !!e.active }));
+    m.strip_count = m.strip.length;
+    m.pin_for_packer = m.packer_on && !!S.pinForPacker;
+    const pickerSrc = m.packer_on ? (S.picker || []).slice(0, 6) : [];
+    m.picker = pickerSrc.map((p) => ({ code: String(p.code || '').slice(0, 11), name: String(p.name || p.code || '').slice(0, 13).toUpperCase(), remaining: p.remaining | 0, signed_in: !!p.signed_in, active: !!p.active, has_batch: !!p.has_batch }));
+    m.picker_count = m.picker.length;
+    m.picker_pages = m.packer_on ? (S.pickerPages | 0) : 0;
+    m.picker_page = m.packer_on ? (m.picker_pages > 0 && (S.pickerPage | 0) >= m.picker_pages ? m.picker_pages - 1 : (S.pickerPage | 0)) : 0;
+    m.has_active_packer = m.strip.some((e) => e.active);
+    m.floor_code = m.packer_on ? String(S.floorCode || '').slice(0, 11) : '';
+    m.floor_name = m.packer_on ? String(S.floorName || S.floorCode || '').slice(0, 13).toUpperCase() : '';
+    m.floor_issued = m.packer_on ? (S.floorIssued | 0) : 0;
+    m.floor_remaining = m.packer_on ? (S.floorRemaining | 0) : 0;
+    m.floor_has_batch = m.packer_on && !!S.floorHasBatch;
+    m.floor_total = m.packer_on ? (S.floorTotal | 0) : 0;
+    m.floor_index = m.packer_on ? (m.floor_total > 0 && (S.floorIndex | 0) >= m.floor_total ? 0 : (S.floorIndex | 0)) : 0;
+    m.handin_lost = m.packer_on ? Math.max(0, S.handinLost | 0) : 0;
+    m.handin_returned = m.packer_on ? Math.max(0, S.handinReturned | 0) : 0;
+    m.handin_reason = m.packer_on ? String(S.handinReason || 'RIPPED').slice(0, 9).toUpperCase() : '';
+    m.title = m.page === PAGE_PIN && m.pin_for_packer ? (S.pinForMgr ? 'MGR PIN' : 'PACKER PIN') : ['', 'MENU', 'ENTER PIN', 'APPROVAL', 'WI-FI', 'PACKERS', 'FLOOR MGR', 'HAND-IN'][m.page];
     m.message = S.message;
     m.tiles = [];
-    const tile = (id, caption, value, look) => m.tiles.push({ id, caption, value, look });
+    const tile = (id, caption, value, look) => { if (m.tiles.length < 7) m.tiles.push({ id, caption, value, look }); };
     tile('approval', 'APPROVAL', S.approval ? 'ON' : 'OFF', S.approval ? LOOK_ON : LOOK_BTN);
     tile('auto', 'AUTO SAVE', S.save.auto ? 'ON' : 'OFF', S.save.auto ? LOOK_ON : LOOK_BTN);
     if (S.source === 'RS485' || S.source === 'LOADCELL') {
@@ -988,11 +1099,15 @@ const WsoftUi = (() => {
       if (S.presetTare) tile('preset', 'PRESET TARE', fmtW(S.presetTare, S.decimals) + ' ' + S.unit, LOOK_BTN);
     }
     if (S.source === 'LOADCELL') tile('zero', 'ZERO', 'SET TO 0', LOOK_BTN);
+    if (m.packer_on) {
+      const act = m.strip.find((e) => e.active);
+      tile('packer', 'PACKER', act ? act.name : 'NONE', act ? LOOK_ON : LOOK_BTN);
+    }
     tile('product', 'PRODUCT', !S.products.length ? 'NONE ON THE HUB' : pr ? pr.name.toUpperCase() : 'NONE', pr ? LOOK_ON : LOOK_BTN);
     tile('theme', 'SCREEN', S.style === STYLE_COLOUR ? 'MINI EDGE' : S.style === STYLE_DIAL ? 'DIAL' : S.dark ? 'DARK' : 'LIGHT', LOOK_BTN);
     tile('wifi', 'WI-FI', up ? S.wifi.ip : 'OFF', LOOK_BTN);
     m.tile_count = m.tiles.length;
-    m.pin_count = S.pin.length;
+    m.pin_count = Math.min(S.pin.length, m.pin_for_packer ? 4 : 6);
     m.address = m.page === PAGE_NO_PIN && up ? S.wifi.ip : S.wifi.hotspot ? S.wifi.apIp : '';
     m.ap_name = S.wifi.hotspot ? S.wifi.ap : '';
     return m;
@@ -1084,6 +1199,72 @@ const WsoftUi = (() => {
     ['Full Colour, zero', 'A load cell at zero: EMPTY in a grey pill, ZERO on the left.', state({ style: STYLE_COLOUR, source: 'LOADCELL', gross: 0, save: { auto: false } })],
     ['Light mode, nothing on the scale', 'The faceplate look stays: EMPTY in a slate pill.', state({ dark: false, gross: 0, save: { auto: false } })],
     ['Light mode, scale unplugged', 'The faceplate look stays: dashes, WAITING in a slate pill.', state({ dark: false, linked: false, waiting: 'NO_SIGNAL' })],
+    // Packer strip, 3-4 digit Packer PIN, and Floor Manager screens (appended after 0..60).
+    ['Packer strip, 4 signed in', 'Up to 4 signed-in packers show two-line pills with remaining bags, plus + and MGR.', state({
+      packerOn: true, packUnit: 'bags',
+      strip: [
+        { code: '1', name: 'Koos', remaining: 42, active: true },
+        { code: '2', name: 'Sipho', remaining: 18, active: false },
+        { code: '3', name: 'Lindiwe', remaining: 5, active: false },
+        { code: '4', name: 'Pieter', remaining: 0, active: false },
+      ],
+    })],
+    ['Packer strip, 8 signed in (Full Colour)', '5-8 signed-in packers compact into two rows of 4 pills; + and MGR stay on the right.', state({
+      style: STYLE_COLOUR, source: 'LOADCELL', packerOn: true, packUnit: 'bags',
+      strip: [
+        { code: '1', name: 'Koos', remaining: 42, active: false },
+        { code: '2', name: 'Sipho', remaining: 18, active: true },
+        { code: '3', name: 'Lindiwe', remaining: 5, active: false },
+        { code: '4', name: 'Pieter', remaining: 0, active: false },
+        { code: '5', name: 'Thabo', remaining: 99, active: false },
+        { code: '6', name: 'Anna', remaining: 12, active: false },
+        { code: '7', name: 'Johan', remaining: 7, active: false },
+        { code: '8', name: 'Maria', remaining: 31, active: false },
+      ],
+    })],
+    ['Packer hard stop: NO POCKETS LEFT', 'Dynamic pack_unit_label uppercased in the stop banner and on the SAVE button.', state({
+      packerOn: true, packUnit: 'pockets', waiting: 'NO_BAGS', save: { recent: { result: 'NO_BAGS' } },
+      strip: [{ code: '1', name: 'Koos', remaining: 0, active: true }],
+    })],
+    ['Packer hard stop: TAP PACKER NAME', 'No active packer selected blocks saving until a packer is tapped.', state({
+      packerOn: true, packUnit: 'bags', waiting: 'NEED_PACKER',
+      strip: [{ code: '2', name: 'Sipho', remaining: 18, active: false }],
+    })],
+    ['Packer picker page', 'Up to 6 packers per page, plus MGR, SIGN OUT, pagination, and BACK.', state({
+      page: 'packer', packerOn: true, packUnit: 'bags', pickerPage: 0, pickerPages: 2,
+      strip: [
+        { code: '1', name: 'Koos', remaining: 42, active: true },
+        { code: '2', name: 'Sipho', remaining: 18, active: false },
+      ],
+      picker: [
+        { code: '1', name: 'Koos', remaining: 42, signed_in: true, active: true, has_batch: true },
+        { code: '2', name: 'Sipho', remaining: 18, signed_in: true, active: false, has_batch: true },
+        { code: '3', name: 'Lindiwe', remaining: 5, signed_in: false, active: false, has_batch: true },
+        { code: '4', name: 'Pieter', remaining: 0, signed_in: false, active: false, has_batch: false },
+        { code: '5', name: 'Thabo', remaining: 99, signed_in: false, active: false, has_batch: true },
+        { code: '6', name: 'Anna', remaining: 12, signed_in: false, active: false, has_batch: true },
+      ],
+    })],
+    ['Packer PIN pad, 3 digits (OK active)', '3-4 digit Packer PIN pad: OK turns green once at least 3 digits are entered.', state({
+      page: 'pin', packerOn: true, pinForPacker: true, pin: '123', message: 'KOOS',
+    })],
+    ['Packer PIN pad, 2 digits and WAIT 42S', 'Under 3 digits OK stays muted; 5 wrong tries show the 45 s lock countdown.', state({
+      page: 'pin', packerOn: true, pinForPacker: true, pin: '12', message: 'WAIT 42S',
+    })],
+    ['Floor Manager page', 'Pick a packer, issue +25/+50/+100/+200 bags, or open Hand-in.', state({
+      page: 'floor', packerOn: true, packUnit: 'bags',
+      floorCode: '1', floorName: 'Koos', floorIssued: 100, floorRemaining: 42, floorHasBatch: true, floorIndex: 0, floorTotal: 3,
+      message: 'ISSUED +50',
+    })],
+    ['Floor Manager Hand-in page', 'Adjust Lost qty, cycle reason (RIPPED/STOLEN/OTHER), adjust Returned qty, and CLOSE BATCH.', state({
+      page: 'handin', packerOn: true, packUnit: 'bags',
+      floorCode: '1', floorName: 'Koos', floorRemaining: 42,
+      handinLost: 2, handinReturned: 8, handinReason: 'RIPPED', message: 'KOOS - 42 LEFT',
+    })],
+    ['Menu with Packer tile', 'MENU includes the PACKER tile when packer tracking is on.', state({
+      page: 'menu', packerOn: true, packUnit: 'bags',
+      strip: [{ code: '1', name: 'Koos', remaining: 42, active: true }],
+    })],
   ];
 
   const BOARDS = {
@@ -1115,7 +1296,7 @@ const WsoftUi = (() => {
     g.drawImage(tmp, 0, 0, c.W * k, c.H * k);
   }
 
-  return { ROLES, BOARDS, PRESETS, THEME_HEX, BAR_HEX, THEME, BAR, BOX, ROWS, tileBox, keyBox, Canvas, buildFonts, packFont, unpackFont,
+  return { ROLES, BOARDS, PRESETS, THEME_HEX, BAR_HEX, THEME, BAR, BOX, ROWS, tileBox, keyBox, stripBox, floorIssueBox, Canvas, buildFonts, packFont, unpackFont,
     paint, paintRow, modelOf, state, zoneOf, crc32, show, fmtW,
-    PAGE_LIVE, PAGE_MENU, PAGE_PIN, PAGE_NO_PIN, PAGE_WIFI, SLOT_NONE, SLOT_STOP, SLOT_WAIT, SLOT_WIFI, ZONE_NONE };
+    PAGE_LIVE, PAGE_MENU, PAGE_PIN, PAGE_NO_PIN, PAGE_WIFI, PAGE_PACKER, PAGE_FLOOR, PAGE_HANDIN, SLOT_NONE, SLOT_STOP, SLOT_WAIT, SLOT_WIFI, ZONE_NONE };
 })();

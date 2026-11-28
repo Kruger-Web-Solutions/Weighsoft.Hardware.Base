@@ -3,8 +3,22 @@
 #include "wsoft_log.h"
 
 #include <Preferences.h>
+#include <ctype.h>
 #include <freertos/semphr.h>
+#ifdef ESP32
+#include <nvs.h>
+#endif
 #include <string.h>
+
+static bool eq_ci(const char *a, const char *b) {
+  if (a == nullptr || b == nullptr) return false;
+  while (*a && *b) {
+    if (tolower((unsigned char)*a) != tolower((unsigned char)*b)) return false;
+    a++;
+    b++;
+  }
+  return *a == *b;
+}
 
 static const uint32_t PULL_MS = 60000;
 static const uint32_t RETRY_MS = 15000;
@@ -113,6 +127,14 @@ void packers_begin() {
   WSOFT_LOG.printf("PACKERS required=%d count=%u unit=%s outbox=%u\n",
                    stored_roster.require_packer_bags ? 1 : 0, (unsigned)stored_roster.count,
                    stored_roster.pack_unit_label, (unsigned)stored_outbox.size());
+#ifdef ESP32
+  nvs_stats_t nvs_st;
+  if (nvs_get_stats(nullptr, &nvs_st) == ESP_OK) {
+    WSOFT_LOG.printf("NVS used=%u free=%u total=%u namespaces=%u\n",
+                     (unsigned)nvs_st.used_entries, (unsigned)nvs_st.free_entries,
+                     (unsigned)nvs_st.total_entries, (unsigned)nvs_st.namespace_count);
+  }
+#endif
 }
 
 bool packers_required() {
@@ -167,29 +189,96 @@ void packers_on_void(const char *packer_code, const char *batch_id) {
   if (changed) save_state(true, false, false);
 }
 
-WsoftPackerPinResult packers_sign_in_offline(const char *code, const char *pin, WsoftPackerEntry *out_entry) {
-  uint32_t now = millis();
+WsoftPackerPinResult packers_sign_in_offline(const char *code, const char *pin, uint32_t now_ms,
+                                             uint32_t *locked_s_out, WsoftPackerEntry *out_entry) {
   WsoftPackerPinResult result = WSOFT_PACKER_PIN_NOT_SET;
-  uint32_t prev_fails = 0, next_fails = 0;
+  uint32_t prev_fails = 0, next_fails = 0, locked_s = 0;
 
   portENTER_CRITICAL(&lock);
   prev_fails = pin_guard.fails();
   const WsoftPackerEntry *entry = wsoft_packer_find(roster, code);
   if (entry != nullptr) {
-    result = wsoft_packer_pin_try(&pin_guard, entry->has_verifier, entry->pin_salt, entry->pin_sha256, pin, now);
+    result = wsoft_packer_pin_try(&pin_guard, entry->has_verifier, entry->pin_salt, entry->pin_sha256, pin, now_ms);
     if (result == WSOFT_PACKER_PIN_OK) {
-      if (!entry->floor_manager) strip.sign_in(entry->code, now);
+      if (!entry->floor_manager) strip.sign_in(entry->code, now_ms);
       if (out_entry) *out_entry = *entry;
-      next_pull_ms = now + AFTER_CHANGE_MS;
+      next_pull_ms = now_ms + AFTER_CHANGE_MS;
     }
   } else {
     result = WSOFT_PACKER_PIN_NOT_SET;
   }
   next_fails = pin_guard.fails();
+  locked_s = pin_guard.locked_s(now_ms);
   portEXIT_CRITICAL(&lock);
 
+  if (locked_s_out) *locked_s_out = locked_s;
   if (next_fails != prev_fails) save_state(false, false, true);
   return result;
+}
+
+WsoftPackerPinResult packers_sign_in_offline(const char *code, const char *pin, WsoftPackerEntry *out_entry) {
+  return packers_sign_in_offline(code, pin, millis(), nullptr, out_entry);
+}
+
+WsoftPackerPinResult packers_verify_manager_pin(const char *pin, uint32_t now_ms, uint32_t *locked_s_out,
+                                                char *actor_code, size_t actor_code_size, char *actor_name,
+                                                size_t actor_name_size) {
+  if (actor_code && actor_code_size > 0) actor_code[0] = 0;
+  if (actor_name && actor_name_size > 0) actor_name[0] = 0;
+  WsoftPackerPinResult result = WSOFT_PACKER_PIN_NOT_SET;
+  uint32_t prev_fails = 0, next_fails = 0, locked_s = 0;
+
+  portENTER_CRITICAL(&lock);
+  prev_fails = pin_guard.fails();
+  if (pin_guard.locked_s(now_ms) > 0) {
+    result = WSOFT_PACKER_PIN_LOCKED;
+  } else {
+    bool any_mgr_verifier = false;
+    bool matched = false;
+    for (size_t i = 0; i < roster.count && i < WSOFT_PACKERS_MAX; i++) {
+      const WsoftPackerEntry &p = roster.packers[i];
+      if (!p.floor_manager || !p.has_verifier) continue;
+      any_mgr_verifier = true;
+      if (wsoft_packer_pin_matches(p.pin_salt, p.pin_sha256, pin)) {
+        pin_guard.right();
+        if (actor_code && actor_code_size > 0) strlcpy(actor_code, p.code, actor_code_size);
+        if (actor_name && actor_name_size > 0) strlcpy(actor_name, p.name[0] ? p.name : p.code, actor_name_size);
+        matched = true;
+        break;
+      }
+    }
+    if (matched) {
+      result = WSOFT_PACKER_PIN_OK;
+    } else if (!any_mgr_verifier) {
+      result = WSOFT_PACKER_PIN_NOT_SET;
+    } else {
+      pin_guard.wrong(now_ms);
+      result = pin_guard.locked_s(now_ms) > 0 ? WSOFT_PACKER_PIN_LOCKED : WSOFT_PACKER_PIN_WRONG;
+    }
+  }
+  next_fails = pin_guard.fails();
+  locked_s = pin_guard.locked_s(now_ms);
+  portEXIT_CRITICAL(&lock);
+
+  if (locked_s_out) *locked_s_out = locked_s;
+  if (next_fails != prev_fails) save_state(false, false, true);
+  return result;
+}
+
+bool packers_single_manager_code(char *code_out, size_t code_size) {
+  if (code_out && code_size > 0) code_out[0] = 0;
+  size_t mgr_count = 0;
+  char found[WSOFT_PACKER_CODE_MAX + 1] = "";
+  portENTER_CRITICAL(&lock);
+  for (size_t i = 0; i < roster.count && i < WSOFT_PACKERS_MAX; i++) {
+    if (!roster.packers[i].floor_manager) continue;
+    mgr_count++;
+    if (mgr_count == 1) strlcpy(found, roster.packers[i].code, sizeof found);
+  }
+  portEXIT_CRITICAL(&lock);
+  if (mgr_count != 1) return false;
+  if (code_out && code_size > 0) strlcpy(code_out, found, code_size);
+  return true;
 }
 
 void packers_apply_auth(const WsoftPackerAuthReply &reply) {
@@ -221,12 +310,15 @@ void packers_apply_auth(const WsoftPackerAuthReply &reply) {
   if (roster_changed) save_state(true, false, false);
 }
 
-bool packers_select(const char *code) {
-  uint32_t now = millis();
+bool packers_select(const char *code, uint32_t now_ms) {
   portENTER_CRITICAL(&lock);
-  bool ok = strip.select_code(code, now);
+  bool ok = strip.select_code(code, now_ms);
   portEXIT_CRITICAL(&lock);
   return ok;
+}
+
+bool packers_select(const char *code) {
+  return packers_select(code, millis());
 }
 
 bool packers_sign_out(const char *code) {
@@ -353,4 +445,144 @@ void packers_info(PackersInfo *out) {
   out->outbox_pending = outbox.size();
   out->last_ok_ms = last_ok_ms;
   portEXIT_CRITICAL(&lock);
+}
+
+void packers_pack_unit(char *out, size_t size) {
+  if (out == nullptr || size == 0) return;
+  portENTER_CRITICAL(&lock);
+  strlcpy(out, roster.pack_unit_label, size);
+  portEXIT_CRITICAL(&lock);
+}
+
+void packers_active_code(char *out, size_t size) {
+  if (out == nullptr || size == 0) return;
+  portENTER_CRITICAL(&lock);
+  strlcpy(out, strip.active(), size);
+  portEXIT_CRITICAL(&lock);
+}
+
+uint32_t packers_guard_locked_s(uint32_t now_ms) {
+  portENTER_CRITICAL(&lock);
+  uint32_t s = pin_guard.locked_s(now_ms);
+  portEXIT_CRITICAL(&lock);
+  return s;
+}
+
+int packers_guard_tries_left() {
+  portENTER_CRITICAL(&lock);
+  int left = pin_guard.tries_left();
+  portEXIT_CRITICAL(&lock);
+  return left;
+}
+
+void packers_ui_snapshot(bool *required_out, char *unit_out, size_t unit_size, WsoftUiStripEntry *strip_out,
+                         uint8_t *strip_count_out, uint8_t picker_page, uint8_t *picker_page_out,
+                         uint8_t *picker_pages_out, WsoftUiPickerEntry *picker_out, uint8_t *picker_count_out) {
+  portENTER_CRITICAL(&lock);
+  if (required_out) *required_out = roster.require_packer_bags;
+  if (unit_out && unit_size > 0) strlcpy(unit_out, roster.pack_unit_label, unit_size);
+
+  uint8_t sc = (uint8_t)(strip.count() > WSOFT_UI_STRIP_MAX ? WSOFT_UI_STRIP_MAX : strip.count());
+  if (strip_count_out) *strip_count_out = sc;
+  if (strip_out != nullptr) {
+    const char *active = strip.active();
+    for (uint8_t i = 0; i < sc; i++) {
+      const char *code = strip.slot_code(i);
+      const WsoftPackerEntry *p = wsoft_packer_find(roster, code);
+      strlcpy(strip_out[i].code, code, sizeof strip_out[i].code);
+      strlcpy(strip_out[i].name, (p && p->name[0]) ? p->name : code, sizeof strip_out[i].name);
+      strip_out[i].remaining = p ? p->remaining : 0;
+      strip_out[i].active = (active[0] != 0 && eq_ci(active, code));
+    }
+  }
+
+  uint8_t total_packers = 0;
+  for (size_t i = 0; i < roster.count && i < WSOFT_PACKERS_MAX; i++) {
+    if (!roster.packers[i].floor_manager) total_packers++;
+  }
+  uint8_t pages = total_packers == 0
+                      ? 0
+                      : (uint8_t)((total_packers + WSOFT_UI_PICKER_MAX - 1) / WSOFT_UI_PICKER_MAX);
+  uint8_t pg = (pages > 0 && picker_page < pages) ? picker_page : (pages > 0 ? (uint8_t)(pages - 1) : 0);
+  if (picker_pages_out) *picker_pages_out = pages;
+  if (picker_page_out) *picker_page_out = pg;
+
+  uint8_t pk = 0;
+  if (picker_out != nullptr && pages > 0) {
+    uint8_t skip = (uint8_t)(pg * WSOFT_UI_PICKER_MAX);
+    uint8_t seen = 0;
+    const char *active = strip.active();
+    for (size_t i = 0; i < roster.count && i < WSOFT_PACKERS_MAX && pk < WSOFT_UI_PICKER_MAX; i++) {
+      const WsoftPackerEntry &p = roster.packers[i];
+      if (p.floor_manager) continue;
+      if (seen++ < skip) continue;
+      strlcpy(picker_out[pk].code, p.code, sizeof picker_out[pk].code);
+      strlcpy(picker_out[pk].name, p.name[0] ? p.name : p.code, sizeof picker_out[pk].name);
+      picker_out[pk].remaining = p.remaining;
+      picker_out[pk].signed_in = strip.contains(p.code);
+      picker_out[pk].active = (active[0] != 0 && eq_ci(active, p.code));
+      picker_out[pk].has_batch = p.has_batch;
+      pk++;
+    }
+  }
+  if (picker_count_out) *picker_count_out = pk;
+  portEXIT_CRITICAL(&lock);
+}
+
+bool packers_floor_target(uint8_t index, uint8_t *index_out, uint8_t *total_out, char *code_out, size_t code_size,
+                          char *name_out, size_t name_size, int32_t *issued_out, int32_t *remaining_out,
+                          bool *has_batch_out) {
+  if (code_out && code_size > 0) code_out[0] = 0;
+  if (name_out && name_size > 0) name_out[0] = 0;
+  if (issued_out) *issued_out = 0;
+  if (remaining_out) *remaining_out = 0;
+  if (has_batch_out) *has_batch_out = false;
+  if (index_out) *index_out = 0;
+  if (total_out) *total_out = 0;
+
+  portENTER_CRITICAL(&lock);
+  uint8_t total = 0;
+  for (size_t i = 0; i < roster.count && i < WSOFT_PACKERS_MAX; i++) {
+    if (!roster.packers[i].floor_manager) total++;
+  }
+  if (total_out) *total_out = total;
+  if (total == 0) {
+    portEXIT_CRITICAL(&lock);
+    return false;
+  }
+  uint8_t target_idx = index % total;
+  if (index_out) *index_out = target_idx;
+  uint8_t seen = 0;
+  for (size_t i = 0; i < roster.count && i < WSOFT_PACKERS_MAX; i++) {
+    const WsoftPackerEntry &p = roster.packers[i];
+    if (p.floor_manager) continue;
+    if (seen++ == target_idx) {
+      if (code_out && code_size > 0) strlcpy(code_out, p.code, code_size);
+      if (name_out && name_size > 0) strlcpy(name_out, p.name[0] ? p.name : p.code, name_size);
+      if (issued_out) *issued_out = p.issued;
+      if (remaining_out) *remaining_out = p.remaining;
+      if (has_batch_out) *has_batch_out = p.has_batch;
+      break;
+    }
+  }
+  portEXIT_CRITICAL(&lock);
+  return true;
+}
+
+void packers_print_list(Stream &port) {
+  static WsoftPackerRoster copy;
+  char active[WSOFT_PACKER_CODE_MAX + 1] = "";
+  portENTER_CRITICAL(&lock);
+  copy = roster;
+  strlcpy(active, strip.active(), sizeof active);
+  portEXIT_CRITICAL(&lock);
+
+  port.printf("PACKERS required=%d unit=%s count=%u active=%s\n",
+              copy.require_packer_bags ? 1 : 0, copy.pack_unit_label, (unsigned)copy.count,
+              active[0] ? active : "-");
+  for (size_t i = 0; i < copy.count && i < WSOFT_PACKERS_MAX; i++) {
+    const WsoftPackerEntry &p = copy.packers[i];
+    port.printf("PACKER code=%s name=%s floor_manager=%d remaining=%ld\n",
+                p.code, p.name, p.floor_manager ? 1 : 0, (long)p.remaining);
+  }
 }

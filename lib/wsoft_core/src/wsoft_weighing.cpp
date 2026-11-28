@@ -249,8 +249,9 @@ const char *wsoft_save_result_text(WsoftSaveResult result) {
   return "";
 }
 
-bool wsoft_save_notice(WsoftSaveResult result, WsoftSaveNotice *out) {
+bool wsoft_save_notice_unit(WsoftSaveResult result, const char *unit_label, WsoftSaveNotice *out) {
   WsoftSaveNotice n;
+  bool dynamic_title = false;
   switch (result) {
     case WSOFT_SAVE_NONE:
     case WSOFT_SAVE_SAVED:
@@ -328,14 +329,31 @@ bool wsoft_save_notice(WsoftSaveResult result, WsoftSaveNotice *out) {
       n.detail = "Select who is packing";
       n.level = WSOFT_NOTICE_STOP;
       break;
-    case WSOFT_SAVE_NO_BAGS:
+    case WSOFT_SAVE_NO_BAGS: {
       n.code = "NO_BAGS";
-      n.title = "NO BAGS LEFT";
       n.detail = "Call Floor Manager";
       n.level = WSOFT_NOTICE_STOP;
+      const char *u = (unit_label != nullptr && unit_label[0] != 0) ? unit_label : "BAGS";
+      char upper[13];
+      size_t k = 0;
+      for (; u[k] && k + 1 < sizeof upper; k++) {
+        unsigned char ch = (unsigned char)u[k];
+        upper[k] = (ch >= 'a' && ch <= 'z') ? (char)(ch - 32) : (char)ch;
+      }
+      upper[k] = 0;
+      snprintf(n.title_buf, sizeof n.title_buf, "NO %s LEFT", upper);
+      dynamic_title = true;
       break;
+    }
   }
-  if (n.title[0] == 0) return false;
-  if (out) *out = n;
+  if (!dynamic_title && n.title[0] == 0) return false;
+  if (out) {
+    *out = n;
+    if (dynamic_title) out->title = out->title_buf;
+  }
   return true;
+}
+
+bool wsoft_save_notice(WsoftSaveResult result, WsoftSaveNotice *out) {
+  return wsoft_save_notice_unit(result, "BAGS", out);
 }

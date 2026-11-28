@@ -98,7 +98,8 @@ static void bar(const WsoftUiInput &in, WsoftUiModel *m) {
 // then the Wi-Fi alert, then a yellow notice. "All is well" notices never take the band.
 static void slot(const WsoftUiInput &in, WsoftUiModel *m) {
   WsoftSaveNotice notice;
-  bool on = wsoft_save_notice(in.waiting, &notice) && notice.level != WSOFT_NOTICE_INFO;
+  const char *unit_label = in.packer_on && in.pack_unit[0] ? in.pack_unit : "bags";
+  bool on = wsoft_save_notice_unit(in.waiting, unit_label, &notice) && notice.level != WSOFT_NOTICE_INFO;
   if (on && notice.level == WSOFT_NOTICE_STOP) m->slot = WSOFT_UI_SLOT_STOP;
   else if (in.wifi_alert) m->slot = WSOFT_UI_SLOT_WIFI;
   else if (on) m->slot = WSOFT_UI_SLOT_WAIT;
@@ -217,6 +218,11 @@ static void save(const WsoftUiInput &in, WsoftUiModel *m) {
     put(m->save_line, "SAVED");
   } else if (in.recent == WSOFT_SAVE_SAVED) {
     snprintf(m->save_line, sizeof m->save_line, "SAVED #%lu", (unsigned long)in.saved_seq);
+  } else if (in.recent == WSOFT_SAVE_NO_BAGS && in.packer_on && in.pack_unit[0]) {
+    char unit_up[12];
+    put_upper(unit_up, in.pack_unit);
+    snprintf(m->save_line, sizeof m->save_line, "NO %s LEFT", unit_up);
+    m->save_look = WSOFT_UI_LOOK_BAD;
   } else if (in.recent != WSOFT_SAVE_NONE) {
     put_upper(m->save_line, wsoft_save_result_text(in.recent));
     m->save_look = in.recent == WSOFT_SAVE_ALREADY || in.recent == WSOFT_SAVE_NEED_ZERO ? WSOFT_UI_LOOK_BTN : WSOFT_UI_LOOK_BAD;
@@ -256,6 +262,18 @@ static void menu(const WsoftUiInput &in, WsoftUiModel *m) {
   }
   // A board that weighs itself (load cell) sets its own zero: with the scale empty, one tap.
   if (in.zero) tile(m, WSOFT_UI_TILE_ZERO, "ZERO", "SET TO 0", false);
+  if (in.packer_on) {
+    const char *active_name = "NONE";
+    bool active_on = false;
+    for (int i = 0; i < m->strip_count && i < WSOFT_UI_STRIP_MAX; i++) {
+      if (m->strip[i].active) {
+        active_name = m->strip[i].name;
+        active_on = true;
+        break;
+      }
+    }
+    tile(m, WSOFT_UI_TILE_PACKER, "PACKER", active_name, active_on);
+  }
   if (in.product_count == 0) {
     tile(m, WSOFT_UI_TILE_PRODUCT, "PRODUCT", "NONE ON THE HUB", false);
   } else if (in.product == nullptr) {
@@ -286,12 +304,48 @@ static void hint(const WsoftUiInput &in, WsoftUiModel *m) {
   }
 }
 
+static void packer_fields(const WsoftUiInput &in, WsoftUiModel *m) {
+  if (!in.packer_on) return;
+  m->packer_on = true;
+  put_upper(m->pack_unit, in.pack_unit[0] ? in.pack_unit : "bags");
+  m->strip_count = in.strip_count > WSOFT_UI_STRIP_MAX ? WSOFT_UI_STRIP_MAX : in.strip_count;
+  for (int i = 0; i < m->strip_count; i++) {
+    put(m->strip[i].code, in.strip[i].code);
+    put_upper(m->strip[i].name, in.strip[i].name[0] ? in.strip[i].name : in.strip[i].code);
+    m->strip[i].remaining = in.strip[i].remaining;
+    m->strip[i].active = in.strip[i].active;
+    if (m->strip[i].active) m->has_active_packer = true;
+  }
+  m->pin_for_packer = in.pin_for_packer;
+  m->picker_count = in.picker_count > WSOFT_UI_PICKER_MAX ? WSOFT_UI_PICKER_MAX : in.picker_count;
+  m->picker_pages = in.picker_pages;
+  m->picker_page = (m->picker_pages > 0 && in.picker_page >= m->picker_pages) ? (uint8_t)(m->picker_pages - 1) : in.picker_page;
+  for (int i = 0; i < m->picker_count; i++) {
+    put(m->picker[i].code, in.picker[i].code);
+    put_upper(m->picker[i].name, in.picker[i].name[0] ? in.picker[i].name : in.picker[i].code);
+    m->picker[i].remaining = in.picker[i].remaining;
+    m->picker[i].signed_in = in.picker[i].signed_in;
+    m->picker[i].active = in.picker[i].active;
+    m->picker[i].has_batch = in.picker[i].has_batch;
+  }
+  put(m->floor_code, in.floor_code);
+  put_upper(m->floor_name, in.floor_name[0] ? in.floor_name : in.floor_code);
+  m->floor_issued = in.floor_issued;
+  m->floor_remaining = in.floor_remaining;
+  m->floor_has_batch = in.floor_has_batch;
+  m->floor_total = in.floor_total;
+  m->floor_index = (m->floor_total > 0 && in.floor_index >= m->floor_total) ? 0 : in.floor_index;
+  m->handin_lost = in.handin_lost < 0 ? 0 : in.handin_lost;
+  m->handin_returned = in.handin_returned < 0 ? 0 : in.handin_returned;
+  put_upper(m->handin_reason, in.handin_reason[0] ? in.handin_reason : "RIPPED");
+}
+
 void wsoft_ui_model(const WsoftUiInput &in, WsoftUiModel *m) {
-  static const char *const TITLES[] = {"", "MENU", "ENTER PIN", "APPROVAL", "WI-FI"};
+  static const char *const TITLES[] = {"", "MENU", "ENTER PIN", "APPROVAL", "WI-FI", "PACKERS", "FLOOR MGR", "HAND-IN"};
   memset(m, 0, sizeof *m);
   m->dark = in.dark;
   m->style = (uint8_t)(in.style > WSOFT_UI_STYLE_CLASSIC && in.style < WSOFT_UI_STYLE_COUNT ? in.style : WSOFT_UI_STYLE_CLASSIC);
-  m->page = (uint8_t)(in.page >= WSOFT_UI_PAGE_LIVE && in.page <= WSOFT_UI_PAGE_WIFI ? in.page : WSOFT_UI_PAGE_LIVE);
+  m->page = (uint8_t)(in.page >= WSOFT_UI_PAGE_LIVE && in.page < WSOFT_UI_PAGE_COUNT ? in.page : WSOFT_UI_PAGE_LIVE);
   bar(in, m);
   slot(in, m);
   top(in, m);
@@ -299,10 +353,16 @@ void wsoft_ui_model(const WsoftUiInput &in, WsoftUiModel *m) {
   hilo(in, m);
   save(in, m);
   hint(in, m);
+  packer_fields(in, m);
   menu(in, m);
-  put(m->title, TITLES[m->page]);
+  if (m->page == WSOFT_UI_PAGE_PIN && in.packer_on && in.pin_for_packer) {
+    put(m->title, in.pin_for_mgr ? "MGR PIN" : "PACKER PIN");
+  } else {
+    put(m->title, TITLES[m->page]);
+  }
   put(m->message, in.message);
-  m->pin_count = (uint8_t)(in.pin_count < 0 ? 0 : in.pin_count > 6 ? 6 : in.pin_count);
+  int max_pin = (in.packer_on && in.pin_for_packer) ? 4 : 6;
+  m->pin_count = (uint8_t)(in.pin_count < 0 ? 0 : in.pin_count > max_pin ? max_pin : in.pin_count);
   put(m->address, in.address);
   put(m->ap_name, in.ap_name);
 }
@@ -427,6 +487,54 @@ size_t wsoft_ui_model_json(const WsoftUiModel &m, char *out, size_t size) {
   j.number("pin_count", m.pin_count);
   j.text("address", m.address);
   j.text("ap_name", m.ap_name);
+  j.flag("packer_on", m.packer_on);
+  j.text("pack_unit", m.pack_unit);
+  j.number("strip_count", m.strip_count);
+  j.key("strip");
+  j.ch('[');
+  for (int i = 0; i < m.strip_count && i < WSOFT_UI_STRIP_MAX; i++) {
+    if (i) j.ch(',');
+    j.ch('{');
+    j.first = true;
+    j.text("code", m.strip[i].code);
+    j.text("name", m.strip[i].name);
+    j.number("remaining", m.strip[i].remaining);
+    j.flag("active", m.strip[i].active);
+    j.ch('}');
+  }
+  j.ch(']');
+  j.first = false;
+  j.flag("pin_for_packer", m.pin_for_packer);
+  j.number("picker_count", m.picker_count);
+  j.number("picker_page", m.picker_page);
+  j.number("picker_pages", m.picker_pages);
+  j.key("picker");
+  j.ch('[');
+  for (int i = 0; i < m.picker_count && i < WSOFT_UI_PICKER_MAX; i++) {
+    if (i) j.ch(',');
+    j.ch('{');
+    j.first = true;
+    j.text("code", m.picker[i].code);
+    j.text("name", m.picker[i].name);
+    j.number("remaining", m.picker[i].remaining);
+    j.flag("signed_in", m.picker[i].signed_in);
+    j.flag("active", m.picker[i].active);
+    j.flag("has_batch", m.picker[i].has_batch);
+    j.ch('}');
+  }
+  j.ch(']');
+  j.first = false;
+  j.flag("has_active_packer", m.has_active_packer);
+  j.text("floor_code", m.floor_code);
+  j.text("floor_name", m.floor_name);
+  j.number("floor_issued", m.floor_issued);
+  j.number("floor_remaining", m.floor_remaining);
+  j.flag("floor_has_batch", m.floor_has_batch);
+  j.number("floor_index", m.floor_index);
+  j.number("floor_total", m.floor_total);
+  j.number("handin_lost", m.handin_lost);
+  j.number("handin_returned", m.handin_returned);
+  j.text("handin_reason", m.handin_reason);
   j.ch('}');
   if (j.full) {
     out[0] = 0;
