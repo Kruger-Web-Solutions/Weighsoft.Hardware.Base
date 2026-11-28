@@ -67,3 +67,32 @@ jobs:
         npm ci
         npm test -- --watchAll=false
         npm run build
+
+  wsoft_cyd28:
+    # The yellow board (ESP32, 4 MB, no PSRAM) is the tightest W-Soft target: on 28 Nov 2026
+    # the packer work overflowed its static DRAM by about 105 KB and nothing in CI noticed.
+    name: Build W-Soft yellow board (wsoft_cyd28)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+    - uses: actions/checkout@v4
+    - name: Cache PlatformIO
+      uses: actions/cache@v4
+      with:
+        path: ~/.platformio
+        key: ${{ runner.os }}-pio-cyd28-${{ hashFiles('platformio.ini') }}
+    - uses: actions/setup-python@v5
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 20
+        cache: npm
+        cache-dependency-path: interface/package-lock.json
+    - name: Install PlatformIO
+      run: |
+        python -m pip install --upgrade pip
+        pip install --upgrade platformio intelhex
+    - name: Install interface packages
+      working-directory: interface
+      run: npm ci
+    - name: Build wsoft_cyd28
+      run: pio run -e wsoft_cyd28

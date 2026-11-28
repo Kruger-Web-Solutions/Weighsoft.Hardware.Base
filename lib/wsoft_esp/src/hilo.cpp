@@ -17,7 +17,10 @@ static const uint32_t LOCAL_VERSION = 1;
 
 // Shared between tasks: read and written under the lock.
 static portMUX_TYPE lock = portMUX_INITIALIZER_UNLOCKED;
-static WsoftHiloList list;
+// Heap, taken once at boot: static DRAM is full on the yellow board (no PSRAM).
+static WsoftHiloList &list = *new WsoftHiloList();
+static WsoftHiloList &save_list_buf = *new WsoftHiloList();  // save(), under flash_mutex
+static WsoftHiloList &load_list_buf = *new WsoftHiloList();  // hilo_begin
 static WsoftLocalProducts local;
 static WsoftHiloPick pick;
 static uint32_t next_pull_ms = 0;
@@ -28,7 +31,7 @@ static SemaphoreHandle_t flash_mutex = nullptr;
 
 static void save(bool with_list, bool with_local = false) {
   // Copies first: the flash write is slow and must not hold the spinlock.
-  static WsoftHiloList list_copy;
+  WsoftHiloList &list_copy = save_list_buf;
   static WsoftLocalProducts local_copy;
   WsoftHiloPick pick_copy;
   xSemaphoreTake(flash_mutex, portMAX_DELAY);
@@ -53,7 +56,7 @@ static void save(bool with_list, bool with_local = false) {
 
 void hilo_begin() {
   flash_mutex = xSemaphoreCreateMutex();
-  static WsoftHiloList stored;
+  WsoftHiloList &stored = load_list_buf;
   static WsoftLocalProducts stored_local;
   WsoftHiloPick stored_pick;
   Preferences store;

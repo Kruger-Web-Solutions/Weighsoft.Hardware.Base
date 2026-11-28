@@ -29,10 +29,29 @@ static portMUX_TYPE lock = portMUX_INITIALIZER_UNLOCKED;
 static SemaphoreHandle_t flash_mutex = nullptr;
 static SemaphoreHandle_t mgr_mutex = nullptr;
 
-static WsoftPackerRoster roster;  // require_packer_bags defaults to false
+// Big packer buffers live on the heap, not in static DRAM: the yellow board (ESP32, no PSRAM)
+// ran out of static DRAM by about 105 KB once packers landed (28 Nov 2026). Allocated once,
+// never freed, so they behave exactly like the statics they replace. All of them are taken at
+// boot (static init), while the heap is still whole, so no later call can fail to allocate.
+static WsoftPackerRoster &roster = *new WsoftPackerRoster();  // require_packer_bags defaults to false
 static WsoftPackerStrip strip;
 static WsoftPackerPinGuard pin_guard;
-static WsoftBagEventOutbox outbox;
+static WsoftBagEventOutbox &outbox = *new WsoftBagEventOutbox();
+
+// Scratch copies, each used by one function only (same rules as the statics they were).
+struct MgrCandidate {
+  char code[WSOFT_PACKER_CODE_MAX + 1];
+  char name[WSOFT_PACKER_NAME_MAX + 1];
+  uint8_t salt[WSOFT_PACKER_PIN_SALT_SIZE];
+  uint8_t hash[32];
+};
+static WsoftPackerRoster &save_roster_buf = *new WsoftPackerRoster();    // save_state, under flash_mutex
+static WsoftBagEventOutbox &save_outbox_buf = *new WsoftBagEventOutbox(); // save_state, under flash_mutex
+static WsoftPackerRoster &load_roster_buf = *new WsoftPackerRoster();    // packers_begin
+static WsoftBagEventOutbox &load_outbox_buf = *new WsoftBagEventOutbox(); // packers_begin
+static WsoftPackerRoster &print_roster_buf = *new WsoftPackerRoster();   // packers_print_list
+static WsoftBagEvent *const events_copy_buf = new WsoftBagEvent[WSOFT_BAG_OUTBOX_MAX];  // bag-events request
+static MgrCandidate *const mgr_candidates_buf = new MgrCandidate[WSOFT_PACKERS_MAX];   // under mgr_mutex
 
 static uint32_t next_pull_ms = 0;
 static uint32_t next_events_ms = 0;
@@ -40,8 +59,8 @@ static uint32_t last_ok_ms = 0;
 
 static void save_state(bool with_roster, bool with_outbox, bool with_pin_fails) {
   if (flash_mutex == nullptr) return;
-  static WsoftPackerRoster roster_copy;
-  static WsoftBagEventOutbox outbox_copy;
+  WsoftPackerRoster &roster_copy = save_roster_buf;
+  WsoftBagEventOutbox &outbox_copy = save_outbox_buf;
   uint32_t fails_copy = 0;
 
   xSemaphoreTake(flash_mutex, portMAX_DELAY);
@@ -92,8 +111,8 @@ static bool roster_equal(const WsoftPackerRoster &a, const WsoftPackerRoster &b)
 void packers_begin() {
   flash_mutex = xSemaphoreCreateMutex();
   mgr_mutex = xSemaphoreCreateMutex();
-  static WsoftPackerRoster stored_roster;
-  static WsoftBagEventOutbox stored_outbox;
+  WsoftPackerRoster &stored_roster = load_roster_buf;
+  WsoftBagEventOutbox &stored_outbox = load_outbox_buf;
   // In place: a temporary roster (about 10 KB) overflowed the loop task's stack at boot.
   wsoft_packer_roster_reset(&stored_roster);
   stored_outbox.clear();
@@ -261,13 +280,7 @@ WsoftPackerPinResult packers_verify_manager_pin(const char *pin, uint32_t now_ms
   if (actor_code && actor_code_size > 0) actor_code[0] = 0;
   if (actor_name && actor_name_size > 0) actor_name[0] = 0;
 
-  struct MgrCandidate {
-    char code[WSOFT_PACKER_CODE_MAX + 1];
-    char name[WSOFT_PACKER_NAME_MAX + 1];
-    uint8_t salt[WSOFT_PACKER_PIN_SALT_SIZE];
-    uint8_t hash[32];
-  };
-  static MgrCandidate candidates[WSOFT_PACKERS_MAX];
+  MgrCandidate *candidates = mgr_candidates_buf;
   if (mgr_mutex == nullptr) return WSOFT_PACKER_PIN_NOT_SET;
 
   WsoftPackerPinResult result = WSOFT_PACKER_PIN_NOT_SET;
@@ -476,7 +489,7 @@ bool packers_bag_events_due() {
 }
 
 bool packers_bag_events_request(char *out, size_t size, size_t *count) {
-  static WsoftBagEvent copy[WSOFT_BAG_OUTBOX_MAX];
+  WsoftBagEvent *copy = events_copy_buf;
   size_t n = 0;
   portENTER_CRITICAL(&lock);
   n = outbox.size();
@@ -641,7 +654,7 @@ bool packers_floor_target(uint8_t index, uint8_t *index_out, uint8_t *total_out,
 }
 
 void packers_print_list(Stream &port) {
-  static WsoftPackerRoster copy;
+  WsoftPackerRoster &copy = print_roster_buf;
   char active[WSOFT_PACKER_CODE_MAX + 1] = "";
   portENTER_CRITICAL(&lock);
   copy = roster;
