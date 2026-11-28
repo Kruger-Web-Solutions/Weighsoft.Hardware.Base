@@ -728,6 +728,7 @@ static int pin_return_page = WSOFT_UI_PAGE_MENU;
 static char pin_packer_code[WSOFT_PACKER_CODE_MAX + 1] = "";
 static char pin_packer_name[WSOFT_PACKER_NAME_MAX + 1] = "";
 static uint32_t auth_job_id = 0;
+static uint32_t auth_job_started_ms = 0;
 static PinMode auth_job_mode = PIN_PACKER;
 static char auth_job_code[WSOFT_PACKER_CODE_MAX + 1] = "";
 static char auth_job_pin[WSOFT_PACKER_PIN_MAX + 1] = "";
@@ -1145,6 +1146,7 @@ static void pin_ok() {
       uint32_t jid = hub_packer_auth_start(target_code, pad.entry(), "sign_in", false);
       if (jid != 0) {
         auth_job_id = jid;
+        auth_job_started_ms = millis();
         auth_job_mode = pin_mode;
         strlcpy(auth_job_code, target_code, sizeof auth_job_code);
         strlcpy(auth_job_pin, pad.entry(), sizeof auth_job_pin);
@@ -1631,6 +1633,10 @@ void ui_loop() {
     last_tap_ms = millis();
     static WsoftPackerAuthReply auth_reply;
     HubPackerAuthState st = hub_packer_auth_poll(auth_job_id, &auth_reply);
+    if (st == HUB_PACKER_AUTH_PENDING && millis() - auth_job_started_ms > 4000) {
+      hub_packer_auth_cancel(auth_job_id);
+      st = HUB_PACKER_AUTH_OFFLINE;
+    }
     if (st != HUB_PACKER_AUTH_PENDING) {
       finish_auth_job(st, auth_reply);
       refresh();

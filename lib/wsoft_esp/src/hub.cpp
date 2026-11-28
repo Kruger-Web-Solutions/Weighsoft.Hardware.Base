@@ -706,6 +706,8 @@ struct PackerAuthJob {
 static portMUX_TYPE auth_lock = portMUX_INITIALIZER_UNLOCKED;
 static PackerAuthJob auth_job;
 static uint32_t next_auth_job_id = 0;
+static char sign_out_queue[WSOFT_PACKER_STRIP_MAX][WSOFT_PACKER_CODE_MAX + 1] = {};
+static size_t sign_out_count = 0;
 
 static bool build_packer_auth_body(const char *code, const char *pin, const char *action, char *req, size_t size) {
   if (strcmp(action, "sign_in") == 0) return wsoft_packer_auth_sign_in_request(code, pin, req, size);
@@ -723,6 +725,28 @@ uint32_t hub_packer_auth_start(const char *code, const char *pin, const char *ac
   if (!configured || ota_busy || WiFi.status() != WL_CONNECTED || state != HUB_ONLINE ||
       time(nullptr) < CLOCK_VALID_AFTER || hub_task_handle == nullptr) {
     return 0;
+  }
+
+  if (fire_and_forget && strcmp(action, "sign_out") == 0) {
+    bool queued = false;
+    portENTER_CRITICAL(&auth_lock);
+    bool dup = false;
+    for (size_t i = 0; i < sign_out_count; i++) {
+      if (strcasecmp(sign_out_queue[i], code) == 0) {
+        dup = true;
+        break;
+      }
+    }
+    if (dup) {
+      queued = true;
+    } else if (sign_out_count < WSOFT_PACKER_STRIP_MAX) {
+      strlcpy(sign_out_queue[sign_out_count], code, sizeof sign_out_queue[0]);
+      sign_out_count++;
+      queued = true;
+    }
+    portEXIT_CRITICAL(&auth_lock);
+    if (queued) xTaskNotifyGive(hub_task_handle);
+    return queued ? 1U : 0U;
   }
 
   uint32_t job_id = 0;
@@ -843,7 +867,35 @@ static bool run_packer_auth_http(const char *code, const char *pin, const char *
   return true;
 }
 
+static bool packer_auth_online_now() {
+  return configured && !ota_busy && WiFi.status() == WL_CONNECTED && state == HUB_ONLINE &&
+         time(nullptr) >= CLOCK_VALID_AFTER;
+}
+
 static void process_packer_auth() {
+  static WsoftPackerAuthReply reply;
+
+  // Drain asynchronous sign-outs BEFORE any queued sign-in so an older sign-out cannot overtake a newer sign-in.
+  for (;;) {
+    char so_code[WSOFT_PACKER_CODE_MAX + 1] = "";
+    portENTER_CRITICAL(&auth_lock);
+    if (sign_out_count > 0) {
+      if (!packer_auth_online_now()) {
+        sign_out_count = 0;
+      } else {
+        strlcpy(so_code, sign_out_queue[0], sizeof so_code);
+        for (size_t i = 1; i < sign_out_count; i++) {
+          strlcpy(sign_out_queue[i - 1], sign_out_queue[i], sizeof sign_out_queue[0]);
+        }
+        sign_out_count--;
+        sign_out_queue[sign_out_count][0] = 0;
+      }
+    }
+    portEXIT_CRITICAL(&auth_lock);
+    if (so_code[0] == 0) break;
+    run_packer_auth_http(so_code, nullptr, "sign_out", &reply);
+  }
+
   uint32_t job_id = 0;
   bool fire_and_forget = false;
   char code[WSOFT_PACKER_CODE_MAX + 1] = "";
@@ -863,8 +915,7 @@ static void process_packer_auth() {
 
   if (job_id == 0) return;
 
-  WsoftPackerAuthReply reply;
-  bool ok = run_packer_auth_http(code, pin, action, &reply);
+  bool ok = packer_auth_online_now() && run_packer_auth_http(code, pin, action, &reply);
   memset(pin, 0, sizeof pin);
 
   bool apply_fg = false;
@@ -873,7 +924,7 @@ static void process_packer_auth() {
     if (fire_and_forget) {
       auth_job.state = HUB_PACKER_AUTH_IDLE;
       auth_job.job_id = 0;
-      apply_fg = ok && reply.ok;
+      apply_fg = ok && reply.ok && strcmp(action, "sign_in") == 0;
     } else if (ok) {
       auth_job.reply = reply;
       auth_job.state = HUB_PACKER_AUTH_DONE;
@@ -1045,6 +1096,10 @@ static void hub_task(void *) {
   uint32_t next_command_pull = 0;
 #endif
   for (;;) {
+#ifdef WSOFT_ON_BASE
+    // Always resolve any queued UI auth (online if connected, or immediate OFFLINE transition if link dropped).
+    process_packer_auth();
+#endif
     if ((int32_t)(millis() - next_report) >= 0) {
       next_report = millis() + 10000;
       WSOFT_LOG.printf("HUB state=%s wifi_status=%d ip=%s clock=%ld\n", hub_state_text(state), (int)WiFi.status(),
