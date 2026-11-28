@@ -26,7 +26,17 @@
 // HUGE (the weight) and XL (the Hi-Lo word) are the Full Colour screen's bigger letters.
 enum { WSOFT_UI_TINY, WSOFT_UI_SMALL, WSOFT_UI_MID, WSOFT_UI_BIG, WSOFT_UI_HERO, WSOFT_UI_HUGE, WSOFT_UI_XL, WSOFT_UI_FONT_COUNT };
 
-enum { WSOFT_UI_PAGE_LIVE, WSOFT_UI_PAGE_MENU, WSOFT_UI_PAGE_PIN, WSOFT_UI_PAGE_NO_PIN, WSOFT_UI_PAGE_WIFI };
+enum {
+  WSOFT_UI_PAGE_LIVE,
+  WSOFT_UI_PAGE_MENU,
+  WSOFT_UI_PAGE_PIN,
+  WSOFT_UI_PAGE_NO_PIN,
+  WSOFT_UI_PAGE_WIFI,
+  WSOFT_UI_PAGE_PACKER,
+  WSOFT_UI_PAGE_FLOOR,
+  WSOFT_UI_PAGE_HANDIN,
+  WSOFT_UI_PAGE_COUNT
+};
 // The style of the live page (MENU > SCREEN steps through them; Rhyno, 22 Nov 2026):
 //   classic  the five rows below, dark or light
 //   colour   Full Colour: the whole screen takes the colour of the Hi-Lo zone, a bigger weight
@@ -51,10 +61,13 @@ enum {
   WSOFT_UI_TILE_PRODUCT,
   WSOFT_UI_TILE_THEME,
   WSOFT_UI_TILE_WIFI,
-  WSOFT_UI_TILE_ZERO
+  WSOFT_UI_TILE_ZERO,
+  WSOFT_UI_TILE_PACKER
 };
 
 static const int WSOFT_UI_TILES_MAX = 7;
+static const int WSOFT_UI_STRIP_MAX = 8;
+static const int WSOFT_UI_PICKER_MAX = 6;
 
 // One menu button: a small caption and the value it is set to now.
 struct WsoftUiTile {
@@ -62,6 +75,22 @@ struct WsoftUiTile {
   uint8_t look;
   char caption[14];
   char value[26];
+};
+
+struct WsoftUiStripEntry {
+  char code[12];
+  char name[14];
+  int32_t remaining;
+  bool active;
+};
+
+struct WsoftUiPickerEntry {
+  char code[12];
+  char name[14];
+  int32_t remaining;
+  bool signed_in;
+  bool active;
+  bool has_batch;
 };
 
 // Every word and state on the screen. The board zero-fills it before filling it in, so two
@@ -120,6 +149,27 @@ struct WsoftUiModel {
   uint8_t pin_count;  // digits typed on the PIN pad
   char address[20];   // the address to open: on the no-PIN note and the Wi-Fi page; "" when there is none
   char ap_name[34];   // the board's own hotspot; "" when it is off
+  // packer strip & floor manager (all 0 when packer_on == false)
+  bool packer_on;
+  char pack_unit[10];
+  uint8_t strip_count;
+  WsoftUiStripEntry strip[WSOFT_UI_STRIP_MAX];
+  bool pin_for_packer;
+  uint8_t picker_count;
+  uint8_t picker_page;
+  uint8_t picker_pages;
+  WsoftUiPickerEntry picker[WSOFT_UI_PICKER_MAX];
+  bool has_active_packer;
+  char floor_code[12];
+  char floor_name[14];
+  int32_t floor_issued;
+  int32_t floor_remaining;
+  bool floor_has_batch;
+  uint8_t floor_index;
+  uint8_t floor_total;
+  int32_t handin_lost;
+  int32_t handin_returned;
+  char handin_reason[10];
 };
 
 enum {
@@ -166,8 +216,32 @@ static const WsoftUiBox WSOFT_UI_BOX_MENU = {120, 190, 72, 46};
 static const WsoftUiBox WSOFT_UI_BOX_SAVE = {200, 190, 112, 46};
 static const WsoftUiBox WSOFT_UI_BOX_BACK = {164, 190, 148, 44};   // bottom right of a page
 static const WsoftUiBox WSOFT_UI_BOX_WIDE = {8, 190, 304, 44};     // one button across a page
+// Packer strip on LIVE TOP band + Packer / Floor Manager pages.
+static const WsoftUiBox WSOFT_UI_BOX_STRIP_SIGNIN = {6, 22, 264, 38};
+static const WsoftUiBox WSOFT_UI_BOX_STRIP_ADD = {276, 22, 38, 18};
+static const WsoftUiBox WSOFT_UI_BOX_STRIP_MGR = {276, 42, 38, 18};
+static const WsoftUiBox WSOFT_UI_BOX_PKR_MGR = {8, 190, 60, 44};
+static const WsoftUiBox WSOFT_UI_BOX_PKR_OUT = {74, 190, 88, 44};
+static const WsoftUiBox WSOFT_UI_BOX_PKR_PAGE = {168, 190, 66, 44};
+static const WsoftUiBox WSOFT_UI_BOX_PKR_BACK = {240, 190, 72, 44};
+static const WsoftUiBox WSOFT_UI_BOX_FLR_PICK = {8, 46, 230, 44};
+static const WsoftUiBox WSOFT_UI_BOX_FLR_NEXT = {244, 46, 68, 44};
+static const WsoftUiBox WSOFT_UI_BOX_FLR_HANDIN = {8, 190, 148, 44};
+static const WsoftUiBox WSOFT_UI_BOX_HI_LOST_DEC = {164, 46, 44, 42};
+static const WsoftUiBox WSOFT_UI_BOX_HI_LOST_INC1 = {214, 46, 46, 42};
+static const WsoftUiBox WSOFT_UI_BOX_HI_LOST_INC5 = {266, 46, 46, 42};
+static const WsoftUiBox WSOFT_UI_BOX_HI_REASON = {8, 94, 304, 42};
+static const WsoftUiBox WSOFT_UI_BOX_HI_RET_DEC = {164, 142, 44, 42};
+static const WsoftUiBox WSOFT_UI_BOX_HI_RET_INC1 = {214, 142, 46, 42};
+static const WsoftUiBox WSOFT_UI_BOX_HI_RET_INC10 = {266, 142, 46, 42};
+static const WsoftUiBox WSOFT_UI_BOX_HI_CLOSE = {8, 190, 192, 44};
+static const WsoftUiBox WSOFT_UI_BOX_HI_BACK = {206, 190, 106, 44};
 // Menu tile i: two columns, rows of 48.
 WsoftUiBox wsoft_ui_tile_box(int i);
+// Packer strip pill i (out of count 1..8) in TOP band y=20..62.
+WsoftUiBox wsoft_ui_strip_box(int i, int count);
+// Floor Manager issue button i (0..3: +25, +50, +100, +200).
+WsoftUiBox wsoft_ui_floor_issue_box(int i);
 // A PIN pad key: column 0..3, row 0..3, spanning cols x rows keys.
 WsoftUiBox wsoft_ui_key_box(int col, int row, int cols, int rows);
 

@@ -259,6 +259,45 @@ void hub_handle_serial(Stream &port) {
     } else if (command.startsWith("SCREEN")) {
       // SCREEN CRC / SHOT / TAP: checking the screen without standing at the board.
       ui_handle_command(command, port);
+#ifdef WSOFT_ON_BASE
+    } else if (command == "PACKER LIST") {
+      packers_print_list(port);
+    } else if (command.startsWith("PACKER IN ")) {
+      String rest = command.substring(10);
+      rest.trim();
+      int sp = rest.indexOf(' ');
+      if (sp <= 0) {
+        port.println("PACKER_IN ok=0 code=");
+      } else {
+        String code = rest.substring(0, sp);
+        String pin = rest.substring(sp + 1);
+        code.trim();
+        pin.trim();
+        WsoftPackerAuthReply reply;
+        if (hub_packer_auth(code.c_str(), pin.c_str(), "sign_in", &reply)) {
+          if (reply.ok) packers_apply_auth(reply);
+          port.printf("PACKER_IN ok=%d code=%s\n", reply.ok ? 1 : 0, code.c_str());
+        } else {
+          uint32_t locked_s = 0;
+          WsoftPackerPinResult r = packers_sign_in_offline(code.c_str(), pin.c_str(), millis(), &locked_s);
+          port.printf("PACKER_IN ok=%d code=%s offline=1\n", r == WSOFT_PACKER_PIN_OK ? 1 : 0, code.c_str());
+        }
+      }
+    } else if (command.startsWith("PACKER USE ")) {
+      String code = command.substring(11);
+      code.trim();
+      bool ok = packers_select(code.c_str(), millis());
+      port.printf("PACKER_USE ok=%d code=%s\n", ok ? 1 : 0, code.c_str());
+    } else if (command.startsWith("PACKER OUT ")) {
+      String code = command.substring(11);
+      code.trim();
+      packers_sign_out(code.c_str());
+      WsoftPackerAuthReply reply;
+      if (hub_packer_auth(code.c_str(), nullptr, "sign_out", &reply) && reply.ok) {
+        packers_apply_auth(reply);
+      }
+      port.printf("PACKER_OUT ok=1 code=%s\n", code.c_str());
+#endif
     } else if (command == "HUB CLEAR") {
       prefs.begin("hub", false);
       prefs.clear();
@@ -608,6 +647,71 @@ static void push_bag_events() {
   packers_bag_events_take(results, result_count);
 }
 
+static TaskHandle_t hub_task_handle = nullptr;
+
+bool hub_packer_auth(const char *code, const char *pin, const char *action, WsoftPackerAuthReply *out) {
+  if (out == nullptr || action == nullptr) return false;
+  *out = WsoftPackerAuthReply();
+  char req[WSOFT_PACKER_AUTH_REQUEST_MAX];
+  if (strcmp(action, "sign_in") == 0) {
+    if (!wsoft_packer_auth_sign_in_request(code, pin, req, sizeof req)) return false;
+  } else if (strcmp(action, "sign_out") == 0) {
+    if (!wsoft_packer_auth_sign_out_request(code, req, sizeof req)) return false;
+  } else {
+    return false;
+  }
+  if (!configured || ota_busy || WiFi.status() != WL_CONNECTED || state != HUB_ONLINE ||
+      time(nullptr) < CLOCK_VALID_AFTER) {
+    return false;
+  }
+
+  String body = req;
+  time_t now = time(nullptr);
+  uint8_t nonce_bytes[16];
+  esp_fill_random(nonce_bytes, sizeof nonce_bytes);
+  String nonce = hex(nonce_bytes, sizeof nonce_bytes);
+  String timestamp = String((unsigned long)now);
+
+  HTTPClient http;
+  http.setTimeout(2500);
+  if (!http.begin(String(hub_urls[active_url]) + "/api/v1/ingest/packer-auth")) return false;
+  const char *answer_headers[] = {"X-ScaleModels-Key-Id", "X-ScaleModels-Timestamp", "X-ScaleModels-Nonce",
+                                  "X-ScaleModels-Signature"};
+  http.collectHeaders(answer_headers, 4);
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("X-ScaleModels-Key-Id", key_id);
+  http.addHeader("X-ScaleModels-Timestamp", timestamp);
+  http.addHeader("X-ScaleModels-Nonce", nonce);
+  http.addHeader("X-ScaleModels-Signature", sign(timestamp, nonce, body));
+  int status = http.POST(body);
+  String reply = status > 0 ? http.getString() : "";
+  String answer_key = http.header("X-ScaleModels-Key-Id");
+  String answer_time = http.header("X-ScaleModels-Timestamp");
+  String answer_nonce = http.header("X-ScaleModels-Nonce");
+  String answer_signature = http.header("X-ScaleModels-Signature");
+  http.end();
+
+  if (status != 200) {
+    WSOFT_LOG.printf("HUB packer-auth status=%d\n", status);
+    return false;
+  }
+  if (!wsoft_hub_packer_auth_verify(signing_key, key_id.c_str(), nonce.c_str(), answer_key.c_str(),
+                                    answer_time.c_str(), answer_nonce.c_str(), answer_signature.c_str(),
+                                    reply.c_str(), reply.length())) {
+    WSOFT_LOG.println("HUB packer-auth bad signature");
+    return false;
+  }
+  if (!wsoft_packer_auth_parse(reply.c_str(), reply.length(), out)) {
+    WSOFT_LOG.println("HUB packer-auth bad body");
+    return false;
+  }
+  return true;
+}
+
+void hub_trigger_bag_events_push() {
+  if (hub_task_handle != nullptr) xTaskNotifyGive(hub_task_handle);
+}
+
 #endif
 #ifdef WSOFT_ON_BASE
 // ---------- the Hub Control room (Hub ADR 0010) ----------
@@ -713,6 +817,9 @@ static void set_clock_from_hub() {
 }
 
 static void hub_task(void *) {
+#ifdef WSOFT_ON_BASE
+  hub_task_handle = xTaskGetCurrentTaskHandle();
+#endif
 #ifndef WSOFT_ON_BASE
   WiFi.onEvent(
       [](WiFiEvent_t, WiFiEventInfo_t info) {
@@ -805,7 +912,11 @@ static void hub_task(void *) {
       next_weighing_try = millis() + RETRY_MS;
     }
 #endif
+#ifdef WSOFT_ON_BASE
+    ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(250));
+#else
     vTaskDelay(pdMS_TO_TICKS(250));
+#endif
   }
 }
 

@@ -11,6 +11,7 @@
 
 #include <wsoft_hilo.h>
 #include <wsoft_packers.h>
+#include <wsoft_ui_paint.h>
 #include <wsoft_weighing.h>
 
 void packers_begin();
@@ -33,10 +34,30 @@ void packers_on_void(const char *packer_code, const char *batch_id = nullptr);
 
 // Shared-scale strip & offline/online auth.
 WsoftPackerPinResult packers_sign_in_offline(const char *code, const char *pin, WsoftPackerEntry *out_entry = nullptr);
+WsoftPackerPinResult packers_sign_in_offline(const char *code, const char *pin, uint32_t now_ms,
+                                             uint32_t *locked_s_out, WsoftPackerEntry *out_entry = nullptr);
+WsoftPackerPinResult packers_verify_manager_pin(const char *pin, uint32_t now_ms, uint32_t *locked_s_out,
+                                                char *actor_code, size_t actor_code_size, char *actor_name,
+                                                size_t actor_name_size);
+bool packers_single_manager_code(char *code_out, size_t code_size);
 void packers_apply_auth(const WsoftPackerAuthReply &reply);
 bool packers_select(const char *code);
+bool packers_select(const char *code, uint32_t now_ms);
 bool packers_sign_out(const char *code);
 void packers_tick(uint32_t now_ms);
+
+// Lightweight getters & UI snapshots into caller-provided buffers (never return large structs by value).
+void packers_pack_unit(char *out, size_t size);
+void packers_active_code(char *out, size_t size);
+uint32_t packers_guard_locked_s(uint32_t now_ms);
+int packers_guard_tries_left();
+void packers_ui_snapshot(bool *required_out, char *unit_out, size_t unit_size, WsoftUiStripEntry *strip_out,
+                         uint8_t *strip_count_out, uint8_t picker_page, uint8_t *picker_page_out,
+                         uint8_t *picker_pages_out, WsoftUiPickerEntry *picker_out, uint8_t *picker_count_out);
+bool packers_floor_target(uint8_t index, uint8_t *index_out, uint8_t *total_out, char *code_out, size_t code_size,
+                          char *name_out, size_t name_size, int32_t *issued_out, int32_t *remaining_out,
+                          bool *has_batch_out);
+void packers_print_list(Stream &port);
 
 // Floor Manager ISSUE / HANDIN queued locally and synced via /api/v1/ingest/bag-events.
 WsoftBagEventError packers_floor_issue(const char *event_id, const char *actor_code, const char *packer_code,

@@ -1056,6 +1056,43 @@ void test_there_is_a_golden_for_every_screen() {
   TEST_ASSERT_FALSE(wsoft_ui_preset(-1, &model));
 }
 
+void test_model_packer_strip_and_dynamic_unit() {
+  WsoftUiInput in = weighing();
+  in.packer_on = true;
+  in.pack_unit = "pockets";
+  in.strip_count = 2;
+  strcpy(in.strip[0].code, "1");
+  strcpy(in.strip[0].name, "Koos");
+  in.strip[0].remaining = 0;
+  in.strip[0].active = true;
+  strcpy(in.strip[1].code, "2");
+  strcpy(in.strip[1].name, "Sipho");
+  in.strip[1].remaining = 18;
+  in.waiting = WSOFT_SAVE_NO_BAGS;
+  in.recent = WSOFT_SAVE_NO_BAGS;
+
+  wsoft_ui_model(in, &model);
+  TEST_ASSERT_TRUE(model.packer_on);
+  TEST_ASSERT_EQUAL_STRING("POCKETS", model.pack_unit);
+  TEST_ASSERT_EQUAL(2, model.strip_count);
+  TEST_ASSERT_EQUAL_STRING("KOOS", model.strip[0].name);
+  TEST_ASSERT_TRUE(model.has_active_packer);
+  TEST_ASSERT_EQUAL(WSOFT_UI_SLOT_STOP, model.slot);
+  TEST_ASSERT_EQUAL_STRING("NO POCKETS LEFT", model.slot_title);
+  TEST_ASSERT_EQUAL_STRING("NO POCKETS LEFT", model.save_line);
+  TEST_ASSERT_EQUAL(WSOFT_UI_LOOK_BAD, model.save_look);
+
+  // Strip tap boxes for <=4 and >4 entries, plus Floor Manager & Hand-in tap targets.
+  TEST_ASSERT_TRUE(wsoft_ui_strip_box(0, 2).hit(30, 40));
+  TEST_ASSERT_TRUE(wsoft_ui_strip_box(1, 2).hit(100, 40));
+  TEST_ASSERT_FALSE(wsoft_ui_strip_box(0, 2).hit(100, 40));
+  TEST_ASSERT_TRUE(wsoft_ui_strip_box(4, 8).hit(30, 50));
+  TEST_ASSERT_TRUE(WSOFT_UI_BOX_STRIP_ADD.hit(295, 31));
+  TEST_ASSERT_TRUE(WSOFT_UI_BOX_STRIP_MGR.hit(295, 51));
+  TEST_ASSERT_TRUE(wsoft_ui_floor_issue_box(1).hit(120, 118));
+  TEST_ASSERT_TRUE(WSOFT_UI_BOX_HI_CLOSE.hit(100, 210));
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_blend_rounds_each_channel);
@@ -1085,6 +1122,7 @@ int main(int, char **) {
   RUN_TEST(test_model_plate_line);
   RUN_TEST(test_a_plate_never_shows_a_cut_number);
   RUN_TEST(test_there_is_a_golden_for_every_screen);
+  RUN_TEST(test_model_packer_strip_and_dynamic_unit);
   RUN_TEST(test_every_screen_on_the_yellow_board);
   RUN_TEST(test_every_screen_on_the_waveshare);
   return UNITY_END();

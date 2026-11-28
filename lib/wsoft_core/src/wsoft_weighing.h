@@ -161,6 +161,10 @@ struct WsoftSaveNotice {
   const char *title = "";
   const char *detail = "";
   WsoftNoticeLevel level = WSOFT_NOTICE_INFO;
+  char title_buf[24] = "";  // backing buffer when title is formatted with a dynamic pack unit
 };
 // False (and *out untouched) for NONE, SAVED and EMPTY: nothing to show.
 bool wsoft_save_notice(WsoftSaveResult result, WsoftSaveNotice *out);
+// Same as wsoft_save_notice, formatting WSOFT_SAVE_NO_BAGS as "NO <UNIT> LEFT" uppercased
+// (defaulting to "BAGS" when unit_label is null or empty).
+bool wsoft_save_notice_unit(WsoftSaveResult result, const char *unit_label, WsoftSaveNotice *out);

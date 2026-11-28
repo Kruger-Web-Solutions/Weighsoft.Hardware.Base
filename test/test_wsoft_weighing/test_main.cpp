@@ -417,6 +417,18 @@ void test_every_notice_fits_the_screens() {
   TEST_ASSERT_EQUAL_STRING("TAKE THE LOAD OFF", n.title);
   TEST_ASSERT_EQUAL_STRING("The scale must show 0 kg first", n.detail);
   TEST_ASSERT_EQUAL(WSOFT_NOTICE_STOP, n.level);
+
+  // Dynamic pack_unit for WSOFT_SAVE_NO_BAGS (defaults to BAGS, uppercased when provided).
+  TEST_ASSERT_TRUE(wsoft_save_notice(WSOFT_SAVE_NO_BAGS, &n));
+  TEST_ASSERT_EQUAL_STRING("NO_BAGS", n.code);
+  TEST_ASSERT_EQUAL_STRING("NO BAGS LEFT", n.title);
+  TEST_ASSERT_EQUAL_STRING("Call Floor Manager", n.detail);
+  TEST_ASSERT_EQUAL(WSOFT_NOTICE_STOP, n.level);
+  TEST_ASSERT_TRUE(wsoft_save_notice_unit(WSOFT_SAVE_NO_BAGS, "pockets", &n));
+  TEST_ASSERT_EQUAL_STRING("NO POCKETS LEFT", n.title);
+  TEST_ASSERT_EQUAL_STRING("Call Floor Manager", n.detail);
+  TEST_ASSERT_TRUE(wsoft_save_notice_unit(WSOFT_SAVE_NO_BAGS, "", &n));
+  TEST_ASSERT_EQUAL_STRING("NO BAGS LEFT", n.title);
 }
 
 // Rhyno, 12 Nov 2026: a board in Writer mode shows the weigh board's weight but never saves,
