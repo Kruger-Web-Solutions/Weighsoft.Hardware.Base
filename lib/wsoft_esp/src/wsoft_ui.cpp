@@ -727,6 +727,10 @@ static PinMode pin_mode = PIN_APPROVAL;
 static int pin_return_page = WSOFT_UI_PAGE_MENU;
 static char pin_packer_code[WSOFT_PACKER_CODE_MAX + 1] = "";
 static char pin_packer_name[WSOFT_PACKER_NAME_MAX + 1] = "";
+static uint32_t auth_job_id = 0;
+static PinMode auth_job_mode = PIN_PACKER;
+static char auth_job_code[WSOFT_PACKER_CODE_MAX + 1] = "";
+static char auth_job_pin[WSOFT_PACKER_PIN_MAX + 1] = "";
 static uint8_t picker_page = 0;
 static char floor_actor_code[WSOFT_PACKER_CODE_MAX + 1] = "";
 static uint8_t floor_index = 0;
@@ -786,6 +790,12 @@ static void open_page(int next) {
   page = next;
   last_tap_ms = millis();
   if (next != WSOFT_UI_PAGE_PIN) {
+    if (auth_job_id != 0) {
+      hub_packer_auth_cancel(auth_job_id);
+      auth_job_id = 0;
+      auth_job_code[0] = 0;
+      memset(auth_job_pin, 0, sizeof auth_job_pin);
+    }
     pad.clear();
     pin_mode = PIN_APPROVAL;
   }
@@ -1022,9 +1032,96 @@ static void start_floor_mgr_pin(int return_page) {
   open_page(WSOFT_UI_PAGE_PIN);
 }
 
+static void finish_packer_online(const WsoftPackerAuthReply &reply) {
+  if (reply.ok) {
+    packers_apply_auth(reply);
+    open_page(WSOFT_UI_PAGE_LIVE);
+  } else if (strstr(reply.reason, "LOCK") != nullptr) {
+    say("LOCKED");
+  } else {
+    say("WRONG PIN");
+  }
+}
+
+static void finish_packer_offline(const char *code, const char *pin) {
+  char line[40];
+  uint32_t locked_s = 0;
+  WsoftPackerPinResult r = packers_sign_in_offline(code, pin, millis(), &locked_s);
+  if (r == WSOFT_PACKER_PIN_OK) {
+    open_page(WSOFT_UI_PAGE_LIVE);
+  } else if (r == WSOFT_PACKER_PIN_LOCKED) {
+    snprintf(line, sizeof line, "WAIT %luS", (unsigned long)locked_s);
+    say(line);
+  } else if (r == WSOFT_PACKER_PIN_WRONG) {
+    say("WRONG PIN");
+  } else {
+    say("SYNC HUB FIRST");
+  }
+}
+
+static void open_floor_as(const char *actor_code) {
+  strlcpy(floor_actor_code, actor_code, sizeof floor_actor_code);
+  floor_index = 0;
+  handin_lost = 0;
+  handin_returned = 0;
+  handin_reason_idx = 0;
+  message[0] = 0;
+  open_page(WSOFT_UI_PAGE_FLOOR);
+}
+
+static void finish_floor_online(const WsoftPackerAuthReply &reply) {
+  if (reply.ok && reply.floor_manager) {
+    packers_apply_auth(reply);
+    open_floor_as(reply.code);
+  } else if (!reply.ok && strstr(reply.reason, "LOCK") != nullptr) {
+    say("LOCKED");
+  } else {
+    say("WRONG PIN");
+  }
+}
+
+static void finish_floor_offline(const char *pin) {
+  char line[40];
+  char actor_code[WSOFT_PACKER_CODE_MAX + 1] = "";
+  char actor_name[WSOFT_PACKER_NAME_MAX + 1] = "";
+  uint32_t locked_s = 0;
+  WsoftPackerPinResult r = packers_verify_manager_pin(pin, millis(), &locked_s, actor_code, sizeof actor_code,
+                                                      actor_name, sizeof actor_name);
+  if (r == WSOFT_PACKER_PIN_OK) {
+    open_floor_as(actor_code);
+  } else if (r == WSOFT_PACKER_PIN_LOCKED) {
+    snprintf(line, sizeof line, "WAIT %luS", (unsigned long)locked_s);
+    say(line);
+  } else if (r == WSOFT_PACKER_PIN_WRONG) {
+    say("WRONG PIN");
+  } else {
+    say("NO MGR SET");
+  }
+}
+
+static void finish_auth_job(HubPackerAuthState st, const WsoftPackerAuthReply &reply) {
+  if (auth_job_mode == PIN_PACKER) {
+    if (st == HUB_PACKER_AUTH_DONE) {
+      finish_packer_online(reply);
+    } else {
+      finish_packer_offline(auth_job_code, auth_job_pin);
+    }
+  } else if (auth_job_mode == PIN_FLOOR_MGR) {
+    if (st == HUB_PACKER_AUTH_DONE) {
+      finish_floor_online(reply);
+    } else {
+      finish_floor_offline(auth_job_pin);
+    }
+  }
+  auth_job_id = 0;
+  auth_job_code[0] = 0;
+  memset(auth_job_pin, 0, sizeof auth_job_pin);
+}
+
 static void pin_ok() {
   char line[40];
-  if (pin_mode == PIN_PACKER) {
+  if (pin_mode == PIN_PACKER || pin_mode == PIN_FLOOR_MGR) {
+    if (auth_job_id != 0) return;
     if (!wsoft_packer_pin_format_ok(pad.entry())) {
       say("3-4 DIGITS");
       return;
@@ -1036,91 +1133,35 @@ static void pin_ok() {
       say(line);
       return;
     }
-    WsoftPackerAuthReply reply;
-    if (hub_packer_auth(pin_packer_code, pad.entry(), "sign_in", &reply)) {
-      pad.clear();
-      if (reply.ok) {
-        packers_apply_auth(reply);
-        open_page(WSOFT_UI_PAGE_LIVE);
-      } else if (strstr(reply.reason, "LOCK") != nullptr) {
-        say("LOCKED");
-      } else {
-        say("WRONG PIN");
-      }
-      return;
-    }
-    uint32_t locked_s = 0;
-    WsoftPackerPinResult r = packers_sign_in_offline(pin_packer_code, pad.entry(), millis(), &locked_s);
-    pad.clear();
-    if (r == WSOFT_PACKER_PIN_OK) {
-      open_page(WSOFT_UI_PAGE_LIVE);
-    } else if (r == WSOFT_PACKER_PIN_LOCKED) {
-      snprintf(line, sizeof line, "WAIT %luS", (unsigned long)locked_s);
-      say(line);
-    } else if (r == WSOFT_PACKER_PIN_WRONG) {
-      say("WRONG PIN");
+    char target_code[WSOFT_PACKER_CODE_MAX + 1] = "";
+    bool try_online = false;
+    if (pin_mode == PIN_PACKER) {
+      strlcpy(target_code, pin_packer_code, sizeof target_code);
+      try_online = target_code[0] != 0;
     } else {
-      say("SYNC HUB FIRST");
+      try_online = packers_single_manager_code(target_code, sizeof target_code);
     }
-    return;
-  }
-  if (pin_mode == PIN_FLOOR_MGR) {
-    if (!wsoft_packer_pin_format_ok(pad.entry())) {
-      say("3-4 DIGITS");
-      return;
-    }
-    uint32_t lock_s = packers_guard_locked_s(millis());
-    if (lock_s > 0) {
-      pad.clear();
-      snprintf(line, sizeof line, "WAIT %luS", (unsigned long)lock_s);
-      say(line);
-      return;
-    }
-    char actor_code[WSOFT_PACKER_CODE_MAX + 1] = "";
-    char actor_name[WSOFT_PACKER_NAME_MAX + 1] = "";
-    bool auth_ok = false;
-    bool handled_online = false;
-    if (packers_single_manager_code(actor_code, sizeof actor_code)) {
-      WsoftPackerAuthReply reply;
-      if (hub_packer_auth(actor_code, pad.entry(), "sign_in", &reply)) {
-        handled_online = true;
+    if (try_online) {
+      uint32_t jid = hub_packer_auth_start(target_code, pad.entry(), "sign_in", false);
+      if (jid != 0) {
+        auth_job_id = jid;
+        auth_job_mode = pin_mode;
+        strlcpy(auth_job_code, target_code, sizeof auth_job_code);
+        strlcpy(auth_job_pin, pad.entry(), sizeof auth_job_pin);
         pad.clear();
-        if (reply.ok && reply.floor_manager) {
-          packers_apply_auth(reply);
-          strlcpy(actor_code, reply.code, sizeof actor_code);
-          auth_ok = true;
-        } else if (!reply.ok && strstr(reply.reason, "LOCK") != nullptr) {
-          say("LOCKED");
-        } else {
-          say("WRONG PIN");
-        }
+        say("CHECKING...");
+        return;
       }
     }
-    if (!handled_online) {
-      uint32_t locked_s = 0;
-      WsoftPackerPinResult r = packers_verify_manager_pin(pad.entry(), millis(), &locked_s, actor_code,
-                                                          sizeof actor_code, actor_name, sizeof actor_name);
-      pad.clear();
-      if (r == WSOFT_PACKER_PIN_OK) {
-        auth_ok = true;
-      } else if (r == WSOFT_PACKER_PIN_LOCKED) {
-        snprintf(line, sizeof line, "WAIT %luS", (unsigned long)locked_s);
-        say(line);
-      } else if (r == WSOFT_PACKER_PIN_WRONG) {
-        say("WRONG PIN");
-      } else {
-        say("NO MGR SET");
-      }
+    char pin_copy[WSOFT_PACKER_PIN_MAX + 1] = "";
+    strlcpy(pin_copy, pad.entry(), sizeof pin_copy);
+    pad.clear();
+    if (pin_mode == PIN_PACKER) {
+      finish_packer_offline(target_code, pin_copy);
+    } else {
+      finish_floor_offline(pin_copy);
     }
-    if (auth_ok) {
-      strlcpy(floor_actor_code, actor_code, sizeof floor_actor_code);
-      floor_index = 0;
-      handin_lost = 0;
-      handin_returned = 0;
-      handin_reason_idx = 0;
-      message[0] = 0;
-      open_page(WSOFT_UI_PAGE_FLOOR);
-    }
+    memset(pin_copy, 0, sizeof pin_copy);
     return;
   }
 
@@ -1334,10 +1375,7 @@ static void packer_tap(int x, int y) {
     packers_active_code(code, sizeof code);
     if (code[0] != 0) {
       packers_sign_out(code);
-      WsoftPackerAuthReply reply;
-      if (hub_packer_auth(code, nullptr, "sign_out", &reply) && reply.ok) {
-        packers_apply_auth(reply);
-      }
+      hub_packer_auth_start(code, nullptr, "sign_out", true);
       say("SIGNED OUT");
     }
     return;
@@ -1589,6 +1627,15 @@ bool ui_remote_tap(int x, int y) {
 }
 
 void ui_loop() {
+  if (auth_job_id != 0) {
+    last_tap_ms = millis();
+    static WsoftPackerAuthReply auth_reply;
+    HubPackerAuthState st = hub_packer_auth_poll(auth_job_id, &auth_reply);
+    if (st != HUB_PACKER_AUTH_PENDING) {
+      finish_auth_job(st, auth_reply);
+      refresh();
+    }
+  }
   // A tap from the browser copy: the same tap() the panel's touch calls.
   if (web_tap_waiting) {
     portENTER_CRITICAL(&web_mux);

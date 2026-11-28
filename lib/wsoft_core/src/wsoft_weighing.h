@@ -162,6 +162,18 @@ struct WsoftSaveNotice {
   const char *detail = "";
   WsoftNoticeLevel level = WSOFT_NOTICE_INFO;
   char title_buf[24] = "";  // backing buffer when title is formatted with a dynamic pack unit
+
+  WsoftSaveNotice() = default;
+  WsoftSaveNotice(const WsoftSaveNotice &other) { *this = other; }
+  WsoftSaveNotice &operator=(const WsoftSaveNotice &other) {
+    if (this == &other) return *this;
+    code = other.code;
+    detail = other.detail;
+    level = other.level;
+    for (size_t i = 0; i < sizeof title_buf; i++) title_buf[i] = other.title_buf[i];
+    title = (other.title == other.title_buf) ? title_buf : other.title;
+    return *this;
+  }
 };
 // False (and *out untouched) for NONE, SAVED and EMPTY: nothing to show.
 bool wsoft_save_notice(WsoftSaveResult result, WsoftSaveNotice *out);

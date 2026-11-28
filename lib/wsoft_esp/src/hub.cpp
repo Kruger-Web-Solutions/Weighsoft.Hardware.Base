@@ -66,6 +66,7 @@ static const time_t CLOCK_VALID_AFTER = 1700000000;
 static Preferences prefs;
 static String wifi_ssid, wifi_pass, hub_url, key_id, ota_pass;
 static uint8_t signing_key[32];
+static SemaphoreHandle_t config_mutex = nullptr;
 #ifdef WSOFT_ON_BASE
 // Backup Hub addresses (Rhyno, 14 Nov 2026; first built 31 Oct on the Waveshare branch). The
 // pairing code of a Hub with 2+ addresses lists them all (e.g. Wi-Fi and cable); the LAN ones are
@@ -76,7 +77,7 @@ static char hub_urls[WSOFT_HUB_URLS_MAX][WSOFT_HUB_URL_MAX];
 static WsoftHubFailover failover;          // hub task only
 static volatile uint8_t active_url = 0;    // copy of failover.active for the web task
 #endif
-static bool configured = false;
+static volatile bool configured = false;
 static volatile HubState state = HUB_SETUP;
 static volatile bool ota_busy = false;
 // The clock was set from the Hub's Date header (no internet time on this network).
@@ -119,6 +120,35 @@ static String json_string(const String &json, const char *key) {
   return end < 0 ? "" : json.substring(start, end);
 }
 
+struct HubConfigSnapshot {
+  bool configured = false;
+  char base_url[WSOFT_HUB_URL_MAX] = "";
+  char key_id[64] = "";
+  uint8_t signing_key[32] = {};
+};
+
+static void lock_config() {
+  if (config_mutex != nullptr) xSemaphoreTake(config_mutex, portMAX_DELAY);
+}
+
+static void unlock_config() {
+  if (config_mutex != nullptr) xSemaphoreGive(config_mutex);
+}
+
+static void snap_config(HubConfigSnapshot *out) {
+  memset(out, 0, sizeof *out);
+  lock_config();
+  out->configured = configured;
+#ifdef WSOFT_ON_BASE
+  strlcpy(out->base_url, hub_urls[failover.active], sizeof out->base_url);
+#else
+  strlcpy(out->base_url, hub_url.c_str(), sizeof out->base_url);
+#endif
+  strlcpy(out->key_id, key_id.c_str(), sizeof out->key_id);
+  memcpy(out->signing_key, signing_key, sizeof out->signing_key);
+  unlock_config();
+}
+
 static bool load_pairing(const String &code) {
   static uint8_t decoded[512];
   size_t length = 0;
@@ -136,14 +166,19 @@ static bool load_pairing(const String &code) {
   }
   while (url.endsWith("/")) url.remove(url.length() - 1);
 
+  uint8_t next_key[32];
   // The HMAC key is sha256(pairing secret); the Hub stores only that digest.
-  mbedtls_sha256(secret, secret_length, signing_key, 0);
+  mbedtls_sha256(secret, secret_length, next_key, 0);
   memset(secret, 0, sizeof secret);
+
+  lock_config();
+  memcpy(signing_key, next_key, sizeof signing_key);
+  memset(next_key, 0, sizeof next_key);
   hub_url = url;
   key_id = id;
 #ifdef WSOFT_ON_BASE
   // The address list, read by the same host-tested parser the web page uses. Static: the parse
-  // result is over 1 KB. Called once from hub_begin(), before the hub task exists.
+  // result is over 1 KB.
   static WsoftHubCode parsed;
   if (wsoft_hub_code_parse(code.c_str(), &parsed) == WSOFT_HUB_CODE_OK) {
     memcpy(hub_urls, parsed.hub_urls, sizeof hub_urls);
@@ -155,26 +190,28 @@ static bool load_pairing(const String &code) {
   memset(parsed.secret, 0, sizeof parsed.secret);
   active_url = failover.active;
 #endif
+  unlock_config();
   return true;
-}
-
-// The Hub address in use now.
-static String hub_base() {
-#ifdef WSOFT_ON_BASE
-  return String(hub_urls[failover.active]);
-#else
-  return hub_url;
-#endif
 }
 
 // Every request to the Hub reports here. No answer at all (status <= 0) moves to the next
 // backup address; any HTTP answer, even an error, means this address works.
 static void record_hub_answer(int status) {
 #ifdef WSOFT_ON_BASE
+  char from_url[WSOFT_HUB_URL_MAX] = "";
+  char to_url[WSOFT_HUB_URL_MAX] = "";
+  bool switched = false;
+  lock_config();
   uint8_t before = failover.active;
   if (wsoft_hub_failover_result(&failover, status)) {
     active_url = failover.active;
-    WSOFT_LOG.printf("HUB no answer from %s, trying backup address %s\n", hub_urls[before], hub_urls[failover.active]);
+    strlcpy(from_url, hub_urls[before], sizeof from_url);
+    strlcpy(to_url, hub_urls[failover.active], sizeof to_url);
+    switched = true;
+  }
+  unlock_config();
+  if (switched) {
+    WSOFT_LOG.printf("HUB no answer from %s, trying backup address %s\n", from_url, to_url);
   }
 #else
   (void)status;
@@ -292,10 +329,7 @@ void hub_handle_serial(Stream &port) {
       String code = command.substring(11);
       code.trim();
       packers_sign_out(code.c_str());
-      WsoftPackerAuthReply reply;
-      if (hub_packer_auth(code.c_str(), nullptr, "sign_out", &reply) && reply.ok) {
-        packers_apply_auth(reply);
-      }
+      hub_packer_auth_start(code.c_str(), nullptr, "sign_out", true);
       port.printf("PACKER_OUT ok=1 code=%s\n", code.c_str());
 #endif
     } else if (command == "HUB CLEAR") {
@@ -323,13 +357,13 @@ static String hex(const uint8_t *data, size_t length) {
   return out;
 }
 
-static String sign(const String &timestamp, const String &nonce, const String &body) {
+static String sign_with(const HubConfigSnapshot &cfg, const String &timestamp, const String &nonce, const String &body) {
   uint8_t mac[32];
   mbedtls_md_context_t ctx;
   mbedtls_md_init(&ctx);
   mbedtls_md_setup(&ctx, mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), 1);
-  mbedtls_md_hmac_starts(&ctx, signing_key, sizeof signing_key);
-  String head = String(SIGNING_PREFIX) + "\n" + key_id + "\n" + timestamp + "\n" + nonce + "\n";
+  mbedtls_md_hmac_starts(&ctx, cfg.signing_key, sizeof cfg.signing_key);
+  String head = String(SIGNING_PREFIX) + "\n" + cfg.key_id + "\n" + timestamp + "\n" + nonce + "\n";
   mbedtls_md_hmac_update(&ctx, (const uint8_t *)head.c_str(), head.length());
   mbedtls_md_hmac_update(&ctx, (const uint8_t *)body.c_str(), body.length());
   mbedtls_md_hmac_finish(&ctx, mac);
@@ -387,6 +421,8 @@ static String heartbeat_body(time_t now, uint32_t *trades_through) {
 static const int WEIGHINGS_PER_HEARTBEAT = 8;
 
 static int post_signed(const char *path, const String &body, String *reply) {
+  HubConfigSnapshot cfg;
+  snap_config(&cfg);
   time_t now = time(nullptr);
   uint8_t nonce_bytes[16];
   esp_fill_random(nonce_bytes, sizeof nonce_bytes);
@@ -394,15 +430,17 @@ static int post_signed(const char *path, const String &body, String *reply) {
   String timestamp = String((unsigned long)now);
   HTTPClient http;
   http.setTimeout(8000);
-  if (!http.begin(hub_base() + path)) {
+  if (!http.begin(String(cfg.base_url) + path)) {
+    memset(cfg.signing_key, 0, sizeof cfg.signing_key);
     record_hub_answer(0);
     return -1;
   }
   http.addHeader("Content-Type", "application/json");
-  http.addHeader("X-ScaleModels-Key-Id", key_id);
+  http.addHeader("X-ScaleModels-Key-Id", cfg.key_id);
   http.addHeader("X-ScaleModels-Timestamp", timestamp);
   http.addHeader("X-ScaleModels-Nonce", nonce);
-  http.addHeader("X-ScaleModels-Signature", sign(timestamp, nonce, body));
+  http.addHeader("X-ScaleModels-Signature", sign_with(cfg, timestamp, nonce, body));
+  memset(cfg.signing_key, 0, sizeof cfg.signing_key);
   int status = http.POST(body);
   if (reply) *reply = status > 0 ? http.getString() : http.errorToString(status);
   http.end();
@@ -500,6 +538,8 @@ static void keep_result(uint64_t id, WsoftSwitchError error) {
 // with this request's key id and nonce (contract B2 / C1). False for anything else; what is
 // logged names the pull (what).
 static bool pull_signed(const char *path, const char *request, const char *prefix, const char *what, String *reply) {
+  HubConfigSnapshot cfg;
+  snap_config(&cfg);
   String body = request;
   time_t now = time(nullptr);
   uint8_t nonce_bytes[16];
@@ -509,7 +549,8 @@ static bool pull_signed(const char *path, const char *request, const char *prefi
 
   HTTPClient http;
   http.setTimeout(8000);
-  if (!http.begin(hub_base() + path)) {
+  if (!http.begin(String(cfg.base_url) + path)) {
+    memset(cfg.signing_key, 0, sizeof cfg.signing_key);
     record_hub_answer(0);
     return false;
   }
@@ -517,10 +558,10 @@ static bool pull_signed(const char *path, const char *request, const char *prefi
                                   "X-ScaleModels-Signature"};
   http.collectHeaders(answer_headers, 4);
   http.addHeader("Content-Type", "application/json");
-  http.addHeader("X-ScaleModels-Key-Id", key_id);
+  http.addHeader("X-ScaleModels-Key-Id", cfg.key_id);
   http.addHeader("X-ScaleModels-Timestamp", timestamp);
   http.addHeader("X-ScaleModels-Nonce", nonce);
-  http.addHeader("X-ScaleModels-Signature", sign(timestamp, nonce, body));
+  http.addHeader("X-ScaleModels-Signature", sign_with(cfg, timestamp, nonce, body));
   int status = http.POST(body);
   record_hub_answer(status);
   *reply = status > 0 ? http.getString() : "";
@@ -531,12 +572,15 @@ static bool pull_signed(const char *path, const char *request, const char *prefi
   http.end();
 
   if (status != 200) {
+    memset(cfg.signing_key, 0, sizeof cfg.signing_key);
     WSOFT_LOG.printf("HUB %s status=%d\n", what, status);
     return false;
   }
-  if (!wsoft_hub_verify_answer(signing_key, prefix, key_id.c_str(), nonce.c_str(), answer_key.c_str(),
-                               answer_time.c_str(), answer_nonce.c_str(), answer_signature.c_str(), reply->c_str(),
-                               reply->length())) {
+  bool sig_ok = wsoft_hub_verify_answer(cfg.signing_key, prefix, cfg.key_id, nonce.c_str(), answer_key.c_str(),
+                                        answer_time.c_str(), answer_nonce.c_str(), answer_signature.c_str(),
+                                        reply->c_str(), reply->length());
+  memset(cfg.signing_key, 0, sizeof cfg.signing_key);
+  if (!sig_ok) {
     WSOFT_LOG.printf("HUB %s bad signature\n", what);
     return false;
   }
@@ -649,23 +693,106 @@ static void push_bag_events() {
 
 static TaskHandle_t hub_task_handle = nullptr;
 
-bool hub_packer_auth(const char *code, const char *pin, const char *action, WsoftPackerAuthReply *out) {
-  if (out == nullptr || action == nullptr) return false;
-  *out = WsoftPackerAuthReply();
+struct PackerAuthJob {
+  uint32_t job_id = 0;
+  HubPackerAuthState state = HUB_PACKER_AUTH_IDLE;
+  bool fire_and_forget = false;
+  char code[WSOFT_PACKER_CODE_MAX + 1] = "";
+  char pin[WSOFT_PACKER_PIN_MAX + 1] = "";
+  char action[16] = "";
+  WsoftPackerAuthReply reply;
+};
+
+static portMUX_TYPE auth_lock = portMUX_INITIALIZER_UNLOCKED;
+static PackerAuthJob auth_job;
+static uint32_t next_auth_job_id = 0;
+
+static bool build_packer_auth_body(const char *code, const char *pin, const char *action, char *req, size_t size) {
+  if (strcmp(action, "sign_in") == 0) return wsoft_packer_auth_sign_in_request(code, pin, req, size);
+  if (strcmp(action, "sign_out") == 0) return wsoft_packer_auth_sign_out_request(code, req, size);
+  return false;
+}
+
+uint32_t hub_packer_auth_start(const char *code, const char *pin, const char *action, bool fire_and_forget) {
+  if (code == nullptr || action == nullptr) return 0;
   char req[WSOFT_PACKER_AUTH_REQUEST_MAX];
-  if (strcmp(action, "sign_in") == 0) {
-    if (!wsoft_packer_auth_sign_in_request(code, pin, req, sizeof req)) return false;
-  } else if (strcmp(action, "sign_out") == 0) {
-    if (!wsoft_packer_auth_sign_out_request(code, req, sizeof req)) return false;
-  } else {
+  bool valid = build_packer_auth_body(code, pin, action, req, sizeof req);
+  memset(req, 0, sizeof req);
+  if (!valid) return 0;
+
+  if (!configured || ota_busy || WiFi.status() != WL_CONNECTED || state != HUB_ONLINE ||
+      time(nullptr) < CLOCK_VALID_AFTER || hub_task_handle == nullptr) {
+    return 0;
+  }
+
+  uint32_t job_id = 0;
+  portENTER_CRITICAL(&auth_lock);
+  if (auth_job.state != HUB_PACKER_AUTH_PENDING) {
+    job_id = ++next_auth_job_id;
+    if (job_id == 0) job_id = ++next_auth_job_id;
+    auth_job.job_id = job_id;
+    auth_job.state = HUB_PACKER_AUTH_PENDING;
+    auth_job.fire_and_forget = fire_and_forget;
+    strlcpy(auth_job.code, code, sizeof auth_job.code);
+    strlcpy(auth_job.pin, pin != nullptr ? pin : "", sizeof auth_job.pin);
+    strlcpy(auth_job.action, action, sizeof auth_job.action);
+    memset(&auth_job.reply, 0, sizeof auth_job.reply);
+  }
+  portEXIT_CRITICAL(&auth_lock);
+
+  if (job_id != 0) xTaskNotifyGive(hub_task_handle);
+  return job_id;
+}
+
+HubPackerAuthState hub_packer_auth_poll(uint32_t job_id, WsoftPackerAuthReply *out) {
+  if (job_id == 0) return HUB_PACKER_AUTH_IDLE;
+  HubPackerAuthState st = HUB_PACKER_AUTH_IDLE;
+  portENTER_CRITICAL(&auth_lock);
+  if (auth_job.job_id == job_id) {
+    st = auth_job.state;
+    if (st == HUB_PACKER_AUTH_DONE) {
+      if (out != nullptr) *out = auth_job.reply;
+      auth_job.state = HUB_PACKER_AUTH_IDLE;
+      auth_job.job_id = 0;
+      memset(&auth_job.reply, 0, sizeof auth_job.reply);
+    } else if (st == HUB_PACKER_AUTH_OFFLINE) {
+      auth_job.state = HUB_PACKER_AUTH_IDLE;
+      auth_job.job_id = 0;
+    }
+  }
+  portEXIT_CRITICAL(&auth_lock);
+  return st;
+}
+
+void hub_packer_auth_cancel(uint32_t job_id) {
+  if (job_id == 0) return;
+  portENTER_CRITICAL(&auth_lock);
+  if (auth_job.job_id == job_id) {
+    auth_job.state = HUB_PACKER_AUTH_IDLE;
+    auth_job.job_id = 0;
+    memset(auth_job.pin, 0, sizeof auth_job.pin);
+    memset(&auth_job.reply, 0, sizeof auth_job.reply);
+  }
+  portEXIT_CRITICAL(&auth_lock);
+}
+
+static bool run_packer_auth_http(const char *code, const char *pin, const char *action, WsoftPackerAuthReply *out) {
+  memset(out, 0, sizeof *out);
+  char req[WSOFT_PACKER_AUTH_REQUEST_MAX];
+  if (!build_packer_auth_body(code, pin, action, req, sizeof req)) {
+    memset(req, 0, sizeof req);
     return false;
   }
-  if (!configured || ota_busy || WiFi.status() != WL_CONNECTED || state != HUB_ONLINE ||
-      time(nullptr) < CLOCK_VALID_AFTER) {
+  String body = req;
+  memset(req, 0, sizeof req);
+
+  HubConfigSnapshot cfg;
+  snap_config(&cfg);
+  if (!cfg.configured || cfg.base_url[0] == 0) {
+    memset(cfg.signing_key, 0, sizeof cfg.signing_key);
     return false;
   }
 
-  String body = req;
   time_t now = time(nullptr);
   uint8_t nonce_bytes[16];
   esp_fill_random(nonce_bytes, sizeof nonce_bytes);
@@ -674,16 +801,21 @@ bool hub_packer_auth(const char *code, const char *pin, const char *action, Wsof
 
   HTTPClient http;
   http.setTimeout(2500);
-  if (!http.begin(String(hub_urls[active_url]) + "/api/v1/ingest/packer-auth")) return false;
+  if (!http.begin(String(cfg.base_url) + "/api/v1/ingest/packer-auth")) {
+    memset(cfg.signing_key, 0, sizeof cfg.signing_key);
+    record_hub_answer(0);
+    return false;
+  }
   const char *answer_headers[] = {"X-ScaleModels-Key-Id", "X-ScaleModels-Timestamp", "X-ScaleModels-Nonce",
                                   "X-ScaleModels-Signature"};
   http.collectHeaders(answer_headers, 4);
   http.addHeader("Content-Type", "application/json");
-  http.addHeader("X-ScaleModels-Key-Id", key_id);
+  http.addHeader("X-ScaleModels-Key-Id", cfg.key_id);
   http.addHeader("X-ScaleModels-Timestamp", timestamp);
   http.addHeader("X-ScaleModels-Nonce", nonce);
-  http.addHeader("X-ScaleModels-Signature", sign(timestamp, nonce, body));
+  http.addHeader("X-ScaleModels-Signature", sign_with(cfg, timestamp, nonce, body));
   int status = http.POST(body);
+  record_hub_answer(status);
   String reply = status > 0 ? http.getString() : "";
   String answer_key = http.header("X-ScaleModels-Key-Id");
   String answer_time = http.header("X-ScaleModels-Timestamp");
@@ -692,12 +824,15 @@ bool hub_packer_auth(const char *code, const char *pin, const char *action, Wsof
   http.end();
 
   if (status != 200) {
+    memset(cfg.signing_key, 0, sizeof cfg.signing_key);
     WSOFT_LOG.printf("HUB packer-auth status=%d\n", status);
     return false;
   }
-  if (!wsoft_hub_packer_auth_verify(signing_key, key_id.c_str(), nonce.c_str(), answer_key.c_str(),
-                                    answer_time.c_str(), answer_nonce.c_str(), answer_signature.c_str(),
-                                    reply.c_str(), reply.length())) {
+  bool sig_ok = wsoft_hub_packer_auth_verify(cfg.signing_key, cfg.key_id, nonce.c_str(), answer_key.c_str(),
+                                             answer_time.c_str(), answer_nonce.c_str(), answer_signature.c_str(),
+                                             reply.c_str(), reply.length());
+  memset(cfg.signing_key, 0, sizeof cfg.signing_key);
+  if (!sig_ok) {
     WSOFT_LOG.println("HUB packer-auth bad signature");
     return false;
   }
@@ -706,6 +841,65 @@ bool hub_packer_auth(const char *code, const char *pin, const char *action, Wsof
     return false;
   }
   return true;
+}
+
+static void process_packer_auth() {
+  uint32_t job_id = 0;
+  bool fire_and_forget = false;
+  char code[WSOFT_PACKER_CODE_MAX + 1] = "";
+  char pin[WSOFT_PACKER_PIN_MAX + 1] = "";
+  char action[16] = "";
+
+  portENTER_CRITICAL(&auth_lock);
+  if (auth_job.state == HUB_PACKER_AUTH_PENDING) {
+    job_id = auth_job.job_id;
+    fire_and_forget = auth_job.fire_and_forget;
+    strlcpy(code, auth_job.code, sizeof code);
+    strlcpy(pin, auth_job.pin, sizeof pin);
+    strlcpy(action, auth_job.action, sizeof action);
+    memset(auth_job.pin, 0, sizeof auth_job.pin);
+  }
+  portEXIT_CRITICAL(&auth_lock);
+
+  if (job_id == 0) return;
+
+  WsoftPackerAuthReply reply;
+  bool ok = run_packer_auth_http(code, pin, action, &reply);
+  memset(pin, 0, sizeof pin);
+
+  bool apply_fg = false;
+  portENTER_CRITICAL(&auth_lock);
+  if (auth_job.job_id == job_id && auth_job.state == HUB_PACKER_AUTH_PENDING) {
+    if (fire_and_forget) {
+      auth_job.state = HUB_PACKER_AUTH_IDLE;
+      auth_job.job_id = 0;
+      apply_fg = ok && reply.ok;
+    } else if (ok) {
+      auth_job.reply = reply;
+      auth_job.state = HUB_PACKER_AUTH_DONE;
+    } else {
+      auth_job.state = HUB_PACKER_AUTH_OFFLINE;
+    }
+  }
+  portEXIT_CRITICAL(&auth_lock);
+
+  if (apply_fg) packers_apply_auth(reply);
+}
+
+bool hub_packer_auth(const char *code, const char *pin, const char *action, WsoftPackerAuthReply *out) {
+  if (out == nullptr || action == nullptr) return false;
+  memset(out, 0, sizeof *out);
+  uint32_t job_id = hub_packer_auth_start(code, pin, action, false);
+  if (job_id == 0) return false;
+  uint32_t started = millis();
+  while (millis() - started < 3500) {
+    HubPackerAuthState st = hub_packer_auth_poll(job_id, out);
+    if (st == HUB_PACKER_AUTH_DONE) return true;
+    if (st != HUB_PACKER_AUTH_PENDING) return false;
+    vTaskDelay(pdMS_TO_TICKS(10));
+  }
+  hub_packer_auth_cancel(job_id);
+  return false;
 }
 
 void hub_trigger_bag_events_push() {
@@ -741,6 +935,8 @@ static void push_screen() {
 #endif
 
 static void send_heartbeat() {
+  HubConfigSnapshot cfg;
+  snap_config(&cfg);
   time_t now = time(nullptr);
   uint8_t nonce_bytes[16];
   esp_fill_random(nonce_bytes, sizeof nonce_bytes);
@@ -751,16 +947,18 @@ static void send_heartbeat() {
 
   HTTPClient http;
   http.setTimeout(8000);
-  if (!http.begin(hub_base() + "/api/v1/ingest/heartbeats")) {
+  if (!http.begin(String(cfg.base_url) + "/api/v1/ingest/heartbeats")) {
+    memset(cfg.signing_key, 0, sizeof cfg.signing_key);
     state = HUB_UNREACHABLE;
     record_hub_answer(0);
     return;
   }
   http.addHeader("Content-Type", "application/json");
-  http.addHeader("X-ScaleModels-Key-Id", key_id);
+  http.addHeader("X-ScaleModels-Key-Id", cfg.key_id);
   http.addHeader("X-ScaleModels-Timestamp", timestamp);
   http.addHeader("X-ScaleModels-Nonce", nonce);
-  http.addHeader("X-ScaleModels-Signature", sign(timestamp, nonce, body));
+  http.addHeader("X-ScaleModels-Signature", sign_with(cfg, timestamp, nonce, body));
+  memset(cfg.signing_key, 0, sizeof cfg.signing_key);
   int status = http.POST(body);
   String reply = status > 0 ? http.getString() : http.errorToString(status);
   http.end();
@@ -792,9 +990,15 @@ static void send_heartbeat() {
 static const uint32_t CLOCK_RETRY_MS = 5000;
 
 static void set_clock_from_hub() {
+  HubConfigSnapshot cfg;
+  snap_config(&cfg);
   HTTPClient http;
   http.setTimeout(5000);
-  if (!http.begin(hub_base() + "/api/v1/health")) return;
+  if (!http.begin(String(cfg.base_url) + "/api/v1/health")) {
+    memset(cfg.signing_key, 0, sizeof cfg.signing_key);
+    return;
+  }
+  memset(cfg.signing_key, 0, sizeof cfg.signing_key);
   const char *wanted[] = {"Date"};
   http.collectHeaders(wanted, 1);
   int status = http.GET();
@@ -884,6 +1088,7 @@ static void hub_task(void *) {
       seen_switch_changes = switch_changes;
       next = millis();
     }
+    if (state == HUB_ONLINE && !ota_busy) process_packer_auth();
 #endif
     // A heartbeat uses the same network stack as a firmware upload. Leave it until the upload finishes.
     if ((int32_t)(millis() - next) >= 0 && !ota_busy) {
@@ -894,6 +1099,7 @@ static void hub_task(void *) {
 #ifdef WSOFT_ON_BASE
     // A weighing saved between heartbeats goes out within a few seconds, not at the next one.
     static uint32_t next_weighing_try = 0;
+    if (state == HUB_ONLINE && !ota_busy) process_packer_auth();
     if (state == HUB_ONLINE && !ota_busy && !pairing_changed && (int32_t)(millis() - next_command_pull) >= 0) {
       pull_commands();
       next_command_pull = millis() + COMMANDS_MS;
@@ -959,6 +1165,7 @@ bool hub_ota_busy() {
 // ---------- public ----------
 
 void hub_begin() {
+  config_mutex = xSemaphoreCreateMutex();
   load_config();
   if (!configured) {
     state = HUB_SETUP;
@@ -969,12 +1176,15 @@ void hub_begin() {
 #endif
     return;
   }
+  HubConfigSnapshot cfg;
+  snap_config(&cfg);
 #ifdef WSOFT_ON_BASE
-  WSOFT_LOG.printf("HUB configured for %s (%u address%s) key %s\n", hub_urls[0], (unsigned)failover.count,
-                   failover.count == 1 ? "" : "es", key_id.c_str());
+  WSOFT_LOG.printf("HUB configured for %s (%u address%s) key %s\n", cfg.base_url, (unsigned)failover.count,
+                   failover.count == 1 ? "" : "es", cfg.key_id);
 #else
-  WSOFT_LOG.printf("HUB configured for %s key %s\n", hub_url.c_str(), key_id.c_str());
+  WSOFT_LOG.printf("HUB configured for %s key %s\n", cfg.base_url, cfg.key_id);
 #endif
+  memset(cfg.signing_key, 0, sizeof cfg.signing_key);
   xTaskCreatePinnedToCore(hub_task, "hub", 8192, nullptr, 1, nullptr, 0);
 }
 
