@@ -20,8 +20,8 @@ static const uint32_t LOCAL_VERSION = 1;
 
 // Shared between tasks: read and written under the lock.
 static portMUX_TYPE lock = portMUX_INITIALIZER_UNLOCKED;
-// On the heap (static DRAM is full on the yellow board): made once by hilo_alloc() at the start
-// of setup, never freed. See packers.cpp for why not a global or function-local static.
+// On the heap (static DRAM is full on the yellow board): made once by hilo_alloc() from hilo_begin()
+// in setup, never freed. See packers.cpp for why not a global or function-local static.
 static WsoftHiloList *live_list_p = nullptr;
 #define list (*live_list_p)
 
@@ -66,7 +66,7 @@ static void save(bool with_list, bool with_local = false) {
 }
 
 void hilo_begin() {
-  hilo_alloc();  // normally done already at the start of wsoft_screen_setup()
+  hilo_alloc();  // setup, heap whole, before the Hub task starts (hub_begin comes after)
   flash_mutex = xSemaphoreCreateMutex();
   std::unique_ptr<WsoftHiloList> stored_p(new WsoftHiloList());  // boot-only, freed on return
   WsoftHiloList &stored = *stored_p;

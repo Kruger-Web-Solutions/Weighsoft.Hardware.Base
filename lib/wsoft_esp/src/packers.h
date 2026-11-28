@@ -14,7 +14,7 @@
 #include <wsoft_ui_paint.h>
 #include <wsoft_weighing.h>
 
-// Makes the roster and outbox on the heap; call first thing in setup (wsoft_screen_setup does).
+// Makes the roster and outbox on the heap (once). packers_begin() calls it; nothing reads them earlier.
 void packers_alloc();
 void packers_begin();
 

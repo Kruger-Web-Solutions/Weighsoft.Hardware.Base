@@ -34,7 +34,7 @@ static SemaphoreHandle_t mgr_mutex = nullptr;
 
 // The live roster and outbox live on the heap, not in static DRAM: the yellow board (ESP32, no
 // PSRAM) ran out of static DRAM once packers landed (28 Nov 2026). Made once by packers_alloc()
-// at the start of setup (NOT by a global constructor: the ESP32 heap is small that early, and NOT
+// from packers_begin() in setup (NOT by a global constructor: the ESP32 heap is small that early, and NOT
 // by a function-local static: its guard takes a lock, which hangs inside a spinlock). Never freed.
 static WsoftPackerRoster *live_roster_p = nullptr;
 static WsoftBagEventOutbox *live_outbox_p = nullptr;
@@ -118,7 +118,7 @@ static bool roster_equal(const WsoftPackerRoster &a, const WsoftPackerRoster &b)
 }
 
 void packers_begin() {
-  packers_alloc();  // normally done already at the start of wsoft_screen_setup()
+  packers_alloc();  // setup, heap whole, before the Hub task starts (hub_begin comes after)
   flash_mutex = xSemaphoreCreateMutex();
   mgr_mutex = xSemaphoreCreateMutex();
   // Boot-only copies on the heap, handed back when packers_begin() returns.
