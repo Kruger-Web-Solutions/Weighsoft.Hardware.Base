@@ -1,5 +1,6 @@
 #include "wsoft_log.h"
 #include "hub.h"
+#include "heap_once.h"
 #include "approval.h"
 #include "wsoft_ui.h"
 #ifdef WSOFT_ON_BASE
@@ -503,12 +504,12 @@ static const uint32_t COMMANDS_MS = 10000;
 static const uint32_t COMMAND_APPLY_TIMEOUT_MS = 3000;
 static WsoftCmdResult command_results[WSOFT_CMD_RESULTS_MAX];
 
-// Hub task scratch buffers on the heap, taken once at boot while the heap is whole: static DRAM
-// is full on the yellow board (ESP32, no PSRAM) since the packer work (28 Nov 2026).
-static WsoftHiloList &hub_hilo_buf = *new WsoftHiloList();
-static WsoftPackerRoster &hub_packers_buf = *new WsoftPackerRoster();
-static char *const hub_bag_request_buf = new char[WSOFT_BAG_EVENTS_REQUEST_MAX];
-static WsoftBagEventResult *const hub_bag_results_buf = new WsoftBagEventResult[WSOFT_BAG_OUTBOX_MAX];
+// Hub task scratch buffers on the heap, made at the top of hub_begin(): static DRAM is full on the
+// yellow board (ESP32, no PSRAM) since the packer work (28 Nov 2026). See heap_once.h.
+#define hub_hilo_buf (wsoft_heap_once<WsoftHiloList, 30>())
+#define hub_packers_buf (wsoft_heap_once<WsoftPackerRoster, 31>())
+#define hub_bag_request_buf (wsoft_heap_array_once<char, WSOFT_BAG_EVENTS_REQUEST_MAX, 32>())
+#define hub_bag_results_buf (wsoft_heap_array_once<WsoftBagEventResult, WSOFT_BAG_OUTBOX_MAX, 33>())
 static size_t command_result_count = 0;
 static uint64_t commands_applied = 0;
 
@@ -1260,6 +1261,7 @@ bool hub_ota_busy() {
 // ---------- public ----------
 
 void hub_begin() {
+  (void)hub_hilo_buf; (void)hub_packers_buf; (void)hub_bag_request_buf; (void)hub_bag_results_buf;  // heap now
   config_mutex = xSemaphoreCreateMutex();
   load_config();
   if (!configured) {

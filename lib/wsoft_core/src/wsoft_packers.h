@@ -28,7 +28,14 @@ static const uint32_t WSOFT_PACKER_PIN_TRIES = 5;
 static const uint32_t WSOFT_PACKER_PIN_LOCK_MS = 45000;
 
 // Roster, strip, and outbox bounds.
-static const size_t WSOFT_PACKERS_MAX = 32;
+// A board build may lower these two (the yellow board, no PSRAM, uses 16 and 8: platformio.ini).
+#ifndef WSOFT_PACKERS_MAX_CFG
+#define WSOFT_PACKERS_MAX_CFG 32
+#endif
+#ifndef WSOFT_BAG_OUTBOX_MAX_CFG
+#define WSOFT_BAG_OUTBOX_MAX_CFG 16
+#endif
+static const size_t WSOFT_PACKERS_MAX = WSOFT_PACKERS_MAX_CFG;
 static const size_t WSOFT_PACKER_STRIP_MAX = 8;
 static const size_t WSOFT_PACKER_ID_MAX = 64;
 static const size_t WSOFT_PACKER_CODE_MAX = 32;
@@ -39,7 +46,7 @@ static const size_t WSOFT_BAG_EVENT_ID_MAX = 64;
 static const size_t WSOFT_BAG_REASON_CODE_MAX = 32;
 static const size_t WSOFT_BAG_REASON_NOTE_MAX = 200;
 static const size_t WSOFT_BAG_TIME_MAX = 64;
-static const size_t WSOFT_BAG_OUTBOX_MAX = 16;
+static const size_t WSOFT_BAG_OUTBOX_MAX = WSOFT_BAG_OUTBOX_MAX_CFG;
 static const int32_t WSOFT_BAG_QTY_MAX = 100000;
 static const uint32_t WSOFT_PACKER_IDLE_DEFAULT_MS = 300000;
 

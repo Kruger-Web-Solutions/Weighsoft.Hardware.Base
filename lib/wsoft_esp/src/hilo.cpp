@@ -1,5 +1,8 @@
 #include "wsoft_log.h"
 #include "hilo.h"
+#include "heap_once.h"
+
+#include <memory>
 
 #include <wsoft_products.h>
 
@@ -17,10 +20,9 @@ static const uint32_t LOCAL_VERSION = 1;
 
 // Shared between tasks: read and written under the lock.
 static portMUX_TYPE lock = portMUX_INITIALIZER_UNLOCKED;
-// Heap, taken once at boot: static DRAM is full on the yellow board (no PSRAM).
-static WsoftHiloList &list = *new WsoftHiloList();
-static WsoftHiloList &save_list_buf = *new WsoftHiloList();  // save(), under flash_mutex
-static WsoftHiloList &load_list_buf = *new WsoftHiloList();  // hilo_begin
+// On the heap, made at the top of hilo_begin(): static DRAM is full on the yellow board (heap_once.h).
+#define list (wsoft_heap_once<WsoftHiloList, 20>())
+#define save_list_buf (wsoft_heap_once<WsoftHiloList, 21>())  // save(), under flash_mutex
 static WsoftLocalProducts local;
 static WsoftHiloPick pick;
 static uint32_t next_pull_ms = 0;
@@ -55,8 +57,10 @@ static void save(bool with_list, bool with_local = false) {
 }
 
 void hilo_begin() {
+  (void)list; (void)save_list_buf;  // make the heap buffers now (setup)
   flash_mutex = xSemaphoreCreateMutex();
-  WsoftHiloList &stored = load_list_buf;
+  std::unique_ptr<WsoftHiloList> stored_p(new WsoftHiloList());  // boot-only, freed on return
+  WsoftHiloList &stored = *stored_p;
   static WsoftLocalProducts stored_local;
   WsoftHiloPick stored_pick;
   Preferences store;
