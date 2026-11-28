@@ -642,7 +642,7 @@ static void pull_hilo() {
     hilo_failed();
     return;
   }
-  static WsoftHiloList list;  // static: too big for the Hub task's stack
+  static WsoftHiloList &list = *new WsoftHiloList();  // heap: too big for the Hub task's stack
   if (!wsoft_hilo_parse(reply.c_str(), reply.length(), &list)) {
     WSOFT_LOG.println("HUB hilo bad body");
     hilo_failed();
@@ -663,7 +663,8 @@ static void pull_packers() {
     packers_failed();
     return;
   }
-  static WsoftPackerRoster roster;  // static: too big for the Hub task's stack
+  // Heap, allocated once: too big for the Hub task's stack, and static DRAM is full on the yellow board.
+  static WsoftPackerRoster &roster = *new WsoftPackerRoster();
   if (!wsoft_packers_parse(reply.c_str(), reply.length(), &roster)) {
     WSOFT_LOG.println("HUB packers bad body");
     packers_failed();
@@ -673,15 +674,15 @@ static void pull_packers() {
 }
 
 static void push_bag_events() {
-  static char request[WSOFT_BAG_EVENTS_REQUEST_MAX];
+  static char *request = new char[WSOFT_BAG_EVENTS_REQUEST_MAX];  // heap: static DRAM is full on the yellow board
   size_t count = 0;
-  if (!packers_bag_events_request(request, sizeof request, &count) || count == 0) return;
+  if (!packers_bag_events_request(request, WSOFT_BAG_EVENTS_REQUEST_MAX, &count) || count == 0) return;
   String reply;
   if (!pull_signed("/api/v1/ingest/bag-events", request, WSOFT_HUB_BAG_EVENTS_PREFIX, "bag-events", &reply)) {
     packers_bag_events_failed();
     return;
   }
-  static WsoftBagEventResult results[WSOFT_BAG_OUTBOX_MAX];
+  static WsoftBagEventResult *results = new WsoftBagEventResult[WSOFT_BAG_OUTBOX_MAX];  // heap
   size_t result_count = 0;
   if (!wsoft_bag_events_parse(reply.c_str(), reply.length(), results, WSOFT_BAG_OUTBOX_MAX, &result_count)) {
     WSOFT_LOG.println("HUB bag-events bad body");
