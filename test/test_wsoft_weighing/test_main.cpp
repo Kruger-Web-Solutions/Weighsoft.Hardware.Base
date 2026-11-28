@@ -520,6 +520,19 @@ void test_json_marks_a_weighing_saved_through_an_alarm() {
   TEST_ASSERT_TRUE(strstr(out, "alarm_test_override") == nullptr);
 }
 
+void test_save_notice_copy_keeps_title_buf_bound() {
+  WsoftSaveNotice a;
+  TEST_ASSERT_TRUE(wsoft_save_notice_unit(WSOFT_SAVE_NO_BAGS, "pockets", &a));
+  WsoftSaveNotice b(a);
+  WsoftSaveNotice c;
+  c = a;
+  a.title_buf[0] = 'X';
+  TEST_ASSERT_TRUE(b.title == b.title_buf);
+  TEST_ASSERT_TRUE(c.title == c.title_buf);
+  TEST_ASSERT_EQUAL_STRING("NO POCKETS LEFT", b.title);
+  TEST_ASSERT_EQUAL_STRING("NO POCKETS LEFT", c.title);
+}
+
 int main(int, char **) {
   UNITY_BEGIN();
   RUN_TEST(test_kg_text_for_each_unit);
@@ -550,5 +563,6 @@ int main(int, char **) {
   RUN_TEST(test_alarm_test_gate_only_with_the_switch_on_and_approval_off);
   RUN_TEST(test_alarm_test_switch_lets_a_save_through_the_alarm);
   RUN_TEST(test_json_marks_a_weighing_saved_through_an_alarm);
+  RUN_TEST(test_save_notice_copy_keeps_title_buf_bound);
   return UNITY_END();
 }

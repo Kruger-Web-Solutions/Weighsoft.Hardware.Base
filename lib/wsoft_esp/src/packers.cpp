@@ -27,6 +27,7 @@ static const uint32_t STORED_VERSION = 1;
 
 static portMUX_TYPE lock = portMUX_INITIALIZER_UNLOCKED;
 static SemaphoreHandle_t flash_mutex = nullptr;
+static SemaphoreHandle_t mgr_mutex = nullptr;
 
 static WsoftPackerRoster roster;  // require_packer_bags defaults to false
 static WsoftPackerStrip strip;
@@ -90,6 +91,7 @@ static bool roster_equal(const WsoftPackerRoster &a, const WsoftPackerRoster &b)
 
 void packers_begin() {
   flash_mutex = xSemaphoreCreateMutex();
+  mgr_mutex = xSemaphoreCreateMutex();
   static WsoftPackerRoster stored_roster;
   static WsoftBagEventOutbox stored_outbox;
   // In place: a temporary roster (about 10 KB) overflowed the loop task's stack at boot.
@@ -194,18 +196,49 @@ WsoftPackerPinResult packers_sign_in_offline(const char *code, const char *pin, 
   WsoftPackerPinResult result = WSOFT_PACKER_PIN_NOT_SET;
   uint32_t prev_fails = 0, next_fails = 0, locked_s = 0;
 
+  bool found = false;
+  bool has_verifier = false;
+  bool locked_now = false;
+  uint8_t salt[WSOFT_PACKER_PIN_SALT_SIZE] = {};
+  uint8_t hash[32] = {};
+
   portENTER_CRITICAL(&lock);
   prev_fails = pin_guard.fails();
+  locked_now = pin_guard.locked_s(now_ms) > 0;
   const WsoftPackerEntry *entry = wsoft_packer_find(roster, code);
   if (entry != nullptr) {
-    result = wsoft_packer_pin_try(&pin_guard, entry->has_verifier, entry->pin_salt, entry->pin_sha256, pin, now_ms);
-    if (result == WSOFT_PACKER_PIN_OK) {
-      if (!entry->floor_manager) strip.sign_in(entry->code, now_ms);
-      if (out_entry) *out_entry = *entry;
+    found = true;
+    has_verifier = entry->has_verifier;
+    if (has_verifier && !locked_now) {
+      memcpy(salt, entry->pin_salt, sizeof salt);
+      memcpy(hash, entry->pin_sha256, sizeof hash);
+    }
+  }
+  portEXIT_CRITICAL(&lock);
+
+  bool pin_ok = (found && has_verifier && !locked_now) && wsoft_packer_pin_matches(salt, hash, pin);
+  memset(salt, 0, sizeof salt);
+  memset(hash, 0, sizeof hash);
+
+  portENTER_CRITICAL(&lock);
+  if (!found || !has_verifier) {
+    result = WSOFT_PACKER_PIN_NOT_SET;
+  } else if (pin_guard.locked_s(now_ms) > 0) {
+    result = WSOFT_PACKER_PIN_LOCKED;
+  } else if (pin_ok) {
+    pin_guard.right();
+    const WsoftPackerEntry *fresh = wsoft_packer_find(roster, code);
+    if (fresh != nullptr) {
+      if (!fresh->floor_manager) strip.sign_in(fresh->code, now_ms);
+      if (out_entry) *out_entry = *fresh;
       next_pull_ms = now_ms + AFTER_CHANGE_MS;
+      result = WSOFT_PACKER_PIN_OK;
+    } else {
+      result = WSOFT_PACKER_PIN_NOT_SET;
     }
   } else {
-    result = WSOFT_PACKER_PIN_NOT_SET;
+    pin_guard.wrong(now_ms);
+    result = pin_guard.locked_s(now_ms) > 0 ? WSOFT_PACKER_PIN_LOCKED : WSOFT_PACKER_PIN_WRONG;
   }
   next_fails = pin_guard.fails();
   locked_s = pin_guard.locked_s(now_ms);
@@ -225,40 +258,68 @@ WsoftPackerPinResult packers_verify_manager_pin(const char *pin, uint32_t now_ms
                                                 size_t actor_name_size) {
   if (actor_code && actor_code_size > 0) actor_code[0] = 0;
   if (actor_name && actor_name_size > 0) actor_name[0] = 0;
+
+  struct MgrCandidate {
+    char code[WSOFT_PACKER_CODE_MAX + 1];
+    char name[WSOFT_PACKER_NAME_MAX + 1];
+    uint8_t salt[WSOFT_PACKER_PIN_SALT_SIZE];
+    uint8_t hash[32];
+  };
+  static MgrCandidate candidates[WSOFT_PACKERS_MAX];
+  if (mgr_mutex == nullptr) return WSOFT_PACKER_PIN_NOT_SET;
+
   WsoftPackerPinResult result = WSOFT_PACKER_PIN_NOT_SET;
   uint32_t prev_fails = 0, next_fails = 0, locked_s = 0;
+  bool locked_now = false;
+  size_t count = 0;
 
+  xSemaphoreTake(mgr_mutex, portMAX_DELAY);
   portENTER_CRITICAL(&lock);
   prev_fails = pin_guard.fails();
-  if (pin_guard.locked_s(now_ms) > 0) {
-    result = WSOFT_PACKER_PIN_LOCKED;
-  } else {
-    bool any_mgr_verifier = false;
-    bool matched = false;
+  locked_now = pin_guard.locked_s(now_ms) > 0;
+  if (!locked_now) {
     for (size_t i = 0; i < roster.count && i < WSOFT_PACKERS_MAX; i++) {
       const WsoftPackerEntry &p = roster.packers[i];
       if (!p.floor_manager || !p.has_verifier) continue;
-      any_mgr_verifier = true;
-      if (wsoft_packer_pin_matches(p.pin_salt, p.pin_sha256, pin)) {
-        pin_guard.right();
-        if (actor_code && actor_code_size > 0) strlcpy(actor_code, p.code, actor_code_size);
-        if (actor_name && actor_name_size > 0) strlcpy(actor_name, p.name[0] ? p.name : p.code, actor_name_size);
-        matched = true;
+      MgrCandidate &c = candidates[count++];
+      strlcpy(c.code, p.code, sizeof c.code);
+      strlcpy(c.name, p.name[0] ? p.name : p.code, sizeof c.name);
+      memcpy(c.salt, p.pin_salt, sizeof c.salt);
+      memcpy(c.hash, p.pin_sha256, sizeof c.hash);
+    }
+  }
+  portEXIT_CRITICAL(&lock);
+
+  int matched_idx = -1;
+  if (!locked_now) {
+    for (size_t i = 0; i < count; i++) {
+      if (wsoft_packer_pin_matches(candidates[i].salt, candidates[i].hash, pin)) {
+        matched_idx = (int)i;
         break;
       }
     }
-    if (matched) {
-      result = WSOFT_PACKER_PIN_OK;
-    } else if (!any_mgr_verifier) {
-      result = WSOFT_PACKER_PIN_NOT_SET;
-    } else {
-      pin_guard.wrong(now_ms);
-      result = pin_guard.locked_s(now_ms) > 0 ? WSOFT_PACKER_PIN_LOCKED : WSOFT_PACKER_PIN_WRONG;
-    }
+  }
+
+  portENTER_CRITICAL(&lock);
+  if (pin_guard.locked_s(now_ms) > 0) {
+    result = WSOFT_PACKER_PIN_LOCKED;
+  } else if (matched_idx >= 0) {
+    pin_guard.right();
+    if (actor_code && actor_code_size > 0) strlcpy(actor_code, candidates[matched_idx].code, actor_code_size);
+    if (actor_name && actor_name_size > 0) strlcpy(actor_name, candidates[matched_idx].name, actor_name_size);
+    result = WSOFT_PACKER_PIN_OK;
+  } else if (count == 0) {
+    result = WSOFT_PACKER_PIN_NOT_SET;
+  } else {
+    pin_guard.wrong(now_ms);
+    result = pin_guard.locked_s(now_ms) > 0 ? WSOFT_PACKER_PIN_LOCKED : WSOFT_PACKER_PIN_WRONG;
   }
   next_fails = pin_guard.fails();
   locked_s = pin_guard.locked_s(now_ms);
   portEXIT_CRITICAL(&lock);
+
+  memset(candidates, 0, sizeof candidates[0] * count);
+  xSemaphoreGive(mgr_mutex);
 
   if (locked_s_out) *locked_s_out = locked_s;
   if (next_fails != prev_fails) save_state(false, false, true);
