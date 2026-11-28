@@ -962,6 +962,13 @@ static void process_packer_auth() {
   }
 }
 
+static bool has_pending_sign_out() {
+  portENTER_CRITICAL(&auth_lock);
+  bool pending = sign_out_count > 0;
+  portEXIT_CRITICAL(&auth_lock);
+  return pending;
+}
+
 bool hub_packer_auth(const char *code, const char *pin, const char *action, WsoftPackerAuthReply *out) {
   if (out == nullptr || action == nullptr) return false;
   memset(out, 0, sizeof *out);
@@ -1185,7 +1192,7 @@ static void hub_task(void *) {
       next_command_pull = millis() + COMMANDS_MS;
     }
     if (state == HUB_ONLINE && !ota_busy && !pairing_changed && hilo_pull_due()) pull_hilo();
-    if (state == HUB_ONLINE && !ota_busy && !pairing_changed && packers_pull_due()) pull_packers();
+    if (state == HUB_ONLINE && !ota_busy && !pairing_changed && !has_pending_sign_out() && packers_pull_due()) pull_packers();
     if (state == HUB_ONLINE && !ota_busy && !pairing_changed && packers_bag_events_due()) push_bag_events();
     // The screen for the Hub's Control room: at most every 3 s while it changes, else every 30 s.
     if (state == HUB_ONLINE && !ota_busy && !pairing_changed) push_screen();
